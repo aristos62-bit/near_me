@@ -1,0 +1,3 @@
+class SettingsProvider {
+  const SettingsProvider();
+}

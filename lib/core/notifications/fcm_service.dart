@@ -1,0 +1,164 @@
+import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:go_router/go_router.dart';
+import '../debug/debug_config.dart';
+import '../router/app_router.dart';
+
+@pragma('vm:entry-point')
+class FcmService {
+  static String? _pendingChatId;
+  static String? _pendingRequestId;
+
+  static final _foregroundCtrl = StreamController<RemoteMessage>.broadcast();
+  static Stream<RemoteMessage> get foregroundStream => _foregroundCtrl.stream;
+
+  static Future<void> init() async {
+    DebugConfig.log(DebugConfig.chatFcm, 'FcmService.init');
+
+    final messaging = FirebaseMessaging.instance;
+
+    final settings = await messaging.requestPermission(
+      alert: true, badge: true, sound: true,
+    );
+    DebugConfig.log(DebugConfig.chatFcm,
+      'Permission: ${settings.authorizationStatus}');
+
+    _resetBadge();
+
+    await _trySaveToken(messaging);
+
+    messaging.onTokenRefresh.listen((_) {
+      DebugConfig.log(DebugConfig.chatFcm, 'Token refresh');
+      _trySaveToken(messaging);
+    });
+
+    FirebaseMessaging.onMessage.listen(_onForegroundMessage);
+    FirebaseMessaging.onMessageOpenedApp.listen(_onMessageOpened);
+
+    final initial = await messaging.getInitialMessage();
+    if (initial != null) {
+      final data = initial.data;
+      if (data['type'] == 'request') {
+        _pendingRequestId = data['requestId'];
+        DebugConfig.log(DebugConfig.requestFcm, 'Pending request nav: ${data['requestId']}');
+      } else {
+        final cid = data['chatId'];
+        if (cid != null) {
+          _pendingChatId = cid as String;
+          DebugConfig.log(DebugConfig.chatFcm, 'Pending chat nav: $cid');
+        }
+      }
+    }
+
+    FirebaseMessaging.onBackgroundMessage(_onBackgroundHandler);
+  }
+
+  static void _resetBadge() {
+    try {
+      SystemChannels.platform.invokeMethod<void>(
+        'SystemChrome.setApplicationBadge', 0,
+      );
+    } catch (_) {}
+  }
+
+  static Future<void> _trySaveToken(FirebaseMessaging messaging) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final token = await messaging.getToken();
+    if (token == null) return;
+
+    DebugConfig.log(DebugConfig.chatFcm, 'Save token for ${user.uid}');
+
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        await FirebaseFirestore.instance
+            .doc('users/${user.uid}/fcm_tokens/$token')
+            .set({
+          'token': token,
+          'platform': _platform,
+          'createdAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        return;
+      } catch (e) {
+        DebugConfig.warn('FCM save token attempt $attempt failed', data: e);
+        if (attempt == 0) await Future.delayed(const Duration(seconds: 2));
+      }
+    }
+    DebugConfig.error('FCM save token failed after 2 attempts');
+  }
+
+  static String get _platform {
+    if (defaultTargetPlatform == TargetPlatform.android) return 'android';
+    if (defaultTargetPlatform == TargetPlatform.iOS) return 'ios';
+    return 'unknown';
+  }
+
+  static void _onForegroundMessage(RemoteMessage msg) {
+    final isRequest = msg.data['type'] == 'request';
+    DebugConfig.log(
+      isRequest ? DebugConfig.requestFcm : DebugConfig.chatFcm,
+      'Foreground: ${msg.notification?.title} | ${msg.data}',
+    );
+    _foregroundCtrl.add(msg);
+  }
+
+  static void _onMessageOpened(RemoteMessage msg) {
+    final data = msg.data;
+    if (data['type'] == 'request') {
+      AppRouter.router.push('/requests');
+    } else {
+      final cid = data['chatId'];
+      if (cid != null && cid is String) {
+        AppRouter.router.push('/chat/$cid');
+      }
+    }
+  }
+
+  @pragma('vm:entry-point')
+  static Future<void> _onBackgroundHandler(RemoteMessage msg) async {
+    final isRequest = msg.data['type'] == 'request';
+    DebugConfig.log(
+      isRequest ? DebugConfig.requestFcm : DebugConfig.chatFcm,
+      'Background: ${msg.messageId} | type=${msg.data['type']}',
+    );
+  }
+
+  static void checkPendingNavigation(BuildContext context) {
+    if (_pendingChatId != null) {
+      final cid = _pendingChatId!;
+      _pendingChatId = null;
+      DebugConfig.log(DebugConfig.chatFcm, 'Exec pending chat nav: $cid');
+      context.push('/chat/$cid');
+    }
+    if (_pendingRequestId != null) {
+      final rid = _pendingRequestId!;
+      _pendingRequestId = null;
+      DebugConfig.log(DebugConfig.requestFcm, 'Exec pending request nav: $rid');
+      context.push('/requests');
+    }
+  }
+
+  static Future<void> clearTokens() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('users/${user.uid}/fcm_tokens')
+          .get();
+      final batch = FirebaseFirestore.instance.batch();
+      for (final doc in snap.docs) { batch.delete(doc.reference); }
+      await batch.commit();
+      DebugConfig.log(DebugConfig.chatFcm,
+        'Cleared ${snap.docs.length} tokens');
+    } catch (e) {
+      DebugConfig.error('FCM clear tokens failed', exception: e);
+    }
+  }
+}

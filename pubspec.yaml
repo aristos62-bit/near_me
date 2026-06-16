@@ -1,0 +1,85 @@
+name: near_me
+description: "NearMe — Privacy-first local discovery app"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  cupertino_icons: ^1.0.9
+
+  # State Management
+  flutter_riverpod: ^3.3.1
+  riverpod: ^3.3.1
+  riverpod_annotation: ^4.0.2
+
+  # Local Database
+  drift: ^2.33.0
+  drift_flutter: ^0.3.0
+  sqlite3_flutter_libs: ^0.6.0+eol
+  path_provider: ^2.1.5
+
+  # Firebase
+  firebase_core: ^4.9.0
+  firebase_auth: ^6.5.1
+  cloud_firestore: ^6.4.1
+  firebase_storage: ^13.4.1
+  firebase_messaging: ^16.2.2
+  cloud_functions: ^6.3.1
+
+  # Geo
+  geolocator: ^14.0.2
+  geoflutterfire_plus: ^0.0.34
+
+  # Navigation
+  go_router: ^17.2.3
+
+  # Encryption & Security
+  encrypt: ^5.0.3
+  crypto: ^3.0.6
+  flutter_secure_storage: ^10.3.1
+  local_auth: ^3.0.1
+
+  # i18n
+  intl: ^0.20.2
+
+  # Images
+  cached_network_image: ^3.4.1
+  image_picker: ^1.2.2
+
+  # Utilities
+  freezed_annotation: ^3.1.0
+  json_annotation: ^4.12.0
+  uuid: ^4.5.3
+  connectivity_plus: ^7.1.1
+  geocoding: ^4.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  build_runner: ^2.15.0
+  drift_dev: ^2.33.0
+  riverpod_generator: ^4.0.3
+  freezed: ^3.2.5
+  json_serializable: ^6.14.0
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.3
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  windows:
+    generate: true
+  image_path: assets/icons/near_me.png
+  adaptive_icon_background: '#ffffff'
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/icons/

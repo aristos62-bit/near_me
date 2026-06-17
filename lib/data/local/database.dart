@@ -31,7 +31,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -46,6 +46,10 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(chatCacheTable, chatCacheTable.lastMessageType);
         await m.addColumn(chatCacheTable, chatCacheTable.unreadCount);
         DebugConfig.log(DebugConfig.databaseLocal, 'Migration v2->v3: added chat preview columns');
+      }
+      if (from < 4) {
+        await m.addColumn(privacySettingsTable, privacySettingsTable.showPhotos);
+        DebugConfig.log(DebugConfig.databaseLocal, 'Migration v3->v4: added showPhotos column');
       }
     },
   );

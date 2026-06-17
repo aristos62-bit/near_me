@@ -292,6 +292,15 @@ BlockedUser (sync'd)           → users/{uid}/fcm_tokens/{tokenId}
 - **errorBuilder added to GoRouter**: Themed error page (`Material` + `Scaffold` + `AppBar` with `automaticallyImplyLeading: false`), bilingual strings via `L10n.localizedMessage()`, "Go Home / Αρχική" `FilledButton` via `context.go('/')`, `DebugConfig.warn()` logging for unknown route URIs. Handles malformed deep links and invalid routes gracefully, fully integrated with app theme/UX.
 - **`flutter analyze`**: clean ✅
 
+### Session 77 — showPhotos privacy toggle
+- **Problem**: Photos (avatar + gallery) were always visible in public profile with no per-field toggle
+- **New column**: `showPhotos` (boolean, default `true`) added to `PrivacySettingsTable` via Drift schema v3→v4 migration
+- **publish()**: `avatarUrl` and `photoUrls` now respect `privacy.showPhotos` — set to `null` in Firestore when `false`
+- **Privacy Editor**: New FormToggle "Φωτογραφίες / Photos" in Profile Content section (bilingual, zero new deps)
+- **Edge cases**: null avatarUrl handled by existing fallbacks in ProfileCard, PublicProfileHeader, PublicProfileView; existing users get default `true` via migration; photos remain in local DB + Storage regardless of toggle
+- **Backups**: 4 `.bak` files created
+- **`flutter analyze`**: clean ✅
+
 ### Session 76 — PresenceService race condition fix + Future.wait
 - **`presence_service.dart`**: Added `_isShuttingDown` flag, `reset()` public method, `handleLifecycle(resumed)` now reads uid from `FirebaseAuth.instance.currentUser?.uid` (authoritative source) instead of stale `_currentUid`. Added `AppLifecycleState.detached` to offline-writing states. `_stop()` refactored to call `reset()`. Removed unused `_currentUid` field.
 - **`presence_service.dart`**: `_touch()` and `setOffline()` now use `Future.wait` for parallel writes to private and public docs, reducing both latency and the window for partial desync.
@@ -299,6 +308,25 @@ BlockedUser (sync'd)           → users/{uid}/fcm_tokens/{tokenId}
 - **Edge cases covered**: logout + lifecycle race (`_isShuttingDown` guard + `reset()`), remote logout while backgrounded (`FirebaseAuth.instance.currentUser` null → skip), `detached` state, multiple rapid resume events, `reset()` during `_touch()` (null guard), `_stop()` after `reset()` (no-op).
 - **`flutter analyze`**: clean ✅
 - **Backups**: `presence_service.dart.bak` ✅, `auth_repository_impl.dart.bak` ✅
+
+---
+
+### Session 78 — Profile Editor unsaved-changes dialog + biometric lock fix
+- **Problem 1**: Back press in Profile Editor silently discarded unsaved changes (Option A chosen via user preference — confirm dialog over auto-save or photo-undo)
+- **Problem 2**: Biometric lock triggered on `image_picker` resume (short <60s pause to pick a photo was treated as unlock event)
+- **Profile Editor** (`profile_editor_screen.dart`):
+  - Added `_loadedProfile` field (`UserProfileTableData?`) — captured after `loadProfile()` emits
+  - Added `_isDirty` getter — compares 17 form fields against loaded profile via `listEquals` from `dart:collection`
+  - Added `_onBack()` async method — if dirty: `AppMessenger.showConfirmDialog` → save if accepted, pop if discarded; if clean: pop immediately. `_isSaving` guard prevents double-invocation
+  - AppBar leading button (`IconButton(icon: Icons.close)`) changed from `context.pop()` to `_onBack`
+  - Wrapped Scaffold with `PopScope(canPop: false, onPopInvokedWithResult: (didPop, _) { if (!didPop) _onBack(); })` for system back gesture interception
+  - Fixed closing parenthesis mismatch (PopScope close was missing) — `flutter analyze` ✅
+- **Biometric lock** (`main.dart`): Added `_lastPauseTime` tracking — if app was paused <60s (e.g., image_picker camera), skip biometric on resume. Only trigger lock on genuine backgrounding (>60s)
+- **isPublished fix** (`profile_editor_screen.dart:251`): Changed hardcoded `isPublished: false` → `_loadedProfile?.isPublished ?? false` in `_save()` to prevent save from silently unpublishing profile
+- **sqlite3_flutter_libs note**: `0.6.0+eol` is end-of-life no-op (sqlite3 3.x uses build hooks instead). Transient sqlite3 native library error resolved by rebuild.
+- **Dead toggle removal**: Removed `showExactLocation` FormToggle from `privacy_editor_screen.dart` (γραμμή 121) — column παραμένει στη DB χωρίς migration, η `publish()` δεν το διάβαζε ποτέ ✅
+- **Backups**: 5 `.bak` files created before edits ✅
+- **`flutter analyze`**: clean ✅ (only pre-existing `use_build_context_synchronously` info)
 
 ---
 

@@ -26,14 +26,27 @@ class FirestoreSearchRepository implements SearchRepository {
       final hasGeoHash = filters.latitude != null || filters.geoHash != null;
 
       if (filters.latitude != null && filters.longitude != null && filters.radiusKm != null) {
+        // FIX: coarsest precision (= geoPrecision 'city', 3 chars) ώστε τα bounds
+        // να συμπεριλαμβάνουν ΚΑΙ geoPrecision='city' (3 chars) ΚΑΙ 'neighborhood'
+        // (5 chars) προφίλ. Χωρίς αυτό, ένα 3-char geoHash είναι πάντα
+        // λεξικογραφικά < bounds.lower (5-char) και αποκλείεται πάντα.
+        final searchPrecision = GeoHashUtils.precisionFromSetting('city');
         final bounds = GeoHashUtils.getBounds(
           filters.latitude!,
           filters.longitude!,
           filters.radiusKm!,
+          precision: searchPrecision,
         );
+        // '~' sentinel στο upper bound: επιτρέπει σε μεγαλύτερα (πιο ακριβή)
+        // geoHash strings που ξεκινούν με το ίδιο prefix με το upper cell να
+        // περάσουν το <= έλεγχο (ίδιο trick με το branch ακριβώς από κάτω).
+        final upperBound = '${bounds.upper}~';
+        DebugConfig.log(DebugConfig.repositoryCall,
+            'FirestoreSearchRepository.search: geoBounds precision=$searchPrecision '
+                'lower=${bounds.lower} upper=$upperBound');
         query = query
             .where('geoHash', isGreaterThanOrEqualTo: bounds.lower)
-            .where('geoHash', isLessThanOrEqualTo: bounds.upper);
+            .where('geoHash', isLessThanOrEqualTo: upperBound);
       } else if (filters.geoHash != null) {
         final upper = '${filters.geoHash!}~';
         query = query
@@ -97,12 +110,18 @@ class FirestoreSearchRepository implements SearchRepository {
         'FirestoreSearchRepository.searchNearby: ($lat, $lng) r=$radiusKm, cursor=${cursor?.docId}');
 
     try {
-      final bounds = GeoHashUtils.getBounds(lat, lng, radiusKm);
+      // FIX: ίδια λογική με search() — coarsest precision + '~' sentinel.
+      final searchPrecision = GeoHashUtils.precisionFromSetting('city');
+      final bounds = GeoHashUtils.getBounds(lat, lng, radiusKm, precision: searchPrecision);
+      final upperBound = '${bounds.upper}~';
+      DebugConfig.log(DebugConfig.repositoryCall,
+          'FirestoreSearchRepository.searchNearby: geoBounds precision=$searchPrecision '
+              'lower=${bounds.lower} upper=$upperBound');
       Query query = _firestore
           .collectionGroup('public')
           .where('isVisible', isEqualTo: true)
           .where('geoHash', isGreaterThanOrEqualTo: bounds.lower)
-          .where('geoHash', isLessThanOrEqualTo: bounds.upper)
+          .where('geoHash', isLessThanOrEqualTo: upperBound)
           .orderBy('geoHash')
           .orderBy('__name__')
           .limit(50);

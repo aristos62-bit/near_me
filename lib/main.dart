@@ -168,10 +168,13 @@ class NearMeApp extends ConsumerStatefulWidget {
 }
 
 class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserver {
+  static const _pauseThresholdSeconds = 60;
+
   StreamSubscription<RemoteMessage>? _fcmSub;
   bool _isLocked = false;
   bool _authInProgress = false;
   DateTime _lastUnlockTime = DateTime(2000);
+  DateTime? _lastPauseTime;
   late final Locale? _deviceLocale;
 
   @override
@@ -222,7 +225,9 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     PresenceService.handleLifecycle(state);
-    if (state == AppLifecycleState.resumed && mounted) {
+    if (state == AppLifecycleState.paused) {
+      _lastPauseTime = DateTime.now();
+    } else if (state == AppLifecycleState.resumed && mounted) {
       _checkBiometricLock();
     }
   }
@@ -230,6 +235,12 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
   Future<void> _checkBiometricLock() async {
     if (_isLocked || _authInProgress) return;
     if (DateTime.now().difference(_lastUnlockTime).inSeconds < 5) return;
+    if (_lastPauseTime != null &&
+        DateTime.now().difference(_lastPauseTime!).inSeconds < _pauseThresholdSeconds) {
+      DebugConfig.log(DebugConfig.serviceCall,
+          'main: short pause (${DateTime.now().difference(_lastPauseTime!).inSeconds}s < $_pauseThresholdSeconds s) — skipping biometric');
+      return;
+    }
     _authInProgress = true;
     try {
       final settings = ref.read(appSettingsProvider).value;

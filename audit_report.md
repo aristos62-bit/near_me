@@ -25,7 +25,7 @@
 | 1 | Firebase Init + Anonymous Auth | `auth_repository_impl.dart`, `welcome_screen.dart` |
 | 2 | Local Database (Drift) | 7 tables: UserProfile, PrivacySettings, ConsentLog, ChatCache, SavedSearch, AppSettings, BlockedUser |
 | 3 | UserProfile CRUD (local) | 23 πεδία, lat/lng ΜΟΝΟ local |
-| 4 | PrivacySettings per-field | 14 toggles, conservative defaults ✅ |
+| 4 | PrivacySettings per-field | 15 toggles (incl. showPhotos), conservative defaults ✅ |
 | 5 | ConsentLog | GDPR logging, local-only, UI με φίλτρα |
 | 6 | Publish/Unpublish | Firestore write με privacy-respecting fields |
 | 7 | GPS + GeoHash | Precision levels (city/neighborhood/hidden), lat/lng ΠΟΤΕ στο Firestore |

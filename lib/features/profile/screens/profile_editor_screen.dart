@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -34,10 +35,10 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
   String? _gender, _lookingFor, _avatarUrl;
   List<String> _interests = [], _photoUrls = [];
   bool _allowVideoCall = false, _allowDirectChat = true, _isSaving = false;
-  bool _originalAllowVideoCall = false, _originalAllowDirectChat = true;
   bool _isDetectingLocation = false, _isUploadingAvatar = false;
   double? _latitude, _longitude;
   int? _uploadingPhotoIndex;
+  UserProfileTableData? _loadedProfile;
 
   static const _genders = ['male', 'female', 'other', 'prefer_not'];
   static const _lookingForOptions = ['roommate', 'social', 'friendship', 'networking', 'exchange', 'help', 'employment'];
@@ -54,6 +55,29 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
     'exchange': g ? 'Ανταλλαγή' : 'Exchange', 'help': g ? 'Βοήθεια' : 'Help',
     'employment': g ? 'Απασχόληση' : 'Employment',
   };
+
+  bool get _isDirty {
+    if (_loadedProfile == null) return false;
+    final p = _loadedProfile!;
+    if (_nicknameCtrl.text != (p.nickname ?? '')) return true;
+    if (_fullNameCtrl.text != (p.fullName ?? '')) return true;
+    if (_bioCtrl.text != (p.bio ?? '')) return true;
+    if (_birthYearCtrl.text != (p.birthYear?.toString() ?? '')) return true;
+    if (_cityCtrl.text != (p.city ?? '')) return true;
+    if (_countryCtrl.text != (p.country ?? '')) return true;
+    if (_emailCtrl.text != (p.email ?? '')) return true;
+    if (_phoneCtrl.text != (p.phone ?? '')) return true;
+    if (_gender != p.gender) return true;
+    if (_lookingFor != p.lookingFor) return true;
+    if (!listEquals(_interests, p.interests ?? [])) return true;
+    if (_allowVideoCall != p.allowVideoCall) return true;
+    if (_allowDirectChat != p.allowDirectChat) return true;
+    if (_avatarUrl != p.avatarUrl) return true;
+    if (!listEquals(_photoUrls, p.photoUrls ?? [])) return true;
+    if (_latitude != p.latitudeExact) return true;
+    if (_longitude != p.longitudeExact) return true;
+    return false;
+  }
 
   @override
   void initState() {
@@ -91,12 +115,11 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
     _interests = profile.interests ?? [];
     _allowVideoCall = profile.allowVideoCall;
     _allowDirectChat = profile.allowDirectChat;
-    _originalAllowVideoCall = profile.allowVideoCall;
-    _originalAllowDirectChat = profile.allowDirectChat;
     _latitude = profile.latitudeExact;
     _longitude = profile.longitudeExact;
     _avatarUrl = profile.avatarUrl;
     _photoUrls = profile.photoUrls ?? [];
+    _loadedProfile = profile;
     if (mounted) setState(() {});
   }
 
@@ -173,6 +196,31 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
     }
   }
 
+  Future<void> _onBack() async {
+    DebugConfig.log(DebugConfig.uiInteraction, 'ProfileEditorScreen onBack, dirty=$_isDirty, saving=$_isSaving');
+    if (_isSaving) return;
+    if (!_isDirty) {
+      if (context.mounted) context.pop();
+      return;
+    }
+    final g = L10n.isGreek(context);
+    final save = await AppMessenger.showConfirmDialog(
+      context,
+      title: g ? 'Αποθήκευση αλλαγών;' : 'Save changes?',
+      message: g
+          ? 'Έχεις μη αποθηκευμένες αλλαγές. Θες να αποθηκευτούν;'
+          : 'You have unsaved changes. Save them?',
+      confirmLabel: g ? 'Αποθήκευση' : 'Save',
+      cancelLabel: g ? 'Απόρριψη' : 'Discard',
+    );
+    if (save == true) {
+      await _save();
+    } else if (save == false && context.mounted) {
+      if (!mounted)return;
+      context.pop();
+    }
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     DebugConfig.log(DebugConfig.uiInteraction, 'ProfileEditorScreen save');
@@ -200,7 +248,7 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
         phone: _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
         allowVideoCall: _allowVideoCall,
         allowDirectChat: _allowDirectChat,
-        isPublished: false,
+        isPublished: _loadedProfile?.isPublished ?? false,
         latitudeExact: _latitude,
         longitudeExact: _longitude,
         avatarUrl: _avatarUrl,
@@ -209,8 +257,9 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
         updatedAt: DateTime.now(),
       );
       await repo.saveProfile(profile);
-      final commSettingsChanged = _allowVideoCall != _originalAllowVideoCall ||
-          _allowDirectChat != _originalAllowDirectChat;
+      final commSettingsChanged = _loadedProfile != null && (
+          _allowVideoCall != _loadedProfile!.allowVideoCall ||
+          _allowDirectChat != _loadedProfile!.allowDirectChat);
       if (commSettingsChanged) {
         DebugConfig.log(DebugConfig.repositoryCall,
             'ProfileEditor: comm settings changed, auto-publishing');
@@ -238,8 +287,13 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
   @override
   Widget build(BuildContext context) {
     final g = L10n.isGreek(context);
-    return Scaffold(
-      appBar: AppBar(leading: IconButton(icon: const Icon(Icons.close), onPressed: () => context.pop()), title: Text(g ? 'Επεξεργασία Προφίλ' : 'Edit Profile')),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _onBack();
+      },
+      child: Scaffold(
+      appBar: AppBar(leading: IconButton(icon: const Icon(Icons.close), onPressed: _onBack), title: Text(g ? 'Επεξεργασία Προφίλ' : 'Edit Profile')),
       body: Center(child: SizedBox(width: ResponsiveUtils.maxContentWidth(context),
         child: Form(key: _formKey, child: ListView(padding: const EdgeInsets.only(bottom: 32), children: [
           _buildAvatarHeader(),
@@ -289,7 +343,9 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
         ]),
       ),
     ),
-  ));
+  ),
+  ),
+);
   }
 
   Widget _buildAvatarHeader() {

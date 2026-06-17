@@ -292,8 +292,9 @@ BlockedUser (sync'd)           → users/{uid}/fcm_tokens/{tokenId}
 - **errorBuilder added to GoRouter**: Themed error page (`Material` + `Scaffold` + `AppBar` with `automaticallyImplyLeading: false`), bilingual strings via `L10n.localizedMessage()`, "Go Home / Αρχική" `FilledButton` via `context.go('/')`, `DebugConfig.warn()` logging for unknown route URIs. Handles malformed deep links and invalid routes gracefully, fully integrated with app theme/UX.
 - **`flutter analyze`**: clean ✅
 
-### Session 76 — PresenceService race condition fix
+### Session 76 — PresenceService race condition fix + Future.wait
 - **`presence_service.dart`**: Added `_isShuttingDown` flag, `reset()` public method, `handleLifecycle(resumed)` now reads uid from `FirebaseAuth.instance.currentUser?.uid` (authoritative source) instead of stale `_currentUid`. Added `AppLifecycleState.detached` to offline-writing states. `_stop()` refactored to call `reset()`. Removed unused `_currentUid` field.
+- **`presence_service.dart`**: `_touch()` and `setOffline()` now use `Future.wait` for parallel writes to private and public docs, reducing both latency and the window for partial desync.
 - **`auth_repository_impl.dart`**: `signOut()` calls `PresenceService.reset()` after `setOffline()` to immediately clear local state, preventing race where `resumed` lifecycle event re-writes `isOnline: true` during logout flow.
 - **Edge cases covered**: logout + lifecycle race (`_isShuttingDown` guard + `reset()`), remote logout while backgrounded (`FirebaseAuth.instance.currentUser` null → skip), `detached` state, multiple rapid resume events, `reset()` during `_touch()` (null guard), `_stop()` after `reset()` (no-op).
 - **`flutter analyze`**: clean ✅

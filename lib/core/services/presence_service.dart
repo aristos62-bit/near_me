@@ -56,13 +56,14 @@ class PresenceService {
   static Future<void> _touch() async {
     if (_ref == null) return;
     try {
-      await _ref!.set({
-        'isOnline': true,
-        'lastSeen': FieldValue.serverTimestamp(),
-      });
-      if (_publicRef != null) {
-        await _publicRef!.set({'isOnline': true}, SetOptions(merge: true));
-      }
+      await Future.wait<void>([
+        _ref!.set({
+          'isOnline': true,
+          'lastSeen': FieldValue.serverTimestamp(),
+        }),
+        if (_publicRef != null)
+          _publicRef!.set({'isOnline': true}, SetOptions(merge: true)),
+      ]);
       DebugConfig.log(DebugConfig.presence, 'Presence touch: heartbeat');
     } catch (e) {
       DebugConfig.warn('PresenceService touch failed', data: e);
@@ -81,13 +82,14 @@ class PresenceService {
     _timer?.cancel();
     if (_ref == null) return;
     try {
-      await _ref!.set({
-        'isOnline': false,
-        'lastSeen': FieldValue.serverTimestamp(),
-      });
-      if (_publicRef != null) {
-        await _publicRef!.set({'isOnline': false}, SetOptions(merge: true));
-      }
+      await Future.wait<void>([
+        _ref!.set({
+          'isOnline': false,
+          'lastSeen': FieldValue.serverTimestamp(),
+        }),
+        if (_publicRef != null)
+          _publicRef!.set({'isOnline': false}, SetOptions(merge: true)),
+      ]);
       DebugConfig.log(DebugConfig.presence, 'Presence setOffline');
     } catch (e) {
       DebugConfig.warn('PresenceService setOffline failed', data: e);

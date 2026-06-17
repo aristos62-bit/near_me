@@ -330,6 +330,77 @@ BlockedUser (sync'd)           → users/{uid}/fcm_tokens/{tokenId}
 
 ---
 
+### Session 79 — Country field: privacy toggle, display, publish
+- **Goal**: add `showCountry` column + FormToggle, enable `country:` in publish(), display country in header/card, migration v4→v5
+- **Backups**: 7 `.bak` files created ✅
+- **Changes**:
+  - `privacy_settings_table.dart`: Added `BoolColumn get showCountry => boolean().withDefault(const Constant(true))()`
+  - `database.dart`: schemaVersion 4→5, migration step adds `showCountry` column with debug log
+  - `public_profile.dart` (freezed): Added `String? country` field → build_runner regenerated `.freezed.dart` + `.g.dart`
+  - `profile_repository_impl.dart publish()`: Added `country: privacy?.showCountry == true ? profile.country : null` + restored `country:` in Firestore→local restore
+  - `privacy_editor_screen.dart`: Added `showCountry: true` to default constructor + FormToggle in Location section
+  - `public_profile_header.dart`: Display "City, Country" pattern with conditional comma + ellipsis; location icon shown if either present
+  - `profile_card.dart`: Combined `[profile.city, profile.country].where(...).join(', ')` for clean single-line display
+- **Edge cases covered**:
+  - Null/empty country → not displayed
+  - City without country → only city shown
+  - Country without city → only country shown (location icon still visible)
+  - Both present → "City, Country" format
+  - Privacy toggle off → country excluded from Firestore document
+  - First-time user → `showCountry: true` default in constructor + DB default ✅
+  - Existing users → migration adds column with default `true` ✅
+- **`flutter analyze`**: clean ✅
+- **`flutter pub run build_runner build`**: succeeded (203 outputs)
+
+---
+
+### Session 80 — Country feature polish: null-overwrite bug, unit tests, widget test fix
+- **Bug fix**: `publish()` wrote null fields to Firestore, **overwriting existing values** when a privacy toggle was OFF (e.g., `showCountry=false` → `country: null` overwrote existing country)
+  - **Fix**: `profile_repository_impl.dart:264` — added `..removeWhere((_, v) => v == null)` before `set()` to filter out null values
+  - **Impact**: now when `showCountry=false`, the Firestore document **retains** the previous country value instead of having it erased
+- **Unit tests** (new file `test/models/public_profile_test.dart` — 13 tests):
+  - 6 tests for `PublicProfile` JSON serialization (toJson/fromJson with country, null, missing, round-trip)
+  - 7 tests for city+country display formatting (both, city-only, country-only, empty, null, mixed)
+  - **All passed** ✅
+- **Widget test fix** (`test/widget_test.dart`): old test looked for `find.text('NearMe')` which never rendered — `MaterialApp(title: 'NearMe')` is metadata, not visible text. Fixed to check `find.byType(MaterialApp)` instead
+- **Manual testing** across 3 devices (Android 9/12/16):
+  - Migration v4→v5 ✅
+  - Country displays on ProfileCard ✅
+  - Country displays in PublicProfileHeader ✅
+  - Publish/republish with toggle ON/OFF ✅
+  - `flutter analyze`: clean ✅
+  - `flutter test`: 14/14 passed ✅
+
+---
+
+## 📍 Current Status
+
+### ✅ Completed (Country Feature)
+- `privacy_settings_table.dart`: `showCountry` column added
+- `database.dart`: schema 4→5 migration
+- `public_profile.dart`: `String? country` field (freezed)
+- `profile_repository_impl.dart`: conditional `country:` in `publish()`, Firestore→local restore
+- `privacy_editor_screen.dart`: FormToggle + default `true`
+- `public_profile_header.dart`: "City, Country" display
+- `profile_card.dart`: `join(', ')` display
+- `publish()` null-overwrite bug fix
+- Unit tests (13) + widget test fix
+- Manual test on 3 devices
+
+### ✅ Completed (Previous Sessions)
+- Profile Editor confirm dialog (`_loadedProfile`, `_isDirty`, `_onBack()`, `PopScope`)
+- Biometric lock fix (`_lastPauseTime` + 60s short-pause skip)
+- `showPhotos` feature (column, migration v3→v4, conditional `avatarUrl`/`photoUrls`)
+- `isPublished` fix (save preserves published state)
+- `showExactLocation` dead toggle removal (UI only, column stays)
+- Geo-precision search fix (precision 3 + `'~'` sentinel)
+- Full geo handling audit (19 files mapped, 3 bugs found/fixed)
+
+### ⏳ Pending / Optional
+- **Activate dead `SearchFilters.country`** — `filters_provider.dart` updateCountry(), `search_filters_screen.dart` dropdown, `firestore_search_repository.dart` client-side country filter
+
+---
+
 ## Key Architecture Patterns (Conventions)
 
 - **File size limit**: ≤ 400 lines (1 exception: profile_repository_impl)

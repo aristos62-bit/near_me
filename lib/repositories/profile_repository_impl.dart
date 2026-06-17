@@ -62,6 +62,7 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
           occupations: pub.occupations,
           lookingFor: pub.lookingFor,
           city: pub.city,
+          country: pub.country,
           avatarUrl: pub.avatarUrl,
           photoUrls: pub.photoUrls,
           allowVideoCall: pub.allowVideoCall,
@@ -245,6 +246,7 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
             : null,
         gender: privacy?.showGender == true ? profile.gender : null,
         city: privacy?.showCity == true ? profile.city : null,
+        country: privacy?.showCountry == true ? profile.country : null,
         interests: privacy?.showInterests == true ? profile.interests : null,
         occupations: privacy?.showOccupation == true ? profile.occupations : null,
         lookingFor: privacy?.showLookingFor == true ? profile.lookingFor : null,
@@ -259,12 +261,13 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
         updatedAt: now,
       );
 
+      final json = publicProfile.toJson()..removeWhere((_, v) => v == null);
       await _firestore
           .collection('users')
           .doc(uid)
           .collection('public')
           .doc('profile')
-          .set(publicProfile.toJson());
+          .set(json);
       await saveProfile(profile.copyWith(isPublished: true));
       await _db.logConsent(uid, 'publish', 'profile');
       DebugConfig.log(DebugConfig.firestoreWrite, 'publish: $uid');

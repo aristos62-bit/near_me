@@ -27,6 +27,8 @@ class PrivacySettingsTable extends Table {
       boolean().withDefault(const Constant(true))();
   BoolColumn get showPhotos =>
       boolean().withDefault(const Constant(true))();
+  BoolColumn get showCountry =>
+      boolean().withDefault(const Constant(true))();
   BoolColumn get allowVideoCall =>
       boolean().withDefault(const Constant(false))();
   BoolColumn get allowDirectChat =>

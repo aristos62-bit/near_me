@@ -31,7 +31,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -50,6 +50,10 @@ class AppDatabase extends _$AppDatabase {
       if (from < 4) {
         await m.addColumn(privacySettingsTable, privacySettingsTable.showPhotos);
         DebugConfig.log(DebugConfig.databaseLocal, 'Migration v3->v4: added showPhotos column');
+      }
+      if (from < 5) {
+        await m.addColumn(privacySettingsTable, privacySettingsTable.showCountry);
+        DebugConfig.log(DebugConfig.databaseLocal, 'Migration v4->v5: added showCountry column');
       }
     },
   );

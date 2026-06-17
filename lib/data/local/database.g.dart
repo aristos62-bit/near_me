@@ -1551,6 +1551,21 @@ class $PrivacySettingsTableTable extends PrivacySettingsTable
     ),
     defaultValue: const Constant(true),
   );
+  static const VerificationMeta _showCountryMeta = const VerificationMeta(
+    'showCountry',
+  );
+  @override
+  late final GeneratedColumn<bool> showCountry = GeneratedColumn<bool>(
+    'show_country',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("show_country" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   static const VerificationMeta _allowVideoCallMeta = const VerificationMeta(
     'allowVideoCall',
   );
@@ -1610,6 +1625,7 @@ class $PrivacySettingsTableTable extends PrivacySettingsTable
     showBio,
     showLookingFor,
     showPhotos,
+    showCountry,
     allowVideoCall,
     allowDirectChat,
     geoPrecision,
@@ -1731,6 +1747,15 @@ class $PrivacySettingsTableTable extends PrivacySettingsTable
         showPhotos.isAcceptableOrUnknown(data['show_photos']!, _showPhotosMeta),
       );
     }
+    if (data.containsKey('show_country')) {
+      context.handle(
+        _showCountryMeta,
+        showCountry.isAcceptableOrUnknown(
+          data['show_country']!,
+          _showCountryMeta,
+        ),
+      );
+    }
     if (data.containsKey('allow_video_call')) {
       context.handle(
         _allowVideoCallMeta,
@@ -1830,6 +1855,10 @@ class $PrivacySettingsTableTable extends PrivacySettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}show_photos'],
       )!,
+      showCountry: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}show_country'],
+      )!,
       allowVideoCall: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}allow_video_call'],
@@ -1868,6 +1897,7 @@ class PrivacySettingsTableData extends DataClass
   final bool showBio;
   final bool showLookingFor;
   final bool showPhotos;
+  final bool showCountry;
   final bool allowVideoCall;
   final bool allowDirectChat;
   final String geoPrecision;
@@ -1887,6 +1917,7 @@ class PrivacySettingsTableData extends DataClass
     required this.showBio,
     required this.showLookingFor,
     required this.showPhotos,
+    required this.showCountry,
     required this.allowVideoCall,
     required this.allowDirectChat,
     required this.geoPrecision,
@@ -1911,6 +1942,7 @@ class PrivacySettingsTableData extends DataClass
     map['show_bio'] = Variable<bool>(showBio);
     map['show_looking_for'] = Variable<bool>(showLookingFor);
     map['show_photos'] = Variable<bool>(showPhotos);
+    map['show_country'] = Variable<bool>(showCountry);
     map['allow_video_call'] = Variable<bool>(allowVideoCall);
     map['allow_direct_chat'] = Variable<bool>(allowDirectChat);
     map['geo_precision'] = Variable<String>(geoPrecision);
@@ -1934,6 +1966,7 @@ class PrivacySettingsTableData extends DataClass
       showBio: Value(showBio),
       showLookingFor: Value(showLookingFor),
       showPhotos: Value(showPhotos),
+      showCountry: Value(showCountry),
       allowVideoCall: Value(allowVideoCall),
       allowDirectChat: Value(allowDirectChat),
       geoPrecision: Value(geoPrecision),
@@ -1961,6 +1994,7 @@ class PrivacySettingsTableData extends DataClass
       showBio: serializer.fromJson<bool>(json['showBio']),
       showLookingFor: serializer.fromJson<bool>(json['showLookingFor']),
       showPhotos: serializer.fromJson<bool>(json['showPhotos']),
+      showCountry: serializer.fromJson<bool>(json['showCountry']),
       allowVideoCall: serializer.fromJson<bool>(json['allowVideoCall']),
       allowDirectChat: serializer.fromJson<bool>(json['allowDirectChat']),
       geoPrecision: serializer.fromJson<String>(json['geoPrecision']),
@@ -1985,6 +2019,7 @@ class PrivacySettingsTableData extends DataClass
       'showBio': serializer.toJson<bool>(showBio),
       'showLookingFor': serializer.toJson<bool>(showLookingFor),
       'showPhotos': serializer.toJson<bool>(showPhotos),
+      'showCountry': serializer.toJson<bool>(showCountry),
       'allowVideoCall': serializer.toJson<bool>(allowVideoCall),
       'allowDirectChat': serializer.toJson<bool>(allowDirectChat),
       'geoPrecision': serializer.toJson<String>(geoPrecision),
@@ -2007,6 +2042,7 @@ class PrivacySettingsTableData extends DataClass
     bool? showBio,
     bool? showLookingFor,
     bool? showPhotos,
+    bool? showCountry,
     bool? allowVideoCall,
     bool? allowDirectChat,
     String? geoPrecision,
@@ -2026,6 +2062,7 @@ class PrivacySettingsTableData extends DataClass
     showBio: showBio ?? this.showBio,
     showLookingFor: showLookingFor ?? this.showLookingFor,
     showPhotos: showPhotos ?? this.showPhotos,
+    showCountry: showCountry ?? this.showCountry,
     allowVideoCall: allowVideoCall ?? this.allowVideoCall,
     allowDirectChat: allowDirectChat ?? this.allowDirectChat,
     geoPrecision: geoPrecision ?? this.geoPrecision,
@@ -2065,6 +2102,9 @@ class PrivacySettingsTableData extends DataClass
       showPhotos: data.showPhotos.present
           ? data.showPhotos.value
           : this.showPhotos,
+      showCountry: data.showCountry.present
+          ? data.showCountry.value
+          : this.showCountry,
       allowVideoCall: data.allowVideoCall.present
           ? data.allowVideoCall.value
           : this.allowVideoCall,
@@ -2095,6 +2135,7 @@ class PrivacySettingsTableData extends DataClass
           ..write('showBio: $showBio, ')
           ..write('showLookingFor: $showLookingFor, ')
           ..write('showPhotos: $showPhotos, ')
+          ..write('showCountry: $showCountry, ')
           ..write('allowVideoCall: $allowVideoCall, ')
           ..write('allowDirectChat: $allowDirectChat, ')
           ..write('geoPrecision: $geoPrecision')
@@ -2119,6 +2160,7 @@ class PrivacySettingsTableData extends DataClass
     showBio,
     showLookingFor,
     showPhotos,
+    showCountry,
     allowVideoCall,
     allowDirectChat,
     geoPrecision,
@@ -2142,6 +2184,7 @@ class PrivacySettingsTableData extends DataClass
           other.showBio == this.showBio &&
           other.showLookingFor == this.showLookingFor &&
           other.showPhotos == this.showPhotos &&
+          other.showCountry == this.showCountry &&
           other.allowVideoCall == this.allowVideoCall &&
           other.allowDirectChat == this.allowDirectChat &&
           other.geoPrecision == this.geoPrecision);
@@ -2164,6 +2207,7 @@ class PrivacySettingsTableCompanion
   final Value<bool> showBio;
   final Value<bool> showLookingFor;
   final Value<bool> showPhotos;
+  final Value<bool> showCountry;
   final Value<bool> allowVideoCall;
   final Value<bool> allowDirectChat;
   final Value<String> geoPrecision;
@@ -2183,6 +2227,7 @@ class PrivacySettingsTableCompanion
     this.showBio = const Value.absent(),
     this.showLookingFor = const Value.absent(),
     this.showPhotos = const Value.absent(),
+    this.showCountry = const Value.absent(),
     this.allowVideoCall = const Value.absent(),
     this.allowDirectChat = const Value.absent(),
     this.geoPrecision = const Value.absent(),
@@ -2203,6 +2248,7 @@ class PrivacySettingsTableCompanion
     this.showBio = const Value.absent(),
     this.showLookingFor = const Value.absent(),
     this.showPhotos = const Value.absent(),
+    this.showCountry = const Value.absent(),
     this.allowVideoCall = const Value.absent(),
     this.allowDirectChat = const Value.absent(),
     this.geoPrecision = const Value.absent(),
@@ -2223,6 +2269,7 @@ class PrivacySettingsTableCompanion
     Expression<bool>? showBio,
     Expression<bool>? showLookingFor,
     Expression<bool>? showPhotos,
+    Expression<bool>? showCountry,
     Expression<bool>? allowVideoCall,
     Expression<bool>? allowDirectChat,
     Expression<String>? geoPrecision,
@@ -2243,6 +2290,7 @@ class PrivacySettingsTableCompanion
       if (showBio != null) 'show_bio': showBio,
       if (showLookingFor != null) 'show_looking_for': showLookingFor,
       if (showPhotos != null) 'show_photos': showPhotos,
+      if (showCountry != null) 'show_country': showCountry,
       if (allowVideoCall != null) 'allow_video_call': allowVideoCall,
       if (allowDirectChat != null) 'allow_direct_chat': allowDirectChat,
       if (geoPrecision != null) 'geo_precision': geoPrecision,
@@ -2265,6 +2313,7 @@ class PrivacySettingsTableCompanion
     Value<bool>? showBio,
     Value<bool>? showLookingFor,
     Value<bool>? showPhotos,
+    Value<bool>? showCountry,
     Value<bool>? allowVideoCall,
     Value<bool>? allowDirectChat,
     Value<String>? geoPrecision,
@@ -2285,6 +2334,7 @@ class PrivacySettingsTableCompanion
       showBio: showBio ?? this.showBio,
       showLookingFor: showLookingFor ?? this.showLookingFor,
       showPhotos: showPhotos ?? this.showPhotos,
+      showCountry: showCountry ?? this.showCountry,
       allowVideoCall: allowVideoCall ?? this.allowVideoCall,
       allowDirectChat: allowDirectChat ?? this.allowDirectChat,
       geoPrecision: geoPrecision ?? this.geoPrecision,
@@ -2339,6 +2389,9 @@ class PrivacySettingsTableCompanion
     if (showPhotos.present) {
       map['show_photos'] = Variable<bool>(showPhotos.value);
     }
+    if (showCountry.present) {
+      map['show_country'] = Variable<bool>(showCountry.value);
+    }
     if (allowVideoCall.present) {
       map['allow_video_call'] = Variable<bool>(allowVideoCall.value);
     }
@@ -2369,6 +2422,7 @@ class PrivacySettingsTableCompanion
           ..write('showBio: $showBio, ')
           ..write('showLookingFor: $showLookingFor, ')
           ..write('showPhotos: $showPhotos, ')
+          ..write('showCountry: $showCountry, ')
           ..write('allowVideoCall: $allowVideoCall, ')
           ..write('allowDirectChat: $allowDirectChat, ')
           ..write('geoPrecision: $geoPrecision')
@@ -5645,6 +5699,7 @@ typedef $$PrivacySettingsTableTableCreateCompanionBuilder =
       Value<bool> showBio,
       Value<bool> showLookingFor,
       Value<bool> showPhotos,
+      Value<bool> showCountry,
       Value<bool> allowVideoCall,
       Value<bool> allowDirectChat,
       Value<String> geoPrecision,
@@ -5666,6 +5721,7 @@ typedef $$PrivacySettingsTableTableUpdateCompanionBuilder =
       Value<bool> showBio,
       Value<bool> showLookingFor,
       Value<bool> showPhotos,
+      Value<bool> showCountry,
       Value<bool> allowVideoCall,
       Value<bool> allowDirectChat,
       Value<String> geoPrecision,
@@ -5752,6 +5808,11 @@ class $$PrivacySettingsTableTableFilterComposer
 
   ColumnFilters<bool> get showPhotos => $composableBuilder(
     column: $table.showPhotos,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get showCountry => $composableBuilder(
+    column: $table.showCountry,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5855,6 +5916,11 @@ class $$PrivacySettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get showCountry => $composableBuilder(
+    column: $table.showCountry,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get allowVideoCall => $composableBuilder(
     column: $table.allowVideoCall,
     builder: (column) => ColumnOrderings(column),
@@ -5941,6 +6007,11 @@ class $$PrivacySettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get showCountry => $composableBuilder(
+    column: $table.showCountry,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get allowVideoCall => $composableBuilder(
     column: $table.allowVideoCall,
     builder: (column) => column,
@@ -6015,6 +6086,7 @@ class $$PrivacySettingsTableTableTableManager
                 Value<bool> showBio = const Value.absent(),
                 Value<bool> showLookingFor = const Value.absent(),
                 Value<bool> showPhotos = const Value.absent(),
+                Value<bool> showCountry = const Value.absent(),
                 Value<bool> allowVideoCall = const Value.absent(),
                 Value<bool> allowDirectChat = const Value.absent(),
                 Value<String> geoPrecision = const Value.absent(),
@@ -6034,6 +6106,7 @@ class $$PrivacySettingsTableTableTableManager
                 showBio: showBio,
                 showLookingFor: showLookingFor,
                 showPhotos: showPhotos,
+                showCountry: showCountry,
                 allowVideoCall: allowVideoCall,
                 allowDirectChat: allowDirectChat,
                 geoPrecision: geoPrecision,
@@ -6055,6 +6128,7 @@ class $$PrivacySettingsTableTableTableManager
                 Value<bool> showBio = const Value.absent(),
                 Value<bool> showLookingFor = const Value.absent(),
                 Value<bool> showPhotos = const Value.absent(),
+                Value<bool> showCountry = const Value.absent(),
                 Value<bool> allowVideoCall = const Value.absent(),
                 Value<bool> allowDirectChat = const Value.absent(),
                 Value<String> geoPrecision = const Value.absent(),
@@ -6074,6 +6148,7 @@ class $$PrivacySettingsTableTableTableManager
                 showBio: showBio,
                 showLookingFor: showLookingFor,
                 showPhotos: showPhotos,
+                showCountry: showCountry,
                 allowVideoCall: allowVideoCall,
                 allowDirectChat: allowDirectChat,
                 geoPrecision: geoPrecision,

@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$PublicProfile {
 
- String get uid; String? get nickname; int? get age; String? get gender; String? get city; String? get geoHash; List<String>? get interests; List<String>? get occupations; String? get lookingFor; String? get bio; String? get avatarUrl; List<String>? get photoUrls; bool get allowVideoCall; bool get allowDirectChat; bool get isVisible; bool get isOnline; String get lang; DateTime? get updatedAt;
+ String get uid; String? get nickname; int? get age; String? get gender; String? get city; String? get country; String? get geoHash; List<String>? get interests; List<String>? get occupations; String? get lookingFor; String? get bio; String? get avatarUrl; List<String>? get photoUrls; bool get allowVideoCall; bool get allowDirectChat; bool get isVisible; bool get isOnline; String get lang; DateTime? get updatedAt;
 /// Create a copy of PublicProfile
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $PublicProfileCopyWith<PublicProfile> get copyWith => _$PublicProfileCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PublicProfile&&(identical(other.uid, uid) || other.uid == uid)&&(identical(other.nickname, nickname) || other.nickname == nickname)&&(identical(other.age, age) || other.age == age)&&(identical(other.gender, gender) || other.gender == gender)&&(identical(other.city, city) || other.city == city)&&(identical(other.geoHash, geoHash) || other.geoHash == geoHash)&&const DeepCollectionEquality().equals(other.interests, interests)&&const DeepCollectionEquality().equals(other.occupations, occupations)&&(identical(other.lookingFor, lookingFor) || other.lookingFor == lookingFor)&&(identical(other.bio, bio) || other.bio == bio)&&(identical(other.avatarUrl, avatarUrl) || other.avatarUrl == avatarUrl)&&const DeepCollectionEquality().equals(other.photoUrls, photoUrls)&&(identical(other.allowVideoCall, allowVideoCall) || other.allowVideoCall == allowVideoCall)&&(identical(other.allowDirectChat, allowDirectChat) || other.allowDirectChat == allowDirectChat)&&(identical(other.isVisible, isVisible) || other.isVisible == isVisible)&&(identical(other.isOnline, isOnline) || other.isOnline == isOnline)&&(identical(other.lang, lang) || other.lang == lang)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PublicProfile&&(identical(other.uid, uid) || other.uid == uid)&&(identical(other.nickname, nickname) || other.nickname == nickname)&&(identical(other.age, age) || other.age == age)&&(identical(other.gender, gender) || other.gender == gender)&&(identical(other.city, city) || other.city == city)&&(identical(other.country, country) || other.country == country)&&(identical(other.geoHash, geoHash) || other.geoHash == geoHash)&&const DeepCollectionEquality().equals(other.interests, interests)&&const DeepCollectionEquality().equals(other.occupations, occupations)&&(identical(other.lookingFor, lookingFor) || other.lookingFor == lookingFor)&&(identical(other.bio, bio) || other.bio == bio)&&(identical(other.avatarUrl, avatarUrl) || other.avatarUrl == avatarUrl)&&const DeepCollectionEquality().equals(other.photoUrls, photoUrls)&&(identical(other.allowVideoCall, allowVideoCall) || other.allowVideoCall == allowVideoCall)&&(identical(other.allowDirectChat, allowDirectChat) || other.allowDirectChat == allowDirectChat)&&(identical(other.isVisible, isVisible) || other.isVisible == isVisible)&&(identical(other.isOnline, isOnline) || other.isOnline == isOnline)&&(identical(other.lang, lang) || other.lang == lang)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,uid,nickname,age,gender,city,geoHash,const DeepCollectionEquality().hash(interests),const DeepCollectionEquality().hash(occupations),lookingFor,bio,avatarUrl,const DeepCollectionEquality().hash(photoUrls),allowVideoCall,allowDirectChat,isVisible,isOnline,lang,updatedAt);
+int get hashCode => Object.hashAll([runtimeType,uid,nickname,age,gender,city,country,geoHash,const DeepCollectionEquality().hash(interests),const DeepCollectionEquality().hash(occupations),lookingFor,bio,avatarUrl,const DeepCollectionEquality().hash(photoUrls),allowVideoCall,allowDirectChat,isVisible,isOnline,lang,updatedAt]);
 
 @override
 String toString() {
-  return 'PublicProfile(uid: $uid, nickname: $nickname, age: $age, gender: $gender, city: $city, geoHash: $geoHash, interests: $interests, occupations: $occupations, lookingFor: $lookingFor, bio: $bio, avatarUrl: $avatarUrl, photoUrls: $photoUrls, allowVideoCall: $allowVideoCall, allowDirectChat: $allowDirectChat, isVisible: $isVisible, isOnline: $isOnline, lang: $lang, updatedAt: $updatedAt)';
+  return 'PublicProfile(uid: $uid, nickname: $nickname, age: $age, gender: $gender, city: $city, country: $country, geoHash: $geoHash, interests: $interests, occupations: $occupations, lookingFor: $lookingFor, bio: $bio, avatarUrl: $avatarUrl, photoUrls: $photoUrls, allowVideoCall: $allowVideoCall, allowDirectChat: $allowDirectChat, isVisible: $isVisible, isOnline: $isOnline, lang: $lang, updatedAt: $updatedAt)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $PublicProfileCopyWith<$Res>  {
   factory $PublicProfileCopyWith(PublicProfile value, $Res Function(PublicProfile) _then) = _$PublicProfileCopyWithImpl;
 @useResult
 $Res call({
- String uid, String? nickname, int? age, String? gender, String? city, String? geoHash, List<String>? interests, List<String>? occupations, String? lookingFor, String? bio, String? avatarUrl, List<String>? photoUrls, bool allowVideoCall, bool allowDirectChat, bool isVisible, bool isOnline, String lang, DateTime? updatedAt
+ String uid, String? nickname, int? age, String? gender, String? city, String? country, String? geoHash, List<String>? interests, List<String>? occupations, String? lookingFor, String? bio, String? avatarUrl, List<String>? photoUrls, bool allowVideoCall, bool allowDirectChat, bool isVisible, bool isOnline, String lang, DateTime? updatedAt
 });
 
 
@@ -65,13 +65,14 @@ class _$PublicProfileCopyWithImpl<$Res>
 
 /// Create a copy of PublicProfile
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? uid = null,Object? nickname = freezed,Object? age = freezed,Object? gender = freezed,Object? city = freezed,Object? geoHash = freezed,Object? interests = freezed,Object? occupations = freezed,Object? lookingFor = freezed,Object? bio = freezed,Object? avatarUrl = freezed,Object? photoUrls = freezed,Object? allowVideoCall = null,Object? allowDirectChat = null,Object? isVisible = null,Object? isOnline = null,Object? lang = null,Object? updatedAt = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? uid = null,Object? nickname = freezed,Object? age = freezed,Object? gender = freezed,Object? city = freezed,Object? country = freezed,Object? geoHash = freezed,Object? interests = freezed,Object? occupations = freezed,Object? lookingFor = freezed,Object? bio = freezed,Object? avatarUrl = freezed,Object? photoUrls = freezed,Object? allowVideoCall = null,Object? allowDirectChat = null,Object? isVisible = null,Object? isOnline = null,Object? lang = null,Object? updatedAt = freezed,}) {
   return _then(_self.copyWith(
 uid: null == uid ? _self.uid : uid // ignore: cast_nullable_to_non_nullable
 as String,nickname: freezed == nickname ? _self.nickname : nickname // ignore: cast_nullable_to_non_nullable
 as String?,age: freezed == age ? _self.age : age // ignore: cast_nullable_to_non_nullable
 as int?,gender: freezed == gender ? _self.gender : gender // ignore: cast_nullable_to_non_nullable
 as String?,city: freezed == city ? _self.city : city // ignore: cast_nullable_to_non_nullable
+as String?,country: freezed == country ? _self.country : country // ignore: cast_nullable_to_non_nullable
 as String?,geoHash: freezed == geoHash ? _self.geoHash : geoHash // ignore: cast_nullable_to_non_nullable
 as String?,interests: freezed == interests ? _self.interests : interests // ignore: cast_nullable_to_non_nullable
 as List<String>?,occupations: freezed == occupations ? _self.occupations : occupations // ignore: cast_nullable_to_non_nullable
@@ -170,10 +171,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String uid,  String? nickname,  int? age,  String? gender,  String? city,  String? geoHash,  List<String>? interests,  List<String>? occupations,  String? lookingFor,  String? bio,  String? avatarUrl,  List<String>? photoUrls,  bool allowVideoCall,  bool allowDirectChat,  bool isVisible,  bool isOnline,  String lang,  DateTime? updatedAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String uid,  String? nickname,  int? age,  String? gender,  String? city,  String? country,  String? geoHash,  List<String>? interests,  List<String>? occupations,  String? lookingFor,  String? bio,  String? avatarUrl,  List<String>? photoUrls,  bool allowVideoCall,  bool allowDirectChat,  bool isVisible,  bool isOnline,  String lang,  DateTime? updatedAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _PublicProfile() when $default != null:
-return $default(_that.uid,_that.nickname,_that.age,_that.gender,_that.city,_that.geoHash,_that.interests,_that.occupations,_that.lookingFor,_that.bio,_that.avatarUrl,_that.photoUrls,_that.allowVideoCall,_that.allowDirectChat,_that.isVisible,_that.isOnline,_that.lang,_that.updatedAt);case _:
+return $default(_that.uid,_that.nickname,_that.age,_that.gender,_that.city,_that.country,_that.geoHash,_that.interests,_that.occupations,_that.lookingFor,_that.bio,_that.avatarUrl,_that.photoUrls,_that.allowVideoCall,_that.allowDirectChat,_that.isVisible,_that.isOnline,_that.lang,_that.updatedAt);case _:
   return orElse();
 
 }
@@ -191,10 +192,10 @@ return $default(_that.uid,_that.nickname,_that.age,_that.gender,_that.city,_that
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String uid,  String? nickname,  int? age,  String? gender,  String? city,  String? geoHash,  List<String>? interests,  List<String>? occupations,  String? lookingFor,  String? bio,  String? avatarUrl,  List<String>? photoUrls,  bool allowVideoCall,  bool allowDirectChat,  bool isVisible,  bool isOnline,  String lang,  DateTime? updatedAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String uid,  String? nickname,  int? age,  String? gender,  String? city,  String? country,  String? geoHash,  List<String>? interests,  List<String>? occupations,  String? lookingFor,  String? bio,  String? avatarUrl,  List<String>? photoUrls,  bool allowVideoCall,  bool allowDirectChat,  bool isVisible,  bool isOnline,  String lang,  DateTime? updatedAt)  $default,) {final _that = this;
 switch (_that) {
 case _PublicProfile():
-return $default(_that.uid,_that.nickname,_that.age,_that.gender,_that.city,_that.geoHash,_that.interests,_that.occupations,_that.lookingFor,_that.bio,_that.avatarUrl,_that.photoUrls,_that.allowVideoCall,_that.allowDirectChat,_that.isVisible,_that.isOnline,_that.lang,_that.updatedAt);case _:
+return $default(_that.uid,_that.nickname,_that.age,_that.gender,_that.city,_that.country,_that.geoHash,_that.interests,_that.occupations,_that.lookingFor,_that.bio,_that.avatarUrl,_that.photoUrls,_that.allowVideoCall,_that.allowDirectChat,_that.isVisible,_that.isOnline,_that.lang,_that.updatedAt);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -211,10 +212,10 @@ return $default(_that.uid,_that.nickname,_that.age,_that.gender,_that.city,_that
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String uid,  String? nickname,  int? age,  String? gender,  String? city,  String? geoHash,  List<String>? interests,  List<String>? occupations,  String? lookingFor,  String? bio,  String? avatarUrl,  List<String>? photoUrls,  bool allowVideoCall,  bool allowDirectChat,  bool isVisible,  bool isOnline,  String lang,  DateTime? updatedAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String uid,  String? nickname,  int? age,  String? gender,  String? city,  String? country,  String? geoHash,  List<String>? interests,  List<String>? occupations,  String? lookingFor,  String? bio,  String? avatarUrl,  List<String>? photoUrls,  bool allowVideoCall,  bool allowDirectChat,  bool isVisible,  bool isOnline,  String lang,  DateTime? updatedAt)?  $default,) {final _that = this;
 switch (_that) {
 case _PublicProfile() when $default != null:
-return $default(_that.uid,_that.nickname,_that.age,_that.gender,_that.city,_that.geoHash,_that.interests,_that.occupations,_that.lookingFor,_that.bio,_that.avatarUrl,_that.photoUrls,_that.allowVideoCall,_that.allowDirectChat,_that.isVisible,_that.isOnline,_that.lang,_that.updatedAt);case _:
+return $default(_that.uid,_that.nickname,_that.age,_that.gender,_that.city,_that.country,_that.geoHash,_that.interests,_that.occupations,_that.lookingFor,_that.bio,_that.avatarUrl,_that.photoUrls,_that.allowVideoCall,_that.allowDirectChat,_that.isVisible,_that.isOnline,_that.lang,_that.updatedAt);case _:
   return null;
 
 }
@@ -226,7 +227,7 @@ return $default(_that.uid,_that.nickname,_that.age,_that.gender,_that.city,_that
 @JsonSerializable()
 
 class _PublicProfile implements PublicProfile {
-  const _PublicProfile({required this.uid, this.nickname, this.age, this.gender, this.city, this.geoHash, final  List<String>? interests, final  List<String>? occupations, this.lookingFor, this.bio, this.avatarUrl, final  List<String>? photoUrls, this.allowVideoCall = false, this.allowDirectChat = false, this.isVisible = true, this.isOnline = false, this.lang = 'el', this.updatedAt}): _interests = interests,_occupations = occupations,_photoUrls = photoUrls;
+  const _PublicProfile({required this.uid, this.nickname, this.age, this.gender, this.city, this.country, this.geoHash, final  List<String>? interests, final  List<String>? occupations, this.lookingFor, this.bio, this.avatarUrl, final  List<String>? photoUrls, this.allowVideoCall = false, this.allowDirectChat = false, this.isVisible = true, this.isOnline = false, this.lang = 'el', this.updatedAt}): _interests = interests,_occupations = occupations,_photoUrls = photoUrls;
   factory _PublicProfile.fromJson(Map<String, dynamic> json) => _$PublicProfileFromJson(json);
 
 @override final  String uid;
@@ -234,6 +235,7 @@ class _PublicProfile implements PublicProfile {
 @override final  int? age;
 @override final  String? gender;
 @override final  String? city;
+@override final  String? country;
 @override final  String? geoHash;
  final  List<String>? _interests;
 @override List<String>? get interests {
@@ -285,16 +287,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PublicProfile&&(identical(other.uid, uid) || other.uid == uid)&&(identical(other.nickname, nickname) || other.nickname == nickname)&&(identical(other.age, age) || other.age == age)&&(identical(other.gender, gender) || other.gender == gender)&&(identical(other.city, city) || other.city == city)&&(identical(other.geoHash, geoHash) || other.geoHash == geoHash)&&const DeepCollectionEquality().equals(other._interests, _interests)&&const DeepCollectionEquality().equals(other._occupations, _occupations)&&(identical(other.lookingFor, lookingFor) || other.lookingFor == lookingFor)&&(identical(other.bio, bio) || other.bio == bio)&&(identical(other.avatarUrl, avatarUrl) || other.avatarUrl == avatarUrl)&&const DeepCollectionEquality().equals(other._photoUrls, _photoUrls)&&(identical(other.allowVideoCall, allowVideoCall) || other.allowVideoCall == allowVideoCall)&&(identical(other.allowDirectChat, allowDirectChat) || other.allowDirectChat == allowDirectChat)&&(identical(other.isVisible, isVisible) || other.isVisible == isVisible)&&(identical(other.isOnline, isOnline) || other.isOnline == isOnline)&&(identical(other.lang, lang) || other.lang == lang)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PublicProfile&&(identical(other.uid, uid) || other.uid == uid)&&(identical(other.nickname, nickname) || other.nickname == nickname)&&(identical(other.age, age) || other.age == age)&&(identical(other.gender, gender) || other.gender == gender)&&(identical(other.city, city) || other.city == city)&&(identical(other.country, country) || other.country == country)&&(identical(other.geoHash, geoHash) || other.geoHash == geoHash)&&const DeepCollectionEquality().equals(other._interests, _interests)&&const DeepCollectionEquality().equals(other._occupations, _occupations)&&(identical(other.lookingFor, lookingFor) || other.lookingFor == lookingFor)&&(identical(other.bio, bio) || other.bio == bio)&&(identical(other.avatarUrl, avatarUrl) || other.avatarUrl == avatarUrl)&&const DeepCollectionEquality().equals(other._photoUrls, _photoUrls)&&(identical(other.allowVideoCall, allowVideoCall) || other.allowVideoCall == allowVideoCall)&&(identical(other.allowDirectChat, allowDirectChat) || other.allowDirectChat == allowDirectChat)&&(identical(other.isVisible, isVisible) || other.isVisible == isVisible)&&(identical(other.isOnline, isOnline) || other.isOnline == isOnline)&&(identical(other.lang, lang) || other.lang == lang)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,uid,nickname,age,gender,city,geoHash,const DeepCollectionEquality().hash(_interests),const DeepCollectionEquality().hash(_occupations),lookingFor,bio,avatarUrl,const DeepCollectionEquality().hash(_photoUrls),allowVideoCall,allowDirectChat,isVisible,isOnline,lang,updatedAt);
+int get hashCode => Object.hashAll([runtimeType,uid,nickname,age,gender,city,country,geoHash,const DeepCollectionEquality().hash(_interests),const DeepCollectionEquality().hash(_occupations),lookingFor,bio,avatarUrl,const DeepCollectionEquality().hash(_photoUrls),allowVideoCall,allowDirectChat,isVisible,isOnline,lang,updatedAt]);
 
 @override
 String toString() {
-  return 'PublicProfile(uid: $uid, nickname: $nickname, age: $age, gender: $gender, city: $city, geoHash: $geoHash, interests: $interests, occupations: $occupations, lookingFor: $lookingFor, bio: $bio, avatarUrl: $avatarUrl, photoUrls: $photoUrls, allowVideoCall: $allowVideoCall, allowDirectChat: $allowDirectChat, isVisible: $isVisible, isOnline: $isOnline, lang: $lang, updatedAt: $updatedAt)';
+  return 'PublicProfile(uid: $uid, nickname: $nickname, age: $age, gender: $gender, city: $city, country: $country, geoHash: $geoHash, interests: $interests, occupations: $occupations, lookingFor: $lookingFor, bio: $bio, avatarUrl: $avatarUrl, photoUrls: $photoUrls, allowVideoCall: $allowVideoCall, allowDirectChat: $allowDirectChat, isVisible: $isVisible, isOnline: $isOnline, lang: $lang, updatedAt: $updatedAt)';
 }
 
 
@@ -305,7 +307,7 @@ abstract mixin class _$PublicProfileCopyWith<$Res> implements $PublicProfileCopy
   factory _$PublicProfileCopyWith(_PublicProfile value, $Res Function(_PublicProfile) _then) = __$PublicProfileCopyWithImpl;
 @override @useResult
 $Res call({
- String uid, String? nickname, int? age, String? gender, String? city, String? geoHash, List<String>? interests, List<String>? occupations, String? lookingFor, String? bio, String? avatarUrl, List<String>? photoUrls, bool allowVideoCall, bool allowDirectChat, bool isVisible, bool isOnline, String lang, DateTime? updatedAt
+ String uid, String? nickname, int? age, String? gender, String? city, String? country, String? geoHash, List<String>? interests, List<String>? occupations, String? lookingFor, String? bio, String? avatarUrl, List<String>? photoUrls, bool allowVideoCall, bool allowDirectChat, bool isVisible, bool isOnline, String lang, DateTime? updatedAt
 });
 
 
@@ -322,13 +324,14 @@ class __$PublicProfileCopyWithImpl<$Res>
 
 /// Create a copy of PublicProfile
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? uid = null,Object? nickname = freezed,Object? age = freezed,Object? gender = freezed,Object? city = freezed,Object? geoHash = freezed,Object? interests = freezed,Object? occupations = freezed,Object? lookingFor = freezed,Object? bio = freezed,Object? avatarUrl = freezed,Object? photoUrls = freezed,Object? allowVideoCall = null,Object? allowDirectChat = null,Object? isVisible = null,Object? isOnline = null,Object? lang = null,Object? updatedAt = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? uid = null,Object? nickname = freezed,Object? age = freezed,Object? gender = freezed,Object? city = freezed,Object? country = freezed,Object? geoHash = freezed,Object? interests = freezed,Object? occupations = freezed,Object? lookingFor = freezed,Object? bio = freezed,Object? avatarUrl = freezed,Object? photoUrls = freezed,Object? allowVideoCall = null,Object? allowDirectChat = null,Object? isVisible = null,Object? isOnline = null,Object? lang = null,Object? updatedAt = freezed,}) {
   return _then(_PublicProfile(
 uid: null == uid ? _self.uid : uid // ignore: cast_nullable_to_non_nullable
 as String,nickname: freezed == nickname ? _self.nickname : nickname // ignore: cast_nullable_to_non_nullable
 as String?,age: freezed == age ? _self.age : age // ignore: cast_nullable_to_non_nullable
 as int?,gender: freezed == gender ? _self.gender : gender // ignore: cast_nullable_to_non_nullable
 as String?,city: freezed == city ? _self.city : city // ignore: cast_nullable_to_non_nullable
+as String?,country: freezed == country ? _self.country : country // ignore: cast_nullable_to_non_nullable
 as String?,geoHash: freezed == geoHash ? _self.geoHash : geoHash // ignore: cast_nullable_to_non_nullable
 as String?,interests: freezed == interests ? _self._interests : interests // ignore: cast_nullable_to_non_nullable
 as List<String>?,occupations: freezed == occupations ? _self._occupations : occupations // ignore: cast_nullable_to_non_nullable

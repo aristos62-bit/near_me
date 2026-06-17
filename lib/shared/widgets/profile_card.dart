@@ -69,9 +69,12 @@ class ProfileCard extends ConsumerWidget {
                         ),
                       ],
                     ),
-                    if (profile.city != null && profile.city!.isNotEmpty)
+                    if (profile.city != null && profile.city!.isNotEmpty
+                        || profile.country != null && profile.country!.isNotEmpty)
                       Text(
-                        profile.city!,
+                        [profile.city, profile.country]
+                            .where((e) => e != null && e.isNotEmpty)
+                            .join(', '),
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),

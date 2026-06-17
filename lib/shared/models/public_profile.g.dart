@@ -13,6 +13,7 @@ _PublicProfile _$PublicProfileFromJson(Map<String, dynamic> json) =>
       age: (json['age'] as num?)?.toInt(),
       gender: json['gender'] as String?,
       city: json['city'] as String?,
+      country: json['country'] as String?,
       geoHash: json['geoHash'] as String?,
       interests: (json['interests'] as List<dynamic>?)
           ?.map((e) => e as String)
@@ -43,6 +44,7 @@ Map<String, dynamic> _$PublicProfileToJson(_PublicProfile instance) =>
       'age': instance.age,
       'gender': instance.gender,
       'city': instance.city,
+      'country': instance.country,
       'geoHash': instance.geoHash,
       'interests': instance.interests,
       'occupations': instance.occupations,

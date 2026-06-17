@@ -35,7 +35,7 @@ class _PrivacyEditorScreenState extends ConsumerState<PrivacyEditorScreen> {
       id: 0, showNickname: true, showFullName: true, showAge: true,
       showGender: true, showCity: true, showExactLocation: false,
       showPhone: false, showEmail: false, showInterests: true,
-      showOccupation: true, showBio: true, showLookingFor: true, showPhotos: true,
+      showOccupation: true, showBio: true, showLookingFor: true, showPhotos: true, showCountry: true,
       allowVideoCall: true, allowDirectChat: true, geoPrecision: 'neighborhood',
     );
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadSettings());
@@ -118,6 +118,7 @@ class _PrivacyEditorScreenState extends ConsumerState<PrivacyEditorScreen> {
               ]),
               FormSection(icon: Icons.location_on_outlined, title: greek ? 'Τοποθεσία' : 'Location', children: [
                 FormToggle(title: greek ? 'Πόλη' : 'City', subtitle: greek ? 'Να εμφανίζεται η πόλη σου' : 'Show your city', value: _settings.showCity, onChanged: (v) => setState(() => _settings = _settings.copyWith(showCity: v))),
+                FormToggle(title: greek ? 'Χώρα' : 'Country', subtitle: greek ? 'Να εμφανίζεται η χώρα σου' : 'Show your country', value: _settings.showCountry, onChanged: (v) => setState(() => _settings = _settings.copyWith(showCountry: v))),
                 const SizedBox(height: 8),
                 _buildGeoPrecision(greek),
               ]),

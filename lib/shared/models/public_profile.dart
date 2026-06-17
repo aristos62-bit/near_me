@@ -11,6 +11,7 @@ abstract class PublicProfile with _$PublicProfile {
     int? age,
     String? gender,
     String? city,
+    String? country,
     String? geoHash,
     List<String>? interests,
     List<String>? occupations,

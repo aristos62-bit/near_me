@@ -76,7 +76,7 @@ class AuthRepositoryImpl implements AuthRepository {
       DebugConfig.log(DebugConfig.authFlow, 'deleteAccount: Firebase Auth user deleted');
     } on FirebaseAuthException catch (e) {
       if (e.code == 'requires-recent-login') {
-        if (password != null && user.email != null) {
+        if (password != null && user.email != null && user.email!.isNotEmpty) {
           DebugConfig.log(DebugConfig.authFlow, 'deleteAccount: reauthenticating');
           final credential = EmailAuthProvider.credential(email: user.email!, password: password);
           await user.reauthenticateWithCredential(credential);

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/app_colors.dart';
@@ -10,8 +11,37 @@ import '../../../core/utils/lock_screen.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/app_settings_provider.dart';
 
-class SettingsScreen extends ConsumerWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  User? _authUser;
+
+  @override
+  void initState() {
+    super.initState();
+    DebugConfig.log(DebugConfig.uiInteraction, 'SettingsScreen init');
+    _authUser = ref.read(authStateProvider).value;
+    ref.listen<AsyncValue<User?>>(authStateProvider, (_, next) {
+      final newUser = next.value;
+      if (_authUser?.uid != newUser?.uid ||
+          _authUser?.isAnonymous != newUser?.isAnonymous ||
+          _authUser?.emailVerified != newUser?.emailVerified ||
+          _authUser?.phoneNumber != newUser?.phoneNumber) {
+        if (mounted) setState(() => _authUser = newUser);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    DebugConfig.log(DebugConfig.uiInteraction, 'SettingsScreen dispose');
+    super.dispose();
+  }
 
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
     final isGreek = L10n.isGreek(context);
@@ -38,12 +68,11 @@ class SettingsScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final isGreek = L10n.isGreek(context);
-    final user = ref.watch(authStateProvider).value;
-    final isAnonymous = user?.isAnonymous ?? false;
-    final phoneVerified = !isAnonymous && user!.phoneNumber != null;
-    final appSettingsAsync = ref.watch(appSettingsProvider);
+    final isAnonymous = _authUser?.isAnonymous ?? false;
+    final emailVerified = _authUser?.emailVerified ?? false;
+    final phoneVerified = !isAnonymous && ref.read(authRepositoryProvider).isPhoneVerified;
     DebugConfig.log(DebugConfig.uiInteraction, 'SettingsScreen build');
 
     return Scaffold(
@@ -68,7 +97,7 @@ class SettingsScreen extends ConsumerWidget {
               if (isAnonymous)
                 const Divider(),
 
-              if (!isAnonymous && user!.emailVerified) ...[
+              if (!isAnonymous && emailVerified) ...[
                 ListTile(
                   leading: const Icon(Icons.phone_android_outlined),
                   title: Text(isGreek ? 'Επαλήθευση Τηλεφώνου' : 'Verify Phone'),
@@ -89,75 +118,7 @@ class SettingsScreen extends ConsumerWidget {
               if (!isAnonymous)
                 _SectionHeader(label: isGreek ? 'Ασφάλεια Συσκευής' : 'Device Security'),
               if (!isAnonymous)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: appSettingsAsync.when(
-                    loading: () => const ListTile(
-                      leading: Icon(Icons.screen_lock_portrait_outlined),
-                      title: Text('...'),
-                    ),
-                    error: (e, _) => ListTile(
-                      leading: const Icon(Icons.screen_lock_portrait_outlined),
-                      title: Text(isGreek ? 'Σφάλμα φόρτωσης' : 'Load error'),
-                    ),
-                    data: (settings) => Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SwitchListTile(
-                          secondary: const Icon(Icons.screen_lock_portrait_outlined),
-                          title: Text(isGreek ? 'Αποτροπή Screenshot' : 'Screenshot Prevention'),
-                          subtitle: Text(isGreek
-                              ? 'Αποτρέπει τη λήψη screenshot στην εφαρμογή'
-                              : 'Prevent screenshots within the app'),
-                          value: settings.screenshotPreventionEnabled,
-                          onChanged: (v) {
-                            DebugConfig.log(DebugConfig.uiInteraction,
-                                'SettingsScreen: screenshotPreventionEnabled=$v');
-                            ref.read(appSettingsProvider.notifier).setScreenshotPrevention(v);
-                            AppMessenger.showInfo(context,
-                                v
-                                    ? (isGreek ? 'Η προστασία ενεργοποιήθηκε' : 'Protection enabled')
-                                    : (isGreek ? 'Η προστασία απενεργοποιήθηκε' : 'Protection disabled'),
-                            );
-                          },
-                        ),
-                        SwitchListTile(
-                          secondary: const Icon(Icons.fingerprint),
-                          title: Text(isGreek ? 'Biometric Lock' : 'Biometric Lock'),
-                          subtitle: Text(isGreek
-                              ? 'Κλείδωμα με δακτυλικό αποτύπωμα / Face ID'
-                              : 'Lock with fingerprint / Face ID'),
-                          value: settings.biometricLockEnabled,
-                          onChanged: (v) async {
-                            DebugConfig.log(DebugConfig.uiInteraction,
-                                'SettingsScreen: biometricLockEnabled=$v');
-                            if (v) {
-                              final canUse = await LockScreen.canUseBiometric();
-                              if (!canUse) {
-                                if (context.mounted) {
-                                  AppMessenger.showError(context,
-                                      isGreek
-                                          ? 'Δεν υπάρχει διαθέσιμο βιομετρικό στη συσκευή'
-                                          : 'No biometric available on this device',
-                                  );
-                                }
-                                return;
-                              }
-                            }
-                            await ref.read(appSettingsProvider.notifier).setBiometricLock(v);
-                            if (context.mounted) {
-                              AppMessenger.showInfo(context,
-                                  v
-                                      ? (isGreek ? 'Biometric Lock ενεργοποιήθηκε' : 'Biometric Lock enabled')
-                                      : (isGreek ? 'Biometric Lock απενεργοποιήθηκε' : 'Biometric Lock disabled'),
-                              );
-                            }
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                const _DeviceSecuritySection(),
               if (!isAnonymous)
                 const Divider(),
 
@@ -188,6 +149,87 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DeviceSecuritySection extends ConsumerWidget {
+  const _DeviceSecuritySection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isGreek = L10n.isGreek(context);
+    final appSettingsAsync = ref.watch(appSettingsProvider);
+    DebugConfig.log(DebugConfig.uiInteraction, '_DeviceSecuritySection build');
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: appSettingsAsync.when(
+        loading: () => const ListTile(
+          leading: Icon(Icons.screen_lock_portrait_outlined),
+          title: Text('...'),
+        ),
+        error: (e, _) => ListTile(
+          leading: const Icon(Icons.screen_lock_portrait_outlined),
+          title: Text(isGreek ? 'Σφάλμα φόρτωσης' : 'Load error'),
+        ),
+        data: (settings) => Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SwitchListTile(
+              secondary: const Icon(Icons.screen_lock_portrait_outlined),
+              title: Text(isGreek ? 'Αποτροπή Screenshot' : 'Screenshot Prevention'),
+              subtitle: Text(isGreek
+                  ? 'Αποτρέπει τη λήψη screenshot στην εφαρμογή'
+                  : 'Prevent screenshots within the app'),
+              value: settings.screenshotPreventionEnabled,
+              onChanged: (v) {
+                DebugConfig.log(DebugConfig.uiInteraction,
+                    '_DeviceSecuritySection: screenshotPreventionEnabled=$v');
+                ref.read(appSettingsProvider.notifier).setScreenshotPrevention(v);
+                AppMessenger.showInfo(context,
+                    v
+                        ? (isGreek ? 'Η προστασία ενεργοποιήθηκε' : 'Protection enabled')
+                        : (isGreek ? 'Η προστασία απενεργοποιήθηκε' : 'Protection disabled'),
+                );
+              },
+            ),
+            SwitchListTile(
+              secondary: const Icon(Icons.fingerprint),
+              title: Text(isGreek ? 'Biometric Lock' : 'Biometric Lock'),
+              subtitle: Text(isGreek
+                  ? 'Κλείδωμα με δακτυλικό αποτύπωμα / Face ID'
+                  : 'Lock with fingerprint / Face ID'),
+              value: settings.biometricLockEnabled,
+              onChanged: (v) async {
+                DebugConfig.log(DebugConfig.uiInteraction,
+                    '_DeviceSecuritySection: biometricLockEnabled=$v');
+                if (v) {
+                  final canUse = await LockScreen.canUseBiometric();
+                  if (!canUse) {
+                    if (context.mounted) {
+                      AppMessenger.showError(context,
+                          isGreek
+                              ? 'Δεν υπάρχει διαθέσιμο βιομετρικό στη συσκευή'
+                              : 'No biometric available on this device',
+                      );
+                    }
+                    return;
+                  }
+                }
+                await ref.read(appSettingsProvider.notifier).setBiometricLock(v);
+                if (context.mounted) {
+                  AppMessenger.showInfo(context,
+                      v
+                          ? (isGreek ? 'Biometric Lock ενεργοποιήθηκε' : 'Biometric Lock enabled')
+                          : (isGreek ? 'Biometric Lock απενεργοποιήθηκε' : 'Biometric Lock disabled'),
+                  );
+                }
+              },
+            ),
+          ],
         ),
       ),
     );

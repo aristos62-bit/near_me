@@ -114,7 +114,7 @@ BlockedUser (sync'd)           → users/{uid}/fcm_tokens/{tokenId}
 - ✅ Server-side filters (moved from client-side `_passesFilters`)
 - ✅ Typesense stub proper `implements SearchRepository` (Session 74)
 
-### Φάση 3 — Communication (~92%, 10/11)
+### Φάση 3 — Communication (~100%, 12/12)
 - ✅ Verify Account / Welcome Screen (email/password link)
 - ✅ Request System (send, accept/decline, 48h expiry, multi-delete)
 - ✅ Request→Chat Flow (auto-create chat on accept)
@@ -126,7 +126,7 @@ BlockedUser (sync'd)           → users/{uid}/fcm_tokens/{tokenId}
 - ✅ Chat preview + unread count (encrypted lastMessage in chat doc)
 - ✅ E2E encryption indicator (lock icon, tap dialog)
 - ✅ Anonymous guards (block requests/messages/block/report, data leakage fix)
-- ⏳ Phone verification (P2.5, SMS)
+- ✅ Phone verification (P2.5, SMS)
 
 ### Φάση 4+ (0% — planned)
 - Typesense search, Video calls (Agora), AI matching, Groups, Verified badge, Premium, Web, Admin panel
@@ -225,22 +225,22 @@ BlockedUser (sync'd)           → users/{uid}/fcm_tokens/{tokenId}
 
 ---
 
-## Current Project State (Session 76)
+## Current Project State (Session 81)
 
 | Μέτρο | Τιμή |
 |---|---|
-| Total `.dart` files | ~95+ (implemented) |
-| Backup files (.bak) | 0 (full cleanup) |
+| Total `.dart` files | ~97+ (implemented) |
+| Backup files (.bak) | session-only (cleaned periodically) |
 | Files > 400 lines | — (όριο μη δεσμευτικό) |
-| Cloud Functions | 3 deployed: `onReportCreated`, `sendChatNotification`, `sendRequestNotification`, `sendRequestResponseNotification` |
+| Cloud Functions | 3 deployed |
 | Firestore indexes | 13+ composite deployed |
-| Build | `flutter analyze` clean ✅, release APK ~14.4MB |
-| Completion | ~98% (Phase 1 ~100%, Phase 2 100%, Phase 3 ~95%) |
+| Build | `flutter analyze` clean ✅, release APK ~14.5MB |
+| Completion | ~99% (Phase 1 ~100%, Phase 2 100%, Phase 3 100%) |
 
 ### Remaining Gaps
-- **P2.5**: Phone verification (SMS) — pending implementation
 - **P3.6**: Auto-lock timer (schema exists, no runtime)
-- **Phase 4**: Video (Agora), AI matching, Groups, Admin, Web, Premium
+- **Phase 4**: Video (Agora), AI matching, Groups, Admin, Web, Premium, Typesense
+- **Activate dead `SearchFilters.country`**: filter updateCountry/dropdown/client-side filter
 
 ### Session 69 Completed
 - **Communication settings (Option A)**: Removed allowVideoCall/allowDirectChat from Privacy Editor; publish() reads from UserProfile
@@ -373,21 +373,23 @@ BlockedUser (sync'd)           → users/{uid}/fcm_tokens/{tokenId}
 
 ---
 
-## 📍 Current Status
+## 📍 Current Status — Session 81
 
-### ✅ Completed (Country Feature)
-- `privacy_settings_table.dart`: `showCountry` column added
-- `database.dart`: schema 4→5 migration
-- `public_profile.dart`: `String? country` field (freezed)
-- `profile_repository_impl.dart`: conditional `country:` in `publish()`, Firestore→local restore
-- `privacy_editor_screen.dart`: FormToggle + default `true`
-- `public_profile_header.dart`: "City, Country" display
-- `profile_card.dart`: `join(', ')` display
-- `publish()` null-overwrite bug fix
-- Unit tests (13) + widget test fix
-- Manual test on 3 devices
+### ✅ Completed (Phone Verification — P2.5)
+- `phone_verify_provider.dart`: `PhoneVerifyNotifier` + state machine (6 states) + `checkIfAlreadyVerified()`
+- `phone_verify_screen.dart`: full phone → OTP → success flow + guards + bilingual error messages
+- `auth_repository_impl.dart`: Firebase Phone Auth via `Completer<String>`, 8 error codes mapped
+- `settings_screen.dart`: "Verify Phone" ListTile (gated: email verified + non-anonymous)
+- `app_router.dart`: route `/settings/phone-verify`
+- Debug flag `authPhone` in `debug_config.dart`
+- `l10n.dart`: `phoneCountryCode()` based on device locale
+- Phone number hidden from success views (privacy)
+- `provider-already-linked` treated as success
+- `reloadUser()` before `checkIfAlreadyVerified()` for accurate server state
+- Firebase: Phone Auth enabled + SHA-1 + SMS Region Policy (GR) + test phone number
 
 ### ✅ Completed (Previous Sessions)
+- Country feature: `showCountry` toggle + display + publish + tests
 - Profile Editor confirm dialog (`_loadedProfile`, `_isDirty`, `_onBack()`, `PopScope`)
 - Biometric lock fix (`_lastPauseTime` + 60s short-pause skip)
 - `showPhotos` feature (column, migration v3→v4, conditional `avatarUrl`/`photoUrls`)
@@ -397,7 +399,133 @@ BlockedUser (sync'd)           → users/{uid}/fcm_tokens/{tokenId}
 - Full geo handling audit (19 files mapped, 3 bugs found/fixed)
 
 ### ⏳ Pending / Optional
+- **P3.6**: Auto-lock timer (schema exists, no runtime)
+- **Phase 4**: Typesense, Video (Agora), AI matching, Groups, Verified badge, Premium, Web, Admin panel
 - **Activate dead `SearchFilters.country`** — `filters_provider.dart` updateCountry(), `search_filters_screen.dart` dropdown, `firestore_search_repository.dart` client-side country filter
+- **Instant Greek SMS**: Custom SMS provider (Twilio/Vonage) via Cloud Function for carrier-grade deliverability
+
+---
+
+---
+
+### Session 81 — Phone Verification (P2.5) — Implemented & Tested
+
+**Goal**: SMS-based phone verification, gated behind email verification.
+
+**New files** (2):
+- `lib/features/auth/providers/phone_verify_provider.dart` — `PhoneVerifyNotifier` with state machine: idle/loading/otpSent/verified/error/autoVerified
+- `lib/features/auth/screens/phone_verify_screen.dart` — Full screen: phone input → OTP input → success views, guard for anonymous/non-email-verified
+
+**Modified files** (6):
+- `lib/core/l10n/l10n.dart` — `phoneCountryCode()` method: detects device locale country code → dial code (GR→+30, US→+1, κλπ.)
+- `lib/repositories/auth_repository.dart` — 3 abstract methods: `sendPhoneOtp()`, `verifyPhoneOtp()`, `isPhoneVerified`
+- `lib/repositories/auth_repository_impl.dart` — Firebase callback-based `verifyPhoneNumber` bridged via `Completer<String>`; `_mapPhoneError()` handles 8+ error codes; `isPhoneVerified` getter checks `currentUser?.phoneNumber`
+- `lib/core/router/app_router.dart` — route `/settings/phone-verify`
+- `lib/features/settings/screens/settings_screen.dart` — "Verify Phone" ListTile (visible only when `!isAnonymous && user.emailVerified`)
+- `lib/core/debug/debug_config.dart` — flag `authPhone` (default true)
+
+**Phone provider**:
+- `sendOtp()`: calls repo → `otpSent` with `verificationId` or `autoVerified` (SMS auto-retrieval)
+- `verifyOtp()`: calls repo with code → `verified` or `error`
+- `checkIfAlreadyVerified()`: calls `reloadUser()` then `isPhoneVerified` → skip straight to `verified` if already linked
+- `provider-already-linked` treated as success (not error) in both `sendOtp`/`verifyOtp`
+
+**Screen**:
+- `initState`: pre-fills country code from device locale + calls `checkIfAlreadyVerified()` via `addPostFrameCallback`
+- Guards: anonymous or email-not-verified → message + "Verify Email" button
+- States: loading → spinner, otpSent → 6-digit code field, verified/autoVerified → success view (no phone number displayed), error → `ErrorView` with retry → `reset()`
+- `_sendOtp` strips spaces for E.164 format
+- `_errorText()`: bilingual messages for all error codes including `operation-not-allowed`
+
+**Testing (real device)**:
+- `operation-not-allowed` → fixed by enabling Phone provider + SHA-1 in Firebase Console
+- `SMS Region Policy` → enabled Greece (GR) in Authentication → Settings
+- OTP received after ~5min delay (Firebase international aggregator routing)
+- `test phone number` (Firebase Console) → instant OTP verification ✅
+- `provider-already-linked` → handled gracefully as "already verified" ✅
+- `checkIfAlreadyVerified()` → reloads user before checking cached `phoneNumber` ✅
+- Invalid phone `+30123` → `auth/invalid-phone` error correctly displayed ✅
+
+**Note**: Phone verification uses Firebase Phone Auth (international SMS aggregators, ~$0.01/SMS after 10 free/day). For instant Greek SMS (like banks/carriers), architecture change needed: Firebase Auth with Identity Platform + custom SMS provider (Twilio/Vonage) via Cloud Function.
+
+**`flutter analyze`**: clean ✅
+**Backups**: 5 `.bak` files created ✅
+
+---
+
+### Session 82 — Phone verify stale state fix + authStateChanges→userChanges
+
+**Problem 1 — Stale provider state:** `phoneVerifyProvider` δεν είναι `autoDispose`. Αν χρήστης έφευγε από την οθόνη σε κατάσταση `otpSent` ή `error` και ξαναμπαίνει, το `initState()` καλούσε μόνο `checkIfAlreadyVerified()` (που κάνει κάτι μόνο αν ήδη verified) χωρίς `reset()`. Αποτέλεσμα: ληγμένο `verificationId` ή stale error message.
+
+**Fix:** `phone_verify_screen.dart:38-42` — `reset()` πριν `checkIfAlreadyVerified()` στο `initState()`. Πάντα καθαρή κατάσταση σε κάθε είσοδο.
+
+**Problem 2 — Stale `emailVerified`:** Το `authStateProvider` βασιζόταν σε `authStateChanges()` που εκπέμπει ΜΟΝΟ σε sign-in/out. Μετά από `reloadUser()` (π.χ. email verification), το `emailVerified` παρέμενε stale στο Riverpod state. Το `phone_verify_screen.dart:79` διάβαζε `user?.emailVerified` από αυτό το stale snapshot.
+
+**Fix:** `auth_repository_impl.dart:163` — `_auth.authStateChanges()` → `_auth.userChanges()`. Το `userChanges()` εκπέμπει και σε profile reload, όχι μόνο σε sign-in/out. Τα 2 ξεχωριστά listeners (`app_router.dart`, `presence_service.dart`) παρέμειναν σε `authStateChanges()` — σκόπιμα, γιατί θέλουν events μόνο σε login/logout.
+
+**Backup cleanup:** 28 `.bak` files deleted.
+
+**Edge cases covered:**
+- Stale OTP/error on re-entry ✅
+- Already verified user re-enters → reset() + checkIfAlreadyVerified() → verified ✅
+- Rapid reloads → userChanges() coalesces ✅
+- Router redirect → remains on authStateChanges() ✅
+- Presence heartbeat → remains on authStateChanges() ✅
+
+**`flutter analyze`**: clean ✅
+
+---
+
+### Session 83 — Completer safety timeout for sendPhoneOtp
+
+**Problem:** `sendPhoneOtp()` χρησιμοποιεί `Completer<String>` που γίνεται `complete` από τα callbacks `verificationCompleted` / `verificationFailed` / `codeSent`. Αν για οποιονδήποτε λόγο δεν κληθεί κανένα (π.χ. Firebase SDK bug, σπάνιο network condition), το `completer.future` μένει forever pending. Το `LoadingView` δεν έχει cancel button → χρήστης κολλάει επ' αόριστον.
+
+**Fix — 3 αρχεία, 4 γραμμές:**
+
+1. `auth_repository_impl.dart:219-224` — `return completer.future` → `return completer.future.timeout(30s, onTimeout: () => throw AppException(...))`. 30s safety net. Debug log σε timeout.
+
+2. `phone_verify_provider.dart:105` — `_friendlyError`: `msg.contains('phone-timeout')` → `auth/phone-timeout`.
+
+3. `phone_verify_screen.dart:288-289` — `_errorText`: `case 'auth/phone-timeout':` bilingual "Το αίτημα επαλήθευσης έληξε / Verification request timed out".
+
+**Edge cases covered:**
+- Normal ροή (codeSent) → timeout δεν φτάνει ποτέ ✅
+- Auto-verify (verificationCompleted) → timeout δεν φτάνει ποτέ ✅
+- Σφάλμα (verificationFailed) → timeout δεν φτάνει ποτέ ✅
+- Κανένα callback → 30s → `AppException` → `ErrorView` with retry ✅
+- `provider-already-linked` → πιάνεται σε catch πριν `_friendlyError` ✅
+- Το `reset()` (Session 82) δίνει retry path: ErrorView → Retry → reset() → sendOtp() ξανά ✅
+
+**`flutter analyze`**: clean ✅
+
+---
+
+### Session 84 — Inline spinners αντί full-screen LoadingView στο PhoneVerifyScreen
+
+**Problem:** Όταν ο χρήστης πατούσε "Επαναποστολή κωδικού" ή "Επαλήθευση", το state του provider γινόταν `loading` και το UI αντικαθιστούσε ΟΛΟΚΛΗΡΗ την οθόνη με `LoadingView`, χάνοντας το OTP form και δημιουργώντας visual flash.
+
+**Fix — `phone_verify_screen.dart`:**
+1. **Αφαίρεση full-screen LoadingView:** Οι 2 συνθήκες `state.status == loading && _isSending/Verifying → LoadingView` αφαιρέθηκαν. Το `ListView` εμφανίζεται πάντα (εκτός autoVerified/verified).
+2. **Local `_otpFormActive` flag:** Παρακολουθεί μέσω `ref.listen` πότε ο provider φτάνει σε `otpSent` state. Όταν true, το OTP form παραμένει ορατό ακόμα και κατά το resend/verify (όταν provider είναι temporary σε `loading`).
+3. **Inline spinner στο resend:** Αντί να εξαφανίζεται το κουμπί, το εικονίδιο αντικαθίσταται με `CircularProgressIndicator(strokeWidth: 2)` όσο `_isSending == true`.
+4. **Disabled inputs:** `enabled: !_isSending` στο phone field, `enabled: !_isVerifying` στο OTP field — αποτροπή αλλαγών κατά την επεξεργασία.
+
+**Edge cases covered:**
+- Πρώτη αποστολή (idle → loading → otpSent): phone form + spinner στο Send Code ✅
+- Επαναποστολή (otpSent → loading → otpSent): OTP form stays, spinner στο resend ✅
+- Επαλήθευση (otpSent → loading → verified): OTP form stays, spinner στο Verify ✅
+- Error σε resend: `_otpFormActive` stays true, ErrorView inline, retry → reset() → phone form ✅
+- Back → re-enter: `reset()` στο initState → `_otpFormActive = false` → fresh start ✅
+- `_otpFormActive` resets on `idle` (retry/back) και on `verified`/`autoVerified` ✅
+
+**Conventions:**
+- Responsive: ❌ δεν άλλαξε (ResponsiveUtils.maxContentWidth παραμένει)
+- Multilanguage: ✅ bilingual στα μηνύματα
+- Single source of truth: ✅ provider state + local UI flags, clear separation
+- AppMessenger/ErrorView: ✅ ErrorView inline, phone validation με AppMessenger.showError
+- DebugConfig: ✅ log στο `ref.listen` + υπάρχοντα logs στα buttons
+
+**`flutter analyze`**: clean ✅
 
 ---
 
@@ -412,3 +540,82 @@ BlockedUser (sync'd)           → users/{uid}/fcm_tokens/{tokenId}
 - **Repository pattern**: Abstract interface + impl, no raw Firestore in UI
 - **Privacy-first**: Full profile in local DB only, minimal public snapshot in Firestore
 - **Schema versioning**: Drift `MigrationStrategy` for schema evolution, no placeholder fields
+
+---
+
+### Session 85 — Clear _otpCtrl on resend
+
+**Problem:** `_otpCtrl` δεν καθαριζόταν όταν ο χρήστης πατούσε Resend — ο προηγούμενος (άκυρος) κωδικός παρέμενε στο πεδίο.
+
+**Fix — `phone_verify_screen.dart`:** `_sendOtp()`: αν `_otpFormActive == true`, κάνει `_otpCtrl.clear()` πριν στείλει νέο OTP.
+
+**`flutter analyze`**: clean ✅
+
+---
+
+### Session 86 — Country code as prefixText (όχι editable)
+
+**Problem:** Το country code (`+30`) μπαινε στο `_phoneCtrl.text` (editable) ΚΑΙ στο `labelText` — διπλή εμφάνιση + κίνδυνος αλλοίωσης από τον χρήστη, άρα invalid E.164 στο Firebase.
+
+**Fix:**
+- `initState()`: αφαιρέθηκε το `_phoneCtrl.text = '$code '` (δεν μπαίνει πια στο controller)
+- `InputDecoration`: `labelText` δείχνει μόνο `'6XX XXXXXXX'`, προστέθηκε `prefixText: '+30 '` (μη editable, στο input field)
+- `_sendOtp()`: προθέτει `'$code'` στο `_phoneCtrl.text` αν δεν ξεκινάει ήδη με `+`
+
+**`flutter analyze`**: clean ✅
+
+---
+
+### Session 87 — Client-side phone validation
+
+**Problem:** Δεν υπήρχε validation μήκους/μορφής του αριθμού στο client — μόνο `isEmpty` check. Firebase γυρνούσε error αλλά με χειρότερο UX (καθυστέρηση + generic error).
+
+**Fix — `phone_verify_screen.dart` `_sendOtp()`:**
+- Αφαίρεση όλων non-digit chars
+- Regex `^[1-9]\d{6,14}$` (7-15 digits, E.164 standard)
+- Αν δεν κάνει match: άμεσο error μήνυμα «Μη έγκυρος αριθμός τηλεφώνου / Invalid phone number»
+- Προσθήκη `+` μετά το validation για proper E.164
+
+**`flutter analyze`**: clean ✅
+
+---
+
+### Session 88 — AppColors.online αντί hardcoded Color (single source of truth)
+
+**Problem:** `_buildAutoVerified` / `_buildVerified` χρησιμοποιούσαν `const Color(0xFF4CAF50)` αντί για το `AppColors.online` που ήδη υπάρχει με την ίδια τιμή.
+
+**Fix — `phone_verify_screen.dart`:** 2 αλλαγές (lines 251, 275): `Color(0xFF4CAF50)` → `AppColors.online`.
+
+**`flutter analyze`**: clean ✅
+
+---
+
+### Session 89 — Status indicator στο settings phone tile
+
+**Problem:** Το ListTile "Verify Phone" στο settings_screen ήταν ίδιο είτε το τηλέφωνο ήταν επαληθευμένο είτε όχι — κανένα visual feedback.
+
+**Fix — `settings_screen.dart`:**
+- Νέο `phoneVerified = user!.phoneNumber != null` στο build method
+- Subtitle: «Επαληθεύτηκε / Verified» όταν verified
+- Trailing: `Icons.check_circle` (πράσινο) αντί για `chevron_right` όταν verified
+
+**`flutter analyze`**: clean ✅
+
+---
+
+### Session 90 — Remove redundant _friendlyError string matching
+
+**Problem:** Το `_friendlyError()` στο `phone_verify_provider.dart` έκανε 9 `contains()` checks πάνω σε `error.toString()` — redundant, γιατί το `_mapPhoneError()` στο `auth_repository_impl.dart` ήδη παράγει `AppException` με σωστό `code`.
+
+**Fix — `phone_verify_provider.dart`:**
+```dart
+String _friendlyError(Object error) {
+  if (error is AppException) return error.code;
+  return 'auth/unknown-error';
+}
+```
+Προστέθηκε `import '../../../core/utils/app_exception.dart'`.
+
+**`flutter analyze`**: clean ✅
+
+---

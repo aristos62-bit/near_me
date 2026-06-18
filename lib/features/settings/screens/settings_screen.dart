@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
 import '../../../core/utils/lock_screen.dart';
@@ -41,6 +42,7 @@ class SettingsScreen extends ConsumerWidget {
     final isGreek = L10n.isGreek(context);
     final user = ref.watch(authStateProvider).value;
     final isAnonymous = user?.isAnonymous ?? false;
+    final phoneVerified = !isAnonymous && user!.phoneNumber != null;
     final appSettingsAsync = ref.watch(appSettingsProvider);
     DebugConfig.log(DebugConfig.uiInteraction, 'SettingsScreen build');
 
@@ -65,6 +67,23 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               if (isAnonymous)
                 const Divider(),
+
+              if (!isAnonymous && user!.emailVerified) ...[
+                ListTile(
+                  leading: const Icon(Icons.phone_android_outlined),
+                  title: Text(isGreek ? 'Επαλήθευση Τηλεφώνου' : 'Verify Phone'),
+                  subtitle: Text(phoneVerified
+                      ? (isGreek ? 'Επαληθεύτηκε' : 'Verified')
+                      : (isGreek
+                          ? 'Επιβεβαίωσε τον αριθμό τηλεφώνου σου'
+                          : 'Verify your phone number')),
+                  trailing: phoneVerified
+                      ? Icon(Icons.check_circle, color: AppColors.online)
+                      : const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/settings/phone-verify'),
+                ),
+                const Divider(),
+              ],
 
               // --- Ασφάλεια Συσκευής ---
               if (!isAnonymous)

@@ -14,6 +14,7 @@ import '../../features/profile/screens/profile_screen.dart';
 import '../../features/profile/screens/profile_editor_screen.dart';
 import '../../features/profile/screens/privacy_editor_screen.dart';
 import '../../features/profile/screens/consent_log_screen.dart';
+import '../../features/auth/screens/phone_verify_screen.dart';
 import '../../features/auth/screens/verify_account_screen.dart';
 import '../../features/auth/screens/welcome_screen.dart';
 import '../../features/auth/screens/anonymous_info_screen.dart';
@@ -119,6 +120,7 @@ class AppRouter {
       GoRoute(path: '/profile/blocked', pageBuilder: (context, state) => _modal(const BlockedUsersScreen())),
       GoRoute(path: '/profile/delete', pageBuilder: (context, state) => _modal(const DeleteAccountScreen())),
       GoRoute(path: '/settings', pageBuilder: (context, state) => _modal(const SettingsScreen())),
+      GoRoute(path: '/settings/phone-verify', pageBuilder: (context, state) => _modal(const PhoneVerifyScreen())),
       GoRoute(path: '/auth', pageBuilder: (context, state) => _modal(const VerifyAccountScreen())),
       GoRoute(path: '/welcome', builder: (context, state) => const WelcomeScreen()),
       GoRoute(path: '/anonymous-info', builder: (context, state) => const AnonymousInfoScreen()),

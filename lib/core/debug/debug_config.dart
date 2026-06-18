@@ -47,6 +47,7 @@ class DebugConfig {
   static const bool authFlow = true;             // signIn, signUp, signOut
   static const bool authTokens = false;          // token refresh, secure storage
   static const bool authAnonymous = true;        // anonymous → verified upgrade
+  static const bool authPhone = true;             // phone verification flow
 
   /// ─────────────────────────────────────────────────────────────
   /// CLOUD FUNCTIONS — Firebase Callable Functions

@@ -14,4 +14,7 @@ abstract class AuthRepository {
   Future<void> sendPasswordResetEmail(String email);
   Future<User> signInWithEmailAndPassword(String email, String password);
   Future<User> createUserWithEmailAndPassword(String email, String password);
+  Future<String> sendPhoneOtp(String phoneNumber);
+  Future<void> verifyPhoneOtp(String verificationId, String smsCode);
+  bool get isPhoneVerified;
 }

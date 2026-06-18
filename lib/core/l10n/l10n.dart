@@ -172,6 +172,48 @@ class L10n {
   }
 
   /// Splits a "ελληνικά / english" bilingual string and returns the locale-appropriate part.
+  /// Returns the phone country dial code based on device locale (e.g. GR → +30, US → +1).
+  static String phoneCountryCode() {
+    final country = PlatformDispatcher.instance.locale.countryCode?.toUpperCase() ?? '';
+    switch (country) {
+      case 'GR': return '+30';
+      case 'US': return '+1';
+      case 'GB': return '+44';
+      case 'AU': return '+61';
+      case 'CA': return '+1';
+      case 'DE': return '+49';
+      case 'FR': return '+33';
+      case 'IT': return '+39';
+      case 'ES': return '+34';
+      case 'NL': return '+31';
+      case 'BE': return '+32';
+      case 'SE': return '+46';
+      case 'NO': return '+47';
+      case 'DK': return '+45';
+      case 'FI': return '+358';
+      case 'AT': return '+43';
+      case 'CH': return '+41';
+      case 'PT': return '+351';
+      case 'IE': return '+353';
+      case 'PL': return '+48';
+      case 'CZ': return '+420';
+      case 'HU': return '+36';
+      case 'RO': return '+40';
+      case 'BG': return '+359';
+      case 'RU': return '+7';
+      case 'CN': return '+86';
+      case 'JP': return '+81';
+      case 'KR': return '+82';
+      case 'IN': return '+91';
+      case 'BR': return '+55';
+      case 'MX': return '+52';
+      case 'TR': return '+90';
+      case 'CY': return '+357';
+      case 'AL': return '+355';
+      default: return '+30'; // fallback Greek
+    }
+  }
+
   static String localizedMessage(BuildContext context, String bilingual) {
     final sep = ' / ';
     final idx = bilingual.indexOf(sep);

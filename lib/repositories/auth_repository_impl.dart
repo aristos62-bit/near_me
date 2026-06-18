@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -159,9 +160,9 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Stream<User?> authStateChanges() {
     DebugConfig.log(DebugConfig.authFlow, 'Subscribing to authStateChanges');
-    return _auth.authStateChanges().map((user) {
+    return _auth.userChanges().map((user) {
       DebugConfig.log(DebugConfig.authFlow,
-          'authStateChanges emitted: uid=${user?.uid ?? "null"} anon=${user?.isAnonymous}');
+          'authStateChanges emitted: uid=${user?.uid ?? "null"} anon=${user?.isAnonymous} emailVerified=${user?.emailVerified}');
       return user;
     });
   }
@@ -178,5 +179,107 @@ class AuthRepositoryImpl implements AuthRepository {
     final anon = _auth.currentUser?.isAnonymous ?? false;
     DebugConfig.log(DebugConfig.authFlow, 'isAnonymous: $anon');
     return anon;
+  }
+
+  @override
+  Future<String> sendPhoneOtp(String phoneNumber) async {
+    DebugConfig.log(DebugConfig.authPhone, 'sendPhoneOtp: $phoneNumber');
+    final completer = Completer<String>();
+    try {
+      await _auth.verifyPhoneNumber(
+        phoneNumber: phoneNumber,
+        verificationCompleted: (credential) async {
+          DebugConfig.log(DebugConfig.authPhone, 'Phone: auto-verification completed');
+          try {
+            await _auth.currentUser?.linkWithCredential(credential);
+            DebugConfig.log(DebugConfig.authPhone, 'Phone: auto-verified successfully');
+            if (!completer.isCompleted) completer.complete('AUTO_VERIFIED');
+          } catch (e) {
+            DebugConfig.warn('Phone: auto-verify link failed', data: e);
+            if (!completer.isCompleted) completer.completeError(_mapPhoneError(e));
+          }
+        },
+        verificationFailed: (e) {
+          DebugConfig.warn('Phone: verification failed', data: e);
+          if (!completer.isCompleted) completer.completeError(_mapPhoneError(e));
+        },
+        codeSent: (vId, _) {
+          DebugConfig.log(DebugConfig.authPhone, 'Phone: OTP sent, vId=$vId');
+          if (!completer.isCompleted) completer.complete(vId);
+        },
+        codeAutoRetrievalTimeout: (_) {
+          DebugConfig.log(DebugConfig.authPhone, 'Phone: auto-retrieval timeout');
+        },
+        timeout: const Duration(seconds: 60),
+      );
+    } catch (e) {
+      DebugConfig.error('Phone: sendPhoneOtp failed', data: e);
+      if (!completer.isCompleted) completer.completeError(_mapPhoneError(e));
+    }
+    return completer.future.timeout(
+      const Duration(seconds: 30),
+      onTimeout: () {
+        DebugConfig.warn('Phone: sendPhoneOtp timed out after 30s');
+        throw const AppException(message: 'phone-timeout', code: 'auth/phone-timeout');
+      },
+    );
+  }
+
+  @override
+  Future<void> verifyPhoneOtp(String verificationId, String smsCode) async {
+    DebugConfig.log(DebugConfig.authPhone, 'verifyPhoneOtp: verifying code');
+    final user = _auth.currentUser;
+    if (user == null) {
+      DebugConfig.warn('Phone: verifyOtp - no user');
+      throw const AppException(message: 'No authenticated user', code: 'auth_required');
+    }
+    try {
+      final credential = PhoneAuthProvider.credential(
+        verificationId: verificationId,
+        smsCode: smsCode,
+      );
+      await user.linkWithCredential(credential);
+      DebugConfig.log(DebugConfig.authPhone, 'Phone: verified and linked successfully');
+    } catch (e) {
+      DebugConfig.warn('Phone: verifyOtp failed', data: e);
+      throw _mapPhoneError(e);
+    }
+  }
+
+  @override
+  bool get isPhoneVerified {
+    final phone = _auth.currentUser?.phoneNumber;
+    final verified = phone != null && phone.isNotEmpty;
+    DebugConfig.log(DebugConfig.authPhone, 'isPhoneVerified: $verified phone=$phone');
+    return verified;
+  }
+
+  AppException _mapPhoneError(Object error) {
+    final msg = error.toString();
+    if (msg.contains('operation-not-allowed')) {
+      return const AppException(message: 'operation-not-allowed', code: 'auth/operation-not-allowed');
+    }
+    if (msg.contains('invalid-phone-number')) {
+      return const AppException(message: 'invalid-phone-number', code: 'auth/invalid-phone');
+    }
+    if (msg.contains('too-many-requests')) {
+      return const AppException(message: 'too-many-requests', code: 'auth/too-many-requests');
+    }
+    if (msg.contains('quota-exceeded')) {
+      return const AppException(message: 'quota-exceeded', code: 'auth/quota-exceeded');
+    }
+    if (msg.contains('invalid-verification-code')) {
+      return const AppException(message: 'invalid-verification-code', code: 'auth/invalid-code');
+    }
+    if (msg.contains('invalid-verification-id')) {
+      return const AppException(message: 'invalid-verification-id', code: 'auth/invalid-verification');
+    }
+    if (msg.contains('provider-already-linked')) {
+      return const AppException(message: 'provider-already-linked', code: 'auth/provider-linked');
+    }
+    if (msg.contains('network-request-failed')) {
+      return const AppException(message: 'network-request-failed', code: 'auth/network-error');
+    }
+    return AppException.auth('phone', 'Phone verification failed', error);
   }
 }

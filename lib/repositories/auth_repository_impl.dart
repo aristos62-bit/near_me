@@ -239,7 +239,8 @@ class AuthRepositoryImpl implements AuthRepository {
         smsCode: smsCode,
       );
       await user.linkWithCredential(credential);
-      DebugConfig.log(DebugConfig.authPhone, 'Phone: verified and linked successfully');
+      await _auth.currentUser?.reload();
+      DebugConfig.log(DebugConfig.authPhone, 'Phone: verified, linked, and reloaded successfully');
     } catch (e) {
       DebugConfig.warn('Phone: verifyOtp failed', data: e);
       throw _mapPhoneError(e);
@@ -252,6 +253,31 @@ class AuthRepositoryImpl implements AuthRepository {
     final verified = phone != null && phone.isNotEmpty;
     DebugConfig.log(DebugConfig.authPhone, 'isPhoneVerified: $verified phone=$phone');
     return verified;
+  }
+
+  @override
+  Future<void> unlinkPhone() async {
+    DebugConfig.log(DebugConfig.authPhone, 'unlinkPhone');
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw AppException.auth('unlink_phone', 'No authenticated user');
+    }
+    try {
+      await user.unlink('phone');
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'no-such-provider') {
+        DebugConfig.log(DebugConfig.authPhone, 'Phone already unlinked server-side');
+      } else {
+        DebugConfig.warn('Phone: unlink failed', data: e);
+        throw AppException.auth('unlink_phone', e.message ?? 'unlink-failed', e);
+      }
+    }
+    try {
+      await _auth.currentUser?.reload();
+      DebugConfig.log(DebugConfig.authPhone, 'Phone unlinked and reloaded successfully');
+    } catch (e) {
+      DebugConfig.warn('Phone: unlink succeeded but reload failed', data: e);
+    }
   }
 
   AppException _mapPhoneError(Object error) {

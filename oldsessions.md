@@ -619,3 +619,261 @@ String _friendlyError(Object error) {
 **`flutter analyze`**: clean ✅
 
 ---
+
+
+### Session 91 � Fix isPhoneVerified: empty string vs null (firebase_auth 6.5.1)
+
+**Problem:** irebase_auth ^6.5.1 returns "" (empty string) instead of 
+ull for phoneNumber / email on unverified users. phone != null evaluated 	rue even when not verified.
+
+**Fix � uth_repository_impl.dart:**
+- Line 252: phone != null ? phone != null && phone.isNotEmpty
+- Line 79: user.email != null ? user.email != null && user.email!.isNotEmpty
+
+**Side effect fix � settings_screen.dart:** Line 75: user!.phoneNumber != null ? ef.read(authRepositoryProvider).isPhoneVerified (???s? repository ?? SSOT).
+
+**Confirmation:** Logs showed isPhoneVerified: false phone= before, isPhoneVerified: true phone=+306975799063 after verification.
+
+---
+
+### Session 92 � Eliminate SettingsScreen cascade rebuilds
+
+**Problem:** ~35 rebuilds of SettingsScreen during navigation. Root cause: uthStateProvider uses userChanges() (emits on token refresh, not just login/logout) and SettingsScreen had 2 ef.watch (uthStateProvider + ppSettingsProvider) causing cascade rebuilds.
+
+**Fix � settings_screen.dart:**
+- Converted ConsumerWidget ? ConsumerStatefulWidget with _authUser: User? field
+- ef.listen with field-level comparison (uid, isAnonymous, emailVerified, phoneNumber) � ignores token refresh emits
+- Extracted _DeviceSecuritySection as separate ConsumerWidget (isolates ppSettingsProvider watch)
+
+**Confirmation:** Logs show SettingsScreen build and _DeviceSecuritySection build only 1 time each on navigation.
+
+---
+
+### Session 93 � Unlink Phone (in progress)
+
+**Next:**
+1. Add Future<void> unlinkPhone() to AuthRepository (abstract) and AuthRepositoryImpl (Firebase user.unlink('phone'))
+2. Add "Unlink Phone" ListTile in settings_screen (gated on phoneVerified == true) with confirmation dialog
+3. lutter analyze � verify zero issues
+4. User to build/test release APK
+
+**Completed — Session 93:**
+- `auth_repository.dart`: Added `Future<void> unlinkPhone()` abstract
+- `auth_repository_impl.dart`: `user.unlink('phone')` + `user.reload()` for cache refresh. Handles `no-such-provider` gracefully (server-side already unlinked), separate error handling for unlink vs reload failures
+- `settings_screen.dart`: "Remove Phone" ListTile (gated `phoneVerified`) with dialog + `_isUnlinking` guard + `setState` with fresh `currentUser` after success
+- Edge cases: stale cache, double tap, reload failure
+- `flutter analyze`: clean
+
+**Confirmation logs:**
+```
+Phone already unlinked server-side
+isPhoneVerified: false phone=null
+SettingsScreen build  ← UI updated immediately
+```
+
+---
+
+### Session 94 — Unlink Phone bug: stale Firebase Auth cache
+
+**Problem:** After `user.unlink('phone')` succeeds server-side, `_auth.currentUser?.phoneNumber` still returns old value from local cache. On second attempt, `unlink()` throws `no-such-provider` (already unlinked) but cache never gets refreshed.
+
+**Root cause:** `user.unlink()` doesn't update Firebase Auth local persistent cache immediately. Without explicit `reload()`, stale `phoneNumber` persists across app restarts.
+
+**Fix — `auth_repository_impl.dart`:**
+1. Separated error handling: `unlink()` failures (FirebaseAuthException) vs `reload()` failures (any)
+2. `no-such-provider` handled as success (phone already unlinked server-side)
+3. `await _auth.currentUser?.reload()` after successful unlink (or no-such-provider)
+4. `settings_screen.dart`: `setState(() => _authUser = ref.read(authRepositoryProvider).currentUser)` after unlink to force UI update with fresh user object
+
+**Trigger for fix:** Logs showed `isPhoneVerified: true phone=+306975799063` immediately after `Phone unlinked successfully` — cache stale even after successful unlink.
+
+---
+
+### Session 95 — Phone verification: unlink not appearing after verify + cascade rebuild analysis
+
+**Part A — Unlink not visible after phone verification**
+
+**Problem:** After phone verification (PhoneVerifyScreen → verified), navigating back to SettingsScreen didn't show the "Remove Phone" option. Had to close and re-enter SettingsScreen.
+
+**Root cause:** `userChanges()` stream emits BEFORE `linkWithCredential()` completes, so SettingsScreen's `ref.listen` receives stale data. The `AsyncValue` from `authStateProvider` isn't updated with the new phone number.
+
+**Fix — `auth_repository_impl.dart`:**
+- Added `await _auth.currentUser?.reload()` after `await user.linkWithCredential(credential)` in `verifyPhoneOtp()` — forces server refresh so subsequent `isPhoneVerified` returns correct value
+
+**Note:** This fix also prevents the issue from manifesting in the future. For this session, the user confirmed the Firebase Console showed phone removed but local cache still had it.
+
+---
+
+**Part B — Cascade rebuilds analysis (critical finding)**
+
+**Observation:** SettingsScreen rebuilds ~50 times in ~650ms at 60fps (every ~16ms) when PhoneVerifyScreen is on top and keyboard animates. The rebuilds appear in batches:
+```
+PhoneVerifyScreen opened         → ~650ms of 60fps rebuilds
+sendOtp() called                 → ~400ms of 60fps rebuilds
+OTP sent + form switch           → ~400ms of 60fps rebuilds
+verifyOtp() called               → ~400ms of 60fps rebuilds
+```
+
+**Root cause (corrected from Session 92 analysis):**
+- **NOT** `appSettingsProvider` — `_DeviceSecuritySection` is a separate `ConsumerWidget`, its `ref.watch(appSettingsProvider)` only rebuilds itself, not SettingsScreen
+- **NOT** `authStateProvider` — Firebase streams don't emit at 60fps
+- **CORRECT:** `MediaQuery` changes during keyboard animation. SettingsScreen calls `ResponsiveUtils.maxContentWidth(context)` → `MediaQuery.of(context).size.width` in build(). When keyboard appears/disappears, `MediaQuery` changes every frame (~16ms) during animation. Flutter rebuilds ALL widgets that depend on `MediaQuery`, regardless of whether they read the changed property.
+
+**Evidence:**
+- Rebuilds are frame-synchronized (~16ms intervals = 60fps)
+- Coincide with keyboard show/hide/resize during form transitions
+- Duration matches keyboard animation duration (~300-650ms)
+- No provider emits at 60fps (Firebase streams, AppSettings, etc.)
+
+**Note for future:** The fix from Session 92 (ConsumerStatefulWidget + ref.listen with field comparison + extracted _DeviceSecuritySection) correctly eliminated cascade rebuilds FROM PROVIDER CHANGES. The MediaQuery rebuilds are a separate, pre-existing Flutter behavior not addressed by that fix.
+
+---
+
+### Session 96 — Pending: Fix for MediaQuery cascade rebuilds
+
+**Problem:** SettingsScreen rebuilds at 60fps during keyboard animation (when modals are on top) due to `MediaQuery.of(context)` dependency via `ResponsiveUtils.maxContentWidth(context)`.
+
+**Planned solutions (not yet implemented):**
+
+**Option A — RepaintBoundary (zero risk):**
+Wrap SettingsScreen in `RepaintBoundary`. Prevents repainting but NOT rebuilding. Logs will still show `SettingsScreen build` messages, but GPU won't re-render.
+
+**Option B — MediaQuery caching (low risk):**
+Replace `MediaQuery.of(context)` calls in `ResponsiveUtils` with a value that doesn't change during keyboard animation. Approaches:
+- Read `MediaQuery.size` once and cache it
+- Use `LayoutBuilder` instead of `MediaQuery`
+- Override `MediaQuery` at SettingsScreen root with a fixed size
+
+**Option C — Extract MediaQuery-dependent parts into separate ConsumerWidget (low risk):**
+Move the `ResponsiveUtils.maxContentWidth(context)` call into a dedicated widget that can rebuild independently without triggering SettingsScreen rebuild.
+
+**Decision:** Pending user approval.
+
+---
+
+### Files modified this session (Sessions 91-95):
+
+| File | Changes |
+|---|---|
+| `lib/repositories/auth_repository.dart` | Added `Future<void> unlinkPhone()` abstract |
+| `lib/repositories/auth_repository_impl.dart` | `unlinkPhone()` + `reload()` + `no-such-provider` handling; `reload()` after `linkWithCredential` in `verifyPhoneOtp()` |
+| `lib/features/settings/screens/settings_screen.dart` | ConsumerStatefulWidget + ref.listen + _DeviceSecuritySection + Unlink Phone ListTile + _unlinkPhone() method + reloadUser() fix |
+| `oldsessions.md` | Updated with all session details |
+
+### Current state:
+- Phone verification indicator (green check): **FIXED**
+- SettingsScreen cascade rebuilds from provider changes: **FIXED** (Session 92)
+- SettingsScreen rebuilds from MediaQuery keyboard animation: **NOT FIXED** (awaiting decision)
+- Unlink Phone: **FIXED AND TESTED** (works with fresh + stale cache)
+- Unlink not visible after verification: **FIXED** (reload after linkWithCredential)
+
+---
+
+### Session 96 — BUG 1: isOnline overwrite by publish() — Read+Preserve fix
+
+**Problem:** `publish()` wrote `isOnline: false` (default from `PublicProfile` model `@Default(false)`) to `users/{uid}/public/profile`, overwriting `presence_service`'s `isOnline: true`. Two mechanisms wrote to the same field.
+
+**Root cause:** `profile_repository_impl.dart:publish()` → `publicProfile.toJson()` includes `isOnline: false` → `set(json)` full replace → presence heartbeat overwritten.
+
+**First fix attempt (Session 96, earlier):** `..remove('isOnline')` — removed field from json. Problem: `set(json)` without merge replaced entire doc, so `isOnline` was **absent** from Firestore until next presence heartbeat (up to 60s gap). Users with `isOnlineNow` filter couldn't find recently published users.
+
+**Final fix — Read+Preserve (`profile_repository_impl.dart:267-282`):**
+1. `remove('isOnline')` — removes default `false` from model ✅
+2. Read existing Firestore doc → if `isOnline` exists, add it back to `json` ✅
+3. `set(json)` full replace — privacy toggle nulls still removed correctly ✅
+4. If read fails → `DebugConfig.warn` → publish continues without isOnline → presence writes on next heartbeat ✅
+
+**Edge cases covered:**
+| Σενάριο | Συμπεριφορά |
+|---|---|
+| First publish (no existing doc) | `exists=false` → isOnline not included → presence writes on first heartbeat |
+| Re-publish while online | Reads `isOnline: true` → preserved ✅ |
+| Re-publish while offline | Reads `isOnline: false` → preserved ✅ |
+| Read fails (network/permission) | Catch → continues without isOnline → presence fixes ≤60s |
+| Privacy toggle OFF | null → `removeWhere` → `set` full replace → field removed from doc ✅ |
+| Race publish + heartbeat | Unlikely (publish=manual) → heartbeat fixes within 60s |
+
+**Tested on 2 devices (real-time):**
+- Phone 1 (Yahooman, uid=scIChfVv3MRWnU1cWX67TepomCj2): published profile ✅
+- Phone 2 (Aris62, uid=l48zEyS6U6Mpb3jVaZgtEqyt5EE3): search found 2 raw results → 1 after self-exclusion, PublicProfileViewScreen loaded ✅
+- No `publish: failed to read existing isOnline` warnings in logs — read succeeded ✅
+
+**Files modified:**
+| File | Changes |
+|---|---|
+| `lib/repositories/profile_repository_impl.dart` | Added existing doc read + isOnline preserve block (lines 267-282); backup: `.bak` |
+| `oldsessions.md` | Updated with session details |
+
+**`flutter analyze`**: clean ✅
+**Backup**: `profile_repository_impl.dart.bak` ✅
+
+---
+
+### Session 97 — Country filter activation + LocationService GPS-first + auto-fill profile
+
+**Goal 1: Activate dead `SearchFilters.country`** — the field existed in the model but was never used in filters UI, provider, or search repository.
+
+**Files modified (4):**
+| File | Change |
+|------|--------|
+| `lib/features/discovery/providers/filters_provider.dart` | + `updateCountry()` method with debug log |
+| `lib/features/discovery/screens/search_filters_screen.dart` | + `_countryCtrl`, dispose, load, apply, UI TextFormField (Icons.flag_outlined, bilingual label) |
+| `lib/repositories/firestore_search_repository.dart` | + country check in `_passesFilters()` (client-side, no composite index needed) |
+| `lib/features/discovery/widgets/public_profile_header.dart` | Simplified city+country display → `[city, country].where(...).join(', ')` (8 lines αντί 14) |
+
+**Edge cases:** null/empty country, saved search restore, city+country AND, privacy toggle off.
+
+**Goal 2: Professional GPS-first location** — users reported cached position from days ago (Αρτέμιδα) showing instead of current location (Περιστέρι).
+
+**File modified (1):**
+| File | Change |
+|------|--------|
+| `lib/features/profile/providers/location_service.dart` | New order: live GPS first → session cache (5min) → fallback to last known → failure |
+
+**New logic:**
+1. `getCurrentLocation(forceRefresh: true)` (default) — always live GPS
+2. `getCurrentLocation(forceRefresh: false)` — returns session cache if <5min old
+3. Live GPS timeout/error → fallback to `getLastKnownPosition()`
+4. Nothing works → failure
+
+**Test result:** `Position:` appears in logs (live GPS) instead of `Last known`. GPS inside building still gives WiFi-based positioning (expected — same as all apps).
+
+**Revert note:** The GPS-first change was implemented, then reverted per user request, then re-implemented with session cache + fallback.
+
+**Current proposal — Goal 3: Auto-fill city/country in profile from GPS:**
+- In `discovery_screen.dart`, after GPS success: reverse geocode → if profile city/country empty → save
+- Single file change (~15 lines), respects manual entries, no auto-publish
+- Implementation pending user approval
+
+**`flutter analyze`**: clean ✅
+**Backups**: 5 `.bak` files (4 country + 1 location_service) ✅
+
+---
+
+### Session 98 — Auto-fill city/country + auto-publish on GPS success + auto-sync for published profiles
+
+**Goal:** Auto-fill city/country in user profile on app start from GPS reverse geocode, and auto-publish to Firestore if profile is published.
+
+**File modified (1):**
+| File | Change |
+|------|--------|
+| `lib/features/discovery/screens/discovery_screen.dart` | + auto-fill (if city/country empty) + auto-publish (if published); + auto-sync (if published + GPS differs) |
+
+**Logic implemented (`_performSearch` after GPS success):**
+1. `needsCity || needsCountry` → reverse geocode → save locally → if `isPublished`, publish to Firestore
+2. `else if (profile.isPublished)` → reverse geocode → if GPS city/country differs from stored → save + publish
+
+**Edge cases covered:**
+- City/country empty → fill + publish ✅
+- City/country filled + not published → skip (respects manual entry without publish) ✅
+- City/country filled + published + GPS unchanged → skip (no unnecessary writes) ✅
+- City/country filled + published + GPS changed → update + publish ✅
+- Reverse geocode fails (null) → skip gracefully ✅
+- GPS failure → skip whole block, show location error message ✅
+
+**Test results (user log confirmation):**
+- First run: `profile.isPublished == false` → neither auto-fill nor auto-sync ran (expected)
+- After re-publish in device 2 → auto-sync detected city difference → updated Firestore ✅
+- Firestore now shows correct city (Περιστέρι) instead of old Αρτέμιδα ✅
+
+**`flutter analyze`**: clean ✅

@@ -20,6 +20,7 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   User? _authUser;
+  bool _isUnlinking = false;
 
   @override
   void initState() {
@@ -67,6 +68,38 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
+  Future<void> _unlinkPhone() async {
+    final isGreek = L10n.isGreek(context);
+    final confirmed = await AppMessenger.showConfirmDialog(
+      context,
+      title: L10n.localizedMessage(context, 'Αφαίρεση Τηλεφώνου / Remove Phone'),
+      message: L10n.localizedMessage(context,
+          'Το τηλέφωνο θα αφαιρεθεί από τον λογαριασμό σου. Μπορείς να το επαληθεύσεις ξανά αργότερα. / The phone will be removed from your account. You can re-verify it later.'),
+      confirmLabel: isGreek ? 'Αφαίρεση' : 'Remove',
+      cancelLabel: isGreek ? 'Ακύρωση' : 'Cancel',
+      isDestructive: true,
+    );
+    if (!confirmed) return;
+    if (!mounted) return;
+    DebugConfig.log(DebugConfig.uiInteraction, 'SettingsScreen: unlink phone');
+    setState(() => _isUnlinking = true);
+    try {
+      await ref.read(authRepositoryProvider).unlinkPhone();
+      DebugConfig.log(DebugConfig.uiInteraction, 'SettingsScreen: phone unlinked');
+      if (!mounted) return;
+      setState(() => _authUser = ref.read(authRepositoryProvider).currentUser);
+      AppMessenger.showSuccess(context,
+          L10n.localizedMessage(context, 'Το τηλέφωνο αφαιρέθηκε / Phone removed'));
+    } catch (e) {
+      DebugConfig.error('SettingsScreen: unlink phone failed', exception: e);
+      if (!mounted) return;
+      AppMessenger.showError(context,
+          L10n.localizedMessage(context, 'Αποτυχία αφαίρεσης / Remove failed'));
+    } finally {
+      if (mounted) setState(() => _isUnlinking = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isGreek = L10n.isGreek(context);
@@ -111,6 +144,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       : const Icon(Icons.chevron_right),
                   onTap: () => context.push('/settings/phone-verify'),
                 ),
+                if (phoneVerified)
+                  ListTile(
+                    leading: const Icon(Icons.phone_disabled_outlined),
+                    title: Text(isGreek ? 'Αφαίρεση Τηλεφώνου' : 'Remove Phone'),
+                    subtitle: Text(isGreek
+                        ? 'Αφαίρεσε τον αριθμό από τον λογαριασμό σου'
+                        : 'Remove number from your account'),
+                    enabled: !_isUnlinking,
+                    trailing: _isUnlinking
+                        ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.chevron_right),
+                    onTap: _isUnlinking ? null : _unlinkPhone,
+                  ),
                 const Divider(),
               ],
 

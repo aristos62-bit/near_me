@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:drift/drift.dart' show Value;
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
@@ -8,6 +9,7 @@ import '../../../core/utils/app_messenger.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../../../shared/widgets/profile_card.dart';
 import '../../profile/providers/location_service.dart';
+import '../../profile/providers/profile_provider.dart';
 import '../providers/filters_provider.dart';
 import '../providers/search_provider.dart';
 
@@ -62,6 +64,47 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
             .updateLocation(loc.latitude!, loc.longitude!, radiusKm: 10);
         ref.read(searchProvider.notifier)
             .searchNearby(loc.latitude!, loc.longitude!, 10);
+
+        final profile = await ref.read(profileRepositoryProvider).getProfile();
+        if (profile != null && mounted) {
+          final needsCity = profile.city == null || profile.city!.isEmpty;
+          final needsCountry = profile.country == null || profile.country!.isEmpty;
+          if (needsCity || needsCountry) {
+            final name = await LocationService.reverseGeocode(loc.latitude!, loc.longitude!);
+            if (name != null && mounted) {
+              DebugConfig.log(DebugConfig.gpsLocation,
+                  'Auto-fill: city=${name.city}, country=${name.country}');
+              await ref.read(profileRepositoryProvider).saveProfile(
+                profile.copyWith(
+                  city: needsCity ? Value(name.city) : Value.absent(),
+                  country: needsCountry ? Value(name.country) : Value.absent(),
+                ),
+              );
+              if (profile.isPublished && mounted) {
+                DebugConfig.log(DebugConfig.repositoryCall,
+                    'Auto-fill: published profile — auto-publishing');
+                await ref.read(profileRepositoryProvider).publish();
+              }
+            }
+          } else if (profile.isPublished) {
+            final name = await LocationService.reverseGeocode(loc.latitude!, loc.longitude!);
+            if (name != null && mounted) {
+              final cityDiff = name.city != null && name.city != profile.city;
+              final countryDiff = name.country != null && name.country != profile.country;
+              if (cityDiff || countryDiff) {
+                DebugConfig.log(DebugConfig.gpsLocation,
+                    'Auto-sync: city=${name.city}, country=${name.country} (was city=${profile.city}, country=${profile.country})');
+                await ref.read(profileRepositoryProvider).saveProfile(
+                  profile.copyWith(
+                    city: cityDiff ? Value(name.city) : Value.absent(),
+                    country: countryDiff ? Value(name.country) : Value.absent(),
+                  ),
+                );
+                await ref.read(profileRepositoryProvider).publish();
+              }
+            }
+          }
+        }
       } else if (!mounted) {
         return;
       } else {

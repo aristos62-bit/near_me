@@ -34,6 +34,7 @@ class _SearchFiltersScreenState extends ConsumerState<SearchFiltersScreen> {
   bool _radiusLimited = false;
   bool _hasLocation = false;
   late TextEditingController _cityCtrl;
+  late TextEditingController _countryCtrl;
 
   static const _genderOptions = [
     'all', 'male', 'female', 'other', 'prefer_not',
@@ -52,6 +53,7 @@ class _SearchFiltersScreenState extends ConsumerState<SearchFiltersScreen> {
   void initState() {
     super.initState();
     _cityCtrl = TextEditingController();
+    _countryCtrl = TextEditingController();
     DebugConfig.log(DebugConfig.uiInteraction, 'SearchFiltersScreen init');
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadFilters());
   }
@@ -73,6 +75,7 @@ class _SearchFiltersScreenState extends ConsumerState<SearchFiltersScreen> {
       _radiusLimited = f.radiusKm != null;
       _hasLocation = f.latitude != null && f.longitude != null;
       _cityCtrl.text = f.city ?? '';
+      _countryCtrl.text = f.country ?? '';
     });
   }
 
@@ -87,6 +90,7 @@ class _SearchFiltersScreenState extends ConsumerState<SearchFiltersScreen> {
     n.updateAllowDirectChat(_allowDirectChat);
     n.updateOnlineOnly(_onlineOnly);
     n.updateCity(_cityCtrl.text.trim().isEmpty ? null : _cityCtrl.text.trim());
+    n.updateCountry(_countryCtrl.text.trim().isEmpty ? null : _countryCtrl.text.trim());
     n.updateRadius(_radiusLimited ? _radiusKm : null);
     ref.read(searchProvider.notifier).search();
     context.pop();
@@ -139,6 +143,7 @@ class _SearchFiltersScreenState extends ConsumerState<SearchFiltersScreen> {
   @override
   void dispose() {
     _cityCtrl.dispose();
+    _countryCtrl.dispose();
     super.dispose();
   }
 
@@ -291,6 +296,20 @@ class _SearchFiltersScreenState extends ConsumerState<SearchFiltersScreen> {
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16, vertical: 14,
                       ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _countryCtrl,
+                  decoration: InputDecoration(
+                    labelText: isGreek ? 'Χώρα' : 'Country',
+                    prefixIcon: const Icon(Icons.flag_outlined, size: 20),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 14,
                     ),
                   ),
                 ),

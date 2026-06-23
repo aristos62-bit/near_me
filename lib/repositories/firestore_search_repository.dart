@@ -161,6 +161,9 @@ class FirestoreSearchRepository implements SearchRepository {
     if (f.city != null && f.city!.isNotEmpty) {
       if (p.city == null || p.city!.toLowerCase() != f.city!.toLowerCase()) return false;
     }
+    if (f.country != null && f.country!.isNotEmpty) {
+      if (p.country == null || p.country!.toLowerCase() != f.country!.toLowerCase()) return false;
+    }
     if (f.minAge != null && (p.age == null || p.age! < f.minAge!)) return false;
     if (f.maxAge != null && (p.age == null || p.age! > f.maxAge!)) return false;
     if (f.allowVideoCall == true && !p.allowVideoCall) return false;

@@ -76,18 +76,15 @@ class PublicProfileHeader extends ConsumerWidget {
                       || profile.country != null && profile.country!.isNotEmpty) ...[
                     Icon(Icons.location_on_outlined, size: 16, color: Colors.white.withAlpha(200)),
                     const SizedBox(width: 4),
-                    if (profile.city != null && profile.city!.isNotEmpty) ...[
-                      Flexible(child: Text(profile.city!, style: headerBody, overflow: TextOverflow.ellipsis)),
-                    ],
-                    if (profile.city != null && profile.city!.isNotEmpty
-                        && profile.country != null && profile.country!.isNotEmpty) ...[
-                      const SizedBox(width: 4),
-                      Text(',', style: headerBody),
-                      const SizedBox(width: 4),
-                    ],
-                    if (profile.country != null && profile.country!.isNotEmpty) ...[
-                      Flexible(child: Text(profile.country!, style: headerBody, overflow: TextOverflow.ellipsis)),
-                    ],
+                    Flexible(
+                      child: Text(
+                        [profile.city, profile.country]
+                            .where((e) => e != null && e.isNotEmpty)
+                            .join(', '),
+                        style: headerBody,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ],
                 ],
               ),

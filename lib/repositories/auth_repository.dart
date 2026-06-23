@@ -17,4 +17,5 @@ abstract class AuthRepository {
   Future<String> sendPhoneOtp(String phoneNumber);
   Future<void> verifyPhoneOtp(String verificationId, String smsCode);
   bool get isPhoneVerified;
+  Future<void> unlinkPhone();
 }

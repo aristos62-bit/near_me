@@ -261,7 +261,25 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
         updatedAt: now,
       );
 
-      final json = publicProfile.toJson()..removeWhere((_, v) => v == null);
+      final json = publicProfile.toJson()
+        ..removeWhere((_, v) => v == null)
+        ..remove('isOnline');
+      try {
+        final existingDoc = await _firestore
+            .collection('users')
+            .doc(uid)
+            .collection('public')
+            .doc('profile')
+            .get();
+        if (existingDoc.exists) {
+          final existingIsOnline = existingDoc.data()?['isOnline'];
+          if (existingIsOnline != null) {
+            json['isOnline'] = existingIsOnline as bool;
+          }
+        }
+      } catch (e) {
+        DebugConfig.warn('publish: failed to read existing isOnline', data: e);
+      }
       await _firestore
           .collection('users')
           .doc(uid)

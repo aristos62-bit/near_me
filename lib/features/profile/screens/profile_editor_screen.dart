@@ -260,9 +260,12 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
       final commSettingsChanged = _loadedProfile != null && (
           _allowVideoCall != _loadedProfile!.allowVideoCall ||
           _allowDirectChat != _loadedProfile!.allowDirectChat);
-      if (commSettingsChanged) {
+      final locationChanged = _loadedProfile != null && (
+          _cityCtrl.text.trim() != (_loadedProfile!.city ?? '') ||
+          _countryCtrl.text.trim() != (_loadedProfile!.country ?? ''));
+      if (commSettingsChanged || (locationChanged && _loadedProfile!.isPublished)) {
         DebugConfig.log(DebugConfig.repositoryCall,
-            'ProfileEditor: comm settings changed, auto-publishing');
+            'ProfileEditor: comm settings or location changed, auto-publishing');
         try {
           await repo.publish();
           DebugConfig.log(DebugConfig.repositoryResult,

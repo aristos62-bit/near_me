@@ -49,6 +49,11 @@ class SearchFiltersNotifier extends Notifier<SearchFilters> {
     state = state.copyWith(city: city);
   }
 
+  void updateCountry(String? country) {
+    DebugConfig.log(DebugConfig.providerCreate, 'filters: country $country');
+    state = state.copyWith(country: country);
+  }
+
   void updateLocation(double lat, double lng, {double? radiusKm}) {
     DebugConfig.log(DebugConfig.providerCreate,
         'filters: location ($lat, $lng) radius=$radiusKm');

@@ -29,10 +29,26 @@ class LocationResult {
 class LocationService {
   LocationService._();
 
+  /// Session cache — avoids repeated GPS within short time.
+  static LocationResult? _sessionLocation;
+  static DateTime? _sessionTimestamp;
+  static const _sessionCacheDuration = Duration(minutes: 5);
+
   /// Requests GPS permission and returns current position if granted.
-  /// Returns [LocationResult] with lat/lng, or isFromGps=false if denied.
-  static Future<LocationResult> getCurrentLocation() async {
+  /// [forceRefresh] = true (default): always attempts live GPS.
+  /// [forceRefresh] = false: returns session cache if < 5min old (faster, no GPS).
+  static Future<LocationResult> getCurrentLocation({bool forceRefresh = true}) async {
     DebugConfig.log(DebugConfig.gpsPermissions, 'getCurrentLocation: start');
+
+    // Session cache hit (forceRefresh = false AND cache is fresh)
+    if (!forceRefresh && _sessionLocation != null && _sessionTimestamp != null) {
+      final age = DateTime.now().difference(_sessionTimestamp!);
+      if (age < _sessionCacheDuration) {
+        DebugConfig.log(DebugConfig.gpsLocation,
+            'Session cache: ${_sessionLocation!.latitude}, ${_sessionLocation!.longitude} age=${age.inMinutes}min');
+        return _sessionLocation!;
+      }
+    }
 
     try {
       final enabled = await Geolocator.isLocationServiceEnabled();
@@ -65,33 +81,48 @@ class LocationService {
         );
       }
 
+      // 1. Try live GPS first
+      try {
+        final position = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            timeLimit: Duration(seconds: 10),
+          ),
+        ).timeout(const Duration(seconds: 12));
+
+        DebugConfig.log(DebugConfig.gpsLocation,
+            'Position: ${position.latitude}, ${position.longitude} (±${position.accuracy}m)');
+        final result = LocationResult(
+          latitude: position.latitude,
+          longitude: position.longitude,
+          isFromGps: true,
+        );
+        _sessionLocation = result;
+        _sessionTimestamp = DateTime.now();
+        return result;
+      } on TimeoutException {
+        DebugConfig.warn('getCurrentLocation: GPS timeout — falling back to last known');
+      } catch (e) {
+        DebugConfig.warn('getCurrentLocation: GPS error — falling back to last known', data: e);
+      }
+
+      // 2. Fallback to last known position
       final last = await Geolocator.getLastKnownPosition();
       if (last != null) {
         DebugConfig.log(DebugConfig.gpsLocation,
-            'Last known: ${last.latitude}, ${last.longitude} (±${last.accuracy}m)');
-        return LocationResult(
+            'Fallback (last known): ${last.latitude}, ${last.longitude} (±${last.accuracy}m)');
+        final result = LocationResult(
           latitude: last.latitude,
           longitude: last.longitude,
           isFromGps: true,
         );
+        _sessionLocation = result;
+        _sessionTimestamp = DateTime.now();
+        return result;
       }
 
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 10),
-        ),
-      ).timeout(const Duration(seconds: 12));
-
-      DebugConfig.log(DebugConfig.gpsLocation,
-          'Position: ${position.latitude}, ${position.longitude} (±${position.accuracy}m)');
-      return LocationResult(
-        latitude: position.latitude,
-        longitude: position.longitude,
-        isFromGps: true,
-      );
-    } on TimeoutException {
-      DebugConfig.warn('getCurrentLocation: GPS timeout');
+      // 3. No GPS and no cache — failure
+      DebugConfig.warn('getCurrentLocation: no GPS fix and no last known');
       return const LocationResult(
         isFromGps: false,
         failure: LocationFailure.timeout,

@@ -19,13 +19,25 @@ class FirestoreSearchRepository implements SearchRepository {
     try {
       Query query = _firestore.collectionGroup('public').where('isVisible', isEqualTo: true);
 
-      if (filters.city != null && filters.city!.isNotEmpty) {
+      final cityFilterActive = filters.city != null && filters.city!.isNotEmpty;
+      final countryFilterActive = filters.country != null && filters.country!.isNotEmpty;
+      final hasLocationFilter = cityFilterActive || countryFilterActive;
+      DebugConfig.log(DebugConfig.repositoryCall,
+          'search: cityFilterActive=$cityFilterActive, countryFilterActive=$countryFilterActive, '
+          'hasLocationFilter=$hasLocationFilter, city=${filters.city}, '
+          'country=${filters.country}, lat=${filters.latitude}, lng=${filters.longitude}');
+
+      if (cityFilterActive) {
         query = query.where('city', isEqualTo: filters.city);
+      }
+      if (countryFilterActive) {
+        query = query.where('country', isEqualTo: filters.country);
       }
 
       final hasGeoHash = filters.latitude != null || filters.geoHash != null;
 
-      if (filters.latitude != null && filters.longitude != null && filters.radiusKm != null) {
+      if (filters.latitude != null && filters.longitude != null && filters.radiusKm != null
+          && !hasLocationFilter) {
         // FIX: coarsest precision (= geoPrecision 'city', 3 chars) ώστε τα bounds
         // να συμπεριλαμβάνουν ΚΑΙ geoPrecision='city' (3 chars) ΚΑΙ 'neighborhood'
         // (5 chars) προφίλ. Χωρίς αυτό, ένα 3-char geoHash είναι πάντα
@@ -47,7 +59,7 @@ class FirestoreSearchRepository implements SearchRepository {
         query = query
             .where('geoHash', isGreaterThanOrEqualTo: bounds.lower)
             .where('geoHash', isLessThanOrEqualTo: upperBound);
-      } else if (filters.geoHash != null) {
+      } else if (filters.geoHash != null && !hasLocationFilter) {
         final upper = '${filters.geoHash!}~';
         query = query
             .where('geoHash', isGreaterThanOrEqualTo: filters.geoHash)
@@ -65,7 +77,11 @@ class FirestoreSearchRepository implements SearchRepository {
       if (filters.gender != null && filters.gender != 'all') {
         query = query.where('gender', isEqualTo: filters.gender);
       }
-      if (hasGeoHash) {
+      final orderByGeoHash = hasGeoHash && !hasLocationFilter;
+      DebugConfig.log(DebugConfig.repositoryCall,
+          'orderByGeoHash=$orderByGeoHash (hasGeoHash=$hasGeoHash, '
+          'cityFilterActive=$cityFilterActive, countryFilterActive=$countryFilterActive)');
+      if (orderByGeoHash) {
         query = query.orderBy('geoHash').orderBy('__name__');
       } else {
         query = query.orderBy('__name__');
@@ -75,10 +91,18 @@ class FirestoreSearchRepository implements SearchRepository {
       query = query.limit(effectiveLimit);
 
       if (cursor != null) {
-        query = hasGeoHash
+        query = orderByGeoHash
             ? query.startAfter([cursor.sortValue, cursor.docId])
             : query.startAfter([cursor.docId]);
       }
+
+      DebugConfig.log(DebugConfig.repositoryCall,
+          'FirestoreSearchRepository.search QUERY: cityFilterActive=$cityFilterActive, '
+          'countryFilterActive=$countryFilterActive, hasLocationFilter=$hasLocationFilter, '
+          'hasGeoHash=$hasGeoHash, orderByGeoHash=$orderByGeoHash, '
+          'city=${filters.city}, country=${filters.country}, '
+          'lat=${filters.latitude}, lng=${filters.longitude}, '
+          'geoHash=${filters.geoHash}, radiusKm=${filters.radiusKm}');
 
       final snapshot = await query.get();
       final all = <PublicProfile>[];

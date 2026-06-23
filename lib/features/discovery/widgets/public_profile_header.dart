@@ -85,6 +85,14 @@ class PublicProfileHeader extends ConsumerWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      profile.isManualLocation ? Icons.help : Icons.check_circle,
+                      size: 14,
+                      color: profile.isManualLocation
+                          ? Colors.red.shade300
+                          : const Color(0xFF4CAF50),
+                    ),
                   ],
                 ],
               ),

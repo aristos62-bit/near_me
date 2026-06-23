@@ -23,6 +23,7 @@ abstract class PublicProfile with _$PublicProfile {
     @Default(false) bool allowDirectChat,
     @Default(true) bool isVisible,
     @Default(false) bool isOnline,
+    @Default(false) bool isManualLocation,
     @Default('el') String lang,
     DateTime? updatedAt,
   }) = _PublicProfile;

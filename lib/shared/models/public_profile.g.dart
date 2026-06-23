@@ -31,6 +31,7 @@ _PublicProfile _$PublicProfileFromJson(Map<String, dynamic> json) =>
       allowDirectChat: json['allowDirectChat'] as bool? ?? false,
       isVisible: json['isVisible'] as bool? ?? true,
       isOnline: json['isOnline'] as bool? ?? false,
+      isManualLocation: json['isManualLocation'] as bool? ?? false,
       lang: json['lang'] as String? ?? 'el',
       updatedAt: json['updatedAt'] == null
           ? null
@@ -56,6 +57,7 @@ Map<String, dynamic> _$PublicProfileToJson(_PublicProfile instance) =>
       'allowDirectChat': instance.allowDirectChat,
       'isVisible': instance.isVisible,
       'isOnline': instance.isOnline,
+      'isManualLocation': instance.isManualLocation,
       'lang': instance.lang,
       'updatedAt': instance.updatedAt?.toIso8601String(),
     };

@@ -60,6 +60,7 @@ class DebugConfig {
   static const bool gpsPermissions = true;       // permission requests
   static const bool gpsLocation = true;          // lat/lng readings
   static const bool gpsGeoHash = false;          // geoHash conversion
+  static const bool networkLocation = true;      // Nominatim autocomplete API calls
 
   /// ─────────────────────────────────────────────────────────────
   /// PROVIDERS — Riverpod provider lifecycle

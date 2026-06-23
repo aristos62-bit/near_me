@@ -78,6 +78,8 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
                 profile.copyWith(
                   city: needsCity ? Value(name.city) : Value.absent(),
                   country: needsCountry ? Value(name.country) : Value.absent(),
+                  latitudeExact: Value(loc.latitude),
+                  longitudeExact: Value(loc.longitude),
                 ),
               );
               if (profile.isPublished && mounted) {
@@ -86,7 +88,8 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
                 await ref.read(profileRepositoryProvider).publish();
               }
             }
-          } else if (profile.isPublished) {
+          } else if (profile.isPublished &&
+              profile.latitudeExact != null && profile.longitudeExact != null) {
             final name = await LocationService.reverseGeocode(loc.latitude!, loc.longitude!);
             if (name != null && mounted) {
               final cityDiff = name.city != null && name.city != profile.city;

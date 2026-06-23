@@ -256,6 +256,7 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
         allowVideoCall: profile.allowVideoCall,
         allowDirectChat: profile.allowDirectChat,
         geoHash: geoHash,
+        isManualLocation: profile.latitudeExact == null && profile.longitudeExact == null,
         isVisible: true,
         lang: PlatformDispatcher.instance.locale.languageCode == 'el' ? 'el' : 'en',
         updatedAt: now,
@@ -264,6 +265,10 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
       final json = publicProfile.toJson()
         ..removeWhere((_, v) => v == null)
         ..remove('isOnline');
+      DebugConfig.log(DebugConfig.firestoreWrite,
+          'publish JSON: city=${json['city']}, country=${json['country']}, '
+          'geoHash=${json['geoHash']}, isManualLocation=${json['isManualLocation']}, '
+          'privacy.showCity=${privacy?.showCity}, showCountry=${privacy?.showCountry}');
       try {
         final existingDoc = await _firestore
             .collection('users')
@@ -286,9 +291,32 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
           .collection('public')
           .doc('profile')
           .set(json);
+      try {
+        final verifyDoc = await _firestore
+            .collection('users')
+            .doc(uid)
+            .collection('public')
+            .doc('profile')
+            .get();
+        if (verifyDoc.exists) {
+          final rawData = verifyDoc.data()!;
+          DebugConfig.log(DebugConfig.firestoreWrite,
+              'publish VERIFY doc after set: isVisible=${rawData['isVisible']}, '
+              'city="${rawData['city']}", country="${rawData['country']}", '
+              'geoHash="${rawData['geoHash']}", isManualLocation=${rawData['isManualLocation']}, '
+              'isOnline=${rawData['isOnline']}, keys=${rawData.keys.join(", ")}');
+        } else {
+          DebugConfig.warn('publish VERIFY: doc not found after set');
+        }
+      } catch (e) {
+        DebugConfig.warn('publish VERIFY: failed to read back', data: e);
+      }
       await saveProfile(profile.copyWith(isPublished: true));
       await _db.logConsent(uid, 'publish', 'profile');
-      DebugConfig.log(DebugConfig.firestoreWrite, 'publish: $uid');
+      DebugConfig.log(DebugConfig.firestoreWrite,
+          'publish: $uid, city=${profile.city}, country=${profile.country}, '
+          'lat=${profile.latitudeExact}, lng=${profile.longitudeExact}, '
+          'geoHash=$geoHash, isManualLocation=${profile.latitudeExact == null && profile.longitudeExact == null}');
     } catch (e, s) {
       DebugConfig.error('publish failed', data: e, exception: s);
       if (e is AppException) rethrow;

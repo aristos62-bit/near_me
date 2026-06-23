@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -16,6 +17,7 @@ import '../../../shared/widgets/form_section.dart';
 import '../../../shared/widgets/form_toggle.dart';
 import '../../../shared/widgets/gradient_header.dart';
 import '../../../shared/widgets/save_button.dart';
+import '../providers/location_autocomplete_service.dart';
 import '../providers/location_service.dart';
 import '../providers/profile_provider.dart';
 
@@ -36,8 +38,13 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
   List<String> _interests = [], _photoUrls = [];
   bool _allowVideoCall = false, _allowDirectChat = true, _isSaving = false;
   bool _isDetectingLocation = false, _isUploadingAvatar = false;
+  bool _locationDetectedViaGps = false;
   double? _latitude, _longitude;
   int? _uploadingPhotoIndex;
+  List<LocationSuggestion> _citySuggestions = [], _countrySuggestions = [];
+  Timer? _cityTimer, _countryTimer;
+  final _cityFocusNode = FocusNode();
+  final _countryFocusNode = FocusNode();
   UserProfileTableData? _loadedProfile;
 
   static const _genders = ['male', 'female', 'other', 'prefer_not'];
@@ -87,6 +94,8 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
     _bioCtrl = TextEditingController(); _birthYearCtrl = TextEditingController();
     _cityCtrl = TextEditingController(); _countryCtrl = TextEditingController();
     _emailCtrl = TextEditingController(); _phoneCtrl = TextEditingController();
+    _cityFocusNode.addListener(_onCityFocusChanged);
+    _countryFocusNode.addListener(_onCountryFocusChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadProfile());
   }
 
@@ -95,6 +104,10 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
     _nicknameCtrl.dispose(); _fullNameCtrl.dispose(); _bioCtrl.dispose();
     _birthYearCtrl.dispose(); _cityCtrl.dispose(); _countryCtrl.dispose();
     _emailCtrl.dispose(); _phoneCtrl.dispose();
+    _cityFocusNode.dispose();
+    _countryFocusNode.dispose();
+    _cityTimer?.cancel();
+    _countryTimer?.cancel();
     super.dispose();
   }
 
@@ -117,6 +130,7 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
     _allowDirectChat = profile.allowDirectChat;
     _latitude = profile.latitudeExact;
     _longitude = profile.longitudeExact;
+    _locationDetectedViaGps = false;
     _avatarUrl = profile.avatarUrl;
     _photoUrls = profile.photoUrls ?? [];
     _loadedProfile = profile;
@@ -133,6 +147,7 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
       if (!mounted) return;
       setState(() {
         _isDetectingLocation = false;
+        _locationDetectedViaGps = true;
         _latitude = result.latitude;
         _longitude = result.longitude;
         if (name?.city != null) _cityCtrl.text = name!.city!;
@@ -143,6 +158,50 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
       if (!mounted) return;
       AppMessenger.showInfo(context, L10n.localizedMessage(context, 'Δεν δόθηκε άδεια GPS. Μπορείς να συμπληρώσεις χειροκίνητα την πόλη. / GPS permission denied. You can enter the city manually.'));
     }
+  }
+
+  void _onCityFocusChanged() {
+    if (!_cityFocusNode.hasFocus) setState(() => _citySuggestions = []);
+  }
+
+  void _onCountryFocusChanged() {
+    if (!_countryFocusNode.hasFocus) setState(() => _countrySuggestions = []);
+  }
+
+  void _onCityChanged(String value) {
+    _cityTimer?.cancel();
+    if (value.trim().length < 2) {
+      if (_citySuggestions.isNotEmpty) setState(() => _citySuggestions = []);
+      return;
+    }
+    _cityTimer = Timer(const Duration(milliseconds: 800), () async {
+      final results = await LocationAutocompleteService.autocomplete(value);
+      if (mounted) setState(() => _citySuggestions = results);
+    });
+  }
+
+  void _onCountryChanged(String value) {
+    _countryTimer?.cancel();
+    if (value.trim().length < 2) {
+      if (_countrySuggestions.isNotEmpty) setState(() => _countrySuggestions = []);
+      return;
+    }
+    _countryTimer = Timer(const Duration(milliseconds: 800), () async {
+      final results = await LocationAutocompleteService.autocomplete(value);
+      if (mounted) setState(() => _countrySuggestions = results);
+    });
+  }
+
+  void _selectCity(LocationSuggestion s) {
+    _cityCtrl.text = s.name;
+    _cityTimer?.cancel();
+    setState(() => _citySuggestions = []);
+  }
+
+  void _selectCountry(LocationSuggestion s) {
+    _countryCtrl.text = s.name;
+    _countryTimer?.cancel();
+    setState(() => _countrySuggestions = []);
   }
 
   Future<void> _pickAndUploadAvatar() async {
@@ -233,6 +292,15 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
         return;
       }
       final repo = ref.read(profileRepositoryProvider);
+      final locationChanged = _loadedProfile != null && (
+          _cityCtrl.text.trim() != (_loadedProfile!.city ?? '') ||
+          _countryCtrl.text.trim() != (_loadedProfile!.country ?? ''));
+      final keepLatLng = _locationDetectedViaGps ||
+          (!locationChanged && _latitude != null && _longitude != null);
+      DebugConfig.log(DebugConfig.serviceCall,
+          'ProfileEditor save: city=${_cityCtrl.text.trim()}, country=${_countryCtrl.text.trim()}, '
+          'lat=$_latitude, lng=$_longitude, locationDetectedViaGps=$_locationDetectedViaGps, '
+          'locationChanged=$locationChanged, keepLatLng=$keepLatLng');
       final profile = UserProfileTableData(
         id: 0,
         nickname: name,
@@ -249,8 +317,8 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
         allowVideoCall: _allowVideoCall,
         allowDirectChat: _allowDirectChat,
         isPublished: _loadedProfile?.isPublished ?? false,
-        latitudeExact: _latitude,
-        longitudeExact: _longitude,
+        latitudeExact: keepLatLng ? _latitude : null,
+        longitudeExact: keepLatLng ? _longitude : null,
         avatarUrl: _avatarUrl,
         photoUrls: _photoUrls.isEmpty ? null : _photoUrls,
         createdAt: DateTime.now(),
@@ -260,9 +328,6 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
       final commSettingsChanged = _loadedProfile != null && (
           _allowVideoCall != _loadedProfile!.allowVideoCall ||
           _allowDirectChat != _loadedProfile!.allowDirectChat);
-      final locationChanged = _loadedProfile != null && (
-          _cityCtrl.text.trim() != (_loadedProfile!.city ?? '') ||
-          _countryCtrl.text.trim() != (_loadedProfile!.country ?? ''));
       if (commSettingsChanged || (locationChanged && _loadedProfile!.isPublished)) {
         DebugConfig.log(DebugConfig.repositoryCall,
             'ProfileEditor: comm settings or location changed, auto-publishing');
@@ -311,8 +376,35 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
             ChipSelector(options: _genders, selectedValue: _gender, onSelected: (v) => setState(() => _gender = v), labels: _genderLabels(g)),
           ]),
           FormSection(title: g ? 'Τοποθεσία' : 'Location', children: [
-            _buildTextField(icon: Icons.location_city_outlined, label: g ? 'Πόλη' : 'City', ctrl: _cityCtrl),
-            _buildTextField(icon: Icons.public_outlined, label: g ? 'Χώρα' : 'Country', ctrl: _countryCtrl),
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              TextFormField(
+                controller: _cityCtrl, focusNode: _cityFocusNode,
+                onChanged: _onCityChanged,
+                decoration: InputDecoration(
+                  labelText: g ? 'Πόλη' : 'City',
+                  prefixIcon: const Icon(Icons.location_city_outlined, size: 20),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                ),
+              ),
+              if (_citySuggestions.isNotEmpty)
+                _buildSuggestionDropdown(_citySuggestions, _selectCity),
+            ]),
+            const SizedBox(height: 12),
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              TextFormField(
+                controller: _countryCtrl, focusNode: _countryFocusNode,
+                onChanged: _onCountryChanged,
+                decoration: InputDecoration(
+                  labelText: g ? 'Χώρα' : 'Country',
+                  prefixIcon: const Icon(Icons.public_outlined, size: 20),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                ),
+              ),
+              if (_countrySuggestions.isNotEmpty)
+                _buildSuggestionDropdown(_countrySuggestions, _selectCountry),
+            ]),
             const SizedBox(height: 4),
             if (_latitude != null && _longitude != null)
               Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
@@ -403,6 +495,28 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
       Padding(padding: const EdgeInsets.only(top: 6), child: Text(g ? 'Μέχρι 5 φωτογραφίες' : 'Up to 5 photos',
         style: AppTypography.caption.copyWith(color: AppColors.textSecondaryLight))),
     ]);
+  }
+
+  Widget _buildSuggestionDropdown(List<LocationSuggestion> suggestions, ValueChanged<LocationSuggestion> onSelected) {
+    return Container(
+      margin: const EdgeInsets.only(top: 2),
+      constraints: const BoxConstraints(maxHeight: 160),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4, offset: const Offset(0, 2))],
+      ),
+      child: ListView.builder(
+        shrinkWrap: true,
+        padding: EdgeInsets.zero,
+        itemCount: suggestions.length,
+        itemBuilder: (_, i) => ListTile(
+          dense: true,
+          title: Text(suggestions[i].displayName, maxLines: 1, overflow: TextOverflow.ellipsis),
+          onTap: () => onSelected(suggestions[i]),
+        ),
+      ),
+    );
   }
 
   Widget _buildTextField({required IconData icon, required String label, required TextEditingController ctrl, bool required = false, int maxLines = 1, TextInputType? keyboardType}) {

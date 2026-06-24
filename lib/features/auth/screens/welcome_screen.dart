@@ -200,11 +200,11 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
           ),
           const SizedBox(height: 16),
           SaveButton(
-            isSaving: false,
+            isSaving: state.status == WelcomeStatus.loading,
             label: _mode == _WelcomeMode.login
                 ? (isGreek ? 'Είσοδος' : 'Login')
                 : (isGreek ? 'Εγγραφή' : 'Register'),
-            onPressed: _submit,
+            onPressed: state.status == WelcomeStatus.loading ? null : _submit,
           ),
           const SizedBox(height: 12),
           TextButton(

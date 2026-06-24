@@ -44,9 +44,12 @@ class _SearchFiltersScreenState extends ConsumerState<SearchFiltersScreen> {
     'exchange', 'help', 'employment',
   ];
   static const _allInterests = [
-    'gamer', 'programmer', 'student', 'traveler', 'musician',
-    'athlete', 'reader', 'chef', 'artist', 'photographer',
-    'hiker', 'yoga', 'movies', 'dancing', 'fashion',
+    'gaming', 'programming', 'education', 'travel', 'music',
+    'painting', 'arts', 'sports', 'cooking', 'shopping',
+    'reading', 'photography', 'theater', 'cinema', 'series',
+    'fashion', 'dancing', 'pets', 'social', 'board_games',
+    'computers', 'collecting', 'fishing', 'hunting',
+    'extreme_sports', 'swimming', 'other',
   ];
 
   @override

@@ -97,6 +97,7 @@ class _PublicProfileViewScreenState extends ConsumerState<PublicProfileViewScree
                     _buildInterestsCard(profile, theme, isGreek),
                     _buildBioCard(profile, theme, isGreek),
                     _buildCommunicationCard(profile, theme, isGreek),
+                    _buildContactCard(profile, theme, isGreek, uid),
                     _buildRequestButton(profile, theme, isGreek),
                     _buildBlockButton(theme, isGreek),
                     _buildReportButton(theme, isGreek),
@@ -223,6 +224,64 @@ class _PublicProfileViewScreenState extends ConsumerState<PublicProfileViewScree
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildContactCard(
+      PublicProfile profile, ThemeData theme, bool isGreek, String uid) {
+    final hasEmail = profile.email != null && profile.email!.isNotEmpty;
+    final hasPhone = profile.phone != null && profile.phone!.isNotEmpty;
+    if (!hasEmail && !hasPhone) return const SizedBox.shrink();
+
+    DebugConfig.log(DebugConfig.uiInteraction,
+        'PublicProfileView: contact card shown for $uid '
+        '(email=$hasEmail, phone=$hasPhone)');
+
+    return _sectionCard(
+      icon: Icons.contact_mail_outlined,
+      title: isGreek ? 'Στοιχεία Επικοινωνίας' : 'Contact Details',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (hasEmail)
+            _contactRow(
+              icon: Icons.email_outlined,
+              label: isGreek ? 'Email' : 'Email',
+              value: profile.email!,
+              theme: theme,
+            ),
+          if (hasEmail && hasPhone) const SizedBox(height: 10),
+          if (hasPhone)
+            _contactRow(
+              icon: Icons.phone_outlined,
+              label: isGreek ? 'Τηλέφωνο' : 'Phone',
+              value: profile.phone!,
+              theme: theme,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _contactRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    required ThemeData theme,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: theme.colorScheme.primary),
+        const SizedBox(width: 10),
+        Text('$label: ',
+            style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600)),
+        Expanded(
+          child: Text(value,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant)),
+        ),
+      ],
     );
   }
 

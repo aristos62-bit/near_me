@@ -32,6 +32,8 @@ _PublicProfile _$PublicProfileFromJson(Map<String, dynamic> json) =>
       isVisible: json['isVisible'] as bool? ?? true,
       isOnline: json['isOnline'] as bool? ?? false,
       isManualLocation: json['isManualLocation'] as bool? ?? false,
+      email: json['email'] as String?,
+      phone: json['phone'] as String?,
       lang: json['lang'] as String? ?? 'el',
       updatedAt: json['updatedAt'] == null
           ? null
@@ -58,6 +60,8 @@ Map<String, dynamic> _$PublicProfileToJson(_PublicProfile instance) =>
       'isVisible': instance.isVisible,
       'isOnline': instance.isOnline,
       'isManualLocation': instance.isManualLocation,
+      'email': instance.email,
+      'phone': instance.phone,
       'lang': instance.lang,
       'updatedAt': instance.updatedAt?.toIso8601String(),
     };

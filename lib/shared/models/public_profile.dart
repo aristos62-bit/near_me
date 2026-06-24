@@ -24,6 +24,8 @@ abstract class PublicProfile with _$PublicProfile {
     @Default(true) bool isVisible,
     @Default(false) bool isOnline,
     @Default(false) bool isManualLocation,
+    String? email,
+    String? phone,
     @Default('el') String lang,
     DateTime? updatedAt,
   }) = _PublicProfile;

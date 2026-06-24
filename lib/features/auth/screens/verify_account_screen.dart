@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/debug/debug_config.dart';
+import '../../../core/router/app_router.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
@@ -28,7 +29,17 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
   void initState() {
     super.initState();
     DebugConfig.log(DebugConfig.uiInteraction, 'VerifyAccountScreen init');
-    ref.read(verifyAccountProvider.notifier).reset();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(verifyAccountProvider.notifier).reset();
+      final fromRegister = GoRouterState.of(context).uri.queryParameters['from'] == 'register';
+      if (fromRegister) {
+        final user = ref.read(authRepositoryProvider).currentUser;
+        if (user != null && !user.isAnonymous && !user.emailVerified) {
+          ref.read(verifyAccountProvider.notifier).showEmailSent();
+        }
+      }
+    });
   }
 
   @override
@@ -115,7 +126,11 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.close),
-          onPressed: () => context.pop(),
+          onPressed: () {
+            DebugConfig.log(DebugConfig.uiInteraction, 'VerifyAccountScreen: user dismissed');
+            AppRouter.dismissVerify();
+            context.go('/');
+          },
         ),
         title: Text(isGreek ? 'Επαλήθευση Λογαριασμού' : 'Verify Account'),
       ),
@@ -253,7 +268,7 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              onPressed: () => context.pop(),
+              onPressed: () => context.go('/'),
               icon: const Icon(Icons.home_outlined),
               label: Text(isGreek ? 'Αρχική' : 'Home'),
             ),

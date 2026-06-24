@@ -24,8 +24,32 @@ class PrivacyEditorScreen extends ConsumerStatefulWidget {
 
 class _PrivacyEditorScreenState extends ConsumerState<PrivacyEditorScreen> {
   late PrivacySettingsTableData _settings;
+  PrivacySettingsTableData? _originalSettings;
   bool _isSaving = false;
   bool _isLoaded = false;
+
+  bool get _isDirty {
+    final o = _originalSettings;
+    if (o == null) return false;
+    if (_settings.showNickname != o.showNickname) return true;
+    if (_settings.showFullName != o.showFullName) return true;
+    if (_settings.showAge != o.showAge) return true;
+    if (_settings.showGender != o.showGender) return true;
+    if (_settings.showCity != o.showCity) return true;
+    if (_settings.showExactLocation != o.showExactLocation) return true;
+    if (_settings.showPhone != o.showPhone) return true;
+    if (_settings.showEmail != o.showEmail) return true;
+    if (_settings.showInterests != o.showInterests) return true;
+    if (_settings.showOccupation != o.showOccupation) return true;
+    if (_settings.showBio != o.showBio) return true;
+    if (_settings.showLookingFor != o.showLookingFor) return true;
+    if (_settings.showPhotos != o.showPhotos) return true;
+    if (_settings.showCountry != o.showCountry) return true;
+    if (_settings.allowVideoCall != o.allowVideoCall) return true;
+    if (_settings.allowDirectChat != o.allowDirectChat) return true;
+    if (_settings.geoPrecision != o.geoPrecision) return true;
+    return false;
+  }
 
   @override
   void initState() {
@@ -44,9 +68,34 @@ class _PrivacyEditorScreenState extends ConsumerState<PrivacyEditorScreen> {
   Future<void> _loadSettings() async {
     final existing = await ref.read(privacySettingsProvider.future);
     if (existing != null && mounted) {
-      setState(() { _settings = existing; _isLoaded = true; });
+      setState(() { _settings = existing; _originalSettings = existing; _isLoaded = true; });
     } else if (mounted) {
-      setState(() => _isLoaded = true);
+      setState(() { _originalSettings = _settings; _isLoaded = true; });
+    }
+  }
+
+  Future<void> _onBack() async {
+    DebugConfig.log(DebugConfig.uiInteraction, 'PrivacyEditorScreen onBack, dirty=$_isDirty, saving=$_isSaving');
+    if (_isSaving) return;
+    if (!_isDirty) {
+      if (context.mounted) context.pop();
+      return;
+    }
+    final g = L10n.isGreek(context);
+    final save = await AppMessenger.showConfirmDialog(
+      context,
+      title: g ? 'Αποθήκευση αλλαγών;' : 'Save changes?',
+      message: g
+          ? 'Έχεις μη αποθηκευμένες αλλαγές. Θες να αποθηκευτούν;'
+          : 'You have unsaved changes. Save them?',
+      confirmLabel: g ? 'Αποθήκευση' : 'Save',
+      cancelLabel: g ? 'Απόρριψη' : 'Discard',
+    );
+    if (save == true) {
+      await _save();
+    } else if (save == false && context.mounted) {
+      if (!mounted) return;
+      context.pop();
     }
   }
 
@@ -76,6 +125,7 @@ class _PrivacyEditorScreenState extends ConsumerState<PrivacyEditorScreen> {
       }
 
       if (mounted) {
+        _originalSettings = _settings;
         AppMessenger.showSuccess(context, L10n.localizedMessage(context, 'Οι ρυθμίσεις απορρήτου αποθηκεύτηκαν / Privacy settings saved'));
         context.pop();
       }
@@ -91,14 +141,25 @@ class _PrivacyEditorScreenState extends ConsumerState<PrivacyEditorScreen> {
   Widget build(BuildContext context) {
     final greek = L10n.isGreek(context);
     if (!_isLoaded) {
-      return Scaffold(
-        appBar: AppBar(leading: IconButton(icon: const Icon(Icons.close), onPressed: () => context.pop()), title: Text(greek ? 'Απόρρητο' : 'Privacy')),
-        body: const Center(child: CircularProgressIndicator()),
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) _onBack();
+        },
+        child: Scaffold(
+          appBar: AppBar(leading: IconButton(icon: const Icon(Icons.close), onPressed: _onBack), title: Text(greek ? 'Απόρρητο' : 'Privacy')),
+          body: const Center(child: CircularProgressIndicator()),
+        ),
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(leading: IconButton(icon: const Icon(Icons.close), onPressed: () => context.pop()), title: Text(greek ? 'Απόρρητο' : 'Privacy')),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _onBack();
+      },
+      child: Scaffold(
+        appBar: AppBar(leading: IconButton(icon: const Icon(Icons.close), onPressed: _onBack), title: Text(greek ? 'Απόρρητο' : 'Privacy')),
       body: Center(
         child: SizedBox(
           width: ResponsiveUtils.maxContentWidth(context),
@@ -124,10 +185,10 @@ class _PrivacyEditorScreenState extends ConsumerState<PrivacyEditorScreen> {
               ]),
               FormSection(icon: Icons.contact_phone_outlined, title: greek ? 'Επικοινωνία' : 'Contact', children: [
                 FormToggle(title: greek ? 'Τηλέφωνο' : 'Phone', subtitle: greek ? 'Να εμφανίζεται το τηλέφωνό σου' : 'Show your phone number', value: _settings.showPhone, onChanged: (v) => setState(() => _settings = _settings.copyWith(showPhone: v))),
-                FormToggle(title: 'Email', subtitle: greek ? 'Να εμφανίζεται το email σου' : 'Show your email', value: _settings.showEmail, onChanged: (v) => setState(() => _settings = _settings.copyWith(showEmail: v))),
+                FormToggle(title: greek ? 'Ηλ. Ταχυδρομείο' : 'Email', subtitle: greek ? 'Να εμφανίζεται το email σου' : 'Show your email', value: _settings.showEmail, onChanged: (v) => setState(() => _settings = _settings.copyWith(showEmail: v))),
               ]),
               FormSection(icon: Icons.article_outlined, title: greek ? 'Περιεχόμενο Προφίλ' : 'Profile Content', children: [
-                FormToggle(title: 'Bio', subtitle: greek ? 'Να εμφανίζεται η περιγραφή σου' : 'Show your bio', value: _settings.showBio, onChanged: (v) => setState(() => _settings = _settings.copyWith(showBio: v))),
+                FormToggle(title: greek ? 'Βιογραφικό' : 'Bio', subtitle: greek ? 'Να εμφανίζεται η περιγραφή σου' : 'Show your bio', value: _settings.showBio, onChanged: (v) => setState(() => _settings = _settings.copyWith(showBio: v))),
                 FormToggle(title: greek ? 'Ενδιαφέροντα' : 'Interests', subtitle: greek ? 'Να εμφανίζονται τα ενδιαφέροντά σου' : 'Show your interests', value: _settings.showInterests, onChanged: (v) => setState(() => _settings = _settings.copyWith(showInterests: v))),
                 FormToggle(title: greek ? 'Απασχόληση' : 'Occupation', subtitle: greek ? 'Να εμφανίζεται η απασχόλησή σου' : 'Show your occupation', value: _settings.showOccupation, onChanged: (v) => setState(() => _settings = _settings.copyWith(showOccupation: v))),
                 FormToggle(title: greek ? 'Αναζητώ' : 'Looking For', subtitle: greek ? 'Να εμφανίζεται ο λόγος αναζήτησης' : 'Show what you are looking for', value: _settings.showLookingFor, onChanged: (v) => setState(() => _settings = _settings.copyWith(showLookingFor: v))),
@@ -147,6 +208,7 @@ class _PrivacyEditorScreenState extends ConsumerState<PrivacyEditorScreen> {
           ),
         ),
       ),
+    ),
     );
   }
 

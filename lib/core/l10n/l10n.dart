@@ -128,39 +128,63 @@ class L10n {
   static String interestLabel(String key, {required bool isGreek}) {
     if (isGreek) {
       switch (key) {
-        case 'gamer': return 'Gaming';
-        case 'programmer': return 'Προγραμματισμός';
-        case 'student': return 'Φοιτητής';
-        case 'traveler': return 'Ταξίδια';
-        case 'reader': return 'Διάβασμα';
-        case 'photographer': return 'Φωτογραφία';
-        case 'fashion': return 'Μόδα';
+        case 'gaming': return 'Παιχνίδια';
+        case 'programming': return 'Προγραμματισμός';
+        case 'education': return 'Εκπαίδευση';
+        case 'travel': return 'Ταξίδια';
         case 'music': return 'Μουσική';
+        case 'painting': return 'Ζωγραφική';
+        case 'arts': return 'Τέχνες';
         case 'sports': return 'Αθλητισμός';
-        case 'art': return 'Τέχνη';
         case 'cooking': return 'Μαγειρική';
-        case 'movies': return 'Ταινίες';
-        case 'nature': return 'Φύση';
-        case 'pets': return 'Κατοικίδια';
-        case 'volunteer': return 'Εθελοντισμός';
+        case 'shopping': return 'Ψώνια';
+        case 'reading': return 'Διάβασμα';
+        case 'photography': return 'Φωτογραφία';
+        case 'theater': return 'Θέατρο';
+        case 'cinema': return 'Κινηματογράφος';
+        case 'series': return 'Σειρές';
+        case 'fashion': return 'Μόδα';
+        case 'dancing': return 'Χορός';
+        case 'pets': return 'Ζωοφιλία';
+        case 'social': return 'Παρέες';
+        case 'board_games': return 'Επιτραπέζια';
+        case 'computers': return 'Υπολογιστές';
+        case 'collecting': return 'Συλλογές';
+        case 'fishing': return 'Ψάρεμα';
+        case 'hunting': return 'Κυνήγι';
+        case 'extreme_sports': return 'Ακραία Αθλήματα';
+        case 'swimming': return 'Κολύμβηση';
+        case 'other': return 'Άλλο';
       }
     } else {
       switch (key) {
-        case 'gamer': return 'Gaming';
-        case 'programmer': return 'Programming';
-        case 'student': return 'Student';
-        case 'traveler': return 'Travel';
-        case 'reader': return 'Reading';
-        case 'photographer': return 'Photography';
-        case 'fashion': return 'Fashion';
+        case 'gaming': return 'Gaming';
+        case 'programming': return 'Programming';
+        case 'education': return 'Education';
+        case 'travel': return 'Travel';
         case 'music': return 'Music';
+        case 'painting': return 'Painting';
+        case 'arts': return 'Arts';
         case 'sports': return 'Sports';
-        case 'art': return 'Art';
         case 'cooking': return 'Cooking';
-        case 'movies': return 'Movies';
-        case 'nature': return 'Nature';
+        case 'shopping': return 'Shopping';
+        case 'reading': return 'Reading';
+        case 'photography': return 'Photography';
+        case 'theater': return 'Theater';
+        case 'cinema': return 'Cinema';
+        case 'series': return 'TV Series';
+        case 'fashion': return 'Fashion';
+        case 'dancing': return 'Dancing';
         case 'pets': return 'Pets';
-        case 'volunteer': return 'Volunteer';
+        case 'social': return 'Socializing';
+        case 'board_games': return 'Board Games';
+        case 'computers': return 'Computers';
+        case 'collecting': return 'Collecting';
+        case 'fishing': return 'Fishing';
+        case 'hunting': return 'Hunting';
+        case 'extreme_sports': return 'Extreme Sports';
+        case 'swimming': return 'Swimming';
+        case 'other': return 'Other';
       }
     }
     return key;

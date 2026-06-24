@@ -42,15 +42,42 @@ class VerifyAccountNotifier extends Notifier<VerifyAccountState> {
     DebugConfig.log(DebugConfig.authFlow, 'VerifyAccount: starting');
     state = VerifyAccountState(status: VerifyStatus.loading);
     try {
-      await _auth.linkWithEmailAndPassword(email, password);
-      DebugConfig.log(DebugConfig.authFlow, 'VerifyAccount: linked, sending verification');
-      await _auth.sendEmailVerification();
+      final user = _auth.currentUser;
+      if (user != null && !user.isAnonymous) {
+        // Ήδη linked με email → απλή επαναποστολή verification
+        DebugConfig.log(DebugConfig.authFlow, 'VerifyAccount: resending verification (already linked)');
+        await _auth.sendEmailVerification();
+      } else {
+        // Anonymous user → προσπάθεια link
+        try {
+          await _auth.linkWithEmailAndPassword(email, password);
+          DebugConfig.log(DebugConfig.authFlow, 'VerifyAccount: linked successfully');
+        } catch (linkError) {
+          final msg = linkError.toString();
+          if (msg.contains('email-already-in-use') || msg.contains('credential-already-in-use')) {
+            // Το email υπάρχει ήδη → sign in με αυτά τα credentials
+            DebugConfig.log(DebugConfig.authFlow,
+                'VerifyAccount: email-already-in-use → attempting signIn');
+            await _auth.signInWithEmailAndPassword(email, password);
+            DebugConfig.log(DebugConfig.authFlow, 'VerifyAccount: signIn success after link fail');
+          } else {
+            rethrow;
+          }
+        }
+        await _auth.sendEmailVerification();
+        DebugConfig.log(DebugConfig.authFlow, 'VerifyAccount: verification email sent');
+      }
       DebugConfig.log(DebugConfig.authFlow, 'VerifyAccount: email sent');
       state = const VerifyAccountState(status: VerifyStatus.emailSent);
     } catch (e) {
       DebugConfig.warn('VerifyAccount: failed', data: e);
       state = VerifyAccountState(status: VerifyStatus.error, errorMessage: _friendlyError(e));
     }
+  }
+
+  void showEmailSent() {
+    DebugConfig.log(DebugConfig.authFlow, 'VerifyAccount: email already sent (post-registration)');
+    state = const VerifyAccountState(status: VerifyStatus.emailSent);
   }
 
   Future<void> checkVerification() async {

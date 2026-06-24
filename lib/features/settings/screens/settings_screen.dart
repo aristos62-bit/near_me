@@ -21,21 +21,38 @@ class SettingsScreen extends ConsumerStatefulWidget {
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   User? _authUser;
   bool _isUnlinking = false;
+  bool _phoneVerified = false; // ← ΝΕΟ: cached, δεν υπολογίζεται στο build()
 
   @override
   void initState() {
     super.initState();
     DebugConfig.log(DebugConfig.uiInteraction, 'SettingsScreen init');
     _authUser = ref.read(authStateProvider).value;
+    _phoneVerified = _computePhoneVerified(_authUser);
+
     ref.listen<AsyncValue<User?>>(authStateProvider, (_, next) {
       final newUser = next.value;
-      if (_authUser?.uid != newUser?.uid ||
-          _authUser?.isAnonymous != newUser?.isAnonymous ||
-          _authUser?.emailVerified != newUser?.emailVerified ||
-          _authUser?.phoneNumber != newUser?.phoneNumber) {
-        if (mounted) setState(() => _authUser = newUser);
+      final uidChanged     = _authUser?.uid         != newUser?.uid;
+      final anonChanged    = _authUser?.isAnonymous != newUser?.isAnonymous;
+      final verifiedChanged= _authUser?.emailVerified != newUser?.emailVerified;
+      final phoneChanged   = _authUser?.phoneNumber != newUser?.phoneNumber;
+
+      if (uidChanged || anonChanged || verifiedChanged || phoneChanged) {
+        DebugConfig.log(DebugConfig.uiInteraction,
+            'SettingsScreen: user changed → rebuild');
+        if (mounted) {
+          setState(() {
+            _authUser = newUser;
+            _phoneVerified = _computePhoneVerified(newUser);
+          });
+        }
       }
     });
+  }
+
+  bool _computePhoneVerified(User? user) {
+    if (user == null || (user.isAnonymous)) return false;
+    return ref.read(authRepositoryProvider).isPhoneVerified;
   }
 
   @override
@@ -87,7 +104,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       await ref.read(authRepositoryProvider).unlinkPhone();
       DebugConfig.log(DebugConfig.uiInteraction, 'SettingsScreen: phone unlinked');
       if (!mounted) return;
-      setState(() => _authUser = ref.read(authRepositoryProvider).currentUser);
+      // Ενημέρωση άμεσα χωρίς να περιμένουμε authStateChanges emission
+      final updatedUser = ref.read(authRepositoryProvider).currentUser;
+      setState(() {
+        _authUser = updatedUser;
+        _phoneVerified = _computePhoneVerified(updatedUser);
+      });
       AppMessenger.showSuccess(context,
           L10n.localizedMessage(context, 'Το τηλέφωνο αφαιρέθηκε / Phone removed'));
     } catch (e) {
@@ -103,14 +125,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final isGreek = L10n.isGreek(context);
-    final isAnonymous = _authUser?.isAnonymous ?? false;
+    final isAnonymous   = _authUser?.isAnonymous ?? false;
     final emailVerified = _authUser?.emailVerified ?? false;
-    final phoneVerified = !isAnonymous && ref.read(authRepositoryProvider).isPhoneVerified;
-    DebugConfig.log(DebugConfig.uiInteraction, 'SettingsScreen build');
+    // _phoneVerified έρχεται από cached state — ΟΧΙ ref.read εδώ
 
     return Scaffold(
-      appBar: AppBar(leading: IconButton(icon: const Icon(Icons.close), onPressed: () => context.pop()),
-          title: Text(isGreek ? 'Ρυθμίσεις' : 'Settings')),
+      appBar: AppBar(
+        leading: IconButton(icon: const Icon(Icons.close), onPressed: () => context.pop()),
+        title: Text(isGreek ? 'Ρυθμίσεις' : 'Settings'),
+      ),
       body: Center(
         child: SizedBox(
           width: ResponsiveUtils.maxContentWidth(context),
@@ -134,17 +157,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ListTile(
                   leading: const Icon(Icons.phone_android_outlined),
                   title: Text(isGreek ? 'Επαλήθευση Τηλεφώνου' : 'Verify Phone'),
-                  subtitle: Text(phoneVerified
+                  subtitle: Text(_phoneVerified
                       ? (isGreek ? 'Επαληθεύτηκε' : 'Verified')
                       : (isGreek
-                          ? 'Επιβεβαίωσε τον αριθμό τηλεφώνου σου'
-                          : 'Verify your phone number')),
-                  trailing: phoneVerified
+                      ? 'Επιβεβαίωσε τον αριθμό τηλεφώνου σου'
+                      : 'Verify your phone number')),
+                  trailing: _phoneVerified
                       ? Icon(Icons.check_circle, color: AppColors.online)
                       : const Icon(Icons.chevron_right),
                   onTap: () => context.push('/settings/phone-verify'),
                 ),
-                if (phoneVerified)
+                if (_phoneVerified)
                   ListTile(
                     leading: const Icon(Icons.phone_disabled_outlined),
                     title: Text(isGreek ? 'Αφαίρεση Τηλεφώνου' : 'Remove Phone'),
@@ -160,7 +183,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 const Divider(),
               ],
 
-              // --- Ασφάλεια Συσκευής ---
               if (!isAnonymous)
                 _SectionHeader(label: isGreek ? 'Ασφάλεια Συσκευής' : 'Device Security'),
               if (!isAnonymous)
@@ -208,7 +230,6 @@ class _DeviceSecuritySection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isGreek = L10n.isGreek(context);
     final appSettingsAsync = ref.watch(appSettingsProvider);
-    DebugConfig.log(DebugConfig.uiInteraction, '_DeviceSecuritySection build');
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -236,9 +257,9 @@ class _DeviceSecuritySection extends ConsumerWidget {
                     '_DeviceSecuritySection: screenshotPreventionEnabled=$v');
                 ref.read(appSettingsProvider.notifier).setScreenshotPrevention(v);
                 AppMessenger.showInfo(context,
-                    v
-                        ? (isGreek ? 'Η προστασία ενεργοποιήθηκε' : 'Protection enabled')
-                        : (isGreek ? 'Η προστασία απενεργοποιήθηκε' : 'Protection disabled'),
+                  v
+                      ? (isGreek ? 'Η προστασία ενεργοποιήθηκε' : 'Protection enabled')
+                      : (isGreek ? 'Η προστασία απενεργοποιήθηκε' : 'Protection disabled'),
                 );
               },
             ),
@@ -257,9 +278,9 @@ class _DeviceSecuritySection extends ConsumerWidget {
                   if (!canUse) {
                     if (context.mounted) {
                       AppMessenger.showError(context,
-                          isGreek
-                              ? 'Δεν υπάρχει διαθέσιμο βιομετρικό στη συσκευή'
-                              : 'No biometric available on this device',
+                        isGreek
+                            ? 'Δεν υπάρχει διαθέσιμο βιομετρικό στη συσκευή'
+                            : 'No biometric available on this device',
                       );
                     }
                     return;
@@ -268,9 +289,9 @@ class _DeviceSecuritySection extends ConsumerWidget {
                 await ref.read(appSettingsProvider.notifier).setBiometricLock(v);
                 if (context.mounted) {
                   AppMessenger.showInfo(context,
-                      v
-                          ? (isGreek ? 'Biometric Lock ενεργοποιήθηκε' : 'Biometric Lock enabled')
-                          : (isGreek ? 'Biometric Lock απενεργοποιήθηκε' : 'Biometric Lock disabled'),
+                    v
+                        ? (isGreek ? 'Biometric Lock ενεργοποιήθηκε' : 'Biometric Lock enabled')
+                        : (isGreek ? 'Biometric Lock απενεργοποιήθηκε' : 'Biometric Lock disabled'),
                   );
                 }
               },

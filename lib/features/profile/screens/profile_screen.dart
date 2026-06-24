@@ -34,6 +34,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final profileAsync = ref.watch(currentProfileProvider);
     final user = ref.watch(authStateProvider).value;
     final isAnonymous = user?.isAnonymous ?? true;
+    final emailVerified = user?.emailVerified ?? false;
 
     return Scaffold(
       appBar: AppBar(
@@ -59,7 +60,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         },
         data: (profile) {
           if (profile == null) return _buildEmptyState(isGreek, isAnonymous);
-          return _buildProfileView(profile, isGreek, isAnonymous);
+          return _buildProfileView(profile, isGreek, isAnonymous, emailVerified);
         },
       ),
     );
@@ -97,7 +98,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  Widget _buildProfileView(UserProfileTableData profile, bool isGreek, bool isAnonymous) {
+  Widget _buildProfileView(UserProfileTableData profile, bool isGreek, bool isAnonymous, bool emailVerified) {
     final age = profile.birthYear != null ? DateTime.now().year - profile.birthYear! : null;
     final theme = Theme.of(context);
 
@@ -140,7 +141,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 _infoCard(theme, Icons.explore_outlined,
                     isGreek ? 'Αναζητά' : 'Looking For',
                     L10n.lookingForLabel(profile.lookingFor!, isGreek: isGreek)),
-              if (!isAnonymous)
+              if (!isAnonymous && emailVerified)
                 _buildPublishToggle(profile, theme, isGreek)
               else
                 _buildVerifyBanner(theme, isGreek),

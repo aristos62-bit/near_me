@@ -160,7 +160,7 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Stream<User?> authStateChanges() {
     DebugConfig.log(DebugConfig.authFlow, 'Subscribing to authStateChanges');
-    return _auth.userChanges().map((user) {
+    return _auth.authStateChanges().map((user) {
       DebugConfig.log(DebugConfig.authFlow,
           'authStateChanges emitted: uid=${user?.uid ?? "null"} anon=${user?.isAnonymous} emailVerified=${user?.emailVerified}');
       return user;
@@ -305,6 +305,12 @@ class AuthRepositoryImpl implements AuthRepository {
     }
     if (msg.contains('network-request-failed')) {
       return const AppException(message: 'network-request-failed', code: 'auth/network-error');
+    }
+    if (msg.contains('credential-already-in-use')) {
+      return const AppException(message: 'credential-already-in-use', code: 'auth/provider-linked');
+    }
+    if (msg.contains('session-expired')) {
+      return const AppException(message: 'session-expired', code: 'auth/invalid-verification');
     }
     return AppException.auth('phone', 'Phone verification failed', error);
   }

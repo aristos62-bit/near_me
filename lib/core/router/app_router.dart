@@ -29,6 +29,13 @@ class AppRouter {
 
   static bool firebaseReady = false;
   static final _AuthChangeNotifier _authNotifier = _AuthChangeNotifier();
+  static bool _verifyDismissed = false;
+  static String? _lastUid;
+
+  static void dismissVerify() {
+    DebugConfig.log(DebugConfig.authFlow, 'AppRouter: verify dismissed by user');
+    _verifyDismissed = true;
+  }
 
   static final GoRouter router = GoRouter(
     initialLocation: '/',
@@ -40,13 +47,18 @@ class AppRouter {
       final isWelcomeRoute = location == '/welcome';
       final isAuthRoute = location == '/auth';
       DebugConfig.log(DebugConfig.navigationRoute,
-          'Redirect: location=$location, user=${user?.uid ?? "null"}, isAnonymous=${user?.isAnonymous}');
+          'Redirect: location=$location, user=${user?.uid ?? "null"}, isAnonymous=${user?.isAnonymous}, emailVerified=${user?.emailVerified}, verifyDismissed=$_verifyDismissed');
       if (user == null && !isWelcomeRoute) return '/welcome';
       if (user != null) {
         if (isWelcomeRoute) {
-          return user.isAnonymous ? '/anonymous-info' : '/';
+          return user.isAnonymous
+              ? '/anonymous-info'
+              : (user.emailVerified ? '/' : '/auth?from=register');
         }
-        if (isAuthRoute && !user.isAnonymous) return '/';
+        if (isAuthRoute && !user.isAnonymous && user.emailVerified) return '/';
+        if (location == '/' && !user.isAnonymous && !user.emailVerified && !_verifyDismissed) {
+          return '/auth';
+        }
       }
       return null;
     },
@@ -163,9 +175,23 @@ class AppRouter {
   }
 
   static void init() {
-    FirebaseAuth.instance.authStateChanges().listen((user) {
+    FirebaseAuth.instance.authStateChanges().listen((user) async {
+      if (user != null) {
+        try {
+          await user.reload();
+        } catch (_) {
+          DebugConfig.warn('AppRouter: user.reload() failed, using cached data');
+        }
+      }
+      final uid = user?.uid;
+      if (uid != _lastUid) {
+        _verifyDismissed = false;
+        _lastUid = uid;
+        DebugConfig.log(DebugConfig.authFlow,
+            'AppRouter: user changed to uid=$uid, verifyDismissed reset');
+      }
       DebugConfig.log(DebugConfig.authFlow,
-          'Auth state changed: uid=${user?.uid}, anon=${user?.isAnonymous}');
+          'Auth state changed: uid=$uid, anon=${user?.isAnonymous}, emailVerified=${user?.emailVerified}');
       _authNotifier.notify();
     });
   }

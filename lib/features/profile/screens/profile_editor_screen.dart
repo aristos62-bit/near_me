@@ -49,8 +49,11 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
 
   static const _genders = ['male', 'female', 'other', 'prefer_not'];
   static const _lookingForOptions = ['roommate', 'social', 'friendship', 'networking', 'exchange', 'help', 'employment'];
-  static const _allInterests = ['gamer', 'programmer', 'student', 'traveler', 'musician',
-    'athlete', 'reader', 'chef', 'artist', 'photographer', 'hiker', 'yoga', 'movies', 'dancing', 'fashion'];
+  static const _allInterests = ['gaming', 'programming', 'education', 'travel', 'music',
+    'painting', 'arts', 'sports', 'cooking', 'shopping', 'reading', 'photography',
+    'theater', 'cinema', 'series', 'fashion', 'dancing', 'pets', 'social', 'board_games',
+    'computers', 'collecting', 'fishing', 'hunting', 'extreme_sports', 'swimming',
+    'other'];
 
   Map<String, String> _genderLabels(bool g) => {
     'male': g ? 'Άνδρας' : 'Male', 'female': g ? 'Γυναίκα' : 'Female',
@@ -64,8 +67,27 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
   };
 
   bool get _isDirty {
-    if (_loadedProfile == null) return false;
-    final p = _loadedProfile!;
+    final p = _loadedProfile;
+    if (p == null) {
+      if (_nicknameCtrl.text.isNotEmpty) return true;
+      if (_fullNameCtrl.text.isNotEmpty) return true;
+      if (_bioCtrl.text.isNotEmpty) return true;
+      if (_birthYearCtrl.text.isNotEmpty) return true;
+      if (_cityCtrl.text.isNotEmpty) return true;
+      if (_countryCtrl.text.isNotEmpty) return true;
+      if (_emailCtrl.text.isNotEmpty) return true;
+      if (_phoneCtrl.text.isNotEmpty) return true;
+      if (_gender != null) return true;
+      if (_lookingFor != null) return true;
+      if (_interests.isNotEmpty) return true;
+      if (_allowVideoCall != false) return true;
+      if (_allowDirectChat != true) return true;
+      if (_avatarUrl != null) return true;
+      if (_photoUrls.isNotEmpty) return true;
+      if (_latitude != null) return true;
+      if (_longitude != null) return true;
+      return false;
+    }
     if (_nicknameCtrl.text != (p.nickname ?? '')) return true;
     if (_fullNameCtrl.text != (p.fullName ?? '')) return true;
     if (_bioCtrl.text != (p.bio ?? '')) return true;
@@ -368,7 +390,7 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
           FormSection(title: g ? 'Βασικά Στοιχεία' : 'Basic Info', children: [
             _buildTextField(icon: Icons.person, label: g ? 'Ψευδώνυμο' : 'Nickname', ctrl: _nicknameCtrl, required: true),
             _buildTextField(icon: Icons.badge_outlined, label: g ? 'Πλήρες Όνομα' : 'Full Name', ctrl: _fullNameCtrl),
-            _buildTextField(icon: Icons.article_outlined, label: 'Bio', ctrl: _bioCtrl, maxLines: 3),
+            _buildTextField(icon: Icons.article_outlined, label: g ? 'Βιογραφικό' : 'Bio', ctrl: _bioCtrl, maxLines: 3),
           ]),
           FormSection(title: g ? 'Προσωπικά' : 'Personal', children: [
             _buildTextField(icon: Icons.cake_outlined, label: g ? 'Έτος Γέννησης' : 'Birth Year', ctrl: _birthYearCtrl, keyboardType: TextInputType.number),
@@ -428,10 +450,10 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
           ]),
           FormSection(title: g ? 'Φωτογραφίες' : 'Photos', children: [_buildPhotoGallery(g)]),
           FormSection(title: g ? 'Επικοινωνία' : 'Communication', children: [
-            _buildTextField(icon: Icons.email_outlined, label: 'Email', ctrl: _emailCtrl, keyboardType: TextInputType.emailAddress),
+            _buildTextField(icon: Icons.email_outlined, label: g ? 'Ηλ. Ταχυδρομείο' : 'Email', ctrl: _emailCtrl, keyboardType: TextInputType.emailAddress),
             _buildTextField(icon: Icons.phone_outlined, label: g ? 'Τηλέφωνο' : 'Phone', ctrl: _phoneCtrl, keyboardType: TextInputType.phone),
             const SizedBox(height: 4),
-            FormToggle(icon: Icons.videocam_outlined, title: 'Video Call', subtitle: g ? 'Να επιτρέπονται αιτήματα video call' : 'Allow video call requests', value: _allowVideoCall, onChanged: (v) => setState(() => _allowVideoCall = v)),
+            FormToggle(icon: Icons.videocam_outlined, title: g ? 'Βιντεοκλήση' : 'Video Call', subtitle: g ? 'Να επιτρέπονται αιτήματα βιντεοκλήσης' : 'Allow video call requests', value: _allowVideoCall, onChanged: (v) => setState(() => _allowVideoCall = v)),
             FormToggle(icon: Icons.chat_outlined, title: g ? 'Άμεσο Chat' : 'Direct Chat', subtitle: g ? 'Να επιτρέπονται άμεσα μηνύματα' : 'Allow direct messages', value: _allowDirectChat, onChanged: (v) => setState(() => _allowDirectChat = v)),
           ]),
           Padding(padding: const EdgeInsets.fromLTRB(16, 16, 16, 8), child: SaveButton(isSaving: _isSaving, label: g ? 'Αποθήκευση' : 'Save', onPressed: _save)),

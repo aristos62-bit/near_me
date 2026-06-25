@@ -13,6 +13,31 @@
       "queryScope": "COLLECTION_GROUP",
       "fields": [
         { "fieldPath": "isVisible", "order": "ASCENDING" },
+        { "fieldPath": "cityNormalized", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "public",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "isVisible", "order": "ASCENDING" },
+        { "fieldPath": "countryNormalized", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "public",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "isVisible", "order": "ASCENDING" },
+        { "fieldPath": "cityNormalized", "order": "ASCENDING" },
+        { "fieldPath": "countryNormalized", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "public",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "isVisible", "order": "ASCENDING" },
         { "fieldPath": "city", "order": "ASCENDING" }
       ]
     },
@@ -22,24 +47,6 @@
       "fields": [
         { "fieldPath": "isVisible", "order": "ASCENDING" },
         { "fieldPath": "country", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "public",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        { "fieldPath": "isVisible", "order": "ASCENDING" },
-        { "fieldPath": "city", "order": "ASCENDING" },
-        { "fieldPath": "country", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "public",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        { "fieldPath": "city", "order": "ASCENDING" },
-        { "fieldPath": "isVisible", "order": "ASCENDING" },
-        { "fieldPath": "geoHash", "order": "ASCENDING" }
       ]
     },
     {

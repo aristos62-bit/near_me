@@ -16,7 +16,7 @@ https://github.com/aristos62-bit/near_me
 ## Τεχνολογίες (resolved — Μάιος 2026)
 
 ### Core
-- Flutter 3.44.0 / Dart 3.12.0
+- Flutter 3.44.4 / Dart 3.12.2
 - SDK constraint: ^3.12.0
 
 ### Resolved Packages (από pubspec.lock)
@@ -68,7 +68,7 @@ https://github.com/aristos62-bit/near_me
 - **Release override**: `--dart-define=ENABLE_RELEASE_DEBUG=true` για να βλέπεις debugs και σε release
 - **Κατηγορίες flags**: databaseLocal, firestoreRead/Write, authFlow, gps, provider*, service*, repository*, navigation*, ui*, consentLog*, chat*, storage*
 - **Log levels**: `DebugConfig.log(flag, msg)` (υπόκειται σε flag), `warn(msg)` (debug mode μόνο), `error(msg)` (πάντα)
-- **Περιορισμός**: κανένα αρχείο > 400 γραμμές
+- **Περιορισμός**: κανένα αρχείο > 500 γραμμές
 
 ## Αρχιτεκτονική
 

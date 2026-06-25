@@ -23,7 +23,7 @@ final currentProfileProvider = StreamProvider.autoDispose<UserProfileTableData?>
   return repo.streamProfile();
 });
 
-final publicProfileStreamProvider = StreamProvider.family<PublicProfile?, String>((ref, uid) {
+final publicProfileStreamProvider = StreamProvider.autoDispose.family<PublicProfile?, String>((ref, uid) {
   DebugConfig.log(DebugConfig.providerCreate, 'publicProfileStreamProvider created for uid: $uid');
   final repo = ref.watch(profileRepositoryProvider);
   return repo.streamPublicProfile(uid);

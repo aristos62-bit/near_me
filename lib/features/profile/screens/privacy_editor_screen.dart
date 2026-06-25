@@ -213,27 +213,33 @@ class _PrivacyEditorScreenState extends ConsumerState<PrivacyEditorScreen> {
   }
 
   Widget _buildGeoPrecision(bool greek) {
-    const options = ['city', 'neighborhood', 'hidden'];
+    // Προσθήκη 'street' ως 4η επιλογή
+    const options = ['city', 'neighborhood', 'street', 'hidden'];
     String label(String v) {
       switch (v) {
-        case 'city': return greek ? 'Πόλη' : 'City';
+        case 'city':         return greek ? 'Πόλη' : 'City';
         case 'neighborhood': return greek ? 'Συνοικία' : 'Neighborhood';
-        case 'hidden': return greek ? 'Κρυφό' : 'Hidden';
-        default: return v;
+        case 'street':       return greek ? 'Περιοχή' : 'Area';
+        case 'hidden':       return greek ? 'Κρυφό' : 'Hidden';
+        default:             return v;
       }
     }
     String desc(String v) {
       switch (v) {
-        case 'city': return greek ? '~100km², ευρεία περιοχή' : '~100km², broad area';
+        case 'city':         return greek ? '~100km²' : '~100km²';
         case 'neighborhood': return greek ? '~2.5km², προεπιλογή' : '~2.5km², default';
-        case 'hidden': return greek ? 'Δεν εμφανίζεται καθόλου' : 'Not displayed at all';
-        default: return '';
+        case 'street':       return greek ? '~0.02km², ακριβές' : '~0.02km², precise';
+        case 'hidden':       return greek ? 'Δεν εμφανίζεται' : 'Not shown';
+        default:             return '';
       }
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(greek ? 'Ακρίβεια Τοποθεσίας' : 'Location Precision', style: AppTypography.titleMedium),
+        Text(
+          greek ? 'Ακρίβεια Τοποθεσίας' : 'Location Precision',
+          style: AppTypography.titleMedium,
+        ),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
@@ -244,24 +250,36 @@ class _PrivacyEditorScreenState extends ConsumerState<PrivacyEditorScreen> {
               label: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(label(o), style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-                    color: selected ? AppColors.primary : null,
-                  )),
-                  Text(desc(o), style: TextStyle(
-                    fontSize: 10,
-                    color: selected ? AppColors.primary.withAlpha(180) : AppColors.textSecondaryLight,
-                  )),
+                  Text(
+                    label(o),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight:
+                      selected ? FontWeight.w600 : FontWeight.normal,
+                      color: selected ? AppColors.primary : null,
+                    ),
+                  ),
+                  Text(
+                    desc(o),
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: selected
+                          ? AppColors.primary.withAlpha(180)
+                          : AppColors.textSecondaryLight,
+                    ),
+                  ),
                 ],
               ),
               selected: selected,
               onSelected: (_) {
-                DebugConfig.log(DebugConfig.providerCreate, 'geoPrecision: $o');
-                setState(() => _settings = _settings.copyWith(geoPrecision: o));
+                DebugConfig.log(
+                    DebugConfig.providerCreate, 'geoPrecision: $o');
+                setState(
+                        () => _settings = _settings.copyWith(geoPrecision: o));
               },
               selectedColor: AppColors.primary.withAlpha(25),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
             );
           }).toList(),
         ),
@@ -269,10 +287,18 @@ class _PrivacyEditorScreenState extends ConsumerState<PrivacyEditorScreen> {
           padding: const EdgeInsets.only(top: 6),
           child: Row(
             children: [
-              Icon(Icons.info_outline, size: 14, color: AppColors.textSecondaryLight),
+              Icon(Icons.info_outline,
+                  size: 14, color: AppColors.textSecondaryLight),
               const SizedBox(width: 6),
-              Text(greek ? 'Όσο μικρότερη η περιοχή, τόσο πιο εύκολο να σε εντοπίσουν' : 'The smaller the area, the easier to be located',
-                style: AppTypography.caption.copyWith(color: AppColors.textSecondaryLight)),
+              Expanded(
+                child: Text(
+                  greek
+                      ? 'Όσο μικρότερη η περιοχή, τόσο πιο εύκολο να σε εντοπίσουν'
+                      : 'The smaller the area, the easier to be located',
+                  style: AppTypography.caption
+                      .copyWith(color: AppColors.textSecondaryLight),
+                ),
+              ),
             ],
           ),
         ),

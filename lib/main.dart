@@ -170,6 +170,7 @@ class NearMeApp extends ConsumerStatefulWidget {
 class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserver {
   static const _pauseThresholdSeconds = 60;
 
+  BuildContext? _appContext;
   StreamSubscription<RemoteMessage>? _fcmSub;
   bool _isLocked = false;
   bool _authInProgress = false;
@@ -265,9 +266,12 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
 
   void _onFcmForeground(RemoteMessage msg) {
     if (!mounted) return;
+    final ctx = _appContext;
+    if (ctx == null) return;
+    if (FcmService.shouldSuppressForeground(msg)) return;
     final notif = msg.notification;
     if (notif != null) {
-      AppMessenger.showInfo(context, '${notif.title ?? ''}: ${notif.body ?? ''}');
+      AppMessenger.showInfo(ctx, '${notif.title ?? ''}: ${notif.body ?? ''}');
     }
   }
 
@@ -304,6 +308,7 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       builder: (context, child) {
+        _appContext = context;
         return Stack(
           children: [
             child ?? const SizedBox.shrink(),

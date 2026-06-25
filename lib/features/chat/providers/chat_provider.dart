@@ -20,7 +20,7 @@ final chatsProvider = StreamProvider<List<ChatCacheTableData>>((ref) {
   return stream;
 });
 
-final messagesProvider = StreamProvider.family<List<Map<String, dynamic>>, String>((ref, chatId) {
+final messagesProvider = StreamProvider.autoDispose.family<List<Map<String, dynamic>>, String>((ref, chatId) {
   DebugConfig.log(DebugConfig.providerCreate, 'messagesProvider created for chat: $chatId');
   ref.onDispose(() => DebugConfig.log(DebugConfig.providerDispose, 'messagesProvider disposed for chat: $chatId'));
   final chatRepo = ref.watch(chatRepositoryProvider);

@@ -11,11 +11,13 @@ import '../providers/status_provider.dart';
 class PublicProfileHeader extends ConsumerWidget {
   final PublicProfile profile;
   final String uid;
+  final double? distanceKm;
 
   const PublicProfileHeader({
     super.key,
     required this.profile,
     required this.uid,
+    this.distanceKm,
   });
 
   @override
@@ -96,6 +98,14 @@ class PublicProfileHeader extends ConsumerWidget {
                   ],
                 ],
               ),
+              if (distanceKm != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    _distanceLabel(distanceKm!, isGreek, profile.geoHash),
+                    style: headerSmall,
+                  ),
+                ),
               const SizedBox(height: 6),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -132,5 +142,13 @@ class PublicProfileHeader extends ConsumerWidget {
       color: theme.colorScheme.surfaceContainerHighest,
       child: Icon(Icons.person, size: 48, color: theme.colorScheme.onSurfaceVariant),
     );
+  }
+
+  String _distanceLabel(double km, bool isGreek, String? geoHash) {
+    final dist = L10n.distanceText(km, metric: true);
+    if (geoHash != null && geoHash.length >= 5) {
+      return isGreek ? 'Απόσταση Συνοικίας εντός: $dist' : 'Distance within Neighborhood: $dist';
+    }
+    return isGreek ? 'Απόσταση Πόλης εντός: $dist' : 'Distance within City: $dist';
   }
 }

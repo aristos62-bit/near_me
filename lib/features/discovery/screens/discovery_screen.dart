@@ -21,9 +21,16 @@ class DiscoveryScreen extends ConsumerStatefulWidget {
 }
 
 class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
+  // ── State flags ────────────────────────────────────────────────
   bool _isDetecting = false;
-  bool _hasAttemptedAutoSearch = false;
+  bool _hasAttemptedAutoSearch = false; // τίθεται ΑΜΕΣΩΣ για race-condition fix
+  bool _isLoadingMore = false;          // guard για concurrent loadMore
+  DateTime? _lastAutoPublish;           // throttle για auto-publish
+
   final ScrollController _scrollController = ScrollController();
+
+  static const _autoPublishMinInterval = Duration(minutes: 30);
+  static const _scrollThreshold = 0.8;
 
   @override
   void initState() {
@@ -41,89 +48,158 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent * 0.8) {
-      ref.read(searchProvider.notifier).loadMore();
+    if (_isLoadingMore) {
+      DebugConfig.log(DebugConfig.uiInteraction, '_onScroll: skipped (already loading)');
+      return;
+    }
+    final pos = _scrollController.position;
+    if (pos.pixels >= pos.maxScrollExtent * _scrollThreshold) {
+      DebugConfig.log(DebugConfig.uiInteraction,
+          '_onScroll: threshold reached (${pos.pixels.toStringAsFixed(0)}/${pos.maxScrollExtent.toStringAsFixed(0)})');
+      _triggerLoadMore();
+    }
+  }
+
+  Future<void> _triggerLoadMore() async {
+    if (_isLoadingMore) {
+      DebugConfig.log(DebugConfig.uiInteraction, '_triggerLoadMore: skipped (already loading)');
+      return;
+    }
+    _isLoadingMore = true;
+    DebugConfig.log(DebugConfig.uiInteraction, '_triggerLoadMore: started');
+    try {
+      await ref.read(searchProvider.notifier).loadMore();
+      DebugConfig.log(DebugConfig.repositoryResult, '_triggerLoadMore: completed');
+    } finally {
+      if (mounted) _isLoadingMore = false;
     }
   }
 
   Future<void> _autoSearch() async {
-    if (_hasAttemptedAutoSearch) return;
+    if (_hasAttemptedAutoSearch) {
+      DebugConfig.log(DebugConfig.uiInteraction, '_autoSearch: skipped (already attempted)');
+      return;
+    }
+    _hasAttemptedAutoSearch = true;
+    DebugConfig.log(DebugConfig.uiInteraction, '_autoSearch: starting');
     await _performSearch();
   }
 
   Future<void> _performSearch() async {
     if (_isDetecting) return;
-    setState(() => _isDetecting = true);
+    if (mounted) setState(() => _isDetecting = true);
 
     try {
       final loc = await LocationService.getCurrentLocation();
       if (!mounted) return;
+
       if (loc.latitude != null && loc.longitude != null) {
-        ref.read(searchFiltersProvider.notifier)
+        ref
+            .read(searchFiltersProvider.notifier)
             .updateLocation(loc.latitude!, loc.longitude!, radiusKm: 10);
-        ref.read(searchProvider.notifier)
+        ref
+            .read(searchProvider.notifier)
             .searchNearby(loc.latitude!, loc.longitude!, 10);
 
-        final profile = await ref.read(profileRepositoryProvider).getProfile();
-        if (profile != null && mounted) {
-          final needsCity = profile.city == null || profile.city!.isEmpty;
-          final needsCountry = profile.country == null || profile.country!.isEmpty;
-          if (needsCity || needsCountry) {
-            final name = await LocationService.reverseGeocode(loc.latitude!, loc.longitude!);
-            if (name != null && mounted) {
-              DebugConfig.log(DebugConfig.gpsLocation,
-                  'Auto-fill: city=${name.city}, country=${name.country}');
-              await ref.read(profileRepositoryProvider).saveProfile(
-                profile.copyWith(
-                  city: needsCity ? Value(name.city) : Value.absent(),
-                  country: needsCountry ? Value(name.country) : Value.absent(),
-                  latitudeExact: Value(loc.latitude),
-                  longitudeExact: Value(loc.longitude),
-                ),
-              );
-              if (profile.isPublished && mounted) {
-                DebugConfig.log(DebugConfig.repositoryCall,
-                    'Auto-fill: published profile — auto-publishing');
-                await ref.read(profileRepositoryProvider).publish();
-              }
-            }
-          } else if (profile.isPublished &&
-              profile.latitudeExact != null && profile.longitudeExact != null) {
-            final name = await LocationService.reverseGeocode(loc.latitude!, loc.longitude!);
-            if (name != null && mounted) {
-              final cityDiff = name.city != null && name.city != profile.city;
-              final countryDiff = name.country != null && name.country != profile.country;
-              if (cityDiff || countryDiff) {
-                DebugConfig.log(DebugConfig.gpsLocation,
-                    'Auto-sync: city=${name.city}, country=${name.country} (was city=${profile.city}, country=${profile.country})');
-                await ref.read(profileRepositoryProvider).saveProfile(
-                  profile.copyWith(
-                    city: cityDiff ? Value(name.city) : Value.absent(),
-                    country: countryDiff ? Value(name.country) : Value.absent(),
-                  ),
-                );
-                await ref.read(profileRepositoryProvider).publish();
-              }
-            }
-          }
-        }
-      } else if (!mounted) {
-        return;
+        await _maybeUpdateProfileLocation(loc.latitude!, loc.longitude!);
       } else {
         final isGreek = L10n.isGreek(context);
         final msg = _locationFailureMessage(loc.failure, isGreek);
-        if (msg != null) AppMessenger.showInfo(context, msg);
+        if (msg != null && mounted) AppMessenger.showInfo(context, msg);
       }
     } catch (e, s) {
-      DebugConfig.error('DiscoveryScreen location/search failed', data: e, exception: s);
+      DebugConfig.error('DiscoveryScreen location/search failed',
+          data: e, exception: s);
     } finally {
-      if (mounted) {
-        setState(() {
-          _isDetecting = false;
-          _hasAttemptedAutoSearch = true;
-        });
+      if (mounted) setState(() => _isDetecting = false);
+    }
+  }
+
+  /// Ενημέρωση τοποθεσίας προφίλ με throttle για αποφυγή
+  /// περιττών Firestore writes.
+  Future<void> _maybeUpdateProfileLocation(
+      double lat, double lng) async {
+    try {
+      final profile =
+      await ref.read(profileRepositoryProvider).getProfile();
+      if (profile == null || !mounted) return;
+
+      final needsCity = profile.city == null || profile.city!.isEmpty;
+      final needsCountry =
+          profile.country == null || profile.country!.isEmpty;
+
+      if (needsCity || needsCountry) {
+        // Νέος χρήστης: πάντα ενημερώνουμε
+        final name =
+        await LocationService.reverseGeocode(lat, lng);
+        if (name != null && mounted) {
+          DebugConfig.log(DebugConfig.gpsLocation,
+              'Auto-fill: city=${name.city}, country=${name.country}');
+          await ref.read(profileRepositoryProvider).saveProfile(
+            profile.copyWith(
+              city: needsCity ? Value(name.city) : Value.absent(),
+              country:
+              needsCountry ? Value(name.country) : Value.absent(),
+              latitudeExact: Value(lat),
+              longitudeExact: Value(lng),
+            ),
+          );
+          if (profile.isPublished && mounted) {
+            await _throttledPublish();
+          }
+        }
+      } else if (profile.isPublished &&
+          profile.latitudeExact != null &&
+          profile.longitudeExact != null) {
+        // Υπάρχων χρήστης: έλεγχος αν άλλαξε πόλη + throttle
+        final now = DateTime.now();
+        if (_lastAutoPublish != null &&
+            now.difference(_lastAutoPublish!) < _autoPublishMinInterval) {
+          DebugConfig.log(
+            DebugConfig.gpsLocation,
+            'Auto-sync: skipped (throttle: '
+                '${now.difference(_lastAutoPublish!).inMinutes}min < 30min)',
+          );
+          return;
+        }
+
+        final name = await LocationService.reverseGeocode(lat, lng);
+        if (name != null && mounted) {
+          final cityDiff =
+              name.city != null && name.city != profile.city;
+          final countryDiff =
+              name.country != null && name.country != profile.country;
+          if (cityDiff || countryDiff) {
+            DebugConfig.log(
+              DebugConfig.gpsLocation,
+              'Auto-sync: city=${name.city}, country=${name.country} '
+                  '(was city=${profile.city}, country=${profile.country})',
+            );
+            await ref.read(profileRepositoryProvider).saveProfile(
+              profile.copyWith(
+                city: cityDiff ? Value(name.city) : Value.absent(),
+                country:
+                countryDiff ? Value(name.country) : Value.absent(),
+              ),
+            );
+            await _throttledPublish();
+          }
+        }
       }
+    } catch (e, s) {
+      DebugConfig.error('_maybeUpdateProfileLocation failed',
+          data: e, exception: s);
+    }
+  }
+
+  Future<void> _throttledPublish() async {
+    _lastAutoPublish = DateTime.now();
+    try {
+      await ref.read(profileRepositoryProvider).publish();
+      DebugConfig.log(
+          DebugConfig.repositoryCall, 'DiscoveryScreen: auto-publish OK');
+    } catch (e) {
+      DebugConfig.warn('DiscoveryScreen: auto-publish failed', data: e);
     }
   }
 
@@ -155,10 +231,13 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
   }
 
   Future<void> _onRefresh() async {
+    DebugConfig.log(DebugConfig.uiInteraction, '_onRefresh: triggered');
     final s = ref.read(searchProvider);
     if (s.status == SearchStatus.idle) {
+      DebugConfig.log(DebugConfig.uiInteraction, '_onRefresh: status=idle → _performSearch');
       await _performSearch();
     } else {
+      DebugConfig.log(DebugConfig.uiInteraction, '_onRefresh: status=${s.status} → search');
       ref.read(searchProvider.notifier).search();
     }
   }
@@ -220,8 +299,10 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
       case SearchStatus.error:
         return Center(
           child: ErrorView(
-            message: L10n.localizedMessage(context, state.errorMessage ??
-                'Κάτι πήγε στραβά / Something went wrong'),
+            message: L10n.localizedMessage(
+              context,
+              state.errorMessage ?? 'Κάτι πήγε στραβά / Something went wrong',
+            ),
             onRetry: _onRefresh,
           ),
         );
@@ -235,7 +316,8 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.person_search, size: 72,
+            Icon(Icons.person_search,
+                size: 72,
                 color: theme.colorScheme.primary.withAlpha(80)),
             const SizedBox(height: 20),
             Text(
@@ -247,8 +329,10 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
             FilledButton.icon(
               onPressed: _isDetecting ? null : _performSearch,
               icon: _isDetecting
-                  ? const SizedBox(width: 18, height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2))
+                  ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2))
                   : const Icon(Icons.search, size: 20),
               label: Text(_isDetecting
                   ? (isGreek ? 'Εντοπισμός...' : 'Locating...')
@@ -260,7 +344,8 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
     );
   }
 
-  Widget _buildResultsList(SearchState state, bool isGreek, {bool isLoadingMore = false}) {
+  Widget _buildResultsList(SearchState state, bool isGreek,
+      {bool isLoadingMore = false}) {
     final isMobile = ResponsiveUtils.isMobile(context);
     final hPad = ResponsiveUtils.horizontalPadding(context);
 
@@ -274,9 +359,18 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
           runSpacing: 12,
           alignment: WrapAlignment.center,
           children: state.results.map((p) {
+            final dist = state.distances[p.uid];
+            if (dist != null) {
+              DebugConfig.log(
+                DebugConfig.repositoryResult,
+                'ProfileCard uid=${p.uid} '
+                    'distance=${dist.toStringAsFixed(1)}km',
+              );
+            }
             return ProfileCard(
               profile: p,
               width: isMobile ? double.infinity : 180,
+              distanceKm: dist,
               onTap: () => context.push('/user/${p.uid}'),
             );
           }).toList(),

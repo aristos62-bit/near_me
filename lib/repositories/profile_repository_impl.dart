@@ -35,6 +35,37 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
       if (profile != null) {
         DebugConfig.log(DebugConfig.repositoryResult,
             'getProfile: ${profile.nickname ?? "(unnamed)"} (local)');
+        try {
+          final doc = await _firestore
+              .collection('users')
+              .doc(uid)
+              .collection('public')
+              .doc('profile')
+              .get();
+          if (doc.exists) {
+            final pub = PublicProfile.fromJson(doc.data()!);
+            if (pub.updatedAt != null && pub.updatedAt!.isAfter(profile.updatedAt)) {
+              final firestoreData = doc.data()!;
+              final hasAvatarUrl = firestoreData.containsKey('avatarUrl');
+              final hasPhotoUrls = firestoreData.containsKey('photoUrls');
+              if (hasAvatarUrl || hasPhotoUrls) {
+                var updated = profile;
+                if (hasAvatarUrl) {
+                  updated = updated.copyWith(avatarUrl: Value(pub.avatarUrl));
+                }
+                if (hasPhotoUrls) {
+                  updated = updated.copyWith(photoUrls: Value(pub.photoUrls));
+                }
+                await saveProfile(updated);
+                DebugConfig.log(DebugConfig.repositoryResult,
+                    'getProfile: merged avatarUrl/photoUrls from Firestore');
+                return updated;
+              }
+            }
+          }
+        } catch (e) {
+          DebugConfig.warn('getProfile: Firestore merge check failed', data: e);
+        }
         return profile;
       }
       try {
@@ -79,6 +110,8 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
         await _ensurePrivacySettings(uid);
         DebugConfig.log(DebugConfig.repositoryResult,
             'getProfile: restored from firestore: ${pub.nickname ?? "(unnamed)"}');
+        DebugConfig.log(DebugConfig.repositoryResult,
+            'getProfile: avatarUrl=${pub.avatarUrl != null && pub.avatarUrl!.isNotEmpty ? "present (${pub.avatarUrl!.length} chars)" : "null or empty"}');
         return restored;
       } catch (e2) {
         DebugConfig.warn('getProfile: firestore fallback failed', data: e2);
@@ -269,10 +302,19 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
       final json = publicProfile.toJson()
         ..removeWhere((_, v) => v == null)
         ..remove('isOnline');
+
+// Normalized fields για case-insensitive city/country search
+      if (publicProfile.city != null && publicProfile.city!.isNotEmpty) {
+        json['cityNormalized'] = publicProfile.city!.toLowerCase().trim();
+      }
+      if (publicProfile.country != null && publicProfile.country!.isNotEmpty) {
+        json['countryNormalized'] = publicProfile.country!.toLowerCase().trim();
+      }
       DebugConfig.log(DebugConfig.firestoreWrite,
           'publish JSON: city=${json['city']}, country=${json['country']}, '
           'geoHash=${json['geoHash']}, isManualLocation=${json['isManualLocation']}, '
-          'privacy.showCity=${privacy?.showCity}, showCountry=${privacy?.showCountry}');
+          'showPhotos=${privacy?.showPhotos}, showCity=${privacy?.showCity}, showCountry=${privacy?.showCountry}, '
+          'avatarUrl=${json['avatarUrl'] != null ? "present (${json['avatarUrl'].toString().length} chars)" : "absent"}');
       try {
         final existingDoc = await _firestore
             .collection('users')

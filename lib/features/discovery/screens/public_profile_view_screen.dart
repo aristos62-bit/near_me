@@ -10,6 +10,7 @@ import '../../../shared/models/public_profile.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../../../shared/widgets/report_user_dialog.dart';
 import '../widgets/public_profile_header.dart';
+import '../providers/search_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../block/providers/block_provider.dart';
 import '../../profile/providers/profile_provider.dart';
@@ -83,6 +84,14 @@ class _PublicProfileViewScreenState extends ConsumerState<PublicProfileViewScree
           );
         }
         final theme = Theme.of(context);
+        final searchState = ref.read(searchProvider);
+        final distanceKm = searchState.status == SearchStatus.success
+            ? searchState.distances[uid]
+            : null;
+        if (distanceKm != null) {
+          DebugConfig.log(DebugConfig.repositoryResult,
+              'PublicProfileView uid=$uid distance=${distanceKm.toStringAsFixed(1)}km');
+        }
         return Scaffold(
           body: SingleChildScrollView(
             child: Center(
@@ -90,7 +99,7 @@ class _PublicProfileViewScreenState extends ConsumerState<PublicProfileViewScree
                 width: ResponsiveUtils.maxContentWidth(context),
                 child: Column(
                   children: [
-                    PublicProfileHeader(profile: profile, uid: uid),
+                    PublicProfileHeader(profile: profile, uid: uid, distanceKm: distanceKm),
                     if (profile.photoUrls != null && profile.photoUrls!.isNotEmpty)
                       _buildPhotoGallery(profile, theme, isGreek),
                     _buildLookingForCard(profile, theme, isGreek),

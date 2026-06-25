@@ -37,7 +37,7 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
   String? _gender, _lookingFor, _avatarUrl;
   List<String> _interests = [], _photoUrls = [];
   bool _allowVideoCall = false, _allowDirectChat = true, _isSaving = false;
-  bool _isDetectingLocation = false, _isUploadingAvatar = false;
+  bool _isDetectingLocation = false, _isUploadingAvatar = false, _avatarErrorShown = false;
   bool _locationDetectedViaGps = false;
   double? _latitude, _longitude;
   int? _uploadingPhotoIndex;
@@ -154,6 +154,9 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
     _longitude = profile.longitudeExact;
     _locationDetectedViaGps = false;
     _avatarUrl = profile.avatarUrl;
+    _avatarErrorShown = false;
+    DebugConfig.log(DebugConfig.uiRebuild,
+        'ProfileEditor _loadProfile: avatarUrl=${_avatarUrl != null && _avatarUrl!.isNotEmpty ? "present (${_avatarUrl!.length} chars)" : "null or empty"}');
     _photoUrls = profile.photoUrls ?? [];
     _loadedProfile = profile;
     if (mounted) setState(() {});
@@ -236,7 +239,7 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
     try {
       final bytes = await picked.readAsBytes();
       final url = await ref.read(profileRepositoryProvider).saveAvatar(bytes);
-      setState(() => _avatarUrl = url);
+      setState(() { _avatarUrl = url; _avatarErrorShown = false; });
       if (!context.mounted)return;
       if (mounted) AppMessenger.showSuccess(ctx, L10n.localizedMessage(ctx, 'Η φωτογραφία αποθηκεύτηκε! / Photo saved!'));
     } catch (e, s) {
@@ -465,6 +468,13 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
 );
   }
 
+  Widget _buildAvatarPlaceholder(bool g) {
+    return Container(width: 88, height: 88, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+      child: Center(child: Text(_nicknameCtrl.text.isNotEmpty ? _nicknameCtrl.text[0].toUpperCase() : '?',
+        style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: AppColors.primary))),
+    );
+  }
+
   Widget _buildAvatarHeader() {
     final g = L10n.isGreek(context);
     return GradientHeader(
@@ -474,11 +484,25 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
       padding: EdgeInsets.fromLTRB(16, MediaQuery.of(context).padding.top + 8, 16, 24),
       child: GestureDetector(onTap: _isUploadingAvatar ? null : _pickAndUploadAvatar,
         child: Stack(children: [
-          CircleAvatar(radius: 44, backgroundColor: Colors.white,
-            backgroundImage: _avatarUrl != null ? CachedNetworkImageProvider(_avatarUrl!) : null,
-            child: _avatarUrl == null
-              ? Text(_nicknameCtrl.text.isNotEmpty ? _nicknameCtrl.text[0].toUpperCase() : '?', style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: AppColors.primary))
-              : null),
+          ClipRRect(borderRadius: BorderRadius.circular(44),
+            child: SizedBox(width: 88, height: 88,
+              child: _avatarUrl != null && _avatarUrl!.isNotEmpty
+                ? CachedNetworkImage(imageUrl: _avatarUrl!, fit: BoxFit.cover,
+                    placeholder: (_, _) => _buildAvatarPlaceholder(g),
+                    errorWidget: (ctx, url, err) {
+                      DebugConfig.warn('CachedNetworkImage avatar error', data: 'url=$url error=$err');
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (ctx.mounted && !_avatarErrorShown) {
+                          _avatarErrorShown = true;
+                          AppMessenger.showError(ctx, g ? 'Αποτυχία φόρτωσης φωτογραφίας προφίλ' : 'Failed to load profile photo');
+                        }
+                      });
+                      return _buildAvatarPlaceholder(g);
+                    },
+                  )
+                : _buildAvatarPlaceholder(g),
+            ),
+          ),
           if (_isUploadingAvatar) Positioned.fill(child: Container(decoration: const BoxDecoration(color: Colors.black26, shape: BoxShape.circle),
             child: const Center(child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3)))),
           Positioned(bottom: 0, right: 0, child: Container(padding: const EdgeInsets.all(6),

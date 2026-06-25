@@ -14,6 +14,10 @@ class FcmService {
   static String? _pendingChatId;
   static String? _pendingRequestId;
 
+  /// Chat ID που βλέπει ο χρήστης αυτή τη στιγμή.
+  /// Ενημερώνεται από `ChatScreen.initState` / `dispose`.
+  static String? activeChatId;
+
   static final _foregroundCtrl = StreamController<RemoteMessage>.broadcast();
   static Stream<RemoteMessage> get foregroundStream => _foregroundCtrl.stream;
 
@@ -142,6 +146,29 @@ class FcmService {
       DebugConfig.log(DebugConfig.requestFcm, 'Exec pending request nav: $rid');
       context.push('/requests');
     }
+  }
+
+  /// Ελέγχει αν το foreground notification πρέπει να κατασταλεί.
+  /// Επιστρέφει true μόνο για chat_message όταν ο χρήστης είναι ήδη
+  /// στο συγκεκριμένο chat (Single Point of Truth).
+  static bool shouldSuppressForeground(RemoteMessage msg) {
+    final type = msg.data['type'] as String?;
+    if (type != 'chat_message') return false;
+
+    final chatId = msg.data['chatId'] as String?;
+    if (chatId == null || chatId.isEmpty) {
+      DebugConfig.warn(
+          'shouldSuppressForeground: chatId missing for type=$type');
+      return false;
+    }
+
+    final inChat = chatId == activeChatId;
+
+    DebugConfig.log(DebugConfig.chatFcm, inChat
+        ? 'suppressed: user in chat $chatId'
+        : 'showing: user at "$activeChatId", not chat $chatId');
+
+    return inChat;
   }
 
   static Future<void> clearTokens() async {

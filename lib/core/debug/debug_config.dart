@@ -82,6 +82,7 @@ class DebugConfig {
   /// ─────────────────────────────────────────────────────────────
   static const bool repositoryCall = true;       // search, publish, etc.
   static const bool repositoryResult = true;     // returned data size/timing
+  static const bool repositoryFilter = true;     // client-side filter rejections
 
   /// ─────────────────────────────────────────────────────────────
   /// NAVIGATION — GoRouter navigation events

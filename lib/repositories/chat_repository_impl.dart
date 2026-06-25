@@ -52,7 +52,6 @@ class ChatRepositoryImpl implements ChatRepository {
     final existing = await _findExistingChat(uid, otherUid);
     if (existing != null) {
       DebugConfig.log(DebugConfig.repositoryResult, 'createChat: existing chat found: $existing');
-      await _ensureKeyDerived(existing);
       return existing;
     }
 
@@ -78,15 +77,6 @@ class ChatRepositoryImpl implements ChatRepository {
     await _logConsent(uid, otherUid);
 
     return chatId;
-  }
-
-  Future<void> _ensureKeyDerived(String chatId) async {
-    final stored = await EncryptionUtils.getKey(chatId);
-    final derived = EncryptionUtils.deriveKey(chatId);
-    if (stored == null || stored.base64 != derived.base64) {
-      DebugConfig.log(DebugConfig.chatEncrypt, 'ensureKeyDerived: migrating to derived key chat=$chatId');
-      await EncryptionUtils.storeKey(chatId, derived);
-    }
   }
 
   Future<String?> _findExistingChat(String uid1, String uid2) async {
@@ -141,14 +131,7 @@ class ChatRepositoryImpl implements ChatRepository {
       DebugConfig.warn('sendMessage: block check failed (non-fatal)', data: e);
     }
 
-    await _ensureKeyDerived(chatId);
-    final key = await EncryptionUtils.getKey(chatId);
-    if (key == null) {
-      throw AppException(
-        message: 'Το κλειδί κρυπτογράφησης δεν βρέθηκε / Encryption key not found',
-        code: 'encryption_key_missing',
-      );
-    }
+    final key = await EncryptionUtils.getKeyOrDerive(chatId);
 
     try {
       final encrypted = EncryptionUtils.encryptMessage(key, content);
@@ -212,27 +195,22 @@ class ChatRepositoryImpl implements ChatRepository {
           return snapshot;
         })
         .asyncMap((snapshot) async {
-          await _ensureKeyDerived(chatId);
-          final key = await EncryptionUtils.getKey(chatId);
+          final key = await EncryptionUtils.getKeyOrDerive(chatId);
           return snapshot.docs.map((doc) {
             final data = doc.data();
             final encrypted = data['content'] as String? ?? '';
             String decrypted;
-            if (key != null) {
+            try {
+              decrypted = EncryptionUtils.decryptMessage(key, encrypted);
+            } catch (e) {
               try {
-                decrypted = EncryptionUtils.decryptMessage(key, encrypted);
-              } catch (e) {
-                try {
-                  final fallbackKey = EncryptionUtils.deriveKey(chatId);
-                  decrypted = EncryptionUtils.decryptMessage(fallbackKey, encrypted);
-                  DebugConfig.log(DebugConfig.chatEncrypt, 'messagesStream: decrypt with derived key succeeded for msg ${doc.id}');
-                } catch (_) {
-                  DebugConfig.warn('messagesStream: decrypt failed for msg ${doc.id}', data: e);
-                  decrypted = encrypted;
-                }
+                final fallbackKey = EncryptionUtils.deriveKey(chatId);
+                decrypted = EncryptionUtils.decryptMessage(fallbackKey, encrypted);
+                DebugConfig.log(DebugConfig.chatEncrypt, 'messagesStream: decrypt with derived key succeeded for msg ${doc.id}');
+              } catch (_) {
+                DebugConfig.warn('messagesStream: decrypt failed for msg ${doc.id}', data: e);
+                decrypted = '[Μη αναγνώσιμο μήνυμα / Unreadable message]';
               }
-            } else {
-              decrypted = encrypted;
             }
             return {
               'id': doc.id,
@@ -362,15 +340,8 @@ class ChatRepositoryImpl implements ChatRepository {
       String? decryptedLastMessage;
       if (encryptedLastMessage != null) {
         try {
-          final key = await EncryptionUtils.getKey(chatId);
-          if (key != null) {
-            decryptedLastMessage = EncryptionUtils.decryptMessage(key, encryptedLastMessage);
-            DebugConfig.log(DebugConfig.chatEncrypt, '_syncChatFromFirestore: decrypted lastMessage chat=$chatId');
-          } else {
-            final fallbackKey = EncryptionUtils.deriveKey(chatId);
-            decryptedLastMessage = EncryptionUtils.decryptMessage(fallbackKey, encryptedLastMessage);
-            DebugConfig.log(DebugConfig.chatEncrypt, '_syncChatFromFirestore: decrypted with derived key chat=$chatId');
-          }
+          final key = await EncryptionUtils.getKeyOrDerive(chatId);
+          decryptedLastMessage = EncryptionUtils.decryptMessage(key, encryptedLastMessage);
         } catch (e) {
           DebugConfig.warn('_syncChatFromFirestore: decrypt lastMessage failed chat=$chatId', data: e);
           decryptedLastMessage = null;

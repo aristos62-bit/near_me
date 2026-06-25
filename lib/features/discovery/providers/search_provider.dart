@@ -8,6 +8,7 @@ import '../../../shared/models/public_profile.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../block/providers/block_provider.dart';
 import 'filters_provider.dart';
+import '../../../core/utils/geohash_utils.dart';
 
 final searchRepositoryProvider = Provider<SearchRepository>((ref) {
   DebugConfig.log(DebugConfig.providerCreate, 'searchRepositoryProvider created');
@@ -21,12 +22,18 @@ class SearchState {
   final List<PublicProfile> results;
   final String? errorMessage;
   final bool hasMore;
+  final double? searchCenterLat;
+  final double? searchCenterLng;
+  final Map<String, double> distances;
 
   const SearchState({
     this.status = SearchStatus.idle,
     this.results = const [],
     this.errorMessage,
     this.hasMore = false,
+    this.searchCenterLat,
+    this.searchCenterLng,
+    this.distances = const {},
   });
 }
 
@@ -71,6 +78,40 @@ class SearchNotifier extends Notifier<SearchState> {
     return results.where((p) => p.uid != uid).toList();
   }
 
+  Map<String, double> _computeDistances(List<PublicProfile> profiles, double centerLat, double centerLng) {
+    final distances = <String, double>{};
+    int computed = 0;
+    int skipped = 0;
+    for (final p in profiles) {
+      if (p.geoHash == null || p.geoHash!.isEmpty) {
+        skipped++;
+        continue;
+      }
+      try {
+        final nearestDist = GeoHashUtils.distanceToNearestEdge(p.geoHash!, centerLat, centerLng);
+        if (nearestDist > 0) {
+          distances[p.uid] = nearestDist;
+          DebugConfig.log(DebugConfig.repositoryCall,
+              'SearchNotifier._computeDistances: uid=${p.uid} nearest=${nearestDist.toStringAsFixed(1)}km');
+        } else {
+          final (lat, lng) = GeoHashUtils.decode(p.geoHash!);
+          final centerDist = GeoHashUtils.haversineDistance(centerLat, centerLng, lat, lng);
+          distances[p.uid] = centerDist;
+          DebugConfig.log(DebugConfig.repositoryCall,
+              'SearchNotifier._computeDistances: uid=${p.uid} inside cell, center=${centerDist.toStringAsFixed(1)}km');
+        }
+        computed++;
+      } catch (e) {
+        skipped++;
+        DebugConfig.log(DebugConfig.repositoryCall,
+            'SearchNotifier._computeDistances: failed uid=${p.uid}: $e');
+      }
+    }
+    DebugConfig.log(DebugConfig.repositoryCall,
+        'SearchNotifier._computeDistances: $computed computed, $skipped skipped, total=${profiles.length}');
+    return distances;
+  }
+
   Future<void> search() async {
     final filters = ref.read(searchFiltersProvider);
     DebugConfig.log(DebugConfig.repositoryCall, 'SearchNotifier.search: $filters');
@@ -84,9 +125,21 @@ class SearchNotifier extends Notifier<SearchState> {
       final result = await _repo.search(filters);
       final filtered = _excludeSelf(_excludeBlocked(result.results));
       _cursor = result.cursor;
+      final lat = filters.latitude;
+      final lng = filters.longitude;
+      final distances = (lat != null && lng != null)
+          ? _computeDistances(filtered, lat, lng)
+          : const <String, double>{};
       DebugConfig.log(DebugConfig.repositoryResult,
-          'SearchNotifier.search: ${filtered.length} results, hasMore=${result.hasMore}');
-      state = SearchState(status: SearchStatus.success, results: filtered, hasMore: result.hasMore);
+          'SearchNotifier.search: ${filtered.length} results, hasMore=${result.hasMore}, distances=${distances.length}');
+      state = SearchState(
+        status: SearchStatus.success,
+        results: filtered,
+        hasMore: result.hasMore,
+        searchCenterLat: lat,
+        searchCenterLng: lng,
+        distances: distances,
+      );
     } catch (e, s) {
       DebugConfig.error('SearchNotifier.search failed', data: e, exception: s);
       state = SearchState(status: SearchStatus.error, errorMessage: _friendlyError(e));
@@ -108,9 +161,17 @@ class SearchNotifier extends Notifier<SearchState> {
       final result = await _repo.searchNearby(lat, lng, radiusKm);
       final filtered = _excludeSelf(_excludeBlocked(result.results));
       _cursor = result.cursor;
+      final distances = _computeDistances(filtered, lat, lng);
       DebugConfig.log(DebugConfig.repositoryResult,
-          'SearchNotifier.searchNearby: ${filtered.length} results, hasMore=${result.hasMore}');
-      state = SearchState(status: SearchStatus.success, results: filtered, hasMore: result.hasMore);
+          'SearchNotifier.searchNearby: ${filtered.length} results, hasMore=${result.hasMore}, distances=${distances.length}');
+      state = SearchState(
+        status: SearchStatus.success,
+        results: filtered,
+        hasMore: result.hasMore,
+        searchCenterLat: lat,
+        searchCenterLng: lng,
+        distances: distances,
+      );
     } catch (e, s) {
       DebugConfig.error('SearchNotifier.searchNearby failed', data: e, exception: s);
       state = SearchState(status: SearchStatus.error, errorMessage: _friendlyError(e));
@@ -126,7 +187,16 @@ class SearchNotifier extends Notifier<SearchState> {
     DebugConfig.log(DebugConfig.repositoryCall,
         'SearchNotifier.loadMore: cursor=${_cursor!.docId}');
 
-    state = SearchState(status: SearchStatus.loading, results: state.results, hasMore: state.hasMore);
+    DebugConfig.log(DebugConfig.repositoryCall,
+        'SearchNotifier.loadMore: preserving ${state.distances.length} distances, searchCenter=(${state.searchCenterLat}, ${state.searchCenterLng})');
+    state = SearchState(
+      status: SearchStatus.loading,
+      results: state.results,
+      hasMore: state.hasMore,
+      distances: state.distances,
+      searchCenterLat: state.searchCenterLat,
+      searchCenterLng: state.searchCenterLng,
+    );
 
     try {
       final SearchResult result;
@@ -143,17 +213,33 @@ class SearchNotifier extends Notifier<SearchState> {
       _cursor = result.cursor;
 
       final all = [...state.results, ...filtered];
+      final newDistances = (state.searchCenterLat != null && state.searchCenterLng != null)
+          ? _computeDistances(filtered, state.searchCenterLat!, state.searchCenterLng!)
+          : const <String, double>{};
+      final allDistances = {...state.distances, ...newDistances};
       DebugConfig.log(DebugConfig.repositoryResult,
-          'SearchNotifier.loadMore: +${filtered.length} = ${all.length} total, hasMore=${result.hasMore}');
+          'SearchNotifier.loadMore: +${filtered.length} = ${all.length} total, hasMore=${result.hasMore}, +${newDistances.length} distances = ${allDistances.length} total');
 
-      state = SearchState(status: SearchStatus.success, results: all, hasMore: result.hasMore);
+      state = SearchState(
+        status: SearchStatus.success,
+        results: all,
+        hasMore: result.hasMore,
+        distances: allDistances,
+        searchCenterLat: state.searchCenterLat,
+        searchCenterLng: state.searchCenterLng,
+      );
     } catch (e, s) {
       DebugConfig.error('SearchNotifier.loadMore failed', data: e, exception: s);
+      DebugConfig.log(DebugConfig.repositoryCall,
+          'SearchNotifier.loadMore error: preserving ${state.distances.length} distances');
       state = SearchState(
         status: SearchStatus.success,
         results: state.results,
         hasMore: state.hasMore,
         errorMessage: _friendlyError(e),
+        distances: state.distances,
+        searchCenterLat: state.searchCenterLat,
+        searchCenterLng: state.searchCenterLng,
       );
     }
   }

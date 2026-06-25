@@ -34,6 +34,14 @@ class LocationService {
   static DateTime? _sessionTimestamp;
   static const _sessionCacheDuration = Duration(minutes: 5);
 
+  /// Καθαρισμός session cache (κλήση στο logout για αποφυγή
+  /// διαρροής τοποθεσίας μεταξύ διαφορετικών accounts).
+  static void clearSession() {
+    _sessionLocation = null;
+    _sessionTimestamp = null;
+    DebugConfig.log(DebugConfig.gpsLocation, 'LocationService: session cleared');
+  }
+
   /// Requests GPS permission and returns current position if granted.
   /// [forceRefresh] = true (default): always attempts live GPS.
   /// [forceRefresh] = false: returns session cache if < 5min old (faster, no GPS).

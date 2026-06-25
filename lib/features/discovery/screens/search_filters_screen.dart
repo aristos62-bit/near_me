@@ -13,6 +13,7 @@ import '../../../shared/widgets/gradient_header.dart';
 import '../providers/filters_provider.dart';
 import '../providers/saved_search_provider.dart';
 import '../providers/search_provider.dart';
+import '../../profile/providers/location_service.dart';
 
 class SearchFiltersScreen extends ConsumerStatefulWidget {
   const SearchFiltersScreen({super.key});
@@ -33,6 +34,7 @@ class _SearchFiltersScreenState extends ConsumerState<SearchFiltersScreen> {
   double _radiusKm = 10;
   bool _radiusLimited = false;
   bool _hasLocation = false;
+  bool _isApplying = false;
   late TextEditingController _cityCtrl;
   late TextEditingController _countryCtrl;
 
@@ -82,21 +84,37 @@ class _SearchFiltersScreenState extends ConsumerState<SearchFiltersScreen> {
     });
   }
 
-  void _apply() {
-    DebugConfig.log(DebugConfig.uiInteraction, 'SearchFiltersScreen apply');
-    final n = ref.read(searchFiltersProvider.notifier);
-    n.updateAge(_ageRange.start.round(), _ageRange.end.round());
-    n.updateGender(_gender == 'all' ? null : _gender);
-    n.updateInterests(_interests.isEmpty ? null : _interests);
-    n.updateLookingFor(_lookingFor.isEmpty ? null : _lookingFor);
-    n.updateAllowVideoCall(_allowVideoCall);
-    n.updateAllowDirectChat(_allowDirectChat);
-    n.updateOnlineOnly(_onlineOnly);
-    n.updateCity(_cityCtrl.text.trim().isEmpty ? null : _cityCtrl.text.trim());
-    n.updateCountry(_countryCtrl.text.trim().isEmpty ? null : _countryCtrl.text.trim());
-    n.updateRadius(_radiusLimited ? _radiusKm : null);
-    ref.read(searchProvider.notifier).search();
-    context.pop();
+  Future<void> _apply() async {
+    if (_isApplying) {
+      DebugConfig.log(DebugConfig.uiInteraction, 'SearchFiltersScreen apply SKIPPED (already applying)');
+      return;
+    }
+    _isApplying = true;
+    DebugConfig.log(DebugConfig.uiInteraction, 'SearchFiltersScreen apply start');
+    try {
+      final n = ref.read(searchFiltersProvider.notifier);
+      n.updateAge(_ageRange.start.round(), _ageRange.end.round());
+      n.updateGender(_gender == 'all' ? null : _gender);
+      n.updateInterests(_interests.isEmpty ? null : _interests);
+      n.updateLookingFor(_lookingFor.isEmpty ? null : _lookingFor);
+      n.updateAllowVideoCall(_allowVideoCall);
+      n.updateAllowDirectChat(_allowDirectChat);
+      n.updateOnlineOnly(_onlineOnly);
+      n.updateCity(_cityCtrl.text.trim().isEmpty ? null : _cityCtrl.text.trim());
+      n.updateCountry(_countryCtrl.text.trim().isEmpty ? null : _countryCtrl.text.trim());
+      n.updateRadius(_radiusLimited ? _radiusKm : null);
+      await _refreshLocation(n);
+      if (!mounted) {
+        DebugConfig.log(DebugConfig.uiInteraction, 'SearchFiltersScreen apply aborted (disposed after location refresh)');
+        return;
+      }
+      DebugConfig.log(DebugConfig.uiInteraction, 'SearchFiltersScreen apply searching & pop');
+      ref.read(searchProvider.notifier).search();
+      context.pop();
+    } finally {
+      _isApplying = false;
+      DebugConfig.log(DebugConfig.uiInteraction, 'SearchFiltersScreen apply done (isApplying=false)');
+    }
   }
 
   void _reset() {
@@ -104,6 +122,24 @@ class _SearchFiltersScreenState extends ConsumerState<SearchFiltersScreen> {
     ref.read(searchFiltersProvider.notifier).reset();
     ref.read(searchProvider.notifier).clearResults();
     context.pop();
+  }
+
+  Future<void> _refreshLocation(SearchFiltersNotifier n) async {
+    DebugConfig.log(DebugConfig.gpsLocation, 'SearchFiltersScreen refreshLocation: requesting GPS (forceRefresh: false)');
+    try {
+      final loc = await LocationService.getCurrentLocation(forceRefresh: false);
+      if (loc.latitude != null && loc.longitude != null) {
+        n.updateLocation(loc.latitude!, loc.longitude!);
+        DebugConfig.log(DebugConfig.gpsLocation,
+            'SearchFiltersScreen refreshLocation: OK (${loc.latitude}, ${loc.longitude})');
+      } else {
+        DebugConfig.log(DebugConfig.gpsLocation,
+            'SearchFiltersScreen refreshLocation: FAILED (${loc.failure}) — cached location preserved');
+      }
+    } catch (e) {
+      DebugConfig.log(DebugConfig.gpsLocation,
+          'SearchFiltersScreen refreshLocation: ERROR ($e) — cached location preserved');
+    }
   }
 
   Future<void> _saveSearch(BuildContext context, bool isGreek) async {

@@ -9,6 +9,7 @@ import '../core/debug/debug_config.dart';
 import '../core/utils/app_exception.dart';
 import '../core/notifications/fcm_service.dart';
 import '../core/services/presence_service.dart';
+import '../features/profile/providers/location_service.dart';
 
 class AuthRepositoryImpl implements AuthRepository {
   final FirebaseAuth _auth;
@@ -33,6 +34,7 @@ class AuthRepositoryImpl implements AuthRepository {
     await PresenceService.setOffline();
     PresenceService.reset();
     await FcmService.clearTokens();
+    LocationService.clearSession(); // ← Καθαρισμός cached τοποθεσίας
     await _auth.signOut();
   }
 

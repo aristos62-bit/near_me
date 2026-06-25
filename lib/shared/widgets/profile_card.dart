@@ -11,12 +11,14 @@ class ProfileCard extends ConsumerWidget {
   final PublicProfile profile;
   final VoidCallback? onTap;
   final double? width;
+  final double? distanceKm;
 
   const ProfileCard({
     super.key,
     required this.profile,
     this.onTap,
     this.width,
+    this.distanceKm,
   });
 
   @override
@@ -95,6 +97,16 @@ class ProfileCard extends ConsumerWidget {
                           ),
                         ],
                       ),
+                    if (distanceKm != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          _distanceLabel(distanceKm!, isGreek, profile.geoHash),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
                     if (profile.age != null)
                       Text(
                         '${profile.age} years',
@@ -143,6 +155,8 @@ class ProfileCard extends ConsumerWidget {
 
   Widget _buildAvatar(ThemeData theme) {
     final avatarUrl = profile.avatarUrl;
+    DebugConfig.log(DebugConfig.uiRebuild,
+        'ProfileCard._buildAvatar: uid=${profile.uid}, avatarUrl=${avatarUrl != null && avatarUrl.isNotEmpty ? "present (${avatarUrl.length} chars)" : "null or empty"}');
     if (avatarUrl != null && avatarUrl.isNotEmpty) {
       return CachedNetworkImage(
         imageUrl: avatarUrl,
@@ -167,5 +181,13 @@ class ProfileCard extends ConsumerWidget {
         color: theme.colorScheme.onSurfaceVariant,
       ),
     );
+  }
+
+  String _distanceLabel(double km, bool isGreek, String? geoHash) {
+    final dist = L10n.distanceText(km, metric: true);
+    if (geoHash != null && geoHash.length >= 5) {
+      return isGreek ? 'Απόσταση Συνοικίας εντός: $dist' : 'Distance within Neighborhood: $dist';
+    }
+    return isGreek ? 'Απόσταση Πόλης εντός: $dist' : 'Distance within City: $dist';
   }
 }

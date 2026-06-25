@@ -8,7 +8,9 @@ import '../debug/debug_config.dart';
 class EncryptionUtils {
   EncryptionUtils._();
 
-  static const _storage = FlutterSecureStorage();
+  static const _storage = FlutterSecureStorage(
+    aOptions: AndroidOptions(resetOnError: true),
+  );
   static const _keyPrefix = 'chat_key_';
 
   static const _keyAlgorithm = 'AES-256-GCM';
@@ -27,24 +29,60 @@ class EncryptionUtils {
   }
 
   static Future<void> storeKey(String chatId, encrypt.Key key) async {
-    final base64Key = key.base64;
-    await _storage.write(key: '$_keyPrefix$chatId', value: base64Key);
-    DebugConfig.log(DebugConfig.chatEncrypt, 'Stored key for chat: $chatId');
+    try {
+      final base64Key = key.base64;
+      await _storage.write(key: '$_keyPrefix$chatId', value: base64Key);
+      DebugConfig.log(DebugConfig.chatEncrypt, 'Stored key for chat: $chatId');
+    } catch (e) {
+      DebugConfig.warn('storeKey: storage write error for chat $chatId', data: e);
+    }
   }
 
   static Future<encrypt.Key?> getKey(String chatId) async {
-    final base64Key = await _storage.read(key: '$_keyPrefix$chatId');
-    if (base64Key == null) {
-      DebugConfig.warn('No encryption key found for chat: $chatId');
+    try {
+      final base64Key = await _storage.read(key: '$_keyPrefix$chatId');
+      if (base64Key == null || base64Key.isEmpty) {
+        DebugConfig.warn('No encryption key found for chat: $chatId');
+        return null;
+      }
+      try {
+        final key = encrypt.Key.fromBase64(base64Key);
+        DebugConfig.log(DebugConfig.chatEncrypt, 'Retrieved key for chat: $chatId');
+        return key;
+      } catch (e) {
+        DebugConfig.warn('getKey: invalid stored key for chat $chatId', data: e);
+        return null;
+      }
+    } catch (e) {
+      DebugConfig.warn('getKey: storage read error for chat $chatId', data: e);
       return null;
     }
-    DebugConfig.log(DebugConfig.chatEncrypt, 'Retrieved key for chat: $chatId');
-    return encrypt.Key.fromBase64(base64Key);
+  }
+
+  static Future<encrypt.Key> getKeyOrDerive(String chatId) async {
+    final stored = await getKey(chatId);
+    if (stored != null) return stored;
+
+    DebugConfig.log(DebugConfig.chatEncrypt, 'getKeyOrDerive: using derived key for chat: $chatId');
+    final derived = deriveKey(chatId);
+
+    try {
+      await _storage.write(key: '$_keyPrefix$chatId', value: derived.base64);
+      DebugConfig.log(DebugConfig.chatEncrypt, 'getKeyOrDerive: cached derived key for chat: $chatId');
+    } catch (e) {
+      DebugConfig.warn('getKeyOrDerive: failed to cache key for chat $chatId', data: e);
+    }
+
+    return derived;
   }
 
   static Future<void> deleteKey(String chatId) async {
-    await _storage.delete(key: '$_keyPrefix$chatId');
-    DebugConfig.log(DebugConfig.chatEncrypt, 'Deleted key for chat: $chatId');
+    try {
+      await _storage.delete(key: '$_keyPrefix$chatId');
+      DebugConfig.log(DebugConfig.chatEncrypt, 'Deleted key for chat: $chatId');
+    } catch (e) {
+      DebugConfig.warn('deleteKey: storage delete error for chat $chatId', data: e);
+    }
   }
 
   static String encryptMessage(encrypt.Key key, String plaintext) {
@@ -70,7 +108,11 @@ class EncryptionUtils {
   }
 
   static Future<void> clearAllKeys() async {
-    await _storage.deleteAll();
-    DebugConfig.log(DebugConfig.chatEncrypt, 'All encryption keys cleared');
+    try {
+      await _storage.deleteAll();
+      DebugConfig.log(DebugConfig.chatEncrypt, 'All encryption keys cleared');
+    } catch (e) {
+      DebugConfig.warn('clearAllKeys: storage deleteAll error', data: e);
+    }
   }
 }

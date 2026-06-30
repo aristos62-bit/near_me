@@ -42,6 +42,7 @@ class AppSettingsNotifier extends Notifier<AsyncValue<AppSettingsTableData>> {
       biometricLockEnabled: false,
       screenshotPreventionEnabled: false,
       autoLockMinutes: 5,
+      searchRadiusKm: 10.0,
       updatedAt: now,
     );
     try {
@@ -78,6 +79,33 @@ class AppSettingsNotifier extends Notifier<AsyncValue<AppSettingsTableData>> {
       await ScreenProtector.enable();
     } else {
       await ScreenProtector.disable();
+    }
+  }
+
+  Future<void> setSearchRadius(double km) async {
+    final current = state.value;
+    if (current == null) {
+      DebugConfig.warn('AppSettings: setSearchRadius skipped (no state)');
+      return;
+    }
+    DebugConfig.log(DebugConfig.serviceCall,
+        'AppSettings: searchRadiusKm=$km');
+    try {
+      final db = DatabaseService.instance;
+      final updated = current.copyWith(
+        searchRadiusKm: km,
+        updatedAt: DateTime.now(),
+      );
+      await (db.update(db.appSettingsTable)
+        ..where((t) => t.id.equals(updated.id))
+      ).write(updated.toCompanion(true));
+      state = AsyncValue.data(updated);
+      DebugConfig.log(DebugConfig.serviceCall,
+          'AppSettings: searchRadiusKm saved=$km');
+    } catch (e, s) {
+      DebugConfig.error('AppSettings: setSearchRadius failed',
+          data: e, exception: s);
+      state = AsyncValue.error(e, s);
     }
   }
 

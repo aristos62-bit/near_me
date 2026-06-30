@@ -11,6 +11,11 @@ abstract class ProfileRepository {
   Future<void> publish();
   Future<void> unpublish();
   Future<bool> get isPublished;
+
+  /// Αποθηκεύει νέες συντεταγμένες + πόλη/χώρα στο Drift.
+  /// Πάντα αποθηκεύει lat/lng. Αποθηκεύει city/country μόνο αν δοθούν.
+  /// ΔΕΝ κάνει publish — ο caller αποφασίζει το πότε με βάση policy.
+  Future<void> syncLocation(double lat, double lng, {String? city, String? country});
   Stream<PublicProfile?> publicProfileStream();
   Future<PublicProfile?> getPublicProfile(String uid);
   Stream<PublicProfile?> streamPublicProfile(String uid);

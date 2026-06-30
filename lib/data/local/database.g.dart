@@ -4271,6 +4271,18 @@ class $AppSettingsTableTable extends AppSettingsTable
     requiredDuringInsert: false,
     defaultValue: const Constant(5),
   );
+  static const VerificationMeta _searchRadiusKmMeta = const VerificationMeta(
+    'searchRadiusKm',
+  );
+  @override
+  late final GeneratedColumn<double> searchRadiusKm = GeneratedColumn<double>(
+    'search_radius_km',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(10.0),
+  );
   static const VerificationMeta _updatedAtMeta = const VerificationMeta(
     'updatedAt',
   );
@@ -4292,6 +4304,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     biometricLockEnabled,
     screenshotPreventionEnabled,
     autoLockMinutes,
+    searchRadiusKm,
     updatedAt,
   ];
   @override
@@ -4357,6 +4370,15 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('search_radius_km')) {
+      context.handle(
+        _searchRadiusKmMeta,
+        searchRadiusKm.isAcceptableOrUnknown(
+          data['search_radius_km']!,
+          _searchRadiusKmMeta,
+        ),
+      );
+    }
     if (data.containsKey('updated_at')) {
       context.handle(
         _updatedAtMeta,
@@ -4400,6 +4422,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.int,
         data['${effectivePrefix}auto_lock_minutes'],
       )!,
+      searchRadiusKm: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}search_radius_km'],
+      )!,
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
@@ -4422,6 +4448,7 @@ class AppSettingsTableData extends DataClass
   final bool biometricLockEnabled;
   final bool screenshotPreventionEnabled;
   final int autoLockMinutes;
+  final double searchRadiusKm;
   final DateTime updatedAt;
   const AppSettingsTableData({
     required this.id,
@@ -4431,6 +4458,7 @@ class AppSettingsTableData extends DataClass
     required this.biometricLockEnabled,
     required this.screenshotPreventionEnabled,
     required this.autoLockMinutes,
+    required this.searchRadiusKm,
     required this.updatedAt,
   });
   @override
@@ -4445,6 +4473,7 @@ class AppSettingsTableData extends DataClass
       screenshotPreventionEnabled,
     );
     map['auto_lock_minutes'] = Variable<int>(autoLockMinutes);
+    map['search_radius_km'] = Variable<double>(searchRadiusKm);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
   }
@@ -4458,6 +4487,7 @@ class AppSettingsTableData extends DataClass
       biometricLockEnabled: Value(biometricLockEnabled),
       screenshotPreventionEnabled: Value(screenshotPreventionEnabled),
       autoLockMinutes: Value(autoLockMinutes),
+      searchRadiusKm: Value(searchRadiusKm),
       updatedAt: Value(updatedAt),
     );
   }
@@ -4481,6 +4511,7 @@ class AppSettingsTableData extends DataClass
         json['screenshotPreventionEnabled'],
       ),
       autoLockMinutes: serializer.fromJson<int>(json['autoLockMinutes']),
+      searchRadiusKm: serializer.fromJson<double>(json['searchRadiusKm']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
   }
@@ -4497,6 +4528,7 @@ class AppSettingsTableData extends DataClass
         screenshotPreventionEnabled,
       ),
       'autoLockMinutes': serializer.toJson<int>(autoLockMinutes),
+      'searchRadiusKm': serializer.toJson<double>(searchRadiusKm),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
   }
@@ -4509,6 +4541,7 @@ class AppSettingsTableData extends DataClass
     bool? biometricLockEnabled,
     bool? screenshotPreventionEnabled,
     int? autoLockMinutes,
+    double? searchRadiusKm,
     DateTime? updatedAt,
   }) => AppSettingsTableData(
     id: id ?? this.id,
@@ -4519,6 +4552,7 @@ class AppSettingsTableData extends DataClass
     screenshotPreventionEnabled:
         screenshotPreventionEnabled ?? this.screenshotPreventionEnabled,
     autoLockMinutes: autoLockMinutes ?? this.autoLockMinutes,
+    searchRadiusKm: searchRadiusKm ?? this.searchRadiusKm,
     updatedAt: updatedAt ?? this.updatedAt,
   );
   AppSettingsTableData copyWithCompanion(AppSettingsTableCompanion data) {
@@ -4538,6 +4572,9 @@ class AppSettingsTableData extends DataClass
       autoLockMinutes: data.autoLockMinutes.present
           ? data.autoLockMinutes.value
           : this.autoLockMinutes,
+      searchRadiusKm: data.searchRadiusKm.present
+          ? data.searchRadiusKm.value
+          : this.searchRadiusKm,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
@@ -4552,6 +4589,7 @@ class AppSettingsTableData extends DataClass
           ..write('biometricLockEnabled: $biometricLockEnabled, ')
           ..write('screenshotPreventionEnabled: $screenshotPreventionEnabled, ')
           ..write('autoLockMinutes: $autoLockMinutes, ')
+          ..write('searchRadiusKm: $searchRadiusKm, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -4566,6 +4604,7 @@ class AppSettingsTableData extends DataClass
     biometricLockEnabled,
     screenshotPreventionEnabled,
     autoLockMinutes,
+    searchRadiusKm,
     updatedAt,
   );
   @override
@@ -4580,6 +4619,7 @@ class AppSettingsTableData extends DataClass
           other.screenshotPreventionEnabled ==
               this.screenshotPreventionEnabled &&
           other.autoLockMinutes == this.autoLockMinutes &&
+          other.searchRadiusKm == this.searchRadiusKm &&
           other.updatedAt == this.updatedAt);
 }
 
@@ -4591,6 +4631,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<bool> biometricLockEnabled;
   final Value<bool> screenshotPreventionEnabled;
   final Value<int> autoLockMinutes;
+  final Value<double> searchRadiusKm;
   final Value<DateTime> updatedAt;
   const AppSettingsTableCompanion({
     this.id = const Value.absent(),
@@ -4600,6 +4641,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.biometricLockEnabled = const Value.absent(),
     this.screenshotPreventionEnabled = const Value.absent(),
     this.autoLockMinutes = const Value.absent(),
+    this.searchRadiusKm = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
   AppSettingsTableCompanion.insert({
@@ -4610,6 +4652,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.biometricLockEnabled = const Value.absent(),
     this.screenshotPreventionEnabled = const Value.absent(),
     this.autoLockMinutes = const Value.absent(),
+    this.searchRadiusKm = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
   static Insertable<AppSettingsTableData> custom({
@@ -4620,6 +4663,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<bool>? biometricLockEnabled,
     Expression<bool>? screenshotPreventionEnabled,
     Expression<int>? autoLockMinutes,
+    Expression<double>? searchRadiusKm,
     Expression<DateTime>? updatedAt,
   }) {
     return RawValuesInsertable({
@@ -4633,6 +4677,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (screenshotPreventionEnabled != null)
         'screenshot_prevention_enabled': screenshotPreventionEnabled,
       if (autoLockMinutes != null) 'auto_lock_minutes': autoLockMinutes,
+      if (searchRadiusKm != null) 'search_radius_km': searchRadiusKm,
       if (updatedAt != null) 'updated_at': updatedAt,
     });
   }
@@ -4645,6 +4690,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<bool>? biometricLockEnabled,
     Value<bool>? screenshotPreventionEnabled,
     Value<int>? autoLockMinutes,
+    Value<double>? searchRadiusKm,
     Value<DateTime>? updatedAt,
   }) {
     return AppSettingsTableCompanion(
@@ -4656,6 +4702,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       screenshotPreventionEnabled:
           screenshotPreventionEnabled ?? this.screenshotPreventionEnabled,
       autoLockMinutes: autoLockMinutes ?? this.autoLockMinutes,
+      searchRadiusKm: searchRadiusKm ?? this.searchRadiusKm,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -4688,6 +4735,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (autoLockMinutes.present) {
       map['auto_lock_minutes'] = Variable<int>(autoLockMinutes.value);
     }
+    if (searchRadiusKm.present) {
+      map['search_radius_km'] = Variable<double>(searchRadiusKm.value);
+    }
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
@@ -4704,6 +4754,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('biometricLockEnabled: $biometricLockEnabled, ')
           ..write('screenshotPreventionEnabled: $screenshotPreventionEnabled, ')
           ..write('autoLockMinutes: $autoLockMinutes, ')
+          ..write('searchRadiusKm: $searchRadiusKm, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -7063,6 +7114,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<bool> biometricLockEnabled,
       Value<bool> screenshotPreventionEnabled,
       Value<int> autoLockMinutes,
+      Value<double> searchRadiusKm,
       Value<DateTime> updatedAt,
     });
 typedef $$AppSettingsTableTableUpdateCompanionBuilder =
@@ -7074,6 +7126,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<bool> biometricLockEnabled,
       Value<bool> screenshotPreventionEnabled,
       Value<int> autoLockMinutes,
+      Value<double> searchRadiusKm,
       Value<DateTime> updatedAt,
     });
 
@@ -7118,6 +7171,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<int> get autoLockMinutes => $composableBuilder(
     column: $table.autoLockMinutes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get searchRadiusKm => $composableBuilder(
+    column: $table.searchRadiusKm,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7171,6 +7229,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get searchRadiusKm => $composableBuilder(
+    column: $table.searchRadiusKm,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
@@ -7212,6 +7275,11 @@ class $$AppSettingsTableTableAnnotationComposer
 
   GeneratedColumn<int> get autoLockMinutes => $composableBuilder(
     column: $table.autoLockMinutes,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get searchRadiusKm => $composableBuilder(
+    column: $table.searchRadiusKm,
     builder: (column) => column,
   );
 
@@ -7263,6 +7331,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> biometricLockEnabled = const Value.absent(),
                 Value<bool> screenshotPreventionEnabled = const Value.absent(),
                 Value<int> autoLockMinutes = const Value.absent(),
+                Value<double> searchRadiusKm = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => AppSettingsTableCompanion(
                 id: id,
@@ -7272,6 +7341,7 @@ class $$AppSettingsTableTableTableManager
                 biometricLockEnabled: biometricLockEnabled,
                 screenshotPreventionEnabled: screenshotPreventionEnabled,
                 autoLockMinutes: autoLockMinutes,
+                searchRadiusKm: searchRadiusKm,
                 updatedAt: updatedAt,
               ),
           createCompanionCallback:
@@ -7283,6 +7353,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> biometricLockEnabled = const Value.absent(),
                 Value<bool> screenshotPreventionEnabled = const Value.absent(),
                 Value<int> autoLockMinutes = const Value.absent(),
+                Value<double> searchRadiusKm = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => AppSettingsTableCompanion.insert(
                 id: id,
@@ -7292,6 +7363,7 @@ class $$AppSettingsTableTableTableManager
                 biometricLockEnabled: biometricLockEnabled,
                 screenshotPreventionEnabled: screenshotPreventionEnabled,
                 autoLockMinutes: autoLockMinutes,
+                searchRadiusKm: searchRadiusKm,
                 updatedAt: updatedAt,
               ),
           withReferenceMapper: (p0) => p0

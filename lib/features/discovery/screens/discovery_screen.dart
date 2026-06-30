@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:drift/drift.dart' show Value;
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
 import '../../../shared/widgets/app_state_widget.dart';
+import '../../../shared/widgets/gps_strength_indicator.dart';
 import '../../../shared/widgets/profile_card.dart';
 import '../../profile/providers/location_service.dart';
 import '../../profile/providers/profile_provider.dart';
+import '../../settings/providers/app_settings_provider.dart';
 import '../providers/filters_provider.dart';
 import '../providers/search_provider.dart';
 
@@ -25,11 +26,12 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
   bool _isDetecting = false;
   bool _hasAttemptedAutoSearch = false; // τίθεται ΑΜΕΣΩΣ για race-condition fix
   bool _isLoadingMore = false;          // guard για concurrent loadMore
-  DateTime? _lastAutoPublish;           // throttle για auto-publish
+  DateTime? _lastAutoPublish;
+  double _defaultRadius = 10.0;           // debounce για auto-publish
 
   final ScrollController _scrollController = ScrollController();
 
-  static const _autoPublishMinInterval = Duration(minutes: 30);
+  static const _locationDebounce = Duration(minutes: 3);
   static const _scrollThreshold = 0.8;
 
   @override
@@ -96,12 +98,20 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
       if (loc.latitude != null && loc.longitude != null) {
         ref
             .read(searchFiltersProvider.notifier)
-            .updateLocation(loc.latitude!, loc.longitude!, radiusKm: 10);
+            .updateLocation(loc.latitude!, loc.longitude!, radiusKm: _defaultRadius);
+        final activeFilters = ref.read(searchFiltersProvider);
+        DebugConfig.log(DebugConfig.uiInteraction,
+            'DiscoveryScreen: search() radius=$_defaultRadius km, '
+                'filters=[gender=${activeFilters.gender}, '
+                'age=${activeFilters.minAge}-${activeFilters.maxAge}, '
+                'city=${activeFilters.city}, country=${activeFilters.country}, '
+                'interests=${activeFilters.interests?.length}, '
+                'lookingFor=${activeFilters.lookingFor}]');
         ref
             .read(searchProvider.notifier)
-            .searchNearby(loc.latitude!, loc.longitude!, 10);
+            .search();
 
-        await _maybeUpdateProfileLocation(loc.latitude!, loc.longitude!);
+        await _syncLocation(loc.latitude!, loc.longitude!);
       } else {
         final isGreek = L10n.isGreek(context);
         final msg = _locationFailureMessage(loc.failure, isGreek);
@@ -115,91 +125,45 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
     }
   }
 
-  /// Ενημέρωση τοποθεσίας προφίλ με throttle για αποφυγή
-  /// περιττών Firestore writes.
-  Future<void> _maybeUpdateProfileLocation(
-      double lat, double lng) async {
+  /// Αποθηκεύει νέα τοποθεσία στο Drift (πάντα) και, αν το profile
+  /// είναι published + εκτός debounce, κάνει publish στο Firestore.
+  Future<void> _syncLocation(double lat, double lng) async {
+    final now = DateTime.now();
+    final withinDebounce = _lastAutoPublish != null &&
+        now.difference(_lastAutoPublish!) < _locationDebounce;
+
+    if (withinDebounce) {
+      DebugConfig.log(DebugConfig.gpsLocation,
+          '_syncLocation: within debounce (${now.difference(_lastAutoPublish!).inMinutes}min < ${_locationDebounce.inMinutes}min) — skip geocode+publish');
+      try {
+        await ref.read(profileRepositoryProvider).syncLocation(lat, lng);
+      } catch (e, s) {
+        DebugConfig.error('_syncLocation (debounced) failed', data: e, exception: s);
+      }
+      return;
+    }
+
     try {
-      final profile =
-      await ref.read(profileRepositoryProvider).getProfile();
-      if (profile == null || !mounted) return;
+      final name = await LocationService.reverseGeocode(lat, lng);
+      if (!mounted) return;
 
-      final needsCity = profile.city == null || profile.city!.isEmpty;
-      final needsCountry =
-          profile.country == null || profile.country!.isEmpty;
+      await ref.read(profileRepositoryProvider).syncLocation(
+        lat, lng,
+        city: name?.city,
+        country: name?.country,
+      );
 
-      if (needsCity || needsCountry) {
-        // Νέος χρήστης: πάντα ενημερώνουμε
-        final name =
-        await LocationService.reverseGeocode(lat, lng);
-        if (name != null && mounted) {
-          DebugConfig.log(DebugConfig.gpsLocation,
-              'Auto-fill: city=${name.city}, country=${name.country}');
-          await ref.read(profileRepositoryProvider).saveProfile(
-            profile.copyWith(
-              city: needsCity ? Value(name.city) : Value.absent(),
-              country:
-              needsCountry ? Value(name.country) : Value.absent(),
-              latitudeExact: Value(lat),
-              longitudeExact: Value(lng),
-            ),
-          );
-          if (profile.isPublished && mounted) {
-            await _throttledPublish();
-          }
-        }
-      } else if (profile.isPublished &&
-          profile.latitudeExact != null &&
-          profile.longitudeExact != null) {
-        // Υπάρχων χρήστης: έλεγχος αν άλλαξε πόλη + throttle
-        final now = DateTime.now();
-        if (_lastAutoPublish != null &&
-            now.difference(_lastAutoPublish!) < _autoPublishMinInterval) {
-          DebugConfig.log(
-            DebugConfig.gpsLocation,
-            'Auto-sync: skipped (throttle: '
-                '${now.difference(_lastAutoPublish!).inMinutes}min < 30min)',
-          );
-          return;
-        }
+      final profile = await ref.read(profileRepositoryProvider).getProfile();
+      if (!mounted) return;
 
-        final name = await LocationService.reverseGeocode(lat, lng);
-        if (name != null && mounted) {
-          final cityDiff =
-              name.city != null && name.city != profile.city;
-          final countryDiff =
-              name.country != null && name.country != profile.country;
-          if (cityDiff || countryDiff) {
-            DebugConfig.log(
-              DebugConfig.gpsLocation,
-              'Auto-sync: city=${name.city}, country=${name.country} '
-                  '(was city=${profile.city}, country=${profile.country})',
-            );
-            await ref.read(profileRepositoryProvider).saveProfile(
-              profile.copyWith(
-                city: cityDiff ? Value(name.city) : Value.absent(),
-                country:
-                countryDiff ? Value(name.country) : Value.absent(),
-              ),
-            );
-            await _throttledPublish();
-          }
-        }
+      if (profile?.isPublished == true) {
+        _lastAutoPublish = now;
+        await ref.read(profileRepositoryProvider).publish();
+        DebugConfig.log(DebugConfig.firestoreWrite,
+            '_syncLocation: auto-publish OK (lat=$lat, lng=$lng, city=${name?.city}, country=${name?.country})');
       }
     } catch (e, s) {
-      DebugConfig.error('_maybeUpdateProfileLocation failed',
-          data: e, exception: s);
-    }
-  }
-
-  Future<void> _throttledPublish() async {
-    _lastAutoPublish = DateTime.now();
-    try {
-      await ref.read(profileRepositoryProvider).publish();
-      DebugConfig.log(
-          DebugConfig.repositoryCall, 'DiscoveryScreen: auto-publish OK');
-    } catch (e) {
-      DebugConfig.warn('DiscoveryScreen: auto-publish failed', data: e);
+      DebugConfig.error('_syncLocation failed', data: e, exception: s);
     }
   }
 
@@ -231,19 +195,75 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
   }
 
   Future<void> _onRefresh() async {
-    DebugConfig.log(DebugConfig.uiInteraction, '_onRefresh: triggered');
-    final s = ref.read(searchProvider);
-    if (s.status == SearchStatus.idle) {
-      DebugConfig.log(DebugConfig.uiInteraction, '_onRefresh: status=idle → _performSearch');
-      await _performSearch();
-    } else {
-      DebugConfig.log(DebugConfig.uiInteraction, '_onRefresh: status=${s.status} → search');
-      ref.read(searchProvider.notifier).search();
-    }
+    DebugConfig.log(DebugConfig.uiInteraction, '_onRefresh: triggered — always _performSearch');
+    await _performSearch();
+  }
+
+  Widget _buildRadiusSelector(bool isGreek) {
+    final values = [1.0, 5.0, 10.0, 25.0, 50.0, 100.0];
+    return PopupMenuButton<double>(
+      tooltip: isGreek ? 'Ακτίνα αναζήτησης' : 'Search radius',
+      onSelected: (km) async {
+        if (km == _defaultRadius) return;
+        setState(() => _defaultRadius = km);
+        await ref.read(appSettingsProvider.notifier).setSearchRadius(km);
+        await _performSearch();
+      },
+      itemBuilder: (_) => values.map((km) {
+        final label = km >= 10
+            ? '${km.toInt()} km'
+            : '${km.toStringAsFixed(1)} km';
+        return PopupMenuItem<double>(
+          value: km,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                km == _defaultRadius
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_unchecked,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Text(label),
+            ],
+          ),
+        );
+      }).toList(),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.radar, size: 18),
+            const SizedBox(width: 2),
+            Text(
+              '${_defaultRadius >= 10 ? _defaultRadius.toInt().toString() : _defaultRadius.toStringAsFixed(1)} km',
+              style: const TextStyle(fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(
+      appSettingsProvider,
+      (_, next) {
+        final saved = next.asData?.value.searchRadiusKm;
+        if (saved != null && mounted) {
+          final clamped = saved.clamp(1.0, 100.0);
+          if (clamped != _defaultRadius) {
+            setState(() => _defaultRadius = clamped);
+            DebugConfig.log(DebugConfig.uiInteraction,
+                'DiscoveryScreen: loaded radius=$_defaultRadius km from AppSettings');
+          }
+        }
+      },
+    );
+
     final searchState = ref.watch(searchProvider);
     final theme = Theme.of(context);
     final isGreek = L10n.isGreek(context);
@@ -252,6 +272,8 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
       appBar: AppBar(
         title: Text(isGreek ? 'Ανακάλυψη' : 'Discover'),
         actions: [
+          const GpsStrengthIndicator(),
+          _buildRadiusSelector(isGreek),
           IconButton(
             icon: const Icon(Icons.bookmark_border),
             onPressed: () => context.push('/discovery/saved-searches'),

@@ -34,11 +34,16 @@ class LocationService {
   static DateTime? _sessionTimestamp;
   static const _sessionCacheDuration = Duration(minutes: 5);
 
+  /// Τελευταία γνωστή ακρίβεια GPS (για GpsStrengthIndicator).
+  static double? _lastAccuracy;
+  static double? get lastAccuracy => _lastAccuracy;
+
   /// Καθαρισμός session cache (κλήση στο logout για αποφυγή
   /// διαρροής τοποθεσίας μεταξύ διαφορετικών accounts).
   static void clearSession() {
     _sessionLocation = null;
     _sessionTimestamp = null;
+    _lastAccuracy = null;
     DebugConfig.log(DebugConfig.gpsLocation, 'LocationService: session cleared');
   }
 
@@ -100,6 +105,7 @@ class LocationService {
 
         DebugConfig.log(DebugConfig.gpsLocation,
             'Position: ${position.latitude}, ${position.longitude} (±${position.accuracy}m)');
+        _lastAccuracy = position.accuracy;
         final result = LocationResult(
           latitude: position.latitude,
           longitude: position.longitude,
@@ -119,6 +125,7 @@ class LocationService {
       if (last != null) {
         DebugConfig.log(DebugConfig.gpsLocation,
             'Fallback (last known): ${last.latitude}, ${last.longitude} (±${last.accuracy}m)');
+        _lastAccuracy = last.accuracy;
         final result = LocationResult(
           latitude: last.latitude,
           longitude: last.longitude,

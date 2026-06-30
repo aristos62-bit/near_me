@@ -13,50 +13,51 @@ https://github.com/aristos62-bit/near_me
 
 Γλώσσα επικοινωνίας: **Ελληνικά**. Όλες οι απαντήσεις στα ελληνικά.
 
-## Τεχνολογίες (resolved — Μάιος 2026)
+## Τεχνολογίες (resolved — Ιούνιος 2026)
 
 ### Core
 - Flutter 3.44.4 / Dart 3.12.2
 - SDK constraint: ^3.12.0
 
-### Resolved Packages (από pubspec.lock)
+### Dependencies (από pubspec.yaml)
 
 | Package | Έκδοση | Χρήση |
 |---|---|---|
-| `flutter_riverpod` | 2.6.1 | State management |
-| `riverpod` | 2.6.1 | Core Riverpod |
-| `riverpod_annotation` | 2.6.1 | @riverpod annotation |
-| `isar` | 3.1.0+1 | Local database |
-| `isar_flutter_libs` | 3.1.0+1 | Isar native libs |
-| `path_provider` | 2.1.5 | Isar directory |
-| `firebase_core` | 4.9.0 | Firebase init |
-| `firebase_auth` | 6.5.1 | Authentication |
-| `cloud_firestore` | 6.4.1 | Cloud DB |
-| `firebase_storage` | 13.4.1 | File storage |
-| `firebase_messaging` | 16.2.2 | Push notifications |
-| `cloud_functions` | 6.3.1 | Serverless functions |
-| `geolocator` | 14.0.2 | GPS |
-| `geoflutterfire_plus` | 0.0.34 | Geo Firestore queries |
-| `go_router` | 17.2.3 | Navigation |
-| `encrypt` | 5.0.3 | AES-256 encryption |
-| `flutter_secure_storage` | 10.3.1 | Secure key storage |
-| `local_auth` | 3.0.1 | Biometric lock |
-| `intl` | 0.20.2 | i18n |
-| `cached_network_image` | 3.4.1 | Image cache |
-| `image_picker` | 1.2.2 | Pick photos |
-| `freezed_annotation` | 2.4.4 | Immutable models |
-| `json_annotation` | 4.9.0 | JSON serialization |
-| `uuid` | 4.5.3 | UUID generation |
-| `connectivity_plus` | 7.1.1 | Network status |
-| `build_runner` | 2.4.13 | Code gen runner |
-| `isar_generator` | 3.1.0+1 | Isar model generator |
-| `riverpod_generator` | 2.4.0 | Riverpod code gen |
-| `freezed` | 2.5.2 | Freezed code gen |
-| `json_serializable` | 6.8.0 | JSON code gen |
-| `flutter_lints` | 6.0.0 | Lint rules |
+| `flutter_riverpod` | ^3.3.1 | State management |
+| `riverpod` | ^3.3.1 | Core Riverpod |
+| `riverpod_annotation` | ^4.0.2 | @riverpod annotation |
+| `drift` | ^2.33.0 | Local database (SQLite) |
+| `drift_flutter` | ^0.3.0 | Drift Flutter bindings |
+| `firebase_core` | ^4.9.0 | Firebase init |
+| `firebase_auth` | ^6.5.1 | Authentication |
+| `cloud_firestore` | ^6.4.1 | Cloud DB |
+| `firebase_storage` | ^13.4.1 | File storage |
+| `firebase_messaging` | ^16.2.2 | Push notifications |
+| `cloud_functions` | ^6.3.1 | Serverless functions |
+| `geolocator` | ^14.0.2 | GPS |
+| `geoflutterfire_plus` | ^0.0.34 | Geo Firestore queries |
+| `go_router` | ^17.2.3 | Navigation |
+| `encrypt` | ^5.0.3 | AES-256 encryption |
+| `crypto` | ^3.0.6 | Hashing (SHA-256) |
+| `flutter_secure_storage` | ^10.3.1 | Secure key storage |
+| `local_auth` | ^3.0.1 | Biometric lock |
+| `intl` | ^0.20.2 | i18n |
+| `cached_network_image` | ^3.4.1 | Image cache |
+| `image_picker` | ^1.2.2 | Pick photos |
+| `freezed_annotation` | ^3.1.0 | Immutable models |
+| `json_annotation` | ^4.12.0 | JSON serialization |
+| `uuid` | ^4.5.3 | UUID generation |
+| `connectivity_plus` | ^7.1.1 | Network status |
+| `geocoding` | ^4.0.0 | Reverse geocoding |
+| `build_runner` | ^2.15.0 | Code gen runner |
+| `drift_dev` | ^2.33.0 | Drift code generator |
+| `riverpod_generator` | ^4.0.3 | Riverpod code gen |
+| `freezed` | ^3.2.5 | Freezed code gen |
+| `json_serializable` | ^6.14.0 | JSON code gen |
+| `flutter_lints` | ^6.0.0 | Lint rules |
 
 ## Βασικές εντολές
-- `flutter pub run build_runner build --delete-conflicting-outputs` — μετά από αλλαγή σε Isar models / freezed
+- `dart run build_runner build --delete-conflicting-outputs` — μετά από αλλαγή σε Drift models / freezed / riverpod generators
 - `flutter test` — widget tests
 - `flutter analyze` — linting
 - `flutter pub add <package>` — προσθήκη πακέτου
@@ -68,31 +69,34 @@ https://github.com/aristos62-bit/near_me
 - **Release override**: `--dart-define=ENABLE_RELEASE_DEBUG=true` για να βλέπεις debugs και σε release
 - **Κατηγορίες flags**: databaseLocal, firestoreRead/Write, authFlow, gps, provider*, service*, repository*, navigation*, ui*, consentLog*, chat*, storage*
 - **Log levels**: `DebugConfig.log(flag, msg)` (υπόκειται σε flag), `warn(msg)` (debug mode μόνο), `error(msg)` (πάντα)
-- **Περιορισμός**: κανένα αρχείο > 500 γραμμές
+- **Περιορισμός**: κανένα αρχείο > 400 γραμμές (1 exception: profile_repository_impl)
 
 ## Αρχιτεκτονική
 
-### Δομή φακέλων (Planned)
+### Δομή φακέλων
 ```
 lib/
 ├── core/               # config, theme, l10n, router, firebase_init, utils
 ├── data/
-│   ├── local/          # Isar schemas + isar_service
+│   ├── local/          # Drift database (7 tables, schema v6)
 │   └── remote/         # firestore_service, storage_service
-├── repositories/       # search_repository, auth_repository, profile_repository, chat_repository, request_repository
+├── providers/          # database provider (Drift)
+├── repositories/       # 8 abstract interfaces + implementations
 ├── features/
 │   ├── auth/           # providers + screens
 │   ├── profile/        # profile_editor, privacy_editor, consent_log
 │   ├── discovery/      # search, filters, public_profile_view
 │   ├── chat/           # chat_list, chat_screen
 │   ├── requests/       # dashboard, send_request
+│   ├── block/          # block/unblock
+│   ├── report/         # report user
 │   ├── video/          # Φάση 4
 │   └── settings/       # settings, delete_account
-└── shared/             # widgets, public_profile model
+└── shared/             # widgets, utils, models (public_profile)
 ```
 
 ### Αρχές
-- **Privacy-first / Local-first**: Πλήρες profile αποκλειστικά στο Isar. Στο Firestore μόνο το public snapshot που επιλέγει ο χρήστης.
+- **Privacy-first / Local-first**: Πλήρες profile αποκλειστικά στο Drift. Στο Firestore μόνο το public snapshot που επιλέγει ο χρήστης.
 - **Repository pattern**: Abstract interface → swap implementations (π.χ. FirestoreSearch → Type senseSearch χωρίς UI changes)
 - **Feature flags**: Κάθε feature wrapped σε `FeatureFlag.xxx` για σταδιακό rollout
 - **Granular privacy**: Κάθε πεδίο ξεχωριστό toggle ορατότητας
@@ -109,9 +113,6 @@ lib/
 - IDE: Android Studio Panda 4 | 2025.3.4 Patch 1
 - Multi-platform: android, ios, web, Linux, macOS, windows
 
-## Σημειώσεις Blueprint Gaps
-- **Delete Account Cloud Function** (blueprint §§1308-1321): Η client-side υλοποίηση στο `auth_repository_impl.dart` διαγράφει Firestore (public + status) + Isar + Auth user, αλλά **δεν** κάνει storage cleanup, request anonymization, ή chat anonymization — θα χρειαστεί Cloud Function πριν την ενεργοποίηση chat/storage (Φάση 3). Επιβεβαιώθηκε Session 22. Δεν απαιτεί άμεση δράση.
-
 ## Shared Widgets & Utils (τρέχουσα κατάσταση)
 - `shared/widgets/gradient_header.dart` — GradientHeader (gradient header με icon, title, subtitle, child)
 - `shared/widgets/save_button.dart` — SaveButton (FilledButton with loading state)
@@ -127,7 +128,7 @@ lib/
 - `core/theme/responsive_utils.dart` — ResponsiveUtils + ResponsiveBuilder + ResponsivePadding
 
 ## Φάσεις Υλοποίησης (από blueprint)
-1. **Φάση 1 — Core & Privacy**: Isar schemas, Firebase init, Anonymous auth, Profile CRUD (local), PrivacySettings editor, ConsentLog, Publish/Unpublish, GPS flow, i18n, Theme, Delete account, Feature flags, Security Rules
+1. **Φάση 1 — Core & Privacy**: Drift schemas (7 tables, schema v6), Firebase init, Anonymous auth, Profile CRUD (local), PrivacySettings editor, ConsentLog, Publish/Unpublish, GPS flow, i18n, Theme, Delete account, Feature flags, Security Rules
 2. **Φάση 2 — Discovery**: Firestore search, Filters UI, Results dashboard, PublicProfile view, Saved searches, Block/Report
 3. **Φάση 3 — Communication**: Email/Phone verify, Request system, E2E chat, FCM push, Online presence, Rate limiting
 4. **Φάση 4+**: Typesense, Video calls, AI matching, Groups, Verified badge, Premium, Web, Admin panel

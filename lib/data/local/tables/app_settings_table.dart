@@ -15,5 +15,7 @@ class AppSettingsTable extends Table {
       boolean().withDefault(const Constant(false))();
   IntColumn get autoLockMinutes =>
       integer().withDefault(const Constant(5))();
+  RealColumn get searchRadiusKm =>
+      real().withDefault(const Constant(10.0))();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 }

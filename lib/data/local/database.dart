@@ -31,7 +31,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -54,6 +54,10 @@ class AppDatabase extends _$AppDatabase {
       if (from < 5) {
         await m.addColumn(privacySettingsTable, privacySettingsTable.showCountry);
         DebugConfig.log(DebugConfig.databaseLocal, 'Migration v4->v5: added showCountry column');
+      }
+      if (from < 6) {
+        await m.addColumn(appSettingsTable, appSettingsTable.searchRadiusKm);
+        DebugConfig.log(DebugConfig.databaseLocal, 'Migration v5->v6: added searchRadiusKm column');
       }
     },
   );

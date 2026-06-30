@@ -153,119 +153,46 @@ Typesense, Video (Agora), AI matching, Groups, Verified badge, Premium, Web, Adm
   - `test/utils/encryption_utils_test.dart` — 15 new unit tests (deriveKey, encrypt/decrypt round-trip, validation, getKeyOrDerive fallback, placeholder).
 -   `flutter analyze` ✅, `flutter test` 30/30 ✅.
 -   **Session 117**: **FCM foreground notification suppression + auto-scroll fix** — GoRouterState.of(context) fails outside route subtree even in MaterialApp.router.builder. Replaced GoRouter-dependent `currentRoute` with `FcmService.activeChatId` set directly by ChatScreen (initState/dispose). Changes:
-    - `fcm_service.dart`: `currentRoute → activeChatId`; `shouldSuppressForeground()` compares `chatId == activeChatId`
-    - `main.dart`: removed `GoRouterState.of(context).uri.toString()` + unused `go_router` import
-    - `chat_screen.dart`: `FcmService.activeChatId = widget.chatId` in initState/dispose of `_ChatScreenState`
-    - `flutter analyze` ✅, `flutter test` 30/30 ✅, verified on 2 devices (Android 12 + 16)
+-     `fcm_service.dart`: `currentRoute → activeChatId`; `shouldSuppressForeground()` compares `chatId == activeChatId`
+-     `main.dart`: removed `GoRouterState.of(context).uri.toString()` + unused `go_router` import
+-     `chat_screen.dart`: `FcmService.activeChatId = widget.chatId` in initState/dispose of `_ChatScreenState`
+-     `flutter analyze` ✅, `flutter test` 30/30 ✅, verified on 2 devices (Android 12 + 16)
+- **Session 118**: **Location sync centralization + discovery auto-sync fix** — Session 98–101 location sync (`_maybeUpdateProfileLocation`, `_throttledPublish`) ξαναγράφτηκε. Centralized sync logic: `profile_repository.dart` νέο abstract `syncLocation(lat, lng, {city?, country?})`. Implementation save πάντα lat/lng στο Drift, ΠΟΤΕ publish (caller decides). `discovery_screen.dart`: `_maybeUpdateProfileLocation` + `_throttledPublish` → `_syncLocation` με 3min debounce. Εντός debounce: `syncLocation(lat, lng)` μόνο (skip geocode/publish). Εκτός: reverse geocode → `syncLocation(lat, lng, city, country)` + publish. `_onRefresh()` now always → `_performSearch()`. Removed unused `import 'package:drift/drift.dart'`. Verified on 3 devices: auto-search, pull-to-refresh, debounce, publish, profile editor save, unpublish, manual location (Άρτεμις), privacy changes hidden→neighborhood→street. `flutter analyze` clean.
+- **Session 119**: **Geohash filtering false positive fix + `distanceToPoint()` refactoring** — `distanceToPoint()` δημιουργήθηκε στο `geohash_utils.dart` ως single point of truth για απόσταση. Hybrid λογική: edgeDist > 0 → edge, =0 → center haversine (inside-cell fallback). `isWithinRadius()` refactored να το χρησιμοποιεί. `_computeDistances()` στο `search_provider.dart` refactored — αφαιρέθηκε duplicate hybrid if/else, now calls `distanceToPoint()`. Fix: `searchNearby: haversine filtered 1 profiles` — false positive από ίδιο geohash precision-3 cell (85.6km) αποκλείστηκε σωστά. Verified on 2 devices: far user excluded, nearby users (0.1km) unaffected. `flutter analyze` clean.
+- **Session 120**: **`distanceToNearestEdge()` inside-cell bug fix** — Όταν το GPS του χρήστη είναι ΜΕΣΑ στο geohash cell του στόχου (π.χ. precision 3 = Πόλη, cell ~150×150km), η `clamp()` επέστρεφε το ίδιο σημείο → edgeDist=0 → `distanceToPoint()` έπεφτε στο centerDist (85.6km) αντί στην απόσταση προς την κοντινότερη άκρη (~4km). Αποτέλεσμα: profiles με precision=Πόλη αποκλείονταν λανθασμένα από το radius filter. Fix: νέο branch όταν `centerLat`/`centerLon` εντός ορίων — υπολογίζει haversine και προς τις 4 άκρες (N/S/E/W) και επιστρέφει την ελάχιστη. Debug log με όλες τις edge αποστάσεις. Ένα αρχείο: `geohash_utils.dart` (10 γραμμές). Backup: `geohash_utils.dart.bak`. `flutter analyze` clean ✅, `flutter test` 30/30 ✅.
+- **Session 121**: **Adaptive search precision + `getNeighbours` `*2` bug fix** — Hardcoded `GeoHashUtils.precisionFromSetting('city')` = 3 chars (cell ~157×123km) αντικαταστάθηκε με `GeoHashUtils.searchPrecision(radiusKm, lat)` που επιλέγει precision 7→3 βάσει search radius και latitude. Conservative bound: `min(cellW, cellH) ≥ radiusKm`. Για default 10km search στην Ελλάδα (38°N): από precision 3 (470×370km, ~250× over-read) → precision 4 (59×93km, ~17× over-read). **Επιπλέον**: `getNeighbours()` είχε `dLat * latErr * 2` (offset 2 cells αντί για 1) → immediate neighbors λανθασμένοι. Διορθώθηκε σε `dLat * latStep` (1 cell). Προστέθηκε `range` parameter (default 1) για asymmetric neighbor generation. Νέες utility methods: `_cellDimensions(p, lat)` → (hKm, wKm), `searchPrecision(radiusKm, lat)` → optimal precision. 2 αρχεία: `geohash_utils.dart` (+55 γραμμές), `firestore_search_repository.dart` (2 lines). Full `DebugConfig.log()` σε νέες methods. Backups: `geohash_utils.dart.bak`, `firestore_search_repository.dart.bak`. `flutter analyze` clean ✅, `flutter test` 30/30 ✅.
+- **Session 122**: **🟡5 Hardcoded default 10km radius** — 4 files: `app_settings_table.dart` +`searchRadiusKm` column default 10.0, `database.dart` schema v5→v6, `app_settings_provider.dart` +`setSearchRadius()`, `discovery_screen.dart` PopupMenuButton radius selector + `ref.listen` in `build()` for persisted load. `flutter analyze` ✅, `flutter test` 30/30 ✅.
+- **Session 122b**: **`searchNearby` 3-char geoHash fix** — `searchNearby()` was missing the 3-char prefix expansion (only `_geoSearch()` had it). Root cause: `_performSearch()` calls `searchNearby()`, not `_geoSearch()`. City-precision profiles (`swb`) invisible at 5-10km. Fix: same `allCells` Set pattern from `_geoSearch()`. 1 file: `firestore_search_repository.dart`. Verified on device: 5km→4 profiles (was 2), 1km→2 (correct haversine filter), 10km→4, 25/50/100km→4. `flutter analyze` ✅, `flutter test` 30/30 ✅.
+- **Session 123**: **`searchNearby()` → `search()` in auto-search** — `_performSearch()` in `discovery_screen.dart` replaced `searchNearby(lat, lng, radius)` with the full `search()` pipeline, so that city/country/interests/lookingFor filters are respected during auto-search (consistent with manual filter Apply). `searchFiltersProvider.notifier.updateLocation()` called first to set location, then `search()` reads all filters from state. Added detailed debug log showing all active filters. 1 file modified. `flutter analyze` ✅, `flutter test` 30/30 ✅.
 
 ---
 
-## Current State (Session 117 — FCM foreground noise fix)
+## Current State (Session 123 — `searchNearby` → `search()` in auto-search)
 
 | Μέτρο | Τιμή |
 |---|---|
 | Completion | ~99% (Phases 1-3 100%) |
 | Firestore indexes | 17 composite deployed (5 orphan cleaned) |
 | Build | `flutter analyze` clean, release APK ~14.5MB |
-| Tests | **30/30 passed** ✅ (15 new: encryption_utils_test) |
-| Backup files | 0 ✅ (Session 114 + P2 clean) |
+| Tests | **30/30 passed** ✅ |
 
 ### Remaining Gaps
-- **P1**: ~~ChatScreen excessive rebuilds~~ ✅
-- **P2**: ~~FCM foreground snackbar silently skipped~~ ✅
 - **P3.6**: Auto-lock timer (schema exists, no runtime)
-- **P3.8**: ~~FlutterSecureStorage algorithm migration (key loss)~~ ✅
-- **P3.9**: ~~FCM foreground notification noise (redundant snackbar when in chat)~~ ✅ (Session 117)
 - **Phase 4**: Video (Agora), AI matching, Groups, Admin, Web, Premium, Typesense
 
-### Distance Filter Todo (ιεραρχημένο)
-
-| Priority | Θέμα | Αρχείο(α) | Εκτίμηση |
-|:--------:|------|-----------|:--------:|
-| 🔴 **1** | **Haversine στο `_passesFilters()`** ✅ — isWithinRadius() με cell BOUNDS, όχι cell center | `geohash_utils.dart`, `firestore_search_repository.dart` | ✅ (Session 107-108) |
-| 🔴 **2** | **Radius αγνοείται όταν active city/country** ✅ — διορθώθηκε ΠΑΡΕΜΠΙΠΤΟΝΤΩΣ από 🔴1 (isWithinRadius ανεξάρτητο από hasLocationFilter) | `firestore_search_repository.dart` | ✅ (Session 108) |
-| 🔴 **3** | **Stale lat/lng στο SearchFilters state** — το radius υπολογίζεται από παλιά τοποθεσία χωρίς refresh ✅ | `search_filters_screen.dart` | ✅ (Session 109) |
-| 🟡 **4** | **Εμφάνιση απόστασης "X km away"** στο ProfileCard και PublicProfileViewScreen ✅ | `search_provider.dart`, `geohash_utils.dart`, `profile_card.dart`, `public_profile_header.dart` | ✅ (Session 110-111) |
-| 🟡 **5** | **Hardcoded 10km initial search** — ο χρήστης δεν μπορεί να αλλάξει default radius χωρίς να μπει στα φίλτρα | `discovery_screen.dart` | 30 λεπτά |
-| 🟢 **6** | **UX: radius slider χωρίς reference scale** (10km=πόλη, 50km=νομός, 200km=περιφέρεια) | `search_filters_screen.dart` | 30 λεπτά |
-| 🟢 **7** | **Confusion: radius + city/country** — όταν έχει επιλεγεί city, το radius αγνοείται αλλά ο χρήστης δεν το βλέπει | `search_filters_screen.dart` | 30 λεπτά |
-
-### 🔴 1 — Haversine Distance Filter ✅ (Ολοκληρώθηκε Session 107)
-
-**Στόχος**: Διόρθωση false positives από geohash bounding box (ορθογώνιο ≠ κύκλος).
-
-**Εμπλεκόμενα αρχεία**:
-- `lib/core/utils/geohash_utils.dart` — προσθήκη decode() + haversineDistance()
-- `lib/repositories/firestore_search_repository.dart` — haversine filter σε _passesFilters() + searchNearby()
-
-**Βήματα υλοποίησης**:
-
-| Βήμα | Περιγραφή | Αρχείο |
-|------|-----------|--------|
-| 1 | decode(geohash) → (lat, lng) — κέντρο cell από base32 bits | `geohash_utils.dart` |
-| 2 | haversineDistance(lat1, lon1, lat2, lon2) → km | `geohash_utils.dart` |
-| 3 | haversine check στο _passesFilters() — πριν return true | `firestore_search_repository.dart` |
-| 4 | haversine filter στο searchNearby() — μετά το Firestore fetch | `firestore_search_repository.dart` |
-| 5 | flutter analyze + test | CLI |
-
-**Edge cases** (όλα handled):
-- `geoHash == null/empty` → skip (hidden location)
-- `radiusKm == null/≤0` → skip
-- geohash decode → ArgumentError (πιάνεται από catch)
-- City + radius combo → haversine εφαρμόζεται (side-fix για 🔴2)
-- Cursor pagination → unaffected (post-filter)
-- searchNearby() + cursor → unaffected
-
-**Known limitations** (pre-existing, όχι νέο από το fix):
-- Αν haversine απορρίψει ΟΛΑ τα results, `hasMore=true` αλλά `loadMore()` ξανατρέχει Firestore (ίδιο limitation με τα υπόλοιπα client-side φίλτρα)
-
-**Σημείωση**: Η λύση διορθώνει ΠΑΡΕΜΠΙΠΤΟΝΤΩΣ το **🔴2** (radius ignored with city/country), αφού το haversine στο `_passesFilters()` ελέγχεται ανεξάρτητα από το `hasLocationFilter`.
-
-**Αλλαγές που έγιναν**:
-- `geohash_utils.dart`: decode() → (lat, lng) + haversineDistance() → km + **isWithinRadius()** (cell bounds, not center)
-- `firestore_search_repository.dart`: _passesFilters() haversine check + searchNearby() removeWhere
-- **FIX (Session 108)**: isWithinRadius() αντί decode()+haversine — συγκρίνει με cell BOUNDS, όχι cell center. Λύνει false negatives όταν search center είναι μέσα στο geohash cell αλλά μακριά από το center.
-
----
-
-### 🔴 3 — Stale lat/lng στο SearchFilters ✅ (Ολοκληρώθηκε Session 109)
-
-**Στόχος**: Το `_apply()` ανανέωνε όλα τα φίλτρα ΕΚΤΟΣ από `latitude`/`longitude`. Η αναζήτηση χρησιμοποιούσε τοποθεσία από προηγούμενο auto-search (ώρες/μέρες πριν), οπότε το radius εφαρμοζόταν σε stale σημείο.
-
-**Εμπλεκόμενα αρχεία**:
-- `lib/features/discovery/screens/search_filters_screen.dart` (primary)
-- Backup: `search_filters_screen.dart.bak`
-
-**Αλλαγές**:
-- `import LocationService` — πρόσβαση σε GPS session cache
-- `bool _isApplying = false` — guard double-tap όσο το GPS εκτελείται
-- `_apply()` → `Future<void> _apply() async` — await GPS refresh πριν search
-- `_refreshLocation()` — `getCurrentLocation(forceRefresh: false)` (session cache 5min ή live GPS)
-- `mounted` check μετά το async GPS — αποτροπή exception σε dispose mid-GPS
-- Comprehensive debug logs σε κάθε βήμα
-
-**Edge cases handled**:
-- Διπλό/πολλαπλό tap Apply → `_isApplying` guard → SKIPPED log
-- Dispose mid-GPS → `!mounted` return → aborted log
-- GPS timeout/αποτυχία → cached location preserved → log με failure reason
-- `updateLocation()` χωρίς `radiusKm` → διατηρεί το radius που μόλις ορίστηκε από `updateRadius()`
-
-**Επαλήθευση**:
-- `flutter analyze` clean
-- Tested on device:
-  - Apply μετά από 50'': `Session cache: age=0min` → 0ms delay ✅
-  - Apply μετά από 1': `Session cache: age=1min` → 0ms delay ✅
-  - Double tap (×2): `SKIPPED (already applying)` ✅
-  - Rapid tap (×4): 4× `SKIPPED`, 1× execute ✅
-  - `SearchNotifier.search` με φρέσκα lat/lng + σωστό `radiusKm: 10.0` ✅
-
----
+### Tech Debt Backlog
+| # | Item | Priority | Effort | Status |
+|---|---|---|---|---|
+| 1 | **Search `searchNearby` 3-char geoHash fix** | 🟢 Done | S | ✅ Session 122b |
+| 2 | **🟡 Gender composite index** — όσο η βάση μεγαλώνει, το gender filter κάνει full collection scan. Χρειάζεται composite index [gender, geoHash, age] ή ενσωμάτωση στο `_passesFilters()` όπως τα allowVideoCall/allowDirectChat. | 🟡 Medium | ~1h (deploy indexes) | Pending analysis |
+| 3 | **🟢 GPS fallback staleness** — `getLastKnownPosition()` μετά από timeout μπορεί να επιστρέφει stale location (minutes/hours old). Fix: έλεγχος `timestamp` στο `Position`, αν > 5min skip + ειδοποίηση χρήστη. | 🟢 Low | ~20' | Pending |
+| 4 | **🟢 Mock location detection** — Ασφάλεια: ανίχνευση mock GPS (Android `isFromMockProvider`). Όχι urgent γιατί το app είναι privacy-first, όχι food delivery. | 🟢 Low | ~15' | Pending |
 
 ### Key Conventions
-- File size ≤ 400 lines (1 exception: profile_repository_impl)
+- File size ≤ 500 lines on exceptions 600 lines (1 exception: profile_repository_impl)
 - `DebugConfig.log(flag, msg)` σε κάθε operational action
 - `ErrorView`/`LoadingView`/`EmptyView` + `AppMessenger` — ποτέ raw ScaffoldMessenger
 - Bilingual (el/en): `L10n.isGreek()` + `L10n.localizedMessage()`
-- Backup files: **κανένα στο repo** (35 `.bak`/`.bak2`/`.backup` καθαρίστηκαν Session 114)
 - Repository pattern: abstract + impl, ποτέ raw Firestore στο UI
 - Privacy-first: πλήρες profile στο Drift, minimal public snapshot στο Firestore
+- **Backup files: κανένα** — όλα τα `.bak` διαγράφηκαν (Session 123)

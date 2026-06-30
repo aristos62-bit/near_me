@@ -412,6 +412,40 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
   }
 
   @override
+  Future<void> syncLocation(double lat, double lng, {String? city, String? country}) async {
+    DebugConfig.log(DebugConfig.repositoryCall,
+        'syncLocation: lat=$lat, lng=$lng${city != null ? ', city=$city' : ''}${country != null ? ', country=$country' : ''}');
+    final uid = _user?.uid;
+    if (uid == null || uid.isEmpty) {
+      DebugConfig.warn('syncLocation: no authenticated user');
+      return;
+    }
+    try {
+      final profile = await getProfile();
+      if (profile == null) {
+        DebugConfig.warn('syncLocation: no profile found');
+        return;
+      }
+      var update = profile.copyWith(
+        latitudeExact: Value(lat),
+        longitudeExact: Value(lng),
+      );
+      if (city != null) {
+        update = update.copyWith(city: Value(city));
+      }
+      if (country != null) {
+        update = update.copyWith(country: Value(country));
+      }
+      await saveProfile(update);
+      DebugConfig.log(DebugConfig.databaseLocal,
+          'syncLocation: saved lat=$lat, lng=$lng${city != null ? ', city=$city' : ''}${country != null ? ', country=$country' : ''}');
+    } catch (e, s) {
+      DebugConfig.error('syncLocation failed', data: e, exception: s);
+      throw AppException.database('syncLocation', e, s);
+    }
+  }
+
+  @override
   Stream<PublicProfile?> publicProfileStream() {
     final uid = _user?.uid;
     if (uid == null || uid.isEmpty) {

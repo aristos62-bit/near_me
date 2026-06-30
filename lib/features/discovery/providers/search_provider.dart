@@ -88,18 +88,10 @@ class SearchNotifier extends Notifier<SearchState> {
         continue;
       }
       try {
-        final nearestDist = GeoHashUtils.distanceToNearestEdge(p.geoHash!, centerLat, centerLng);
-        if (nearestDist > 0) {
-          distances[p.uid] = nearestDist;
-          DebugConfig.log(DebugConfig.repositoryCall,
-              'SearchNotifier._computeDistances: uid=${p.uid} nearest=${nearestDist.toStringAsFixed(1)}km');
-        } else {
-          final (lat, lng) = GeoHashUtils.decode(p.geoHash!);
-          final centerDist = GeoHashUtils.haversineDistance(centerLat, centerLng, lat, lng);
-          distances[p.uid] = centerDist;
-          DebugConfig.log(DebugConfig.repositoryCall,
-              'SearchNotifier._computeDistances: uid=${p.uid} inside cell, center=${centerDist.toStringAsFixed(1)}km');
-        }
+        final d = GeoHashUtils.distanceToPoint(p.geoHash!, centerLat, centerLng);
+        distances[p.uid] = d;
+        DebugConfig.log(DebugConfig.repositoryFilter,
+            '_computeDistances: uid=${p.uid} geoHash=${p.geoHash} city=${p.city} distance=${d.toStringAsFixed(1)}km');
         computed++;
       } catch (e) {
         skipped++;

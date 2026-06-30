@@ -111,31 +111,29 @@ class GeoHashUtils {
     return GeoBounds(lower: sw, upper: ne);
   }
 
-  /// Returns the 8 neighbouring geohash cells + the center cell itself.
-  /// Total: 9 cells covering the full area around [geohash].
-  /// This prevents missing profiles that are in adjacent cells but within radius.
-  static List<String> getNeighbours(String geohash) {
+  /// Returns neighbouring geohash cells around [geohash] within [range].
+  /// [range]=1 → 9 cells (center + 8 immediate neighbours).
+  /// [range]=2 → 25 cells, κλπ.
+  static List<String> getNeighbours(String geohash, {int range = 1}) {
     if (geohash.isEmpty) return [];
+    if (range < 1) return [geohash];
     try {
       final (centerLat, centerLng) = decode(geohash);
       final precision = geohash.length;
 
-      // Cell dimensions in degrees for this precision
-      // Each geohash char encodes 5 bits, alternating lon/lat
-      // Total bits: precision * 5, split roughly 60/40 lon/lat
-      final latBits = (precision * 5) ~/ 2;
-      final lngBits = precision * 5 - latBits;
-      final latErr = 180.0 / pow(2, latBits);
-      final lngErr = 360.0 / pow(2, lngBits);
+      // Cell dimensions in degrees — first bit = lon, so ceil/floor split
+      final lngBits = (precision * 5 + 1) ~/ 2;
+      final latBits = precision * 5 - lngBits;
+      final latStep = 180.0 / pow(2, latBits);   // cell height
+      final lngStep = 360.0 / pow(2, lngBits);   // cell width
 
       final neighbours = <String>{geohash};
 
-      for (int dLat = -1; dLat <= 1; dLat++) {
-        for (int dLng = -1; dLng <= 1; dLng++) {
+      for (int dLat = -range; dLat <= range; dLat++) {
+        for (int dLng = -range; dLng <= range; dLng++) {
           if (dLat == 0 && dLng == 0) continue;
-          final nLat = (centerLat + dLat * latErr * 2).clamp(-90.0, 90.0);
-          final nLng = centerLng + dLng * lngErr * 2;
-          // Handle antimeridian wrap-around
+          final nLat = (centerLat + dLat * latStep).clamp(-90.0, 90.0);
+          final nLng = centerLng + dLng * lngStep;
           final wrappedLng = nLng < -180
               ? nLng + 360
               : nLng > 180
@@ -146,12 +144,50 @@ class GeoHashUtils {
       }
 
       DebugConfig.log(DebugConfig.gpsGeoHash,
-          'getNeighbours: $geohash → ${neighbours.length} cells: $neighbours');
+          'getNeighbours: "$geohash" range=$range → ${neighbours.length} cells');
       return neighbours.toList();
     } catch (e) {
-      DebugConfig.warn('getNeighbours failed for $geohash: $e');
+      DebugConfig.warn('getNeighbours failed for "$geohash": $e');
       return [geohash];
     }
+  }
+
+  /// Cell dimensions in km for given [precision] at [latitude].
+  static ({double hKm, double wKm}) _cellDimensions(int precision, double latitude) {
+    final lngBits = (precision * 5 + 1) ~/ 2;
+    final latBits = precision * 5 - lngBits;
+    const degKm = 111.32;
+    final hKm = 180.0 / pow(2, latBits) * degKm;
+    final wKm = 360.0 / pow(2, lngBits) * degKm * cos(latitude * pi / 180);
+    DebugConfig.log(DebugConfig.gpsGeoHash,
+        '_cellDimensions: p=$precision lat=${latitude.toStringAsFixed(1)}° → ${hKm.toStringAsFixed(2)}×${wKm.toStringAsFixed(2)} km');
+    return (hKm: hKm, wKm: wKm);
+  }
+
+  /// Επιλέγει optimal geohash precision ώστε 9 cells να καλύπτουν
+  /// πλήρως κύκλο ακτίνας [radiusKm] στο γεωγραφικό πλάτος [latitude].
+  /// Conservative bound: min(cellW, cellH) ≥ radiusKm (χρήστης στο χείλος
+  /// του center cell → τουλάχιστον 1 full neighbor cell προς κάθε κατεύθυνση).
+  static int searchPrecision(double radiusKm, double latitude) {
+    if (radiusKm <= 0) {
+      DebugConfig.log(DebugConfig.gpsGeoHash,
+          'searchPrecision: radius=$radiusKm ≤ 0 → default precision=4');
+      return 4;
+    }
+    for (int p = 7; p >= 3; p--) {
+      final d = _cellDimensions(p, latitude);
+      if (d.hKm < radiusKm || d.wKm < radiusKm) {
+        DebugConfig.log(DebugConfig.gpsGeoHash,
+            'searchPrecision: p=$p → cell ${d.hKm.toStringAsFixed(2)}×${d.wKm.toStringAsFixed(2)} km < radius=$radiusKm km, try coarser');
+        continue;
+      }
+      DebugConfig.log(DebugConfig.gpsGeoHash,
+          'searchPrecision: radius=${radiusKm}km lat=${latitude.toStringAsFixed(1)}° → precision=$p (${d.hKm.toStringAsFixed(2)}×${d.wKm.toStringAsFixed(2)} km/cell, 9 cells=${(d.hKm*3).toStringAsFixed(1)}×${(d.wKm*3).toStringAsFixed(1)} km)');
+      return p;
+    }
+    DebugConfig.log(DebugConfig.gpsGeoHash,
+        'searchPrecision: radius=${radiusKm}km lat=${latitude.toStringAsFixed(1)}° → precision=3 (fallback)');
+    return 3;
   }
 
   /// Decode a geohash to the center point of its cell.
@@ -193,7 +229,8 @@ class GeoHashUtils {
   }
 
   /// Compute distance from [centerLat]/[centerLon] to the NEAREST point
-  /// on the geohash cell boundary. Returns 0 if inside the cell.
+  /// on the geohash cell boundary. For interior points, returns distance
+  /// to the nearest cell edge (not 0, avoiding centerDist fallback).
   static double distanceToNearestEdge(
       String geoHash,
       double centerLat,
@@ -229,6 +266,26 @@ class GeoHashUtils {
       }
     }
 
+    if (centerLat >= latMin && centerLat <= latMax &&
+        centerLon >= lonMin && centerLon <= lonMax) {
+      final dNorth = haversineDistance(centerLat, centerLon, latMax, centerLon);
+      final dSouth = haversineDistance(centerLat, centerLon, latMin, centerLon);
+      final dEast  = haversineDistance(centerLat, centerLon, centerLat, lonMax);
+      final dWest  = haversineDistance(centerLat, centerLon, centerLat, lonMin);
+      final minDist = min(dNorth, min(dSouth, min(dEast, dWest)));
+
+      DebugConfig.log(
+        DebugConfig.gpsGeoHash,
+        'distanceToNearestEdge: geoHash=$geoHash '
+            'cell=[$latMin..$latMax, $lonMin..$lonMax] '
+            'inside → edges=[N=${dNorth.toStringAsFixed(3)}, '
+            'S=${dSouth.toStringAsFixed(3)}, E=${dEast.toStringAsFixed(3)}, '
+            'W=${dWest.toStringAsFixed(3)}] '
+            'min=${minDist.toStringAsFixed(1)}km',
+      );
+      return minDist;
+    }
+
     final nearestLat = centerLat.clamp(latMin, latMax);
     final nearestLon = centerLon.clamp(lonMin, lonMax);
     final distance =
@@ -244,18 +301,39 @@ class GeoHashUtils {
     return distance;
   }
 
+  /// Returns effective distance from (centerLat, centerLon) to the profile
+  /// represented by [geoHash], using hybrid approach:
+  ///   edgeDist > 0 → nearest edge distance (outside cell, Session 108)
+  ///   edgeDist = 0 → haversine center-to-center (inside cell fallback)
+  static double distanceToPoint(String geoHash, double centerLat, double centerLon) {
+    final edgeDist = distanceToNearestEdge(geoHash, centerLat, centerLon);
+    final (cellLat, cellLng) = decode(geoHash);
+    final centerDist = haversineDistance(centerLat, centerLon, cellLat, cellLng);
+    DebugConfig.log(
+      DebugConfig.repositoryFilter,
+      'distanceToPoint: geoHash=$geoHash (len=${geoHash.length}) '
+          'center=($cellLat, $cellLng) yourGPS=($centerLat, $centerLon) '
+          'edgeDist=${edgeDist.toStringAsFixed(3)}km '
+          'centerDist=${centerDist.toStringAsFixed(1)}km '
+          'result=${edgeDist > 0 ? edgeDist.toStringAsFixed(1) : centerDist.toStringAsFixed(1)}km',
+    );
+    if (edgeDist > 0) return edgeDist;
+    return centerDist;
+  }
+
+
+
   /// Check if [centerLat]/[centerLon] is within [radiusKm] of the geoHash cell.
-  /// Uses distanceToNearestEdge to avoid code duplication.
   static bool isWithinRadius(
       String geoHash,
       double centerLat,
       double centerLon,
       double radiusKm,
       ) {
-    final distance = distanceToNearestEdge(geoHash, centerLat, centerLon);
+    final distance = distanceToPoint(geoHash, centerLat, centerLon);
     final result = distance <= radiusKm;
     DebugConfig.log(
-      DebugConfig.gpsGeoHash,
+      DebugConfig.repositoryFilter,
       'isWithinRadius: geoHash=$geoHash '
           'distance=${distance.toStringAsFixed(1)}km ≤ ${radiusKm}km = $result',
     );

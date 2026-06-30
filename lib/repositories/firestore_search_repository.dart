@@ -63,26 +63,43 @@ class FirestoreSearchRepository implements SearchRepository {
     // Υπολογισμός center geohash
     String centerHash;
     if (filters.latitude != null && filters.longitude != null) {
-      final searchPrecision = GeoHashUtils.precisionFromSetting('city');
+      final sp = GeoHashUtils.searchPrecision(
+        filters.radiusKm ?? 10,
+        filters.latitude!,
+      );
+      DebugConfig.log(DebugConfig.repositoryCall,
+          '_geoSearch: adaptive precision=$sp');
       centerHash = GeoHashUtils.encode(
         filters.latitude!,
         filters.longitude!,
-        precision: searchPrecision,
+        precision: sp,
       );
     } else {
       centerHash = filters.geoHash!;
     }
 
-    // Παίρνουμε 9 neighbouring cells
     final neighbours = GeoHashUtils.getNeighbours(centerHash);
+
+    final allCells = <String>{...neighbours};
+    final basePrecision = centerHash.length;
+    if (basePrecision > 3) {
+      for (final cell in neighbours) {
+        allCells.add(cell.substring(0, 3));
+      }
+      DebugConfig.log(
+        DebugConfig.repositoryCall,
+        '_geoSearch: added ${allCells.length - neighbours.length} unique '
+            '3-char prefixes for city-precision profiles',
+      );
+    }
     DebugConfig.log(
       DebugConfig.repositoryCall,
       '_geoSearch: centerHash=$centerHash, '
-          'neighbours=${neighbours.length} cells',
+          'baseCells=${neighbours.length}, '
+          'expanded=${allCells.length} unique cells',
     );
 
-    // Parallel queries για κάθε cell
-    final futures = neighbours.map((cell) {
+    final futures = allCells.map((cell) {
       final upper = '$cell~';
       Query q = _firestore
           .collectionGroup('public')
@@ -124,7 +141,7 @@ class FirestoreSearchRepository implements SearchRepository {
 
     DebugConfig.log(
       DebugConfig.repositoryCall,
-      '_geoSearch: raw results=${all.length} (from ${neighbours.length} cells)',
+      '_geoSearch: raw results=${all.length} (from ${allCells.length} cells)',
     );
 
     final filtered =
@@ -243,18 +260,33 @@ class FirestoreSearchRepository implements SearchRepository {
     );
 
     try {
-      final searchPrecision = GeoHashUtils.precisionFromSetting('city');
+      final sp = GeoHashUtils.searchPrecision(radiusKm, lat);
+      DebugConfig.log(DebugConfig.repositoryCall,
+          'searchNearby: adaptive precision=$sp');
       final centerHash =
-      GeoHashUtils.encode(lat, lng, precision: searchPrecision);
+      GeoHashUtils.encode(lat, lng, precision: sp);
       final neighbours = GeoHashUtils.getNeighbours(centerHash);
 
+      final allCells = <String>{...neighbours};
+      final basePrecision = centerHash.length;
+      if (basePrecision > 3) {
+        for (final cell in neighbours) {
+          allCells.add(cell.substring(0, 3));
+        }
+        DebugConfig.log(
+          DebugConfig.repositoryCall,
+          'searchNearby: added ${allCells.length - neighbours.length} unique '
+              '3-char prefixes for city-precision profiles',
+        );
+      }
       DebugConfig.log(
         DebugConfig.repositoryCall,
         'searchNearby: centerHash=$centerHash, '
-            '${neighbours.length} cells',
+            'baseCells=${neighbours.length}, '
+            'expanded=${allCells.length} unique cells',
       );
 
-      final futures = neighbours.map((cell) {
+      final futures = allCells.map((cell) {
         final upper = '$cell~';
         Query q = _firestore
             .collectionGroup('public')

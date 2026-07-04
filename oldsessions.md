@@ -208,6 +208,17 @@ Zero occurrences of `No GoRouter found in context` or `_pendingChatId` or `check
 
 ---
 
+### Session 138 — Retry mechanism for FCM sends (sendChatNotification, sendRequestNotification, sendRequestResponseNotification)
+
+**Problem:** All 3 FCM Cloud Functions lacked retry on transient failures (rate limit, network hiccup, server unavailable). A transient error caused permanent notification loss.
+
+**Fix — 2 files:**
+- **New `functions/src/fcm-utils.ts`** (63 γρ.): `isRetryable(error)` + `sendWithRetry(payload, maxRetries=3)` with exponential backoff (1s→2s→4s). Retryable codes: `internal-error`, `unavailable`, `server-unavailable`, `quota-exceeded`. Non-retryable `messaging/*` codes are NOT retried. Detailed `functions.logger.warn/info` on each attempt.
+- **Edit `functions/src/index.ts`**: 3× duplicated `sendEachForMulticast` → `sendWithRetry(payload)`. Error messages now include `after 3 attempts`. Import added at line 3.
+- **Edge cases covered:** token changes during retries (per-token cleanup after success), block race (not re-checked, same as current), `deleteUserData` race (stale tokens handled by per-token error), rate limit safety (staggered backoff), function timeout (7s << 60s), Flutter lifecycle (zero changes).
+
+**Verification:** `npm run build` (tsc) ✅ clean. `flutter analyze` ✅ clean. `flutter run --release` on 24094RAD4G ✅ (14.5MB APK). Deploy: `firebase deploy --only functions`.
+
 ## Current State
 
 | Μέτρο | Τιμή |
@@ -217,7 +228,7 @@ Zero occurrences of `No GoRouter found in context` or `_pendingChatId` or `check
 | Build | `flutter analyze` clean, release APK ~14.5MB |
 | Tests | **30/30 passed** |
 | `.dart` files | ~108 (non-generated) |
-| Cloud Functions | 5 deployed (3 FCM + auto-ban + deleteUserData) |
+| Cloud Functions | 5 deployed + `fcm-utils.ts` helper |
 
 ### Known Issues
 - `authStateProvider` first emission `null` κατά την 1η `watch()` — ProfileScreen βλέπει `canComm=false (null user)` για 1 frame πριν το `userChanges()` emit. ChatListScreen έχει fallback `?? FirebaseAuth.instance.currentUser`. ProfileScreen + ChatScreen ΔΕΝ έχουν — low priority (1 frame flash).

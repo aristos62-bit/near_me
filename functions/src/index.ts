@@ -1,5 +1,6 @@
 import * as functions from 'firebase-functions/v1';
 import * as admin from 'firebase-admin';
+import { sendWithRetry } from './fcm-utils';
 
 admin.initializeApp();
 
@@ -77,7 +78,7 @@ export const sendChatNotification = functions.firestore
     };
 
     try {
-      const response = await admin.messaging().sendEachForMulticast(payload);
+      const response = await sendWithRetry(payload);
 
       if (response.failureCount > 0) {
         const invalidTokens: string[] = [];
@@ -109,7 +110,7 @@ export const sendChatNotification = functions.firestore
         `Chat ${chatId}: ${response.successCount} sent, ${response.failureCount} failed`,
       );
     } catch (error) {
-      functions.logger.error(`sendNotification failed for ${chatId}`, error);
+      functions.logger.error(`sendChatNotification failed for ${chatId} after 3 attempts`, error);
     }
 
     return null;
@@ -313,7 +314,7 @@ export const sendRequestNotification = functions.firestore
     };
 
     try {
-      const response = await admin.messaging().sendEachForMulticast(payload);
+      const response = await sendWithRetry(payload);
 
       if (response.failureCount > 0) {
         const invalidTokens: string[] = [];
@@ -345,7 +346,7 @@ export const sendRequestNotification = functions.firestore
         `Request ${context.params.reqId}: ${response.successCount} sent, ${response.failureCount} failed`,
       );
     } catch (error) {
-      functions.logger.error(`sendRequestNotification failed for ${context.params.reqId}`, error);
+      functions.logger.error(`sendRequestNotification failed for ${context.params.reqId} after 3 attempts`, error);
     }
 
     return null;
@@ -412,6 +413,10 @@ export const sendRequestResponseNotification = functions.firestore
     tokensSnap.forEach((doc) => tokens.push(doc.data().token));
     if (tokens.length === 0) return null;
 
+    functions.logger.info(
+      `Response notif ${context.params.reqId}: from=${fromUid}, responder=${toUid}, lang=${lang}, body=${body}`,
+    );
+
     const payload: admin.messaging.MulticastMessage = {
       tokens,
       notification: {
@@ -421,7 +426,8 @@ export const sendRequestResponseNotification = functions.firestore
       data: {
         type: 'request',
         requestId: context.params.reqId,
-        fromUid: toUid,
+        fromUid,
+        responderUid: toUid,
       },
       android: { priority: 'high' },
       apns: {
@@ -430,7 +436,7 @@ export const sendRequestResponseNotification = functions.firestore
     };
 
     try {
-      const response = await admin.messaging().sendEachForMulticast(payload);
+      const response = await sendWithRetry(payload);
 
       if (response.failureCount > 0) {
         const invalidTokens: string[] = [];
@@ -462,7 +468,7 @@ export const sendRequestResponseNotification = functions.firestore
       );
     } catch (error) {
       functions.logger.error(
-        `sendRequestResponseNotification failed for ${context.params.reqId}`,
+        `sendRequestResponseNotification failed for ${context.params.reqId} after 3 attempts`,
         error,
       );
     }

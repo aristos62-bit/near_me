@@ -26,8 +26,12 @@ class PresenceService {
     _ref = FirebaseFirestore.instance.doc('users/$uid/status/status');
     _publicRef = FirebaseFirestore.instance.doc('users/$uid/public/profile');
     await _touch();
+    if (_publicRef != null) {
+      await _publicRef!.set({'isOnline': true}, SetOptions(merge: true));
+    }
+    DebugConfig.log(DebugConfig.presence,
+        'PresenceService started: uid=$uid, publicRef set online');
     _schedule();
-    DebugConfig.log(DebugConfig.presence, 'PresenceService started: uid=$uid');
   }
 
   static void handleLifecycle(AppLifecycleState state) {
@@ -56,14 +60,10 @@ class PresenceService {
   static Future<void> _touch() async {
     if (_ref == null) return;
     try {
-      await Future.wait<void>([
-        _ref!.set({
-          'isOnline': true,
-          'lastSeen': FieldValue.serverTimestamp(),
-        }),
-        if (_publicRef != null)
-          _publicRef!.set({'isOnline': true}, SetOptions(merge: true)),
-      ]);
+      await _ref!.set({
+        'isOnline': true,
+        'lastSeen': FieldValue.serverTimestamp(),
+      });
       DebugConfig.log(DebugConfig.presence, 'Presence touch: heartbeat');
     } catch (e) {
       DebugConfig.warn('PresenceService touch failed', data: e);

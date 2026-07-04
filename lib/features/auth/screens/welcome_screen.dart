@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../core/utils/error_messages.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../shared/widgets/form_section.dart';
@@ -108,7 +109,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
 
     ref.listen<WelcomeState>(welcomeProvider, (prev, next) {
       if (next.status == WelcomeStatus.error && next.errorMessage != null) {
-        AppMessenger.showError(context, L10n.localizedMessage(context, _errorText(next.errorMessage!)));
+        AppMessenger.showError(context, ErrorMessages.get(next.errorMessage!, L10n.isGreek(context)));
       }
     });
 
@@ -321,24 +322,4 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
     );
   }
 
-  String _errorText(String code) {
-    switch (code) {
-      case 'auth/email-already-in-use':
-        return 'Το email χρησιμοποιείται ήδη / Email already in use';
-      case 'auth/invalid-email':
-        return 'Μη έγκυρο email / Invalid email';
-      case 'auth/weak-password':
-        return 'Ο κωδικός είναι πολύ αδύναμος (τουλάχιστον 6 χαρακτήρες) / Password too weak (at least 6 characters)';
-      case 'auth/user-not-found':
-        return 'Δεν βρέθηκε χρήστης / User not found';
-      case 'auth/wrong-password':
-        return 'Λάθος κωδικός / Wrong password';
-      case 'auth/too-many-requests':
-        return 'Πολλές προσπάθειες. Δοκίμασε αργότερα. / Too many attempts. Try again later.';
-      case 'auth/network-error':
-        return 'Σφάλμα δικτύου / Network error';
-      default:
-        return 'Κάτι πήγε στραβά / Something went wrong';
-    }
-  }
 }

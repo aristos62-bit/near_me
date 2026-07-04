@@ -120,15 +120,17 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
 
   String _friendlyError(Object error) {
     if (error is AppException) {
-      return error.message;
+      if (error.message.contains(' / ')) return error.message;
+      return error.code;
     }
     if (error.toString().contains('encryption_key_missing')) {
-      return 'Σφάλμα κρυπτογράφησης / Encryption error';
+      return 'chat/encryption-error';
     }
     if (error.toString().contains('firestore_error') || error.toString().contains('Firestore')) {
-      return 'Σφάλμα δικτύου / Network error';
+      return 'chat/network-error';
     }
-    return 'Κάτι πήγε στραβά / Something went wrong';
+    DebugConfig.warn('chat _friendlyError unhandled: ${error.toString()}');
+    return 'chat/unknown-error';
   }
 
   void reset() => state = const ChatActionState();

@@ -109,6 +109,39 @@ class AppSettingsNotifier extends Notifier<AsyncValue<AppSettingsTableData>> {
     }
   }
 
+  Future<void> setAutoLockMinutes(int minutes) async {
+    final current = state.value;
+    if (current == null) {
+      DebugConfig.warn('AppSettings: setAutoLockMinutes skipped (no state)');
+      return;
+    }
+    final clamped = minutes.clamp(1, 30);
+    if (current.autoLockMinutes == clamped) {
+      DebugConfig.log(DebugConfig.serviceCall,
+          'AppSettings: setAutoLockMinutes skipped (unchanged $clamped)');
+      return;
+    }
+    DebugConfig.log(DebugConfig.serviceCall,
+        'AppSettings: autoLockMinutes=$clamped (was ${current.autoLockMinutes})');
+    try {
+      final db = DatabaseService.instance;
+      final updated = current.copyWith(
+        autoLockMinutes: clamped,
+        updatedAt: DateTime.now(),
+      );
+      await (db.update(db.appSettingsTable)
+        ..where((t) => t.id.equals(updated.id))
+      ).write(updated.toCompanion(true));
+      state = AsyncValue.data(updated);
+      DebugConfig.log(DebugConfig.serviceCall,
+          'AppSettings: autoLockMinutes saved=$clamped');
+    } catch (e, s) {
+      DebugConfig.error('AppSettings: setAutoLockMinutes failed',
+          data: e, exception: s);
+      state = AsyncValue.error(e, s);
+    }
+  }
+
   Future<void> setBiometricLock(bool enabled) async {
     final current = state.value;
     if (current == null) return;

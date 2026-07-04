@@ -110,12 +110,6 @@ class FirestoreSearchRepository implements SearchRepository {
           .orderBy('__name__')
           .limit(effectiveLimit);
 
-      // Gender filter (equality - OK με range)
-      if (filters.gender != null && filters.gender != 'all') {
-        // Gender δεν μπορεί να συνδυαστεί με geoHash range σε Firestore
-        // γίνεται client-side στο _passesFilters
-      }
-
       if (cursor != null) {
         q = q.startAfter([cursor.sortValue, cursor.docId]);
       }
@@ -204,9 +198,10 @@ class FirestoreSearchRepository implements SearchRepository {
     if (filters.maxAge != null) {
       query = query.where('age', isLessThanOrEqualTo: filters.maxAge);
     }
-    if (filters.gender != null && filters.gender != 'all') {
-      query = query.where('gender', isEqualTo: filters.gender);
-    }
+    DebugConfig.log(
+      DebugConfig.repositoryFilter,
+      '_generalSearch: gender="${filters.gender}" handled client-side',
+    );
 
     query = query.orderBy('__name__').limit(effectiveLimit);
 

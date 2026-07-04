@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../repositories/auth_repository.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
 import '../../../shared/widgets/app_state_widget.dart';
@@ -126,9 +127,11 @@ class _RequestsDashboardScreenState extends ConsumerState<RequestsDashboardScree
   Widget build(BuildContext context) {
     final isGreek = L10n.isGreek(context);
     final theme = Theme.of(context);
-    final isAnonymous = ref.watch(authStateProvider).value?.isAnonymous ?? true;
+    final user = ref.watch(authStateProvider).value;
+    final canComm = AuthRepository.canUserCommunicate(user);
+    DebugConfig.log(DebugConfig.uiInteraction, 'RequestsDashboard build: canComm=$canComm');
 
-    if (isAnonymous) {
+    if (!canComm) {
       return Scaffold(
         appBar: AppBar(title: Text(isGreek ? 'Αιτήματα' : 'Requests')),
         body: Center(

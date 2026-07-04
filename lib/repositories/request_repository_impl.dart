@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:drift/drift.dart';
 import '../data/local/database.dart';
 import '../data/local/database_service.dart';
+import 'auth_repository.dart';
 import 'request_repository.dart';
 import '../core/debug/debug_config.dart';
 import '../core/utils/app_exception.dart';
@@ -29,8 +30,8 @@ class RequestRepositoryImpl implements RequestRepository {
   Future<void> sendRequest(String toUid, String type, {String? message}) async {
     final user = _auth.currentUser;
     if (user == null) throw AppException.auth('send_request', 'Δεν υπάρχει συνδεδεμένος χρήστης / No authenticated user');
-    if (user.isAnonymous) {
-      DebugConfig.log(DebugConfig.repositoryCall, 'sendRequest: blocked anonymous user');
+    if (!AuthRepository.canUserCommunicate(user)) {
+      DebugConfig.log(DebugConfig.authGuard, 'sendRequest: blocked unverified user');
       throw AppException.auth('send_request', 'Πρέπει να επαληθεύσεις τον λογαριασμό σου για να στείλεις αίτημα / You must verify your account');
     }
 
@@ -234,6 +235,10 @@ class RequestRepositoryImpl implements RequestRepository {
     if (user == null) {
       throw AppException.auth('respond_request', 'Δεν υπάρχει συνδεδεμένος χρήστης / No authenticated user');
     }
+    if (!AuthRepository.canUserCommunicate(user)) {
+      DebugConfig.log(DebugConfig.authGuard, 'respondToRequest: blocked unverified user');
+      throw AppException.auth('respond_request', 'Πρέπει να επαληθεύσεις τον λογαριασμό σου / You must verify your account');
+    }
 
     try {
       final docRef = _firestore.collection('requests').doc(requestId);
@@ -300,6 +305,10 @@ class RequestRepositoryImpl implements RequestRepository {
   Future<void> deleteRequest(String requestId) async {
     final user = _auth.currentUser;
     if (user == null) throw AppException.auth('delete_request', 'Δεν υπάρχει συνδεδεμένος χρήστης / No authenticated user');
+    if (!AuthRepository.canUserCommunicate(user)) {
+      DebugConfig.log(DebugConfig.authGuard, 'deleteRequest: blocked unverified user');
+      throw AppException.auth('delete_request', 'Πρέπει να επαληθεύσεις τον λογαριασμό σου / You must verify your account');
+    }
 
     DebugConfig.log(DebugConfig.repositoryCall, 'deleteRequest: id=$requestId');
 

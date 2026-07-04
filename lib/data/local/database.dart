@@ -31,7 +31,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -58,6 +58,17 @@ class AppDatabase extends _$AppDatabase {
       if (from < 6) {
         await m.addColumn(appSettingsTable, appSettingsTable.searchRadiusKm);
         DebugConfig.log(DebugConfig.databaseLocal, 'Migration v5->v6: added searchRadiusKm column');
+      }
+      if (from < 7) {
+        await m.addColumn(chatCacheTable, chatCacheTable.ownerUid);
+        // Παλιές εγγραφές (πριν το v7) δεν έχουν ownerUid, άρα δεν
+        // μπορούμε να ξέρουμε με ασφάλεια σε ποιον χρήστη ανήκουν.
+        // Καθαρίζουμε ΟΛΟΚΛΗΡΟ τον πίνακα cache — θα ξανασυγχρονιστεί
+        // αυτόματα και αβλαβώς από το Firestore στο επόμενο streamChats().
+        // Αυτό είναι το οριστικό fix του cross-account cache leak.
+        await delete(chatCacheTable).go();
+        DebugConfig.log(DebugConfig.databaseLocal,
+            'Migration v6->v7: added ownerUid column, cleared legacy chat cache (θα ξανασυγχρονιστεί από Firestore)');
       }
     },
   );

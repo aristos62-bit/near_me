@@ -248,12 +248,13 @@ class SearchNotifier extends Notifier<SearchState> {
   String _friendlyError(Object error) {
     final raw = error.toString();
     if (raw.contains('permission-denied')) {
-      return 'Δεν βρέθηκαν χρήστες. Δοκίμασε άλλα φίλτρα. / No users found. Try different filters.';
+      return 'search/permission-denied';
     }
     if (error is AppException) {
-      return error.message;
+      return error.code;
     }
-    return 'Κάτι πήγε στραβά. Δοκίμασε ξανά. / Something went wrong. Try again.';
+    DebugConfig.warn('search _friendlyError unhandled: $raw');
+    return 'search/unknown-error';
   }
 
   void clearResults() {

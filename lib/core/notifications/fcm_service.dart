@@ -3,16 +3,16 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:go_router/go_router.dart';
 import '../debug/debug_config.dart';
 import '../router/app_router.dart';
 
 @pragma('vm:entry-point')
 class FcmService {
-  static String? _pendingChatId;
-  static String? _pendingRequestId;
+  static bool isLocked = false;
+  static String? _pendingFcmPath;
+
+  static bool get hasPendingNavigation => _pendingFcmPath != null;
 
   /// Chat ID που βλέπει ο χρήστης αυτή τη στιγμή.
   /// Ενημερώνεται από `ChatScreen.initState` / `dispose`.
@@ -36,6 +36,14 @@ class FcmService {
 
     await _trySaveToken(messaging);
 
+    FirebaseAuth.instance.authStateChanges().listen((user) {
+      if (user != null) {
+        DebugConfig.log(DebugConfig.chatFcm,
+            'Auth state → user available, saving token');
+        _trySaveToken(messaging);
+      }
+    });
+
     messaging.onTokenRefresh.listen((_) {
       DebugConfig.log(DebugConfig.chatFcm, 'Token refresh');
       _trySaveToken(messaging);
@@ -48,13 +56,13 @@ class FcmService {
     if (initial != null) {
       final data = initial.data;
       if (data['type'] == 'request') {
-        _pendingRequestId = data['requestId'];
-        DebugConfig.log(DebugConfig.requestFcm, 'Pending request nav: ${data['requestId']}');
+        _pendingFcmPath = '/requests';
+        DebugConfig.log(DebugConfig.requestFcm, 'Pending nav set: /requests');
       } else {
         final cid = data['chatId'];
-        if (cid != null) {
-          _pendingChatId = cid as String;
-          DebugConfig.log(DebugConfig.chatFcm, 'Pending chat nav: $cid');
+        if (cid != null && cid is String) {
+          _pendingFcmPath = '/chat/$cid';
+          DebugConfig.log(DebugConfig.chatFcm, 'Pending nav set: /chat/$cid');
         }
       }
     }
@@ -114,14 +122,22 @@ class FcmService {
 
   static void _onMessageOpened(RemoteMessage msg) {
     final data = msg.data;
+    String? path;
     if (data['type'] == 'request') {
-      AppRouter.router.push('/requests');
+      path = '/requests';
     } else {
       final cid = data['chatId'];
-      if (cid != null && cid is String) {
-        AppRouter.router.push('/chat/$cid');
-      }
+      if (cid != null && cid is String) path = '/chat/$cid';
     }
+    if (path == null) return;
+
+    DebugConfig.log(DebugConfig.chatFcm,
+        'FCM _onMessageOpened: path=$path isLocked=$isLocked');
+    if (isLocked) {
+      _pendingFcmPath = path;
+      return;
+    }
+    AppRouter.router.push(path);
   }
 
   @pragma('vm:entry-point')
@@ -133,18 +149,20 @@ class FcmService {
     );
   }
 
-  static void checkPendingNavigation(BuildContext context) {
-    if (_pendingChatId != null) {
-      final cid = _pendingChatId!;
-      _pendingChatId = null;
-      DebugConfig.log(DebugConfig.chatFcm, 'Exec pending chat nav: $cid');
-      context.push('/chat/$cid');
-    }
-    if (_pendingRequestId != null) {
-      final rid = _pendingRequestId!;
-      _pendingRequestId = null;
-      DebugConfig.log(DebugConfig.requestFcm, 'Exec pending request nav: $rid');
-      context.push('/requests');
+  static void tryExecutePendingNav() {
+    if (_pendingFcmPath == null) return;
+    DebugConfig.log(DebugConfig.chatFcm,
+        'FCM executing pending nav=$_pendingFcmPath');
+    final path = _pendingFcmPath!;
+    _pendingFcmPath = null;
+    AppRouter.router.push(path);
+  }
+
+  static void clearPendingNav() {
+    if (_pendingFcmPath != null) {
+      DebugConfig.log(DebugConfig.chatFcm,
+          'FCM clearing pending nav=$_pendingFcmPath');
+      _pendingFcmPath = null;
     }
   }
 

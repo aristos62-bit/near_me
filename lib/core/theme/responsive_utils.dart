@@ -1,23 +1,41 @@
 import 'package:flutter/material.dart';
+import '../debug/debug_config.dart';
 
 enum ScreenBreakpoint { mobile, tablet, desktop }
 
 class ResponsiveUtils {
   ResponsiveUtils._();
 
-  static ScreenBreakpoint breakpoint(BuildContext context) {
-    final w = MediaQuery.of(context).size.width;
-    if (w < 600) return ScreenBreakpoint.mobile;
-    if (w < 900) return ScreenBreakpoint.tablet;
-    return ScreenBreakpoint.desktop;
+  // ─────────────────────────────────────────────────────────────
+  // SINGLE RESOLVER — constraints έχουν προτεραιότητα,
+  // MediaQuery fallback όταν constraints δεν είναι διαθέσιμα.
+  // ─────────────────────────────────────────────────────────────
+  static double resolveWidth(BuildContext context, BoxConstraints? constraints) {
+    if (constraints != null && constraints.maxWidth.isFinite) {
+      return constraints.maxWidth;
+    }
+    return MediaQuery.of(context).size.width;
   }
 
-  static bool isMobile(BuildContext context) => breakpoint(context) == ScreenBreakpoint.mobile;
-  static bool isTablet(BuildContext context) => breakpoint(context) == ScreenBreakpoint.tablet;
-  static bool isDesktop(BuildContext context) => breakpoint(context) == ScreenBreakpoint.desktop;
+  // ─────────────────────────────────────────────────────────────
+  // PURE WIDTH-BASED (no MediaQuery dependency)
+  // ─────────────────────────────────────────────────────────────
+  static ScreenBreakpoint breakpointFromWidth(double w) {
+    final bp = w < 600
+        ? ScreenBreakpoint.mobile
+        : w < 900
+            ? ScreenBreakpoint.tablet
+            : ScreenBreakpoint.desktop;
+    DebugConfig.log(DebugConfig.uiRebuild, 'breakpointFromWidth: ${w.toStringAsFixed(0)}px → $bp');
+    return bp;
+  }
 
-  static double paddingValue(BuildContext context) {
-    switch (breakpoint(context)) {
+  static bool isMobileFromWidth(double w) => breakpointFromWidth(w) == ScreenBreakpoint.mobile;
+  static bool isTabletFromWidth(double w) => breakpointFromWidth(w) == ScreenBreakpoint.tablet;
+  static bool isDesktopFromWidth(double w) => breakpointFromWidth(w) == ScreenBreakpoint.desktop;
+
+  static double paddingValueFromWidth(double w) {
+    switch (breakpointFromWidth(w)) {
       case ScreenBreakpoint.mobile:
         return 16;
       case ScreenBreakpoint.tablet:
@@ -27,17 +45,17 @@ class ResponsiveUtils {
     }
   }
 
-  static EdgeInsets padding(BuildContext context) {
-    final v = paddingValue(context);
+  static EdgeInsets paddingFromWidth(double w) {
+    final v = paddingValueFromWidth(w);
     return EdgeInsets.symmetric(horizontal: v, vertical: v * 0.5);
   }
 
-  static EdgeInsets horizontalPadding(BuildContext context) {
-    return EdgeInsets.symmetric(horizontal: paddingValue(context));
+  static EdgeInsets horizontalPaddingFromWidth(double w) {
+    return EdgeInsets.symmetric(horizontal: paddingValueFromWidth(w));
   }
 
-  static double maxContentWidth(BuildContext context) {
-    switch (breakpoint(context)) {
+  static double maxContentWidthFromWidth(double w) {
+    switch (breakpointFromWidth(w)) {
       case ScreenBreakpoint.mobile:
         return double.infinity;
       case ScreenBreakpoint.tablet:
@@ -47,8 +65,8 @@ class ResponsiveUtils {
     }
   }
 
-  static double gridColumns(BuildContext context) {
-    switch (breakpoint(context)) {
+  static double gridColumnsFromWidth(double w) {
+    switch (breakpointFromWidth(w)) {
       case ScreenBreakpoint.mobile:
         return 1;
       case ScreenBreakpoint.tablet:
@@ -58,6 +76,22 @@ class ResponsiveUtils {
     }
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // CONTEXT-BASED (delegate through resolveWidth — backward compat)
+  // ─────────────────────────────────────────────────────────────
+  static ScreenBreakpoint breakpoint(BuildContext context) => breakpointFromWidth(resolveWidth(context, null));
+  static bool isMobile(BuildContext context) => isMobileFromWidth(resolveWidth(context, null));
+  static bool isTablet(BuildContext context) => isTabletFromWidth(resolveWidth(context, null));
+  static bool isDesktop(BuildContext context) => isDesktopFromWidth(resolveWidth(context, null));
+  static double paddingValue(BuildContext context) => paddingValueFromWidth(resolveWidth(context, null));
+  static EdgeInsets padding(BuildContext context) => paddingFromWidth(resolveWidth(context, null));
+  static EdgeInsets horizontalPadding(BuildContext context) => horizontalPaddingFromWidth(resolveWidth(context, null));
+  static double maxContentWidth(BuildContext context) => maxContentWidthFromWidth(resolveWidth(context, null));
+  static double gridColumns(BuildContext context) => gridColumnsFromWidth(resolveWidth(context, null));
+
+  // ─────────────────────────────────────────────────────────────
+  // GENUINELY NEED CONTEXT (viewInsets, safeArea — NOT size)
+  // ─────────────────────────────────────────────────────────────
   static bool isKeyboardVisible(BuildContext context) {
     return MediaQuery.of(context).viewInsets.bottom > 0;
   }
@@ -67,6 +101,8 @@ class ResponsiveUtils {
   }
 }
 
+/// Wraps child in a [LayoutBuilder] and passes [ScreenBreakpoint] derived
+/// from constraints (no MediaQuery rebuild cascade).
 class ResponsiveBuilder extends StatelessWidget {
   final Widget Function(BuildContext context, ScreenBreakpoint breakpoint) builder;
 
@@ -74,20 +110,28 @@ class ResponsiveBuilder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
-        builder: (context, constraints) => builder(context, ResponsiveUtils.breakpoint(context)),
+        builder: (context, constraints) {
+          final w = ResponsiveUtils.resolveWidth(context, constraints);
+          return builder(context, ResponsiveUtils.breakpointFromWidth(w));
+        },
       );
 }
 
+/// Applies responsive horizontal padding derived from LayoutBuilder
+/// constraints (no MediaQuery rebuild cascade).
 class ResponsivePadding extends StatelessWidget {
   final Widget child;
 
   const ResponsivePadding({super.key, required this.child});
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: ResponsiveUtils.padding(context),
-        child: child,
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final w = ResponsiveUtils.resolveWidth(context, constraints);
+          return Padding(
+            padding: ResponsiveUtils.paddingFromWidth(w),
+            child: child,
+          );
+        },
       );
 }
-
-

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../core/utils/error_messages.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
@@ -145,7 +146,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
         AppMessenger.showSuccess(context, L10n.localizedMessage(context, 'Ο λογαριασμός διαγράφηκε / Account deleted'));
         context.go('/auth');
       } else if (next.status == DeleteState.error) {
-        AppMessenger.showError(context, L10n.localizedMessage(context, next.errorMessage ?? 'Αποτυχία διαγραφής / Delete failed'));
+        AppMessenger.showError(context, ErrorMessages.get(next.errorMessage ?? 'delete/unknown-error', L10n.isGreek(context)));
       } else if (next.status == DeleteState.needsReauth) {
         _showReauthDialog(next.email);
       }

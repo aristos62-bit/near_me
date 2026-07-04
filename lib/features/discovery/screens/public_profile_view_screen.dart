@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../repositories/auth_repository.dart';
+import '../../../core/utils/error_messages.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
 import '../../../shared/models/public_profile.dart';
@@ -69,7 +71,7 @@ class _PublicProfileViewScreenState extends ConsumerState<PublicProfileViewScree
         return Scaffold(
           appBar: AppBar(leading: const BackButton()),
           body: ErrorView(
-            message: L10n.localizedMessage(context, 'Κάτι πήγε στραβά / Something went wrong'),
+            message: ErrorMessages.get('stream/load-error', L10n.isGreek(context)),
             onRetry: () => ref.invalidate(publicProfileStreamProvider(uid)),
           ),
         );
@@ -313,12 +315,9 @@ class _PublicProfileViewScreenState extends ConsumerState<PublicProfileViewScree
     final user = ref.watch(authStateProvider).value;
     final currentUid = user?.uid;
     final isSelf = currentUid != null && currentUid == _uid;
-    if (user == null || user.isAnonymous || isSelf || _uid == null) {
-      if (user == null) {
-        DebugConfig.log(DebugConfig.uiInteraction, 'PublicProfileViewScreen: request button hidden (no user)');
-      } else if (user.isAnonymous) {
-        DebugConfig.log(DebugConfig.uiInteraction, 'PublicProfileViewScreen: request button hidden (anonymous)');
-      }
+    final canComm = AuthRepository.canUserCommunicate(user);
+    if (!canComm || isSelf || _uid == null) {
+      DebugConfig.log(DebugConfig.uiInteraction, 'PublicProfileViewScreen: request button hidden (canComm=$canComm, isSelf=$isSelf)');
       return const SizedBox.shrink();
     }
     if (!profile.allowDirectChat && !profile.allowVideoCall) {
@@ -350,12 +349,9 @@ class _PublicProfileViewScreenState extends ConsumerState<PublicProfileViewScree
     final user = ref.watch(authStateProvider).value;
     final currentUid = user?.uid;
     final isSelf = currentUid != null && currentUid == _uid;
-    if (user == null || user.isAnonymous || isSelf || _uid == null) {
-      if (user == null) {
-        DebugConfig.log(DebugConfig.uiInteraction, 'PublicProfileViewScreen: report button hidden (no user)');
-      } else if (user.isAnonymous) {
-        DebugConfig.log(DebugConfig.uiInteraction, 'PublicProfileViewScreen: report button hidden (anonymous)');
-      }
+    final canComm = AuthRepository.canUserCommunicate(user);
+    if (!canComm || isSelf || _uid == null) {
+      DebugConfig.log(DebugConfig.uiInteraction, 'PublicProfileViewScreen: report button hidden (canComm=$canComm)');
       return const SizedBox.shrink();
     }
 
@@ -426,12 +422,9 @@ class _PublicProfileViewScreenState extends ConsumerState<PublicProfileViewScree
 
   Widget _buildBlockButton(ThemeData theme, bool isGreek) {
     final user = ref.watch(authStateProvider).value;
-    if (user == null || user.isAnonymous || user.uid == _uid || _uid == null) {
-      if (user == null) {
-        DebugConfig.log(DebugConfig.uiInteraction, 'PublicProfileViewScreen: block button hidden (no user)');
-      } else if (user.isAnonymous) {
-        DebugConfig.log(DebugConfig.uiInteraction, 'PublicProfileViewScreen: block button hidden (anonymous)');
-      }
+    final canComm = AuthRepository.canUserCommunicate(user);
+    if (!canComm || user == null || user.uid == _uid || _uid == null) {
+      DebugConfig.log(DebugConfig.uiInteraction, 'PublicProfileViewScreen: block button hidden (canComm=$canComm, userUid=${user?.uid})');
       return const SizedBox.shrink();
     }
 

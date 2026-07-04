@@ -95,6 +95,38 @@ class AppMessenger {
     return result ?? false;
   }
 
+  static Future<void> showInfoDialog(
+    BuildContext context, {
+    required String title,
+    required String message,
+    IconData? icon,
+    String dismissLabel = 'OK',
+  }) async {
+    DebugConfig.log(DebugConfig.uiInteraction, 'AppMessenger showInfoDialog: $title');
+    final theme = Theme.of(context);
+    await showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: icon != null
+            ? Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(icon, size: 20),
+                const SizedBox(width: 8),
+                Flexible(child: Text(title, style: theme.textTheme.titleMedium)),
+              ])
+            : Text(title, style: theme.textTheme.titleMedium),
+        content: Text(message, style: theme.textTheme.bodyMedium),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(dismissLabel),
+          ),
+        ],
+      ),
+    );
+  }
+
   static void showLoading(BuildContext context, {String? message}) {
     DebugConfig.log(DebugConfig.uiInteraction, 'AppMessenger showLoading: ${message ?? "no message"}');
     showDialog(

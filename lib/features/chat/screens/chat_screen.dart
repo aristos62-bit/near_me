@@ -1,9 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../repositories/auth_repository.dart';
+import '../../../core/utils/error_messages.dart';
 import '../../../core/notifications/fcm_service.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
@@ -32,7 +35,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     FcmService.activeChatId = widget.chatId;
     DebugConfig.log(DebugConfig.uiInteraction,
         'ChatScreen init #$_instanceId: ${widget.chatId}');
-    _nickname = GoRouterState.of(context).extra as String?;
   }
 
   @override
@@ -43,28 +45,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     super.dispose();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _nickname ??= GoRouterState.of(context).extra as String?;
+    DebugConfig.log(DebugConfig.uiInteraction,
+        'ChatScreen didChangeDependencies #$_instanceId: '
+            'nickname=${_nickname ?? "null (will show chatId)"}');
+  }
+
   void _showE2EInfo() {
     final greek = L10n.isGreek(context);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Row(children: [
-          const Icon(Icons.lock, size: 20),
-          const SizedBox(width: 8),
-          Text(greek ? 'E2E Κρυπτογράφηση' : 'E2E Encryption'),
-        ]),
-        content: Text(greek
-            ? 'Τα μηνύματά σου προστατεύονται με κρυπτογράφηση AES-256 από άκρο σε άκρο. '
-                'Μόνο εσύ και ο/η ${_nickname ?? widget.chatId} μπορείτε να τα διαβάσετε.'
-            : 'Your messages are protected with end-to-end AES-256 encryption. '
-                'Only you and ${_nickname ?? widget.chatId} can read them.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(greek ? 'Εντάξει' : 'OK'),
-          ),
-        ],
-      ),
+    AppMessenger.showInfoDialog(
+      context,
+      icon: Icons.lock,
+      title: greek ? 'E2E Κρυπτογράφηση' : 'E2E Encryption',
+      message: greek
+          ? 'Τα μηνύματά σου προστατεύονται με κρυπτογράφηση AES-256 από άκρο σε άκρο. '
+              'Μόνο εσύ και ο/η ${_nickname ?? widget.chatId} μπορείτε να τα διαβάσετε.'
+          : 'Your messages are protected with end-to-end AES-256 encryption. '
+              'Only you and ${_nickname ?? widget.chatId} can read them.',
+      dismissLabel: greek ? 'Εντάξει' : 'OK',
     );
   }
 
@@ -275,10 +276,7 @@ class _ChatInputBarState extends ConsumerState<_ChatInputBar> {
     if (!ok) {
       _textCtrl.text = text;
       final chatState = ref.read(chatActionsProvider);
-      final msg = chatState.errorMessage != null
-          ? L10n.localizedMessage(context, chatState.errorMessage!)
-          : (L10n.isGreek(context) ? 'Αποστολή απέτυχε' : 'Send failed');
-      AppMessenger.showError(context, msg);
+      AppMessenger.showError(context, ErrorMessages.get(chatState.errorMessage ?? 'chat/send-failed', L10n.isGreek(context)));
     }
   }
 
@@ -286,8 +284,9 @@ class _ChatInputBarState extends ConsumerState<_ChatInputBar> {
   Widget build(BuildContext context) {
     final greek = L10n.isGreek(context);
     final theme = Theme.of(context);
-    final currentUser = ref.watch(authStateProvider).value;
-    final isAnonymous = currentUser == null || currentUser.isAnonymous;
+    final currentUser = ref.watch(authStateProvider).value ?? FirebaseAuth.instance.currentUser;
+    final canComm = AuthRepository.canUserCommunicate(currentUser);
+    DebugConfig.log(DebugConfig.uiInteraction, '_ChatInputBar build: canComm=$canComm');
 
     return Container(
       decoration: BoxDecoration(
@@ -300,7 +299,7 @@ class _ChatInputBarState extends ConsumerState<_ChatInputBar> {
         top: 8,
         bottom: MediaQuery.of(context).padding.bottom + 8,
       ),
-      child: isAnonymous
+      child: !canComm
           ? Row(children: [
               const SizedBox(width: 12),
               Icon(Icons.info_outline, size: 18,

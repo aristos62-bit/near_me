@@ -3,6 +3,13 @@ import 'package:drift/drift.dart';
 class ChatCacheTable extends Table {
   IntColumn get id => integer().autoIncrement()();
 
+  /// Firebase uid του κατόχου της τοπικής εγγραφής (ο χρήστης της
+  /// συσκευής, ΟΧΙ ο συνομιλητής). Χρησιμοποιείται για να αποτρέψει
+  /// διαρροή cached συνομιλιών μεταξύ διαφορετικών λογαριασμών στην
+  /// ίδια συσκευή. Nullable μόνο για συμβατότητα με παλιές εγγραφές
+  /// πριν το migration v7 (καθαρίζονται αυτόματα, βλ. database.dart).
+  TextColumn get ownerUid => text().nullable()();
+
   TextColumn get chatId => text().nullable()();
   TextColumn get otherUid => text().nullable()();
   TextColumn get otherNickname => text().nullable()();

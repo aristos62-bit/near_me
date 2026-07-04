@@ -21,6 +21,18 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
   }) : _db = db ?? DatabaseService.instance;
   User? get _user => FirebaseAuth.instance.currentUser;
 
+  PublicProfile? _safePublicProfileFromJson(Map<String, dynamic>? data) {
+    if (data == null) return null;
+    final uid = data['uid'];
+    if (uid == null || (uid is String && uid.isEmpty)) return null;
+    if (uid is! String) return null;
+    try {
+      return PublicProfile.fromJson(data);
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   Future<UserProfileTableData?> getProfile() async {
     DebugConfig.log(DebugConfig.repositoryCall, 'getProfile');
@@ -43,8 +55,10 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
               .doc('profile')
               .get();
           if (doc.exists) {
-            final pub = PublicProfile.fromJson(doc.data()!);
-            if (pub.updatedAt != null && pub.updatedAt!.isAfter(profile.updatedAt)) {
+            final pub = _safePublicProfileFromJson(doc.data());
+            if (pub == null) {
+              DebugConfig.warn('getProfile: skip merge — invalid Firestore data (missing uid)');
+            } else if (pub.updatedAt != null && pub.updatedAt!.isAfter(profile.updatedAt)) {
               final firestoreData = doc.data()!;
               final hasAvatarUrl = firestoreData.containsKey('avatarUrl');
               final hasPhotoUrls = firestoreData.containsKey('photoUrls');
@@ -80,7 +94,11 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
               DebugConfig.repositoryResult, 'getProfile: null (no local, no firestore)');
           return null;
         }
-        final pub = PublicProfile.fromJson(doc.data()!);
+        final pub = _safePublicProfileFromJson(doc.data());
+        if (pub == null) {
+          DebugConfig.warn('getProfile: skip restore — invalid Firestore data (missing uid)');
+          return null;
+        }
         final now = DateTime.now();
         final restored = UserProfileTableData(
           id: 0,

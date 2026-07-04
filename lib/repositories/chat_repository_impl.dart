@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:drift/drift.dart';
 import '../data/local/database.dart';
 import '../data/local/database_service.dart';
+import 'auth_repository.dart';
 import 'chat_repository.dart';
 import '../core/debug/debug_config.dart';
 import '../core/utils/app_exception.dart';
@@ -26,8 +27,8 @@ class ChatRepositoryImpl implements ChatRepository {
   Future<String> createChat(String otherUid) async {
     final user = _auth.currentUser;
     if (user == null) throw AppException.auth('create_chat', 'Δεν υπάρχει συνδεδεμένος χρήστης / No authenticated user');
-    if (user.isAnonymous) {
-      DebugConfig.log(DebugConfig.repositoryCall, 'createChat: blocked anonymous user');
+    if (!AuthRepository.canUserCommunicate(user)) {
+      DebugConfig.log(DebugConfig.authGuard, 'createChat: blocked unverified user');
       throw AppException.auth('create_chat', 'Πρέπει να επαληθεύσεις τον λογαριασμό σου για να ξεκινήσεις συνομιλία / You must verify your account');
     }
 
@@ -73,7 +74,7 @@ class ChatRepositoryImpl implements ChatRepository {
     DebugConfig.log(DebugConfig.repositoryResult, 'createChat: new chat created: $chatId');
 
     await EncryptionUtils.storeKey(chatId, key);
-    await _saveChatCache(chatId, otherUid, null);
+    await _saveChatCache(chatId, uid, otherUid, null);
     await _logConsent(uid, otherUid);
 
     return chatId;
@@ -102,8 +103,8 @@ class ChatRepositoryImpl implements ChatRepository {
   Future<void> sendMessage(String chatId, String content) async {
     final user = _auth.currentUser;
     if (user == null) throw AppException.auth('send_message', 'Δεν υπάρχει συνδεδεμένος χρήστης / No authenticated user');
-    if (user.isAnonymous) {
-      DebugConfig.log(DebugConfig.repositoryCall, 'sendMessage: blocked anonymous user');
+    if (!AuthRepository.canUserCommunicate(user)) {
+      DebugConfig.log(DebugConfig.authGuard, 'sendMessage: blocked unverified user');
       throw AppException.auth('send_message', 'Πρέπει να επαληθεύσεις τον λογαριασμό σου για να στείλεις μήνυμα / You must verify your account');
     }
 
@@ -168,9 +169,15 @@ class ChatRepositoryImpl implements ChatRepository {
 
   @override
   Future<List<ChatCacheTableData>> getChats() async {
-    DebugConfig.log(DebugConfig.repositoryCall, 'getChats');
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) {
+      DebugConfig.warn('getChats: no authenticated user');
+      return [];
+    }
+    DebugConfig.log(DebugConfig.repositoryCall, 'getChats: uid=$uid');
     try {
       final chats = await (_db.select(_db.chatCacheTable)
+        ..where((t) => t.ownerUid.equals(uid))
         ..orderBy([(t) => OrderingTerm.desc(t.lastMessageAt)])
       ).get();
       DebugConfig.log(DebugConfig.repositoryResult, 'getChats: ${chats.length} chats');
@@ -262,7 +269,7 @@ class ChatRepositoryImpl implements ChatRepository {
     }
   }
 
-  Future<void> _saveChatCache(String chatId, String otherUid, DateTime? lastMessageAt) async {
+  Future<void> _saveChatCache(String chatId, String ownerUid, String otherUid, DateTime? lastMessageAt) async {
     try {
       final otherProfile = await _firestore
           .collection('users').doc(otherUid).collection('public').doc('profile').get();
@@ -272,6 +279,7 @@ class ChatRepositoryImpl implements ChatRepository {
       await _db.into(_db.chatCacheTable).insert(
         ChatCacheTableCompanion.insert(
           chatId: Value(chatId),
+          ownerUid: Value(ownerUid),
           otherUid: Value(otherUid),
           otherNickname: Value(otherNickname),
           otherAvatarUrl: Value(otherAvatarUrl),
@@ -279,7 +287,7 @@ class ChatRepositoryImpl implements ChatRepository {
           hasUnread: const Value(false),
         ),
       );
-      DebugConfig.log(DebugConfig.databaseLocal, 'createChat: cache saved chat=$chatId');
+      DebugConfig.log(DebugConfig.databaseLocal, 'createChat: cache saved chat=$chatId owner=$ownerUid');
     } catch (e) {
       DebugConfig.warn('createChat: cache save failed', data: e);
     }
@@ -402,6 +410,7 @@ class ChatRepositoryImpl implements ChatRepository {
         await _db.into(_db.chatCacheTable).insert(
           ChatCacheTableCompanion.insert(
             chatId: Value(chatId),
+            ownerUid: Value(uid),
             otherUid: Value(otherUid),
             otherNickname: Value(otherNickname),
             otherAvatarUrl: Value(otherAvatarUrl),
@@ -413,7 +422,7 @@ class ChatRepositoryImpl implements ChatRepository {
             unreadCount: Value(unreadCount),
           ),
         );
-        DebugConfig.log(DebugConfig.databaseLocal, '_syncChatFromFirestore: new chat cached chatId=$chatId');
+        DebugConfig.log(DebugConfig.databaseLocal, '_syncChatFromFirestore: new chat cached chatId=$chatId owner=$uid');
       }
     } catch (e, s) {
       DebugConfig.error('_syncChatFromFirestore failed for $chatId', data: e, exception: s);
@@ -423,9 +432,9 @@ class ChatRepositoryImpl implements ChatRepository {
   @override
   Stream<List<ChatCacheTableData>> streamChats() async* {
     final user = _auth.currentUser;
-    if (user == null || user.isAnonymous) {
-      final msg = user == null ? 'no authenticated user' : 'anonymous user';
-      DebugConfig.log(DebugConfig.chatStream, 'streamChats: $msg');
+    if (user == null || !AuthRepository.canUserCommunicate(user)) {
+      final reason = user == null ? 'null user' : 'unverified user';
+      DebugConfig.log(DebugConfig.authGuard, 'streamChats: blocked ($reason)');
       await (_db.delete(_db.chatCacheTable)).go();
       yield [];
       return;
@@ -442,29 +451,30 @@ class ChatRepositoryImpl implements ChatRepository {
           .snapshots()
           .listen(
             (snapshot) async {
-              bool changed = false;
-              for (final change in snapshot.docChanges) {
-                if (change.type == DocumentChangeType.added ||
-                    change.type == DocumentChangeType.modified) {
-                  await _syncChatFromFirestore(change.doc.id, change.doc.data() as Map<String, dynamic>);
-                  changed = true;
-                } else if (change.type == DocumentChangeType.removed) {
-                  await _removeChatCache(change.doc.id);
-                  changed = true;
-                }
-              }
-              if (changed) {
-                DebugConfig.log(DebugConfig.chatStream, 'streamChats: Firestore sync completed');
-              }
-            },
-            onError: (e) {
-              DebugConfig.warn('streamChats: Firestore listener error', data: e);
-            },
-          );
+          bool changed = false;
+          for (final change in snapshot.docChanges) {
+            if (change.type == DocumentChangeType.added ||
+                change.type == DocumentChangeType.modified) {
+              await _syncChatFromFirestore(change.doc.id, change.doc.data() as Map<String, dynamic>);
+              changed = true;
+            } else if (change.type == DocumentChangeType.removed) {
+              await _removeChatCache(change.doc.id);
+              changed = true;
+            }
+          }
+          if (changed) {
+            DebugConfig.log(DebugConfig.chatStream, 'streamChats: Firestore sync completed');
+          }
+        },
+        onError: (e) {
+          DebugConfig.warn('streamChats: Firestore listener error', data: e);
+        },
+      );
 
       await for (final rows in (_db.select(_db.chatCacheTable)
-          ..orderBy([(t) => OrderingTerm.desc(t.lastMessageAt)])
-        ).watch()) {
+        ..where((t) => t.ownerUid.equals(uid))
+        ..orderBy([(t) => OrderingTerm.desc(t.lastMessageAt)])
+      ).watch()) {
         yield rows;
       }
     } finally {

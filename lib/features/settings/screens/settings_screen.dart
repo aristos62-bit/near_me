@@ -29,25 +29,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     DebugConfig.log(DebugConfig.uiInteraction, 'SettingsScreen init');
     _authUser = ref.read(authStateProvider).value;
     _phoneVerified = _computePhoneVerified(_authUser);
-
-    ref.listen<AsyncValue<User?>>(authStateProvider, (_, next) {
-      final newUser = next.value;
-      final uidChanged     = _authUser?.uid         != newUser?.uid;
-      final anonChanged    = _authUser?.isAnonymous != newUser?.isAnonymous;
-      final verifiedChanged= _authUser?.emailVerified != newUser?.emailVerified;
-      final phoneChanged   = _authUser?.phoneNumber != newUser?.phoneNumber;
-
-      if (uidChanged || anonChanged || verifiedChanged || phoneChanged) {
-        DebugConfig.log(DebugConfig.uiInteraction,
-            'SettingsScreen: user changed → rebuild');
-        if (mounted) {
-          setState(() {
-            _authUser = newUser;
-            _phoneVerified = _computePhoneVerified(newUser);
-          });
-        }
-      }
-    });
   }
 
   bool _computePhoneVerified(User? user) {
@@ -124,6 +105,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<AsyncValue<User?>>(authStateProvider, (_, next) {
+      final newUser = next.value;
+      final uidChanged     = _authUser?.uid         != newUser?.uid;
+      final anonChanged    = _authUser?.isAnonymous != newUser?.isAnonymous;
+      final verifiedChanged= _authUser?.emailVerified != newUser?.emailVerified;
+      final phoneChanged   = _authUser?.phoneNumber != newUser?.phoneNumber;
+
+      if (uidChanged || anonChanged || verifiedChanged || phoneChanged) {
+        DebugConfig.log(DebugConfig.uiInteraction,
+            'SettingsScreen: user changed → rebuild');
+        if (mounted) {
+          setState(() {
+            _authUser = newUser;
+            _phoneVerified = _computePhoneVerified(newUser);
+          });
+        }
+      }
+    });
     final isGreek = L10n.isGreek(context);
     final isAnonymous   = _authUser?.isAnonymous ?? false;
     final emailVerified = _authUser?.emailVerified ?? false;
@@ -296,8 +295,95 @@ class _DeviceSecuritySection extends ConsumerWidget {
                 }
               },
             ),
+            if (settings.biometricLockEnabled)
+              _AutoLockTile(currentMinutes: settings.autoLockMinutes),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _AutoLockTile extends ConsumerStatefulWidget {
+  final int currentMinutes;
+  const _AutoLockTile({required this.currentMinutes});
+
+  @override
+  ConsumerState<_AutoLockTile> createState() => _AutoLockTileState();
+}
+
+class _AutoLockTileState extends ConsumerState<_AutoLockTile> {
+  late int _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = widget.currentMinutes;
+  }
+
+  @override
+  void didUpdateWidget(covariant _AutoLockTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.currentMinutes != oldWidget.currentMinutes) {
+      _selected = widget.currentMinutes;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isGreek = L10n.isGreek(context);
+
+    return ResponsivePadding(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.timer_outlined),
+            title: Text(L10n.autoLockTitle(isGreek: isGreek)),
+            subtitle: Text(L10n.autoLockSubtitle(_selected, isGreek: isGreek)),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                Text('1', style: Theme.of(context).textTheme.bodySmall),
+                Expanded(
+                  child: Slider(
+                    value: _selected.toDouble(),
+                    min: 1,
+                    max: 30,
+                    divisions: 29,
+                    label: '$_selected min',
+                    semanticFormatterCallback: (v) => '${v.round()} minutes',
+                    onChanged: (v) {
+                      final rounded = v.round();
+                      if (rounded == _selected) return;
+                      setState(() {
+                        _selected = rounded;
+                      });
+                      DebugConfig.log(DebugConfig.uiInteraction,
+                          '_AutoLockTile: onChanged minutes=$rounded');
+                    },
+                    onChangeEnd: (v) async {
+                      final finalValue = v.round();
+                      DebugConfig.log(DebugConfig.uiInteraction,
+                          '_AutoLockTile: onChangeEnd minutes=$finalValue');
+                      await ref
+                          .read(appSettingsProvider.notifier)
+                          .setAutoLockMinutes(finalValue);
+                      if (context.mounted) {
+                        AppMessenger.showSuccess(context,
+                            L10n.autoLockUpdated(finalValue, isGreek: isGreek));
+                      }
+                    },
+                  ),
+                ),
+                Text('30', style: Theme.of(context).textTheme.bodySmall),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

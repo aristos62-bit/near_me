@@ -36,13 +36,13 @@ class DeleteAccountNotifier extends Notifier<DeleteAccountState> {
         state = DeleteAccountState(status: DeleteState.needsReauth, email: email);
       } else {
         state = DeleteAccountState(status: DeleteState.error,
-            errorMessage: 'Σφάλμα διαγραφής λογαριασμού / Account deletion error');
+            errorMessage: 'delete/unknown-error');
       }
     } catch (e, s) {
       DebugConfig.error('deleteAccountNotifier.delete failed', data: e, exception: s);
       state = DeleteAccountState(
         status: DeleteState.error,
-        errorMessage: 'Σφάλμα διαγραφής λογαριασμού / Account deletion error',
+        errorMessage: 'delete/unknown-error',
       );
     }
   }
@@ -58,7 +58,7 @@ class DeleteAccountNotifier extends Notifier<DeleteAccountState> {
       DebugConfig.error('deleteAccountNotifier.deleteWithPassword failed', data: e, exception: s);
       state = DeleteAccountState(
         status: DeleteState.error,
-        errorMessage: 'Σφάλμα διαγραφής λογαριασμού / Account deletion error',
+        errorMessage: 'delete/unknown-error',
       );
     }
   }

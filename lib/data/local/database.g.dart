@@ -2842,6 +2842,17 @@ class $ChatCacheTableTable extends ChatCacheTable
       'PRIMARY KEY AUTOINCREMENT',
     ),
   );
+  static const VerificationMeta _ownerUidMeta = const VerificationMeta(
+    'ownerUid',
+  );
+  @override
+  late final GeneratedColumn<String> ownerUid = GeneratedColumn<String>(
+    'owner_uid',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _chatIdMeta = const VerificationMeta('chatId');
   @override
   late final GeneratedColumn<String> chatId = GeneratedColumn<String>(
@@ -2960,6 +2971,7 @@ class $ChatCacheTableTable extends ChatCacheTable
   @override
   List<GeneratedColumn> get $columns => [
     id,
+    ownerUid,
     chatId,
     otherUid,
     otherNickname,
@@ -2985,6 +2997,12 @@ class $ChatCacheTableTable extends ChatCacheTable
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('owner_uid')) {
+      context.handle(
+        _ownerUidMeta,
+        ownerUid.isAcceptableOrUnknown(data['owner_uid']!, _ownerUidMeta),
+      );
     }
     if (data.containsKey('chat_id')) {
       context.handle(
@@ -3080,6 +3098,10 @@ class $ChatCacheTableTable extends ChatCacheTable
         DriftSqlType.int,
         data['${effectivePrefix}id'],
       )!,
+      ownerUid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}owner_uid'],
+      ),
       chatId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}chat_id'],
@@ -3132,6 +3154,13 @@ class $ChatCacheTableTable extends ChatCacheTable
 class ChatCacheTableData extends DataClass
     implements Insertable<ChatCacheTableData> {
   final int id;
+
+  /// Firebase uid του κατόχου της τοπικής εγγραφής (ο χρήστης της
+  /// συσκευής, ΟΧΙ ο συνομιλητής). Χρησιμοποιείται για να αποτρέψει
+  /// διαρροή cached συνομιλιών μεταξύ διαφορετικών λογαριασμών στην
+  /// ίδια συσκευή. Nullable μόνο για συμβατότητα με παλιές εγγραφές
+  /// πριν το migration v7 (καθαρίζονται αυτόματα, βλ. database.dart).
+  final String? ownerUid;
   final String? chatId;
   final String? otherUid;
   final String? otherNickname;
@@ -3144,6 +3173,7 @@ class ChatCacheTableData extends DataClass
   final bool hasUnread;
   const ChatCacheTableData({
     required this.id,
+    this.ownerUid,
     this.chatId,
     this.otherUid,
     this.otherNickname,
@@ -3159,6 +3189,9 @@ class ChatCacheTableData extends DataClass
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
+    if (!nullToAbsent || ownerUid != null) {
+      map['owner_uid'] = Variable<String>(ownerUid);
+    }
     if (!nullToAbsent || chatId != null) {
       map['chat_id'] = Variable<String>(chatId);
     }
@@ -3191,6 +3224,9 @@ class ChatCacheTableData extends DataClass
   ChatCacheTableCompanion toCompanion(bool nullToAbsent) {
     return ChatCacheTableCompanion(
       id: Value(id),
+      ownerUid: ownerUid == null && nullToAbsent
+          ? const Value.absent()
+          : Value(ownerUid),
       chatId: chatId == null && nullToAbsent
           ? const Value.absent()
           : Value(chatId),
@@ -3227,6 +3263,7 @@ class ChatCacheTableData extends DataClass
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return ChatCacheTableData(
       id: serializer.fromJson<int>(json['id']),
+      ownerUid: serializer.fromJson<String?>(json['ownerUid']),
       chatId: serializer.fromJson<String?>(json['chatId']),
       otherUid: serializer.fromJson<String?>(json['otherUid']),
       otherNickname: serializer.fromJson<String?>(json['otherNickname']),
@@ -3246,6 +3283,7 @@ class ChatCacheTableData extends DataClass
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
+      'ownerUid': serializer.toJson<String?>(ownerUid),
       'chatId': serializer.toJson<String?>(chatId),
       'otherUid': serializer.toJson<String?>(otherUid),
       'otherNickname': serializer.toJson<String?>(otherNickname),
@@ -3261,6 +3299,7 @@ class ChatCacheTableData extends DataClass
 
   ChatCacheTableData copyWith({
     int? id,
+    Value<String?> ownerUid = const Value.absent(),
     Value<String?> chatId = const Value.absent(),
     Value<String?> otherUid = const Value.absent(),
     Value<String?> otherNickname = const Value.absent(),
@@ -3273,6 +3312,7 @@ class ChatCacheTableData extends DataClass
     bool? hasUnread,
   }) => ChatCacheTableData(
     id: id ?? this.id,
+    ownerUid: ownerUid.present ? ownerUid.value : this.ownerUid,
     chatId: chatId.present ? chatId.value : this.chatId,
     otherUid: otherUid.present ? otherUid.value : this.otherUid,
     otherNickname: otherNickname.present
@@ -3297,6 +3337,7 @@ class ChatCacheTableData extends DataClass
   ChatCacheTableData copyWithCompanion(ChatCacheTableCompanion data) {
     return ChatCacheTableData(
       id: data.id.present ? data.id.value : this.id,
+      ownerUid: data.ownerUid.present ? data.ownerUid.value : this.ownerUid,
       chatId: data.chatId.present ? data.chatId.value : this.chatId,
       otherUid: data.otherUid.present ? data.otherUid.value : this.otherUid,
       otherNickname: data.otherNickname.present
@@ -3328,6 +3369,7 @@ class ChatCacheTableData extends DataClass
   String toString() {
     return (StringBuffer('ChatCacheTableData(')
           ..write('id: $id, ')
+          ..write('ownerUid: $ownerUid, ')
           ..write('chatId: $chatId, ')
           ..write('otherUid: $otherUid, ')
           ..write('otherNickname: $otherNickname, ')
@@ -3345,6 +3387,7 @@ class ChatCacheTableData extends DataClass
   @override
   int get hashCode => Object.hash(
     id,
+    ownerUid,
     chatId,
     otherUid,
     otherNickname,
@@ -3361,6 +3404,7 @@ class ChatCacheTableData extends DataClass
       identical(this, other) ||
       (other is ChatCacheTableData &&
           other.id == this.id &&
+          other.ownerUid == this.ownerUid &&
           other.chatId == this.chatId &&
           other.otherUid == this.otherUid &&
           other.otherNickname == this.otherNickname &&
@@ -3375,6 +3419,7 @@ class ChatCacheTableData extends DataClass
 
 class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
   final Value<int> id;
+  final Value<String?> ownerUid;
   final Value<String?> chatId;
   final Value<String?> otherUid;
   final Value<String?> otherNickname;
@@ -3387,6 +3432,7 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
   final Value<bool> hasUnread;
   const ChatCacheTableCompanion({
     this.id = const Value.absent(),
+    this.ownerUid = const Value.absent(),
     this.chatId = const Value.absent(),
     this.otherUid = const Value.absent(),
     this.otherNickname = const Value.absent(),
@@ -3400,6 +3446,7 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
   });
   ChatCacheTableCompanion.insert({
     this.id = const Value.absent(),
+    this.ownerUid = const Value.absent(),
     this.chatId = const Value.absent(),
     this.otherUid = const Value.absent(),
     this.otherNickname = const Value.absent(),
@@ -3413,6 +3460,7 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
   });
   static Insertable<ChatCacheTableData> custom({
     Expression<int>? id,
+    Expression<String>? ownerUid,
     Expression<String>? chatId,
     Expression<String>? otherUid,
     Expression<String>? otherNickname,
@@ -3426,6 +3474,7 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
+      if (ownerUid != null) 'owner_uid': ownerUid,
       if (chatId != null) 'chat_id': chatId,
       if (otherUid != null) 'other_uid': otherUid,
       if (otherNickname != null) 'other_nickname': otherNickname,
@@ -3441,6 +3490,7 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
 
   ChatCacheTableCompanion copyWith({
     Value<int>? id,
+    Value<String?>? ownerUid,
     Value<String?>? chatId,
     Value<String?>? otherUid,
     Value<String?>? otherNickname,
@@ -3454,6 +3504,7 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
   }) {
     return ChatCacheTableCompanion(
       id: id ?? this.id,
+      ownerUid: ownerUid ?? this.ownerUid,
       chatId: chatId ?? this.chatId,
       otherUid: otherUid ?? this.otherUid,
       otherNickname: otherNickname ?? this.otherNickname,
@@ -3472,6 +3523,9 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
     final map = <String, Expression>{};
     if (id.present) {
       map['id'] = Variable<int>(id.value);
+    }
+    if (ownerUid.present) {
+      map['owner_uid'] = Variable<String>(ownerUid.value);
     }
     if (chatId.present) {
       map['chat_id'] = Variable<String>(chatId.value);
@@ -3510,6 +3564,7 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
   String toString() {
     return (StringBuffer('ChatCacheTableCompanion(')
           ..write('id: $id, ')
+          ..write('ownerUid: $ownerUid, ')
           ..write('chatId: $chatId, ')
           ..write('otherUid: $otherUid, ')
           ..write('otherNickname: $otherNickname, ')
@@ -6459,6 +6514,7 @@ typedef $$ConsentLogTableTableProcessedTableManager =
 typedef $$ChatCacheTableTableCreateCompanionBuilder =
     ChatCacheTableCompanion Function({
       Value<int> id,
+      Value<String?> ownerUid,
       Value<String?> chatId,
       Value<String?> otherUid,
       Value<String?> otherNickname,
@@ -6473,6 +6529,7 @@ typedef $$ChatCacheTableTableCreateCompanionBuilder =
 typedef $$ChatCacheTableTableUpdateCompanionBuilder =
     ChatCacheTableCompanion Function({
       Value<int> id,
+      Value<String?> ownerUid,
       Value<String?> chatId,
       Value<String?> otherUid,
       Value<String?> otherNickname,
@@ -6496,6 +6553,11 @@ class $$ChatCacheTableTableFilterComposer
   });
   ColumnFilters<int> get id => $composableBuilder(
     column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ownerUid => $composableBuilder(
+    column: $table.ownerUid,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6564,6 +6626,11 @@ class $$ChatCacheTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get ownerUid => $composableBuilder(
+    column: $table.ownerUid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get chatId => $composableBuilder(
     column: $table.chatId,
     builder: (column) => ColumnOrderings(column),
@@ -6626,6 +6693,9 @@ class $$ChatCacheTableTableAnnotationComposer
   });
   GeneratedColumn<int> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get ownerUid =>
+      $composableBuilder(column: $table.ownerUid, builder: (column) => column);
 
   GeneratedColumn<String> get chatId =>
       $composableBuilder(column: $table.chatId, builder: (column) => column);
@@ -6710,6 +6780,7 @@ class $$ChatCacheTableTableTableManager
           updateCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
+                Value<String?> ownerUid = const Value.absent(),
                 Value<String?> chatId = const Value.absent(),
                 Value<String?> otherUid = const Value.absent(),
                 Value<String?> otherNickname = const Value.absent(),
@@ -6722,6 +6793,7 @@ class $$ChatCacheTableTableTableManager
                 Value<bool> hasUnread = const Value.absent(),
               }) => ChatCacheTableCompanion(
                 id: id,
+                ownerUid: ownerUid,
                 chatId: chatId,
                 otherUid: otherUid,
                 otherNickname: otherNickname,
@@ -6736,6 +6808,7 @@ class $$ChatCacheTableTableTableManager
           createCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
+                Value<String?> ownerUid = const Value.absent(),
                 Value<String?> chatId = const Value.absent(),
                 Value<String?> otherUid = const Value.absent(),
                 Value<String?> otherNickname = const Value.absent(),
@@ -6748,6 +6821,7 @@ class $$ChatCacheTableTableTableManager
                 Value<bool> hasUnread = const Value.absent(),
               }) => ChatCacheTableCompanion.insert(
                 id: id,
+                ownerUid: ownerUid,
                 chatId: chatId,
                 otherUid: otherUid,
                 otherNickname: otherNickname,

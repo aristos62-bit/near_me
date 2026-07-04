@@ -3,11 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/theme/responsive_utils.dart';
+import '../../../core/utils/error_messages.dart';
 import '../../../core/utils/app_messenger.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../../../shared/widgets/gps_strength_indicator.dart';
-import '../../../shared/widgets/profile_card.dart';
+import '../widgets/search_results_grid.dart';
 import '../../profile/providers/location_service.dart';
 import '../../profile/providers/profile_provider.dart';
 import '../../settings/providers/app_settings_provider.dart';
@@ -25,56 +25,21 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
   // ── State flags ────────────────────────────────────────────────
   bool _isDetecting = false;
   bool _hasAttemptedAutoSearch = false; // τίθεται ΑΜΕΣΩΣ για race-condition fix
-  bool _isLoadingMore = false;          // guard για concurrent loadMore
   DateTime? _lastAutoPublish;
   double _defaultRadius = 10.0;           // debounce για auto-publish
 
-  final ScrollController _scrollController = ScrollController();
-
   static const _locationDebounce = Duration(minutes: 3);
-  static const _scrollThreshold = 0.8;
 
   @override
   void initState() {
     super.initState();
     DebugConfig.log(DebugConfig.uiInteraction, 'DiscoveryScreen init');
-    _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) => _autoSearch());
   }
 
   @override
   void dispose() {
-    _scrollController.removeListener(_onScroll);
-    _scrollController.dispose();
     super.dispose();
-  }
-
-  void _onScroll() {
-    if (_isLoadingMore) {
-      DebugConfig.log(DebugConfig.uiInteraction, '_onScroll: skipped (already loading)');
-      return;
-    }
-    final pos = _scrollController.position;
-    if (pos.pixels >= pos.maxScrollExtent * _scrollThreshold) {
-      DebugConfig.log(DebugConfig.uiInteraction,
-          '_onScroll: threshold reached (${pos.pixels.toStringAsFixed(0)}/${pos.maxScrollExtent.toStringAsFixed(0)})');
-      _triggerLoadMore();
-    }
-  }
-
-  Future<void> _triggerLoadMore() async {
-    if (_isLoadingMore) {
-      DebugConfig.log(DebugConfig.uiInteraction, '_triggerLoadMore: skipped (already loading)');
-      return;
-    }
-    _isLoadingMore = true;
-    DebugConfig.log(DebugConfig.uiInteraction, '_triggerLoadMore: started');
-    try {
-      await ref.read(searchProvider.notifier).loadMore();
-      DebugConfig.log(DebugConfig.repositoryResult, '_triggerLoadMore: completed');
-    } finally {
-      if (mounted) _isLoadingMore = false;
-    }
   }
 
   Future<void> _autoSearch() async {
@@ -185,6 +150,10 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
         return isGreek
             ? 'Ο εντοπισμός απέτυχε (timeout). Δοκίμασε ξανά'
             : 'Location timed out. Try again';
+      case LocationFailure.staleData:
+        return isGreek
+            ? 'Η τοποθεσία είναι παλιά. Βγες σε ανοιχτό χώρο για ανανέωση'
+            : 'Location data is stale. Go outside to refresh';
       case LocationFailure.error:
         return isGreek
             ? 'Σφάλμα κατά τον εντοπισμό τοποθεσίας'
@@ -249,26 +218,32 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(
-      appSettingsProvider,
-      (_, next) {
-        final saved = next.asData?.value.searchRadiusKm;
-        if (saved != null && mounted) {
-          final clamped = saved.clamp(1.0, 100.0);
-          if (clamped != _defaultRadius) {
-            setState(() => _defaultRadius = clamped);
-            DebugConfig.log(DebugConfig.uiInteraction,
-                'DiscoveryScreen: loaded radius=$_defaultRadius km from AppSettings');
-          }
-        }
-      },
+    final savedRadius = ref.watch(
+      appSettingsProvider.select((s) => s.asData?.value.searchRadiusKm),
     );
+    if (savedRadius != null && mounted) {
+      final clamped = savedRadius.clamp(1.0, 100.0);
+      if (clamped != _defaultRadius) {
+        _defaultRadius = clamped;
+        DebugConfig.log(DebugConfig.uiInteraction,
+            'DiscoveryScreen: loaded radius=$_defaultRadius km from AppSettings');
+      }
+    }
 
     final searchState = ref.watch(searchProvider);
     final theme = Theme.of(context);
     final isGreek = L10n.isGreek(context);
 
     return Scaffold(
+      // ── FIX Πρόβλημα 2 (διορθωμένη θέση) ──
+      // Το DiscoveryScreen έχει δικό του Scaffold, ξεχωριστό από του MainShell.
+      // Το MediaQuery.viewInsets είναι καθολικό στην εφαρμογή, άρα χωρίς αυτό
+      // το flag, όταν ανοίγει το πληκτρολόγιο σε ΑΛΛΗ οθόνη (π.χ. Phone Verify,
+      // πάνω από το MainShell), αυτό το Scaffold συρρικνώνει πραγματικά το
+      // body του σε κάθε frame του animation — προκαλώντας πλήρες relayout
+      // στο ListView/ProfileCard, ενώ ο χρήστης δεν βλέπει καν αυτή την οθόνη.
+      // Δεν υπάρχει TextField εδώ, άρα δεν χρειάζεται πραγματικό keyboard resize.
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: Text(isGreek ? 'Ανακάλυψη' : 'Discover'),
         actions: [
@@ -296,7 +271,7 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
         return _buildSearchPrompt(theme, isGreek);
       case SearchStatus.loading:
         if (state.results.isNotEmpty) {
-          return _buildResultsList(state, isGreek, isLoadingMore: true);
+          return const SearchResultsGrid();
         }
         return Center(
           child: LoadingView(
@@ -316,15 +291,12 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
         }
         return RefreshIndicator(
           onRefresh: _onRefresh,
-          child: _buildResultsList(state, isGreek),
+          child: const SearchResultsGrid(),
         );
       case SearchStatus.error:
         return Center(
           child: ErrorView(
-            message: L10n.localizedMessage(
-              context,
-              state.errorMessage ?? 'Κάτι πήγε στραβά / Something went wrong',
-            ),
+            message: ErrorMessages.get(state.errorMessage ?? 'search/unknown-error', L10n.isGreek(context)),
             onRetry: _onRefresh,
           ),
         );
@@ -366,43 +338,5 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
     );
   }
 
-  Widget _buildResultsList(SearchState state, bool isGreek,
-      {bool isLoadingMore = false}) {
-    final isMobile = ResponsiveUtils.isMobile(context);
-    final hPad = ResponsiveUtils.horizontalPadding(context);
 
-    return ListView(
-      controller: _scrollController,
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: EdgeInsets.fromLTRB(hPad.left, 12, hPad.right, 24),
-      children: [
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          alignment: WrapAlignment.center,
-          children: state.results.map((p) {
-            final dist = state.distances[p.uid];
-            if (dist != null) {
-              DebugConfig.log(
-                DebugConfig.repositoryResult,
-                'ProfileCard uid=${p.uid} '
-                    'distance=${dist.toStringAsFixed(1)}km',
-              );
-            }
-            return ProfileCard(
-              profile: p,
-              width: isMobile ? double.infinity : 180,
-              distanceKm: dist,
-              onTap: () => context.push('/user/${p.uid}'),
-            );
-          }).toList(),
-        ),
-        if (isLoadingMore || state.hasMore)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 16),
-            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-          ),
-      ],
-    );
-  }
 }

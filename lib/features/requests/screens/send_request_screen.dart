@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../repositories/auth_repository.dart';
 import '../../../core/utils/app_exception.dart';
+import '../../../core/utils/error_messages.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
 import '../../../shared/models/public_profile.dart';
@@ -229,17 +231,15 @@ class _SendRequestScreenState extends ConsumerState<SendRequestScreen> {
 
   Widget _buildSendButton(ThemeData theme, bool isGreek) {
     final user = ref.watch(authStateProvider).value;
-    final isAnonymous = user == null || user.isAnonymous;
-    final disabled = isAnonymous || _selectedType == null || _isSending;
+    final canComm = AuthRepository.canUserCommunicate(user);
+    final disabled = !canComm || _selectedType == null || _isSending;
 
-    if (isAnonymous) {
-      DebugConfig.log(DebugConfig.uiInteraction, 'SendRequestScreen: send button disabled (anonymous)');
-    }
+    DebugConfig.log(DebugConfig.uiInteraction, 'SendRequestScreen: send button disabled=${!canComm} (canComm=$canComm)');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (isAnonymous)
+        if (!canComm)
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Container(
@@ -310,10 +310,9 @@ class _SendRequestScreenState extends ConsumerState<SendRequestScreen> {
       DebugConfig.error('SendRequestScreen send failed', data: e);
       if (mounted) {
         setState(() => _isSending = false);
-        final msg = e is AppException
-            ? L10n.localizedMessage(context, e.message)
-            : L10n.localizedMessage(context, 'Αποτυχία αποστολής / Failed to send');
-        AppMessenger.showError(context, msg);
+        AppMessenger.showError(context, ErrorMessages.get(
+            e is AppException ? e.message : 'request/send-failed',
+            L10n.isGreek(context)));
       }
     }
   }

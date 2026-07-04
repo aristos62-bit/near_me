@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../repositories/auth_repository.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
 import '../../../data/local/database.dart';
@@ -33,8 +34,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final isGreek = L10n.isGreek(context);
     final profileAsync = ref.watch(currentProfileProvider);
     final user = ref.watch(authStateProvider).value;
-    final isAnonymous = user?.isAnonymous ?? true;
-    final emailVerified = user?.emailVerified ?? false;
+    final canComm = AuthRepository.canUserCommunicate(user);
+    DebugConfig.log(DebugConfig.uiInteraction, 'ProfileScreen build: canComm=$canComm');
 
     return Scaffold(
       appBar: AppBar(
@@ -59,14 +60,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           );
         },
         data: (profile) {
-          if (profile == null) return _buildEmptyState(isGreek, isAnonymous);
-          return _buildProfileView(profile, isGreek, isAnonymous, emailVerified);
+          if (profile == null) return _buildEmptyState(isGreek);
+          return _buildProfileView(profile, isGreek, canComm);
         },
       ),
     );
   }
 
-  Widget _buildEmptyState(bool isGreek, bool isAnonymous) {
+  Widget _buildEmptyState(bool isGreek) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -98,58 +99,67 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  Widget _buildProfileView(UserProfileTableData profile, bool isGreek, bool isAnonymous, bool emailVerified) {
+  Widget _buildProfileView(UserProfileTableData profile, bool isGreek, bool canComm) {
     final age = profile.birthYear != null ? DateTime.now().year - profile.birthYear! : null;
     final theme = Theme.of(context);
 
     return SingleChildScrollView(
       child: Center(
-        child: SizedBox(
-          width: ResponsiveUtils.maxContentWidth(context),
-          child: Column(
-            children: [
-              GradientHeader(
-                icon: Icons.person,
-                title: profile.nickname ?? (isGreek ? 'Χωρίς όνομα' : 'Unnamed'),
-                subtitle: [
-                  if (age != null) '$age ${isGreek ? 'ετών' : 'yo'}',
-                  if (profile.city != null && profile.city!.isNotEmpty) profile.city!,
-                  if (profile.gender != null && profile.gender!.isNotEmpty)
-                    L10n.genderLabel(profile.gender!, isGreek: isGreek),
-                ].where((s) => s.isNotEmpty).join(' · '),
-                child: profile.avatarUrl != null && profile.avatarUrl!.isNotEmpty
-                    ? ClipOval(
-                        child: CachedNetworkImage(
-                          imageUrl: profile.avatarUrl!,
-                          width: 64, height: 64, fit: BoxFit.cover,
-                          placeholder: (ctx, url) => SizedBox(width: 64, height: 64,
-                            child: Icon(Icons.person, color: Colors.white.withAlpha(100), size: 32)),
-                          errorWidget: (ctx, url, err) => SizedBox(width: 64, height: 64,
-                            child: Icon(Icons.person, color: Colors.white.withAlpha(100), size: 32)),
-                        ),
-                      )
-                    : null,
-              ),
-              if (profile.bio != null && profile.bio!.isNotEmpty)
-                _infoCard(theme, Icons.article_outlined,
-                    isGreek ? 'Σχετικά' : 'About', profile.bio!),
-              _infoCard(theme, Icons.interests_outlined,
-                  isGreek ? 'Ενδιαφέροντα' : 'Interests',
-                  profile.interests?.map((i) => L10n.interestLabel(i, isGreek: isGreek)).join(', ') ??
-                      (isGreek ? 'Δεν έχουν οριστεί' : 'Not set')),
-              if (profile.lookingFor != null && profile.lookingFor!.isNotEmpty)
-                _infoCard(theme, Icons.explore_outlined,
-                    isGreek ? 'Αναζητά' : 'Looking For',
-                    L10n.lookingForLabel(profile.lookingFor!, isGreek: isGreek)),
-              if (!isAnonymous && emailVerified)
-                _buildPublishToggle(profile, theme, isGreek)
-              else
-                _buildVerifyBanner(theme, isGreek),
-              const SizedBox(height: 8),
-              _buildMenu(theme, isGreek),
-              const SizedBox(height: 32),
-            ],
-          ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final w = ResponsiveUtils.maxContentWidthFromWidth(
+              ResponsiveUtils.resolveWidth(context, constraints),
+            );
+            // ── ΠΡΟΣΩΡΙΝΟ DIAGNOSTIC LOG — Πρόβλημα 2 (θα αφαιρεθεί μετά) ──
+            DebugConfig.log(DebugConfig.uiRebuild,
+                'ProfileScreen LayoutBuilder REBUILT — '
+                    'constraints=$constraints, '
+                    'time=${DateTime.now().toIso8601String().substring(11, 23)}');
+            return SizedBox(width: w, child: Column(
+              children: [
+                GradientHeader(
+                  icon: Icons.person,
+                  title: profile.nickname ?? (isGreek ? 'Χωρίς όνομα' : 'Unnamed'),
+                  subtitle: [
+                    if (age != null) '$age ${isGreek ? 'ετών' : 'yo'}',
+                    if (profile.city != null && profile.city!.isNotEmpty) profile.city!,
+                    if (profile.gender != null && profile.gender!.isNotEmpty)
+                      L10n.genderLabel(profile.gender!, isGreek: isGreek),
+                  ].where((s) => s.isNotEmpty).join(' · '),
+                  child: profile.avatarUrl != null && profile.avatarUrl!.isNotEmpty
+                      ? ClipOval(
+                          child: CachedNetworkImage(
+                            imageUrl: profile.avatarUrl!,
+                            width: 64, height: 64, fit: BoxFit.cover,
+                            placeholder: (ctx, url) => SizedBox(width: 64, height: 64,
+                              child: Icon(Icons.person, color: Colors.white.withAlpha(100), size: 32)),
+                            errorWidget: (ctx, url, err) => SizedBox(width: 64, height: 64,
+                              child: Icon(Icons.person, color: Colors.white.withAlpha(100), size: 32)),
+                          ),
+                        )
+                      : null,
+                ),
+                if (profile.bio != null && profile.bio!.isNotEmpty)
+                  _infoCard(theme, Icons.article_outlined,
+                      isGreek ? 'Σχετικά' : 'About', profile.bio!),
+                _infoCard(theme, Icons.interests_outlined,
+                    isGreek ? 'Ενδιαφέροντα' : 'Interests',
+                    profile.interests?.map((i) => L10n.interestLabel(i, isGreek: isGreek)).join(', ') ??
+                        (isGreek ? 'Δεν έχουν οριστεί' : 'Not set')),
+                if (profile.lookingFor != null && profile.lookingFor!.isNotEmpty)
+                  _infoCard(theme, Icons.explore_outlined,
+                      isGreek ? 'Αναζητά' : 'Looking For',
+                      L10n.lookingForLabel(profile.lookingFor!, isGreek: isGreek)),
+                if (canComm)
+                  _buildPublishToggle(profile, theme, isGreek)
+                else
+                  _buildVerifyBanner(theme, isGreek, canComm),
+                const SizedBox(height: 8),
+                _buildMenu(theme, isGreek),
+                const SizedBox(height: 32),
+              ],
+            ));
+          },
         ),
       ),
     );
@@ -206,8 +216,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  Widget _buildVerifyBanner(ThemeData theme, bool isGreek) {
-    DebugConfig.log(DebugConfig.uiInteraction, 'ProfileScreen: showing verify banner for anonymous');
+  Widget _buildVerifyBanner(ThemeData theme, bool isGreek, bool canComm) {
+    DebugConfig.log(DebugConfig.uiInteraction, 'ProfileScreen: showing verify banner (canComm=$canComm)');
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
       child: Card(

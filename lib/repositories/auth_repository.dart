@@ -1,6 +1,24 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import '../core/debug/debug_config.dart';
 
 abstract class AuthRepository {
+  /// Single point of truth: can this user send messages, requests, publish, etc.?
+  /// Requires: authenticated + NOT anonymous + (email verified OR phone linked).
+  static bool canUserCommunicate(User? user) {
+    if (user == null) {
+      DebugConfig.log(DebugConfig.authGuard, 'canUserCommunicate: false (null user)');
+      return false;
+    }
+    if (user.isAnonymous) {
+      DebugConfig.log(DebugConfig.authGuard, 'canUserCommunicate: false (anonymous)');
+      return false;
+    }
+    final hasPhone = user.phoneNumber != null && user.phoneNumber!.isNotEmpty;
+    final result = user.emailVerified || hasPhone;
+    DebugConfig.log(DebugConfig.authGuard,
+        'canUserCommunicate: $result (emailVerified=${user.emailVerified}, hasPhone=$hasPhone)');
+    return result;
+  }
   Future<User> signInAnonymously();
   Future<void> signOut();
   Future<void> deleteAccount({String? password});

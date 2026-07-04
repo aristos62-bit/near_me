@@ -17,8 +17,11 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
 
 final authStateProvider = StreamProvider<User?>((ref) {
   DebugConfig.log(DebugConfig.providerCreate, 'authStateProvider created');
-  final auth = ref.watch(authRepositoryProvider);
-  return auth.authStateChanges();
+  return FirebaseAuth.instance.userChanges().map((user) {
+    DebugConfig.log(DebugConfig.authFlow,
+        'userChanges: uid=${user?.uid ?? "null"} anon=${user?.isAnonymous} emailVerified=${user?.emailVerified}');
+    return user;
+  });
 });
 
 enum VerifyStatus { idle, loading, emailSent, verified, error }
@@ -108,6 +111,18 @@ class VerifyAccountNotifier extends Notifier<VerifyAccountState> {
     } catch (e) {
       DebugConfig.warn('VerifyAccount: password reset failed', data: e);
       state = VerifyAccountState(status: VerifyStatus.error, errorMessage: _friendlyError(e));
+    }
+  }
+
+  Future<void> checkVerificationSilent() async {
+    try {
+      await _auth.reloadUser();
+      if (_auth.isEmailVerified) {
+        DebugConfig.log(DebugConfig.authFlow, 'checkVerificationSilent: verified!');
+        state = const VerifyAccountState(status: VerifyStatus.verified);
+      }
+    } catch (e) {
+      DebugConfig.warn('checkVerificationSilent: failed', data: e);
     }
   }
 

@@ -47,7 +47,6 @@ class _AppBootstrapState extends State<AppBootstrap> {
         '[TIMING] Splash rendered immediately');
     WidgetsBinding.instance.addPostFrameCallback((_) => _initAfterFrame());
   }
-
   @override
   void dispose() {
     // Future: clean up timers/subscriptions if added
@@ -176,6 +175,9 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
   bool _authInProgress = false;
   DateTime _lastUnlockTime = DateTime(2000);
   DateTime? _lastPauseTime;
+  Timer? _idleTimer;
+  int _cachedAutoLockMinutes = 0;
+  bool _cachedBiometricEnabled = false;
   late final Locale? _deviceLocale;
 
   @override
@@ -183,13 +185,6 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
     super.initState();
     _deviceLocale = L10n.deviceLocale();
     WidgetsBinding.instance.addObserver(this);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      try {
-        FcmService.checkPendingNavigation(context);
-      } catch (e) {
-        DebugConfig.error('main: postFrameCallback error', data: e);
-      }
-    });
     _fcmSub = FcmService.foregroundStream.listen(
       _onFcmForeground,
       onError: (e) => DebugConfig.error('main: FCM foreground stream error', data: e),
@@ -200,24 +195,32 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
   Future<void> _applyStartupLock() async {
     try {
       final settings = ref.read(appSettingsProvider).value;
-      if (settings == null || !settings.biometricLockEnabled) return;
+      if (settings == null || !settings.biometricLockEnabled) {
+        FcmService.tryExecutePendingNav();
+        return;
+      }
       DebugConfig.log(DebugConfig.serviceCall,
           'main: startup biometric lock check');
+      FcmService.isLocked = true;
       final authed = await LockScreen.authenticate(
         reason: 'Unlock NearMe',
       );
       if (authed) {
+        FcmService.isLocked = false;
         _lastUnlockTime = DateTime.now();
+        FcmService.tryExecutePendingNav();
       } else if (mounted) {
         setState(() => _isLocked = true);
       }
     } catch (e) {
+      FcmService.isLocked = false;
       DebugConfig.error('main: startup biometric lock failed', data: e);
     }
   }
 
   @override
   void dispose() {
+    _stopIdleTimer();
     WidgetsBinding.instance.removeObserver(this);
     _fcmSub?.cancel();
     super.dispose();
@@ -228,15 +231,23 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
     PresenceService.handleLifecycle(state);
     if (state == AppLifecycleState.paused) {
       _lastPauseTime = DateTime.now();
+      _stopIdleTimer();
+      DebugConfig.log(DebugConfig.serviceCall,
+          'main: lifecycle paused — idleTimer stopped');
     } else if (state == AppLifecycleState.resumed && mounted) {
-      _checkBiometricLock();
+      _checkBiometricLock().then((_) {
+        if (!_isLocked && mounted) {
+          _resetIdleTimer();
+        }
+      });
     }
   }
 
   Future<void> _checkBiometricLock() async {
     if (_isLocked || _authInProgress) return;
     if (DateTime.now().difference(_lastUnlockTime).inSeconds < 5) return;
-    if (_lastPauseTime != null &&
+    if (!FcmService.hasPendingNavigation &&
+        _lastPauseTime != null &&
         DateTime.now().difference(_lastPauseTime!).inSeconds < _pauseThresholdSeconds) {
       DebugConfig.log(DebugConfig.serviceCall,
           'main: short pause (${DateTime.now().difference(_lastPauseTime!).inSeconds}s < $_pauseThresholdSeconds s) — skipping biometric');
@@ -248,19 +259,62 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
       if (settings == null || !settings.biometricLockEnabled) return;
       DebugConfig.log(DebugConfig.serviceCall,
           'main: checking biometric lock on resume');
+      FcmService.isLocked = true;
       final authed = await LockScreen.authenticate(
         reason: 'Unlock NearMe',
       );
       if (authed) {
+        FcmService.isLocked = false;
         _lastUnlockTime = DateTime.now();
+        FcmService.tryExecutePendingNav();
       } else if (mounted) {
         DebugConfig.warn('main: biometric auth failed, locking app');
         setState(() => _isLocked = true);
       }
     } catch (e) {
+      FcmService.isLocked = false;
       DebugConfig.error('main: biometric lock check failed', data: e);
     } finally {
       _authInProgress = false;
+    }
+  }
+
+  void _stopIdleTimer() {
+    if (_idleTimer != null) {
+      _idleTimer!.cancel();
+      _idleTimer = null;
+      DebugConfig.log(DebugConfig.serviceCall, 'main: idleTimer stopped');
+    }
+  }
+
+  void _resetIdleTimer() {
+    if (!_cachedBiometricEnabled || _cachedAutoLockMinutes <= 0) return;
+    _stopIdleTimer();
+    if (_isLocked) {
+      DebugConfig.log(DebugConfig.serviceCall,
+          'main: idleTimer reset skipped (locked)');
+      return;
+    }
+    _idleTimer = Timer(
+      Duration(minutes: _cachedAutoLockMinutes),
+      _onIdleTimeout,
+    );
+    DebugConfig.log(DebugConfig.serviceCall,
+        'main: idleTimer reset — ${_cachedAutoLockMinutes}min');
+  }
+
+  void _onIdleTimeout() {
+    if (_isLocked) {
+      DebugConfig.log(DebugConfig.serviceCall,
+          'main: idleTimer timeout skipped (already locked)');
+      return;
+    }
+    _idleTimer = null;
+    DebugConfig.log(DebugConfig.serviceCall,
+        'main: idleTimer timeout → locking app');
+    if (mounted) {
+      FcmService.isLocked = true;
+      setState(() => _isLocked = true);
     }
   }
 
@@ -281,15 +335,35 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
       if (!mounted) return;
       final p = prev?.value;
       final n = next.value;
+      if (n != null) {
+        _cachedAutoLockMinutes = n.autoLockMinutes;
+        _cachedBiometricEnabled = n.biometricLockEnabled;
+      }
       if (p == null && n != null) {
         if (n.screenshotPreventionEnabled) {
           ScreenProtector.enable();
         }
         _applyStartupLock();
       }
-      if (p != null && n != null &&
-          !p.biometricLockEnabled && n.biometricLockEnabled) {
-        _lastUnlockTime = DateTime.now();
+      if (p != null && n != null) {
+        if (!p.biometricLockEnabled && n.biometricLockEnabled) {
+          _lastUnlockTime = DateTime.now();
+        }
+        if (p.autoLockMinutes != n.autoLockMinutes) {
+          DebugConfig.log(DebugConfig.serviceCall,
+              'main: autoLockMinutes changed ${p.autoLockMinutes} → ${n.autoLockMinutes}');
+          _resetIdleTimer();
+        }
+        if (p.biometricLockEnabled && !n.biometricLockEnabled) {
+          DebugConfig.log(DebugConfig.serviceCall,
+              'main: biometric disabled — idleTimer stopped');
+          _stopIdleTimer();
+        }
+        if (!p.biometricLockEnabled && n.biometricLockEnabled) {
+          DebugConfig.log(DebugConfig.serviceCall,
+              'main: biometric enabled — idleTimer started');
+          _resetIdleTimer();
+        }
       }
     });
     if (!widget.firebaseReady) {
@@ -311,16 +385,24 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
         _appContext = context;
         return Stack(
           children: [
-            child ?? const SizedBox.shrink(),
+            Listener(
+              onPointerDown: (_) => _resetIdleTimer(),
+              onPointerMove: (_) => _resetIdleTimer(),
+              onPointerSignal: (_) => _resetIdleTimer(),
+              child: child ?? const SizedBox.shrink(),
+            ),
             if (_isLocked)
               LockScreen(
                 onUnlock: () {
                   DebugConfig.log(DebugConfig.serviceCall,
                       'main: lock screen unlock success');
+                  FcmService.isLocked = false;
+                  FcmService.tryExecutePendingNav();
                   setState(() {
                     _isLocked = false;
                     _lastUnlockTime = DateTime.now();
                   });
+                  _resetIdleTimer();
                 },
               ),
           ],

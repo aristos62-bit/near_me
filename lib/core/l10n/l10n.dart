@@ -244,6 +244,24 @@ class L10n {
     if (idx == -1) return bilingual;
     return isGreek(context) ? bilingual.substring(0, idx) : bilingual.substring(idx + sep.length);
   }
+
+  static String autoLockTitle({required bool isGreek}) =>
+      isGreek ? 'Αυτόματο κλείδωμα' : 'Auto-lock';
+
+  static String autoLockSubtitle(int minutes, {required bool isGreek}) =>
+      isGreek
+          ? 'Μετά από $minutes λεπτά αδράνειας'
+          : 'After $minutes min of inactivity';
+
+  static String autoLockDisabled({required bool isGreek}) =>
+      isGreek
+          ? 'Ενεργοποίησε το βιομετρικό κλείδωμα πρώτα'
+          : 'Enable biometric lock first';
+
+  static String autoLockUpdated(int minutes, {required bool isGreek}) =>
+      isGreek
+          ? 'Αυτόματο κλείδωμα: $minutes λεπτά'
+          : 'Auto-lock: $minutes minutes';
 }
 
 enum TemperatureUnit { celsius, fahrenheit }

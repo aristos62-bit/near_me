@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../core/utils/error_messages.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/theme/responsive_utils.dart';
@@ -24,6 +26,7 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   bool _obscurePassword = true;
+  Timer? _verifyTimer;
 
   @override
   void initState() {
@@ -32,24 +35,41 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       ref.read(verifyAccountProvider.notifier).reset();
-      final fromRegister = GoRouterState.of(context).uri.queryParameters['from'] == 'register';
-      if (fromRegister) {
-        final user = ref.read(authRepositoryProvider).currentUser;
-        if (user != null && !user.isAnonymous && !user.emailVerified) {
-          ref.read(verifyAccountProvider.notifier).showEmailSent();
-        }
+      final user = ref.read(authRepositoryProvider).currentUser;
+      if (user != null && !user.isAnonymous && !user.emailVerified) {
+        ref.read(verifyAccountProvider.notifier).showEmailSent();
+        _startVerifyTimer();
       }
     });
   }
 
   @override
   void dispose() {
+    _verifyTimer?.cancel();
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
     super.dispose();
   }
 
+  void _startVerifyTimer() {
+    _verifyTimer?.cancel();
+    _verifyTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      ref.read(verifyAccountProvider.notifier).checkVerificationSilent();
+    });
+    DebugConfig.log(DebugConfig.authFlow, 'VerifyAccountScreen: auto-verify timer started');
+  }
+
+  bool get _isLinked {
+    final user = ref.read(authRepositoryProvider).currentUser;
+    return user != null && !user.isAnonymous;
+  }
+
   void _verify() {
+    if (_isLinked) {
+      DebugConfig.log(DebugConfig.authFlow, 'VerifyAccountScreen: resend verification');
+      ref.read(verifyAccountProvider.notifier).verify('', '');
+      return;
+    }
     final email = _emailCtrl.text.trim();
     final password = _passwordCtrl.text.trim();
     if (email.isEmpty || password.isEmpty) {
@@ -120,7 +140,25 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
   Widget build(BuildContext context) {
     final isGreek = L10n.isGreek(context);
     final state = ref.watch(verifyAccountProvider);
-    DebugConfig.log(DebugConfig.uiInteraction, 'VerifyAccountScreen build: ${state.status}');
+    final isLinked = _isLinked;
+    DebugConfig.log(DebugConfig.uiInteraction,
+        'VerifyAccountScreen build: ${state.status}, isLinked=$isLinked');
+
+    ref.listen<VerifyAccountState>(verifyAccountProvider, (prev, next) {
+      if (next.status == VerifyStatus.emailSent && prev?.status != VerifyStatus.emailSent) {
+        _startVerifyTimer();
+      }
+      if (next.status == VerifyStatus.verified && prev?.status != VerifyStatus.verified) {
+        _verifyTimer?.cancel();
+        DebugConfig.log(DebugConfig.authFlow, 'VerifyAccountScreen: verified, auto-navigating');
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) {
+            // ignore: use_build_context_synchronously
+            context.go('/');
+          }
+        });
+      }
+    });
 
     return Scaffold(
       appBar: AppBar(
@@ -128,6 +166,7 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
           icon: const Icon(Icons.close),
           onPressed: () {
             DebugConfig.log(DebugConfig.uiInteraction, 'VerifyAccountScreen: user dismissed');
+            _verifyTimer?.cancel();
             AppRouter.dismissVerify();
             context.go('/');
           },
@@ -140,14 +179,14 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
           child: switch (state.status) {
             VerifyStatus.loading => const LoadingView(),
             VerifyStatus.verified => _buildVerified(isGreek),
-            _ => _buildForm(isGreek, state),
+            _ => _buildForm(isGreek, state, isLinked: isLinked),
           },
         ),
       ),
     );
   }
 
-  Widget _buildForm(bool isGreek, VerifyAccountState state) {
+  Widget _buildForm(bool isGreek, VerifyAccountState state, {required bool isLinked}) {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
       children: [
@@ -155,46 +194,51 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
           gradientColors: [AppColors.primary, AppColors.primaryDark],
           icon: Icons.mail_outline_rounded,
           title: isGreek ? 'Επιβεβαίωσε τον λογαριασμό σου' : 'Verify Your Account',
-          subtitle: isGreek
-              ? 'Σύνδεσε email και κωδικό για να ενεργοποιήσεις τις λειτουργίες επικοινωνίας'
-              : 'Link email and password to enable communication features',
+          subtitle: isLinked
+              ? (isGreek
+                  ? 'Σου έχουμε στείλει email. Πάτα τον σύνδεσμο για επαλήθευση.'
+                  : 'We sent you an email. Click the link to verify.')
+              : (isGreek
+                  ? 'Σύνδεσε email και κωδικό για να ενεργοποιήσεις τις λειτουργίες επικοινωνίας'
+                  : 'Link email and password to enable communication features'),
         ),
         const SizedBox(height: 8),
         if (state.status == VerifyStatus.error && state.errorMessage != null)
           Padding(
             padding: const EdgeInsets.only(bottom: 16),
-            child: ErrorView(message: L10n.localizedMessage(context, _errorText(state.errorMessage!))),
+            child: ErrorView(message: ErrorMessages.get(state.errorMessage!, isGreek)),
           ),
-        FormSection(
-          title: isGreek ? 'Στοιχεία Λογαριασμού' : 'Account Details',
-          children: [
-            TextField(
-              controller: _emailCtrl,
-              decoration: InputDecoration(
-                labelText: 'Email',
-                border: const OutlineInputBorder(),
-                prefixIcon: const Icon(Icons.email_outlined),
+        if (!isLinked)
+          FormSection(
+            title: isGreek ? 'Στοιχεία Λογαριασμού' : 'Account Details',
+            children: [
+              TextField(
+                controller: _emailCtrl,
+                decoration: InputDecoration(
+                  labelText: 'Email',
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.email_outlined),
+                ),
+                keyboardType: TextInputType.emailAddress,
               ),
-              keyboardType: TextInputType.emailAddress,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _passwordCtrl,
-              obscureText: _obscurePassword,
-              decoration: InputDecoration(
-                labelText: isGreek ? 'Κωδικός' : 'Password',
-                border: const OutlineInputBorder(),
-                prefixIcon: const Icon(Icons.lock_outlined),
-                suffixIcon: IconButton(
-                  icon: Icon(_obscurePassword
-                      ? Icons.visibility_outlined
-                      : Icons.visibility_off_outlined),
-                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _passwordCtrl,
+                obscureText: _obscurePassword,
+                decoration: InputDecoration(
+                  labelText: isGreek ? 'Κωδικός' : 'Password',
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.lock_outlined),
+                  suffixIcon: IconButton(
+                    icon: Icon(_obscurePassword
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined),
+                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
         if (state.status == VerifyStatus.emailSent)
           FormSection(
             title: isGreek ? 'Email Στάλθηκε' : 'Email Sent',
@@ -213,15 +257,17 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _checkVerification,
-                  icon: const Icon(Icons.refresh_outlined, size: 18),
-                  label: Text(isGreek ? 'Έλεγξα, συνέχισε' : 'I verified, continue'),
+              if (!isLinked)
+                const SizedBox(height: 12),
+              if (!isLinked)
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _checkVerification,
+                    icon: const Icon(Icons.refresh_outlined, size: 18),
+                    label: Text(isGreek ? 'Έλεγξα, συνέχισε' : 'I verified, continue'),
+                  ),
                 ),
-              ),
             ],
           ),
         const SizedBox(height: 16),
@@ -233,13 +279,27 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
           onPressed: _verify,
         ),
         const SizedBox(height: 12),
-        Center(
-          child: TextButton.icon(
-            onPressed: _showForgotPassword,
-            icon: const Icon(Icons.lock_reset_outlined, size: 18),
-            label: Text(isGreek ? 'Ξέχασες τον κωδικό;' : 'Forgot password?'),
+        if (isLinked && state.status == VerifyStatus.emailSent)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              isGreek
+                  ? 'Η επαλήθευση ελέγχεται αυτόματα. Εάν δεν βλέπεις το email, έλεγξε και στα Ανεπιθυμητά.'
+                  : 'Verification is checked automatically. If you don\'t see the email, check your Spam folder.',
+              style: AppTypography.bodySmall.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
           ),
-        ),
+        if (isLinked)
+          Center(
+            child: TextButton.icon(
+              onPressed: _showForgotPassword,
+              icon: const Icon(Icons.lock_reset_outlined, size: 18),
+              label: Text(isGreek ? 'Ξέχασες τον κωδικό;' : 'Forgot password?'),
+            ),
+          ),
       ],
     );
   }
@@ -278,24 +338,4 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
     );
   }
 
-  String _errorText(String code) {
-    switch (code) {
-      case 'auth/email-already-in-use':
-        return 'Το email χρησιμοποιείται ήδη / Email already in use';
-      case 'auth/invalid-email':
-        return 'Μη έγκυρο email / Invalid email';
-      case 'auth/weak-password':
-        return 'Ο κωδικός είναι πολύ αδύναμος (τουλάχιστον 6 χαρακτήρες) / Password too weak (at least 6 characters)';
-      case 'auth/user-not-found':
-        return 'Δεν βρέθηκε χρήστης / User not found';
-      case 'auth/wrong-password':
-        return 'Λάθος κωδικός / Wrong password';
-      case 'auth/too-many-requests':
-        return 'Πολλές προσπάθειες. Δοκίμασε αργότερα. / Too many attempts. Try again later.';
-      case 'auth/network-error':
-        return 'Σφάλμα δικτύου / Network error';
-      default:
-        return 'Κάτι πήγε στραβά / Something went wrong';
-    }
-  }
 }

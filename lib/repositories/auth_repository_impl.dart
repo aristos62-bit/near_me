@@ -35,6 +35,13 @@ class AuthRepositoryImpl implements AuthRepository {
     PresenceService.reset();
     await FcmService.clearTokens();
     LocationService.clearSession(); // ← Καθαρισμός cached τοποθεσίας
+    try {
+      await (_db.delete(_db.chatCacheTable)).go();
+      DebugConfig.log(DebugConfig.databaseLocal,
+          'signOut: chat cache cleared (data hygiene, defense-in-depth)');
+    } catch (e) {
+      DebugConfig.warn('signOut: chat cache clear failed (non-fatal)', data: e);
+    }
     await _auth.signOut();
   }
 
@@ -313,6 +320,12 @@ class AuthRepositoryImpl implements AuthRepository {
     }
     if (msg.contains('session-expired')) {
       return const AppException(message: 'session-expired', code: 'auth/invalid-verification');
+    }
+    if (msg.contains('missing-client-identifier')) {
+      return const AppException(message: 'missing-client-identifier', code: 'auth/missing-client-identifier');
+    }
+    if (msg.contains('app-not-verified')) {
+      return const AppException(message: 'app-not-verified', code: 'auth/missing-client-identifier');
     }
     return AppException.auth('phone', 'Phone verification failed', error);
   }

@@ -9,6 +9,7 @@ enum LocationFailure {
   permissionDenied,
   permissionDeniedForever,
   timeout,
+  staleData,
   error,
 }
 
@@ -33,10 +34,14 @@ class LocationService {
   static LocationResult? _sessionLocation;
   static DateTime? _sessionTimestamp;
   static const _sessionCacheDuration = Duration(minutes: 5);
+  static const _staleThreshold = Duration(minutes: 5);
 
   /// Τελευταία γνωστή ακρίβεια GPS (για GpsStrengthIndicator).
   static double? _lastAccuracy;
   static double? get lastAccuracy => _lastAccuracy;
+
+  /// In-flight request tracking — coalescing για ταυτόχρονες κλήσεις GPS.
+  static Future<LocationResult>? _pendingRequest;
 
   /// Καθαρισμός session cache (κλήση στο logout για αποφυγή
   /// διαρροής τοποθεσίας μεταξύ διαφορετικών accounts).
@@ -44,16 +49,24 @@ class LocationService {
     _sessionLocation = null;
     _sessionTimestamp = null;
     _lastAccuracy = null;
+    _pendingRequest = null;
     DebugConfig.log(DebugConfig.gpsLocation, 'LocationService: session cleared');
   }
 
   /// Requests GPS permission and returns current position if granted.
   /// [forceRefresh] = true (default): always attempts live GPS.
   /// [forceRefresh] = false: returns session cache if < 5min old (faster, no GPS).
+  /// Coalescing: αν υπάρχει ήδη in-flight request, όλες οι ταυτόχρονες κλήσεις
+  /// περιμένουν το ίδιο Future — μία GPS κλήση αντί για πολλές.
   static Future<LocationResult> getCurrentLocation({bool forceRefresh = true}) async {
     DebugConfig.log(DebugConfig.gpsPermissions, 'getCurrentLocation: start');
 
-    // Session cache hit (forceRefresh = false AND cache is fresh)
+    if (_pendingRequest != null) {
+      DebugConfig.log(DebugConfig.gpsLocation,
+          'getCurrentLocation: coalescing to in-flight request');
+      return _pendingRequest!;
+    }
+
     if (!forceRefresh && _sessionLocation != null && _sessionTimestamp != null) {
       final age = DateTime.now().difference(_sessionTimestamp!);
       if (age < _sessionCacheDuration) {
@@ -63,6 +76,17 @@ class LocationService {
       }
     }
 
+    try {
+      _pendingRequest = _executeGetLocation(forceRefresh);
+      return await _pendingRequest!;
+    } finally {
+      _pendingRequest = null;
+    }
+  }
+
+  /// Εκτελεί την πραγματική GPS λογική (permissions, live GPS, fallback).
+  /// Ξεχωρισμένη από το [getCurrentLocation] για coalescing.
+  static Future<LocationResult> _executeGetLocation(bool forceRefresh) async {
     try {
       final enabled = await Geolocator.isLocationServiceEnabled();
       if (!enabled) {
@@ -123,8 +147,18 @@ class LocationService {
       // 2. Fallback to last known position
       final last = await Geolocator.getLastKnownPosition();
       if (last != null) {
+        final age = DateTime.now().difference(last.timestamp);
         DebugConfig.log(DebugConfig.gpsLocation,
-            'Fallback (last known): ${last.latitude}, ${last.longitude} (±${last.accuracy}m)');
+            'Fallback (last known): ${last.latitude}, ${last.longitude}, '
+            'age=${age.inMinutes}min, acc=${last.accuracy}m');
+        if (age > _staleThreshold) {
+          DebugConfig.warn(
+              'Fallback position too old: ${age.inMinutes}min, rejecting');
+          return const LocationResult(
+            isFromGps: false,
+            failure: LocationFailure.staleData,
+          );
+        }
         _lastAccuracy = last.accuracy;
         final result = LocationResult(
           latitude: last.latitude,

@@ -1,9 +1,11 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../repositories/auth_repository.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
 import '../../../data/local/database.dart';
@@ -17,15 +19,22 @@ class ChatListScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final greek = L10n.isGreek(context);
-    final user = ref.watch(authStateProvider).value;
-    final isAnonymous = user?.isAnonymous ?? true;
+    final authUser = ref.watch(authStateProvider).value;
+    final syncUser = FirebaseAuth.instance.currentUser;
+    final user = authUser ?? syncUser;
+    final canComm = AuthRepository.canUserCommunicate(user);
     final chatsAsync = ref.watch(chatsProvider);
 
-    DebugConfig.log(DebugConfig.uiRebuild, 'ChatListScreen build');
+    DebugConfig.log(DebugConfig.uiRebuild, 'ChatListScreen build: canComm=$canComm');
 
     return Scaffold(
+      // ── FIX Πρόβλημα 2 (ίδια λογική με Discovery) ──
+      // Δεν υπάρχει TextField στη λίστα συνομιλιών (μόνο στο μεμονωμένο
+      // ChatScreen, που είναι ξεχωριστό route με δικό του Scaffold — δεν
+      // επηρεάζεται από αυτή την αλλαγή).
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(title: Text(greek ? 'Μηνύματα' : 'Messages')),
-      body: isAnonymous
+      body: !canComm
           ? _buildVerifyBanner(context, greek)
           : chatsAsync.when(
               loading: () => const LoadingView(),
@@ -43,12 +52,21 @@ class ChatListScreen extends ConsumerWidget {
                     message: greek ? 'Δεν υπάρχουν μηνύματα' : 'No messages yet',
                   );
                 }
-                return ListView.builder(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: ResponsiveUtils.paddingValue(context),
-                  ),
-                  itemCount: chats.length,
-                  itemBuilder: (_, i) => _ChatTile(chat: chats[i]),
+                return LayoutBuilder(
+                  builder: (context, constraints) {
+                    final w = ResponsiveUtils.resolveWidth(context, constraints);
+                    // ── ΠΡΟΣΩΡΙΝΟ DIAGNOSTIC LOG — Πρόβλημα 2 (θα αφαιρεθεί μετά) ──
+                    DebugConfig.log(DebugConfig.uiRebuild,
+                        'ChatListScreen LayoutBuilder REBUILT — '
+                            'time=${DateTime.now().toIso8601String().substring(11, 23)}');
+                    return ListView.builder(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: ResponsiveUtils.paddingValueFromWidth(w),
+                      ),
+                      itemCount: chats.length,
+                      itemBuilder: (_, i) => _ChatTile(chat: chats[i]),
+                    );
+                  },
                 );
               },
             ),

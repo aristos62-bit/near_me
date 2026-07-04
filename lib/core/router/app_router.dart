@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'main_shell.dart';
 import '../debug/debug_config.dart';
 import '../l10n/l10n.dart';
+import '../../repositories/auth_repository.dart';
 import '../../features/discovery/screens/discovery_screen.dart';
 import '../../features/discovery/screens/public_profile_view_screen.dart';
 import '../../features/discovery/screens/saved_searches_screen.dart';
@@ -58,6 +59,16 @@ class AppRouter {
         if (isAuthRoute && !user.isAnonymous && user.emailVerified) return '/';
         if (location == '/' && !user.isAnonymous && !user.emailVerified && !_verifyDismissed) {
           return '/auth';
+        }
+        final canComm = AuthRepository.canUserCommunicate(user);
+        if (!canComm) {
+          final isCommPath = location == '/chats' || location == '/requests' ||
+              location.startsWith('/chat/') || location.startsWith('/requests/');
+          if (isCommPath) {
+            DebugConfig.log(DebugConfig.navigationRoute,
+                'Redirect: communication path blocked (canComm=$canComm)');
+            return '/auth';
+          }
         }
       }
       return null;

@@ -133,10 +133,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         leading: IconButton(icon: const Icon(Icons.close), onPressed: () => context.pop()),
         title: Text(isGreek ? 'Ρυθμίσεις' : 'Settings'),
       ),
-      body: Center(
-        child: SizedBox(
-          width: ResponsiveUtils.maxContentWidth(context),
-          child: ListView(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final w = ResponsiveUtils.resolveWidth(context, constraints);
+          return Center(
+            child: SizedBox(
+              width: ResponsiveUtils.maxContentWidthFromWidth(w),
+              child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
             children: [
               if (isAnonymous)
@@ -214,12 +217,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => _signOut(context, ref),
               ),
-            ],
-          ),
+          ],
         ),
       ),
     );
-  }
+    },
+  ),
+);
+}
+
+
 }
 
 class _DeviceSecuritySection extends ConsumerWidget {

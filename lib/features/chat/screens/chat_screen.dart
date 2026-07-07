@@ -227,17 +227,22 @@ class _ChatMessagesListState extends ConsumerState<_ChatMessagesList> {
             message: greek ? 'Καμία συνομιλία' : 'No messages',
           );
         }
-        return ListView.builder(
-          controller: _scrollCtrl,
-          padding: EdgeInsets.symmetric(
-            horizontal: ResponsiveUtils.paddingValue(context),
-            vertical: 8,
-          ),
-          itemCount: messages.length,
-          itemBuilder: (_, i) => _MessageBubble(
-            message: messages[i],
-            currentUid: currentUid,
-          ),
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final w = ResponsiveUtils.resolveWidth(context, constraints);
+            return ListView.builder(
+              controller: _scrollCtrl,
+              padding: EdgeInsets.symmetric(
+                horizontal: ResponsiveUtils.paddingValueFromWidth(w),
+                vertical: 8,
+              ),
+              itemCount: messages.length,
+              itemBuilder: (_, i) => _MessageBubble(
+                message: messages[i],
+                currentUid: currentUid,
+              ),
+            );
+          },
         );
       },
     );
@@ -288,60 +293,65 @@ class _ChatInputBarState extends ConsumerState<_ChatInputBar> {
     final canComm = AuthRepository.canUserCommunicate(currentUser);
     DebugConfig.log(DebugConfig.uiInteraction, '_ChatInputBar build: canComm=$canComm');
 
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        border: Border(top: BorderSide(color: theme.dividerColor)),
-      ),
-      padding: EdgeInsets.only(
-        left: ResponsiveUtils.paddingValue(context),
-        right: ResponsiveUtils.paddingValue(context),
-        top: 8,
-        bottom: MediaQuery.of(context).padding.bottom + 8,
-      ),
-      child: !canComm
-          ? Row(children: [
-              const SizedBox(width: 12),
-              Icon(Icons.info_outline, size: 18,
-                  color: theme.colorScheme.primary),
-              const SizedBox(width: 8),
-              Expanded(child: Text(
-                greek
-                    ? 'Πρέπει να επαληθεύσεις τον λογαριασμό σου '
-                        'για να στείλεις μηνύματα'
-                    : 'You must verify your account to send messages',
-                style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant),
-              )),
-            ])
-          : Row(children: [
-              Expanded(child: TextField(
-                controller: _textCtrl,
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => _send(),
-                decoration: InputDecoration(
-                  hintText: greek
-                      ? 'Γράψε ένα μήνυμα...'
-                      : 'Type a message...',
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24)),
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 10),
-                  filled: true,
-                  fillColor: theme.colorScheme.surfaceContainerHighest
-                      .withAlpha(80),
-                ),
-              )),
-              const SizedBox(width: 8),
-              IconButton.filled(
-                onPressed: _isLoading ? null : _send,
-                icon: _isLoading
-                    ? const SizedBox(
-                        width: 20, height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.send_rounded),
-              ),
-            ]),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = ResponsiveUtils.resolveWidth(context, constraints);
+        return Container(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            border: Border(top: BorderSide(color: theme.dividerColor)),
+          ),
+          padding: EdgeInsets.only(
+            left: ResponsiveUtils.paddingValueFromWidth(w),
+            right: ResponsiveUtils.paddingValueFromWidth(w),
+            top: 8,
+            bottom: MediaQuery.of(context).padding.bottom + 8,
+          ),
+          child: !canComm
+              ? Row(children: [
+                  const SizedBox(width: 12),
+                  Icon(Icons.info_outline, size: 18,
+                      color: theme.colorScheme.primary),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(
+                    greek
+                        ? 'Πρέπει να επαληθεύσεις τον λογαριασμό σου '
+                            'για να στείλεις μηνύματα'
+                        : 'You must verify your account to send messages',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant),
+                  )),
+                ])
+              : Row(children: [
+                  Expanded(child: TextField(
+                    controller: _textCtrl,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => _send(),
+                    decoration: InputDecoration(
+                      hintText: greek
+                          ? 'Γράψε ένα μήνυμα...'
+                          : 'Type a message...',
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(24)),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 10),
+                      filled: true,
+                      fillColor: theme.colorScheme.surfaceContainerHighest
+                          .withAlpha(80),
+                    ),
+                  )),
+                  const SizedBox(width: 8),
+                  IconButton.filled(
+                    onPressed: _isLoading ? null : _send,
+                    icon: _isLoading
+                        ? const SizedBox(
+                            width: 20, height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.send_rounded),
+                  ),
+                ]),
+        );
+      },
     );
   }
 }

@@ -33,9 +33,16 @@ class SavedSearchRepositoryImpl implements SavedSearchRepository {
           interests: Value(filters.interests),
           lookingFor: Value(filters.lookingFor),
           radiusKm: Value(filters.radiusKm),
+          allowVideoCall: Value(filters.allowVideoCall),
+          allowDirectChat: Value(filters.allowDirectChat),
+          onlineOnly: Value(filters.isOnlineNow),
         ),
       );
-      DebugConfig.log(DebugConfig.repositoryResult, 'SavedSearch saved: $label');
+      DebugConfig.log(DebugConfig.repositoryResult,
+          'SavedSearch saved: $label '
+          '(allowVideoCall=${filters.allowVideoCall}, '
+          'allowDirectChat=${filters.allowDirectChat}, '
+          'onlineOnly=${filters.isOnlineNow})');
     } catch (e, s) {
       DebugConfig.error('SavedSearch.save failed', data: e, exception: s);
       throw AppException.database('SavedSearch.save', e, s);
@@ -71,7 +78,8 @@ class SavedSearchRepositoryImpl implements SavedSearchRepository {
 
   @override
   SearchFilters toFilters(SavedSearchTableData s) {
-    return SearchFilters(
+    DebugConfig.log(DebugConfig.repositoryCall, 'SavedSearch.toFilters: id=${s.id}');
+    final filters = SearchFilters(
       city: s.city,
       country: s.country,
       minAge: s.minAge,
@@ -80,6 +88,12 @@ class SavedSearchRepositoryImpl implements SavedSearchRepository {
       interests: s.interests,
       lookingFor: s.lookingFor,
       radiusKm: s.radiusKm,
+      allowVideoCall: s.allowVideoCall,
+      allowDirectChat: s.allowDirectChat,
+      isOnlineNow: s.onlineOnly,
     );
+    DebugConfig.log(DebugConfig.repositoryResult,
+        'SavedSearch.toFilters: $filters');
+    return filters;
   }
 }

@@ -97,9 +97,9 @@ class _SearchFiltersScreenState extends ConsumerState<SearchFiltersScreen> {
       n.updateGender(_gender == 'all' ? null : _gender);
       n.updateInterests(_interests.isEmpty ? null : _interests);
       n.updateLookingFor(_lookingFor.isEmpty ? null : _lookingFor);
-      n.updateAllowVideoCall(_allowVideoCall);
-      n.updateAllowDirectChat(_allowDirectChat);
-      n.updateOnlineOnly(_onlineOnly);
+      n.updateAllowVideoCall(_allowVideoCall ? true : null);
+      n.updateAllowDirectChat(_allowDirectChat ? true : null);
+      n.updateOnlineOnly(_onlineOnly ? true : null);
       n.updateCity(_cityCtrl.text.trim().isEmpty ? null : _cityCtrl.text.trim());
       n.updateCountry(_countryCtrl.text.trim().isEmpty ? null : _countryCtrl.text.trim());
       n.updateRadius(_radiusLimited ? _radiusKm : null);
@@ -199,10 +199,13 @@ class _SearchFiltersScreenState extends ConsumerState<SearchFiltersScreen> {
         ),
         title: Text(isGreek ? 'Φίλτρα Αναζήτησης' : 'Search Filters'),
       ),
-      body: Center(
-        child: SizedBox(
-          width: ResponsiveUtils.maxContentWidth(context),
-          child: ListView(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final w = ResponsiveUtils.resolveWidth(context, constraints);
+          return Center(
+            child: SizedBox(
+              width: ResponsiveUtils.maxContentWidthFromWidth(w),
+              child: ListView(
             padding: const EdgeInsets.only(bottom: 32),
             children: [
               GradientHeader(
@@ -444,6 +447,8 @@ class _SearchFiltersScreenState extends ConsumerState<SearchFiltersScreen> {
             ],
           ),
         ),
+        );
+        },
       ),
     );
   }

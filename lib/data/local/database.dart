@@ -31,7 +31,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -69,6 +69,13 @@ class AppDatabase extends _$AppDatabase {
         await delete(chatCacheTable).go();
         DebugConfig.log(DebugConfig.databaseLocal,
             'Migration v6->v7: added ownerUid column, cleared legacy chat cache (θα ξανασυγχρονιστεί από Firestore)');
+      }
+      if (from < 8) {
+        await m.addColumn(savedSearchTable, savedSearchTable.allowVideoCall);
+        await m.addColumn(savedSearchTable, savedSearchTable.allowDirectChat);
+        await m.addColumn(savedSearchTable, savedSearchTable.onlineOnly);
+        DebugConfig.log(DebugConfig.databaseLocal,
+            'Migration v7->v8: added allowVideoCall, allowDirectChat, onlineOnly columns to savedSearchTable');
       }
     },
   );

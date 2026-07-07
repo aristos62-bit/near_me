@@ -160,10 +160,13 @@ class _PrivacyEditorScreenState extends ConsumerState<PrivacyEditorScreen> {
       },
       child: Scaffold(
         appBar: AppBar(leading: IconButton(icon: const Icon(Icons.close), onPressed: _onBack), title: Text(greek ? 'Απόρρητο' : 'Privacy')),
-      body: Center(
-        child: SizedBox(
-          width: ResponsiveUtils.maxContentWidth(context),
-          child: ListView(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final w = ResponsiveUtils.resolveWidth(context, constraints);
+          return Center(
+            child: SizedBox(
+              width: ResponsiveUtils.maxContentWidthFromWidth(w),
+              child: ListView(
             padding: const EdgeInsets.only(bottom: 32),
             children: [
               GradientHeader(
@@ -204,9 +207,11 @@ class _PrivacyEditorScreenState extends ConsumerState<PrivacyEditorScreen> {
                   onPressed: _save,
                 ),
               ),
-            ],
-          ),
-        ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     ),
     );

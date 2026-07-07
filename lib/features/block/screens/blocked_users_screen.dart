@@ -31,10 +31,13 @@ class BlockedUsersScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: Text(isGreek ? 'Μπλοκαρισμένοι Χρήστες' : 'Blocked Users')),
-      body: Center(
-        child: SizedBox(
-          width: ResponsiveUtils.maxContentWidth(context),
-          child: blockedAsync.when(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final w = ResponsiveUtils.resolveWidth(context, constraints);
+          return Center(
+            child: SizedBox(
+              width: ResponsiveUtils.maxContentWidthFromWidth(w),
+              child: blockedAsync.when(
             loading: () => const LoadingView(),
             error: (e, _) => ErrorView(
               message: L10n.localizedMessage(context, 'Σφάλμα φόρτωσης / Failed to load'),
@@ -62,9 +65,11 @@ class BlockedUsersScreen extends ConsumerWidget {
                 ),
               );
             },
+            ),
           ),
-        ),
-      ),
+        );
+      },
+    ),
     );
   }
 }

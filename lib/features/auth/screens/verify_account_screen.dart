@@ -173,15 +173,20 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
         ),
         title: Text(isGreek ? 'Επαλήθευση Λογαριασμού' : 'Verify Account'),
       ),
-      body: Center(
-        child: SizedBox(
-          width: ResponsiveUtils.maxContentWidth(context),
-          child: switch (state.status) {
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final w = ResponsiveUtils.resolveWidth(context, constraints);
+          return Center(
+            child: SizedBox(
+              width: ResponsiveUtils.maxContentWidthFromWidth(w),
+              child: switch (state.status) {
             VerifyStatus.loading => const LoadingView(),
             VerifyStatus.verified => _buildVerified(isGreek),
             _ => _buildForm(isGreek, state, isLinked: isLinked),
           },
         ),
+        );
+        },
       ),
     );
   }

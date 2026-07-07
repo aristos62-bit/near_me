@@ -33,7 +33,6 @@ class _ConsentLogScreenState extends ConsumerState<ConsentLogScreen> {
   Widget build(BuildContext context) {
     final logsAsync = ref.watch(consentLogStreamProvider);
     final theme = Theme.of(context);
-    final isWide = ResponsiveUtils.isTablet(context);
     final greek = L10n.isGreek(context);
 
     return Scaffold(
@@ -50,33 +49,39 @@ class _ConsentLogScreenState extends ConsumerState<ConsentLogScreen> {
               ? logs
               : logs.where((l) => l.action == _filterAction).toList();
 
-          return Column(
-            children: [
-              _buildHeader(theme, greek, logs.length),
-              _buildFilterBar(theme, greek),
-              const Divider(height: 1),
-              Expanded(
-                child: filtered.isEmpty
-                    ? EmptyView(
-                        icon: Icons.shield_outlined,
-                        message: _filterAction == null
-                            ? (greek
-                                ? 'Δεν υπάρχουν καταχωρήσεις ακόμα\nΟι ενέργειες συγκατάθεσης θα εμφανίζονται εδώ'
-                                : 'No consent entries yet\nActions will appear here')
-                            : (greek
-                                ? 'Δεν υπάρχουν καταχωρήσεις για αυτή την ενέργεια'
-                                : 'No entries for this action'),
-                      )
-                    : ListView.builder(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: isWide ? 48 : 12,
-                          vertical: 8,
-                        ),
-                        itemCount: filtered.length,
-                        itemBuilder: (_, i) => _buildEntry(theme, filtered[i], greek),
-                      ),
-              ),
-            ],
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final w = ResponsiveUtils.resolveWidth(context, constraints);
+              final isWide = ResponsiveUtils.isTabletFromWidth(w);
+              return Column(
+                children: [
+                  _buildHeader(theme, greek, logs.length),
+                  _buildFilterBar(theme, greek),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: filtered.isEmpty
+                        ? EmptyView(
+                            icon: Icons.shield_outlined,
+                            message: _filterAction == null
+                                ? (greek
+                                    ? 'Δεν υπάρχουν καταχωρήσεις ακόμα\nΟι ενέργειες συγκατάθεσης θα εμφανίζονται εδώ'
+                                    : 'No consent entries yet\nActions will appear here')
+                                : (greek
+                                    ? 'Δεν υπάρχουν καταχωρήσεις για αυτή την ενέργεια'
+                                    : 'No entries for this action'),
+                          )
+                        : ListView.builder(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: isWide ? 48 : 12,
+                              vertical: 8,
+                            ),
+                            itemCount: filtered.length,
+                            itemBuilder: (_, i) => _buildEntry(theme, filtered[i], greek),
+                          ),
+                  ),
+                ],
+              );
+            },
           );
         },
       ),

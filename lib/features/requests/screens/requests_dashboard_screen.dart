@@ -214,30 +214,33 @@ class _RequestsDashboardScreenState extends ConsumerState<RequestsDashboardScree
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           color: Theme.of(context).colorScheme.primaryContainer.withAlpha(60),
-          child: Row(
-            children: [
-              Text('${_selectedIds.length} ${isGreek ? 'επιλεγμένα' : 'selected'}'),
-              const Spacer(),
-              TextButton.icon(
-                onPressed: () => _toggleSelectAll(ref, isIncoming),
-                icon: const Icon(Icons.select_all, size: 18),
-                label: Text(isGreek ? 'Επιλογή όλων' : 'Select all'),
-              ),
-              const SizedBox(width: 8),
-              FilledButton.icon(
-                onPressed: _selectedIds.isEmpty ? null : _deleteSelected,
-                icon: const Icon(Icons.delete_forever, size: 18),
-                label: Text(isGreek ? 'Διαγραφή' : 'Delete'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.error,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                Text('${_selectedIds.length} ${isGreek ? 'επιλεγμένα' : 'selected'}'),
+                const SizedBox(width: 12),
+                TextButton.icon(
+                  onPressed: () => _toggleSelectAll(ref, isIncoming),
+                  icon: const Icon(Icons.select_all, size: 18),
+                  label: Text(isGreek ? 'Επιλογή όλων' : 'Select all'),
                 ),
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: _exitSelectionMode,
-              ),
-            ],
+                const SizedBox(width: 8),
+                FilledButton.icon(
+                  onPressed: _selectedIds.isEmpty ? null : _deleteSelected,
+                  icon: const Icon(Icons.delete_forever, size: 18),
+                  label: Text(isGreek ? 'Διαγραφή' : 'Delete'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.error,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: _exitSelectionMode,
+                ),
+              ],
+            ),
           ),
         ),
         Expanded(
@@ -257,9 +260,12 @@ class _RequestsDashboardScreenState extends ConsumerState<RequestsDashboardScree
     final provider = isIncoming ? incomingRequestsProvider : outgoingRequestsProvider;
     final requestsAsync = ref.watch(provider);
     final filter = _filter(isIncoming);
-    return Center(
-      child: SizedBox(
-        width: ResponsiveUtils.maxContentWidth(context),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = ResponsiveUtils.resolveWidth(context, constraints);
+        return Center(
+          child: SizedBox(
+            width: ResponsiveUtils.maxContentWidthFromWidth(w),
         child: Column(
           children: [
             FilterBar(
@@ -336,6 +342,8 @@ class _RequestsDashboardScreenState extends ConsumerState<RequestsDashboardScree
           ],
         ),
       ),
+    );
+      },
     );
   }
 }

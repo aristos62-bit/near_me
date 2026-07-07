@@ -29,17 +29,17 @@ class SearchFiltersNotifier extends Notifier<SearchFilters> {
     state = state.copyWith(lookingFor: lookingFor);
   }
 
-  void updateAllowVideoCall(bool allow) {
+  void updateAllowVideoCall(bool? allow) {
     DebugConfig.log(DebugConfig.providerCreate, 'filters: allowVideoCall $allow');
     state = state.copyWith(allowVideoCall: allow);
   }
 
-  void updateAllowDirectChat(bool allow) {
+  void updateAllowDirectChat(bool? allow) {
     DebugConfig.log(DebugConfig.providerCreate, 'filters: allowDirectChat $allow');
     state = state.copyWith(allowDirectChat: allow);
   }
 
-  void updateOnlineOnly(bool onlineOnly) {
+  void updateOnlineOnly(bool? onlineOnly) {
     DebugConfig.log(DebugConfig.providerCreate, 'filters: onlineOnly $onlineOnly');
     state = state.copyWith(isOnlineNow: onlineOnly);
   }

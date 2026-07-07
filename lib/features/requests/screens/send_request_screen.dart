@@ -55,25 +55,30 @@ class _SendRequestScreenState extends ConsumerState<SendRequestScreen> {
             return const LoadingView();
           }
           final nickname = snapshot.data?.nickname ?? widget.uid;
-          return Center(
-            child: SizedBox(
-              width: ResponsiveUtils.maxContentWidth(context),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildRecipientInfo(nickname, theme, isGreek),
-                    const SizedBox(height: 24),
-                    _buildTypeSelector(snapshot.data, theme, isGreek),
-                    const SizedBox(height: 20),
-                    _buildMessageField(theme, isGreek),
-                    const SizedBox(height: 24),
-                    _buildSendButton(theme, isGreek),
-                  ],
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final w = ResponsiveUtils.resolveWidth(context, constraints);
+              return Center(
+                child: SizedBox(
+                  width: ResponsiveUtils.maxContentWidthFromWidth(w),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildRecipientInfo(nickname, theme, isGreek),
+                        const SizedBox(height: 24),
+                        _buildTypeSelector(snapshot.data, theme, isGreek),
+                        const SizedBox(height: 20),
+                        _buildMessageField(theme, isGreek),
+                        const SizedBox(height: 24),
+                        _buildSendButton(theme, isGreek),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           );
         },
       ),

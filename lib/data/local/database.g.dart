@@ -3688,6 +3688,48 @@ class $SavedSearchTableTable extends SavedSearchTable
     type: DriftSqlType.double,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _allowVideoCallMeta = const VerificationMeta(
+    'allowVideoCall',
+  );
+  @override
+  late final GeneratedColumn<bool> allowVideoCall = GeneratedColumn<bool>(
+    'allow_video_call',
+    aliasedName,
+    true,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("allow_video_call" IN (0, 1))',
+    ),
+  );
+  static const VerificationMeta _allowDirectChatMeta = const VerificationMeta(
+    'allowDirectChat',
+  );
+  @override
+  late final GeneratedColumn<bool> allowDirectChat = GeneratedColumn<bool>(
+    'allow_direct_chat',
+    aliasedName,
+    true,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("allow_direct_chat" IN (0, 1))',
+    ),
+  );
+  static const VerificationMeta _onlineOnlyMeta = const VerificationMeta(
+    'onlineOnly',
+  );
+  @override
+  late final GeneratedColumn<bool> onlineOnly = GeneratedColumn<bool>(
+    'online_only',
+    aliasedName,
+    true,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("online_only" IN (0, 1))',
+    ),
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -3712,6 +3754,9 @@ class $SavedSearchTableTable extends SavedSearchTable
     interests,
     lookingFor,
     radiusKm,
+    allowVideoCall,
+    allowDirectChat,
+    onlineOnly,
     createdAt,
   ];
   @override
@@ -3777,6 +3822,30 @@ class $SavedSearchTableTable extends SavedSearchTable
         radiusKm.isAcceptableOrUnknown(data['radius_km']!, _radiusKmMeta),
       );
     }
+    if (data.containsKey('allow_video_call')) {
+      context.handle(
+        _allowVideoCallMeta,
+        allowVideoCall.isAcceptableOrUnknown(
+          data['allow_video_call']!,
+          _allowVideoCallMeta,
+        ),
+      );
+    }
+    if (data.containsKey('allow_direct_chat')) {
+      context.handle(
+        _allowDirectChatMeta,
+        allowDirectChat.isAcceptableOrUnknown(
+          data['allow_direct_chat']!,
+          _allowDirectChatMeta,
+        ),
+      );
+    }
+    if (data.containsKey('online_only')) {
+      context.handle(
+        _onlineOnlyMeta,
+        onlineOnly.isAcceptableOrUnknown(data['online_only']!, _onlineOnlyMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -3834,6 +3903,18 @@ class $SavedSearchTableTable extends SavedSearchTable
         DriftSqlType.double,
         data['${effectivePrefix}radius_km'],
       ),
+      allowVideoCall: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}allow_video_call'],
+      ),
+      allowDirectChat: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}allow_direct_chat'],
+      ),
+      onlineOnly: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}online_only'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -3864,6 +3945,9 @@ class SavedSearchTableData extends DataClass
   final List<String>? interests;
   final String? lookingFor;
   final double? radiusKm;
+  final bool? allowVideoCall;
+  final bool? allowDirectChat;
+  final bool? onlineOnly;
   final DateTime createdAt;
   const SavedSearchTableData({
     required this.id,
@@ -3876,6 +3960,9 @@ class SavedSearchTableData extends DataClass
     this.interests,
     this.lookingFor,
     this.radiusKm,
+    this.allowVideoCall,
+    this.allowDirectChat,
+    this.onlineOnly,
     required this.createdAt,
   });
   @override
@@ -3911,6 +3998,15 @@ class SavedSearchTableData extends DataClass
     if (!nullToAbsent || radiusKm != null) {
       map['radius_km'] = Variable<double>(radiusKm);
     }
+    if (!nullToAbsent || allowVideoCall != null) {
+      map['allow_video_call'] = Variable<bool>(allowVideoCall);
+    }
+    if (!nullToAbsent || allowDirectChat != null) {
+      map['allow_direct_chat'] = Variable<bool>(allowDirectChat);
+    }
+    if (!nullToAbsent || onlineOnly != null) {
+      map['online_only'] = Variable<bool>(onlineOnly);
+    }
     map['created_at'] = Variable<DateTime>(createdAt);
     return map;
   }
@@ -3943,6 +4039,15 @@ class SavedSearchTableData extends DataClass
       radiusKm: radiusKm == null && nullToAbsent
           ? const Value.absent()
           : Value(radiusKm),
+      allowVideoCall: allowVideoCall == null && nullToAbsent
+          ? const Value.absent()
+          : Value(allowVideoCall),
+      allowDirectChat: allowDirectChat == null && nullToAbsent
+          ? const Value.absent()
+          : Value(allowDirectChat),
+      onlineOnly: onlineOnly == null && nullToAbsent
+          ? const Value.absent()
+          : Value(onlineOnly),
       createdAt: Value(createdAt),
     );
   }
@@ -3963,6 +4068,9 @@ class SavedSearchTableData extends DataClass
       interests: serializer.fromJson<List<String>?>(json['interests']),
       lookingFor: serializer.fromJson<String?>(json['lookingFor']),
       radiusKm: serializer.fromJson<double?>(json['radiusKm']),
+      allowVideoCall: serializer.fromJson<bool?>(json['allowVideoCall']),
+      allowDirectChat: serializer.fromJson<bool?>(json['allowDirectChat']),
+      onlineOnly: serializer.fromJson<bool?>(json['onlineOnly']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
     );
   }
@@ -3980,6 +4088,9 @@ class SavedSearchTableData extends DataClass
       'interests': serializer.toJson<List<String>?>(interests),
       'lookingFor': serializer.toJson<String?>(lookingFor),
       'radiusKm': serializer.toJson<double?>(radiusKm),
+      'allowVideoCall': serializer.toJson<bool?>(allowVideoCall),
+      'allowDirectChat': serializer.toJson<bool?>(allowDirectChat),
+      'onlineOnly': serializer.toJson<bool?>(onlineOnly),
       'createdAt': serializer.toJson<DateTime>(createdAt),
     };
   }
@@ -3995,6 +4106,9 @@ class SavedSearchTableData extends DataClass
     Value<List<String>?> interests = const Value.absent(),
     Value<String?> lookingFor = const Value.absent(),
     Value<double?> radiusKm = const Value.absent(),
+    Value<bool?> allowVideoCall = const Value.absent(),
+    Value<bool?> allowDirectChat = const Value.absent(),
+    Value<bool?> onlineOnly = const Value.absent(),
     DateTime? createdAt,
   }) => SavedSearchTableData(
     id: id ?? this.id,
@@ -4007,6 +4121,13 @@ class SavedSearchTableData extends DataClass
     interests: interests.present ? interests.value : this.interests,
     lookingFor: lookingFor.present ? lookingFor.value : this.lookingFor,
     radiusKm: radiusKm.present ? radiusKm.value : this.radiusKm,
+    allowVideoCall: allowVideoCall.present
+        ? allowVideoCall.value
+        : this.allowVideoCall,
+    allowDirectChat: allowDirectChat.present
+        ? allowDirectChat.value
+        : this.allowDirectChat,
+    onlineOnly: onlineOnly.present ? onlineOnly.value : this.onlineOnly,
     createdAt: createdAt ?? this.createdAt,
   );
   SavedSearchTableData copyWithCompanion(SavedSearchTableCompanion data) {
@@ -4023,6 +4144,15 @@ class SavedSearchTableData extends DataClass
           ? data.lookingFor.value
           : this.lookingFor,
       radiusKm: data.radiusKm.present ? data.radiusKm.value : this.radiusKm,
+      allowVideoCall: data.allowVideoCall.present
+          ? data.allowVideoCall.value
+          : this.allowVideoCall,
+      allowDirectChat: data.allowDirectChat.present
+          ? data.allowDirectChat.value
+          : this.allowDirectChat,
+      onlineOnly: data.onlineOnly.present
+          ? data.onlineOnly.value
+          : this.onlineOnly,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
     );
   }
@@ -4040,6 +4170,9 @@ class SavedSearchTableData extends DataClass
           ..write('interests: $interests, ')
           ..write('lookingFor: $lookingFor, ')
           ..write('radiusKm: $radiusKm, ')
+          ..write('allowVideoCall: $allowVideoCall, ')
+          ..write('allowDirectChat: $allowDirectChat, ')
+          ..write('onlineOnly: $onlineOnly, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
@@ -4057,6 +4190,9 @@ class SavedSearchTableData extends DataClass
     interests,
     lookingFor,
     radiusKm,
+    allowVideoCall,
+    allowDirectChat,
+    onlineOnly,
     createdAt,
   );
   @override
@@ -4073,6 +4209,9 @@ class SavedSearchTableData extends DataClass
           other.interests == this.interests &&
           other.lookingFor == this.lookingFor &&
           other.radiusKm == this.radiusKm &&
+          other.allowVideoCall == this.allowVideoCall &&
+          other.allowDirectChat == this.allowDirectChat &&
+          other.onlineOnly == this.onlineOnly &&
           other.createdAt == this.createdAt);
 }
 
@@ -4087,6 +4226,9 @@ class SavedSearchTableCompanion extends UpdateCompanion<SavedSearchTableData> {
   final Value<List<String>?> interests;
   final Value<String?> lookingFor;
   final Value<double?> radiusKm;
+  final Value<bool?> allowVideoCall;
+  final Value<bool?> allowDirectChat;
+  final Value<bool?> onlineOnly;
   final Value<DateTime> createdAt;
   const SavedSearchTableCompanion({
     this.id = const Value.absent(),
@@ -4099,6 +4241,9 @@ class SavedSearchTableCompanion extends UpdateCompanion<SavedSearchTableData> {
     this.interests = const Value.absent(),
     this.lookingFor = const Value.absent(),
     this.radiusKm = const Value.absent(),
+    this.allowVideoCall = const Value.absent(),
+    this.allowDirectChat = const Value.absent(),
+    this.onlineOnly = const Value.absent(),
     this.createdAt = const Value.absent(),
   });
   SavedSearchTableCompanion.insert({
@@ -4112,6 +4257,9 @@ class SavedSearchTableCompanion extends UpdateCompanion<SavedSearchTableData> {
     this.interests = const Value.absent(),
     this.lookingFor = const Value.absent(),
     this.radiusKm = const Value.absent(),
+    this.allowVideoCall = const Value.absent(),
+    this.allowDirectChat = const Value.absent(),
+    this.onlineOnly = const Value.absent(),
     this.createdAt = const Value.absent(),
   });
   static Insertable<SavedSearchTableData> custom({
@@ -4125,6 +4273,9 @@ class SavedSearchTableCompanion extends UpdateCompanion<SavedSearchTableData> {
     Expression<String>? interests,
     Expression<String>? lookingFor,
     Expression<double>? radiusKm,
+    Expression<bool>? allowVideoCall,
+    Expression<bool>? allowDirectChat,
+    Expression<bool>? onlineOnly,
     Expression<DateTime>? createdAt,
   }) {
     return RawValuesInsertable({
@@ -4138,6 +4289,9 @@ class SavedSearchTableCompanion extends UpdateCompanion<SavedSearchTableData> {
       if (interests != null) 'interests': interests,
       if (lookingFor != null) 'looking_for': lookingFor,
       if (radiusKm != null) 'radius_km': radiusKm,
+      if (allowVideoCall != null) 'allow_video_call': allowVideoCall,
+      if (allowDirectChat != null) 'allow_direct_chat': allowDirectChat,
+      if (onlineOnly != null) 'online_only': onlineOnly,
       if (createdAt != null) 'created_at': createdAt,
     });
   }
@@ -4153,6 +4307,9 @@ class SavedSearchTableCompanion extends UpdateCompanion<SavedSearchTableData> {
     Value<List<String>?>? interests,
     Value<String?>? lookingFor,
     Value<double?>? radiusKm,
+    Value<bool?>? allowVideoCall,
+    Value<bool?>? allowDirectChat,
+    Value<bool?>? onlineOnly,
     Value<DateTime>? createdAt,
   }) {
     return SavedSearchTableCompanion(
@@ -4166,6 +4323,9 @@ class SavedSearchTableCompanion extends UpdateCompanion<SavedSearchTableData> {
       interests: interests ?? this.interests,
       lookingFor: lookingFor ?? this.lookingFor,
       radiusKm: radiusKm ?? this.radiusKm,
+      allowVideoCall: allowVideoCall ?? this.allowVideoCall,
+      allowDirectChat: allowDirectChat ?? this.allowDirectChat,
+      onlineOnly: onlineOnly ?? this.onlineOnly,
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -4205,6 +4365,15 @@ class SavedSearchTableCompanion extends UpdateCompanion<SavedSearchTableData> {
     if (radiusKm.present) {
       map['radius_km'] = Variable<double>(radiusKm.value);
     }
+    if (allowVideoCall.present) {
+      map['allow_video_call'] = Variable<bool>(allowVideoCall.value);
+    }
+    if (allowDirectChat.present) {
+      map['allow_direct_chat'] = Variable<bool>(allowDirectChat.value);
+    }
+    if (onlineOnly.present) {
+      map['online_only'] = Variable<bool>(onlineOnly.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -4224,6 +4393,9 @@ class SavedSearchTableCompanion extends UpdateCompanion<SavedSearchTableData> {
           ..write('interests: $interests, ')
           ..write('lookingFor: $lookingFor, ')
           ..write('radiusKm: $radiusKm, ')
+          ..write('allowVideoCall: $allowVideoCall, ')
+          ..write('allowDirectChat: $allowDirectChat, ')
+          ..write('onlineOnly: $onlineOnly, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
@@ -6870,6 +7042,9 @@ typedef $$SavedSearchTableTableCreateCompanionBuilder =
       Value<List<String>?> interests,
       Value<String?> lookingFor,
       Value<double?> radiusKm,
+      Value<bool?> allowVideoCall,
+      Value<bool?> allowDirectChat,
+      Value<bool?> onlineOnly,
       Value<DateTime> createdAt,
     });
 typedef $$SavedSearchTableTableUpdateCompanionBuilder =
@@ -6884,6 +7059,9 @@ typedef $$SavedSearchTableTableUpdateCompanionBuilder =
       Value<List<String>?> interests,
       Value<String?> lookingFor,
       Value<double?> radiusKm,
+      Value<bool?> allowVideoCall,
+      Value<bool?> allowDirectChat,
+      Value<bool?> onlineOnly,
       Value<DateTime> createdAt,
     });
 
@@ -6944,6 +7122,21 @@ class $$SavedSearchTableTableFilterComposer
 
   ColumnFilters<double> get radiusKm => $composableBuilder(
     column: $table.radiusKm,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get allowVideoCall => $composableBuilder(
+    column: $table.allowVideoCall,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get allowDirectChat => $composableBuilder(
+    column: $table.allowDirectChat,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get onlineOnly => $composableBuilder(
+    column: $table.onlineOnly,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7012,6 +7205,21 @@ class $$SavedSearchTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get allowVideoCall => $composableBuilder(
+    column: $table.allowVideoCall,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get allowDirectChat => $composableBuilder(
+    column: $table.allowDirectChat,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get onlineOnly => $composableBuilder(
+    column: $table.onlineOnly,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -7058,6 +7266,21 @@ class $$SavedSearchTableTableAnnotationComposer
 
   GeneratedColumn<double> get radiusKm =>
       $composableBuilder(column: $table.radiusKm, builder: (column) => column);
+
+  GeneratedColumn<bool> get allowVideoCall => $composableBuilder(
+    column: $table.allowVideoCall,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get allowDirectChat => $composableBuilder(
+    column: $table.allowDirectChat,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get onlineOnly => $composableBuilder(
+    column: $table.onlineOnly,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -7110,6 +7333,9 @@ class $$SavedSearchTableTableTableManager
                 Value<List<String>?> interests = const Value.absent(),
                 Value<String?> lookingFor = const Value.absent(),
                 Value<double?> radiusKm = const Value.absent(),
+                Value<bool?> allowVideoCall = const Value.absent(),
+                Value<bool?> allowDirectChat = const Value.absent(),
+                Value<bool?> onlineOnly = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
               }) => SavedSearchTableCompanion(
                 id: id,
@@ -7122,6 +7348,9 @@ class $$SavedSearchTableTableTableManager
                 interests: interests,
                 lookingFor: lookingFor,
                 radiusKm: radiusKm,
+                allowVideoCall: allowVideoCall,
+                allowDirectChat: allowDirectChat,
+                onlineOnly: onlineOnly,
                 createdAt: createdAt,
               ),
           createCompanionCallback:
@@ -7136,6 +7365,9 @@ class $$SavedSearchTableTableTableManager
                 Value<List<String>?> interests = const Value.absent(),
                 Value<String?> lookingFor = const Value.absent(),
                 Value<double?> radiusKm = const Value.absent(),
+                Value<bool?> allowVideoCall = const Value.absent(),
+                Value<bool?> allowDirectChat = const Value.absent(),
+                Value<bool?> onlineOnly = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
               }) => SavedSearchTableCompanion.insert(
                 id: id,
@@ -7148,6 +7380,9 @@ class $$SavedSearchTableTableTableManager
                 interests: interests,
                 lookingFor: lookingFor,
                 radiusKm: radiusKm,
+                allowVideoCall: allowVideoCall,
+                allowDirectChat: allowDirectChat,
+                onlineOnly: onlineOnly,
                 createdAt: createdAt,
               ),
           withReferenceMapper: (p0) => p0

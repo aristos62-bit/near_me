@@ -46,6 +46,9 @@ class SavedSearchActions {
     fn.updateLookingFor(filters.lookingFor);
     fn.updateCity(filters.city);
     fn.updateRadius(filters.radiusKm);
+    fn.updateAllowVideoCall(filters.allowVideoCall);
+    fn.updateAllowDirectChat(filters.allowDirectChat);
+    fn.updateOnlineOnly(filters.isOnlineNow);
     _ref.read(searchProvider.notifier).search();
   }
 }

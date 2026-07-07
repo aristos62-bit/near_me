@@ -473,7 +473,10 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
       },
       child: Scaffold(
       appBar: AppBar(leading: IconButton(icon: const Icon(Icons.close), onPressed: _onBack), title: Text(g ? 'Επεξεργασία Προφίλ' : 'Edit Profile')),
-      body: Center(child: SizedBox(width: ResponsiveUtils.maxContentWidth(context),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final w = ResponsiveUtils.resolveWidth(context, constraints);
+          return Center(child: SizedBox(width: ResponsiveUtils.maxContentWidthFromWidth(w),
         child: Form(key: _formKey, child: ListView(padding: const EdgeInsets.only(bottom: 32), children: [
           _buildAvatarHeader(),
           FormSection(title: g ? 'Βασικά Στοιχεία' : 'Basic Info', children: [
@@ -549,6 +552,8 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
         ]),
       ),
     ),
+    );
+    },
   ),
   ),
 );

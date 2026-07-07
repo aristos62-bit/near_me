@@ -42,10 +42,13 @@ class _AnonymousInfoScreenState extends ConsumerState<AnonymousInfoScreen> {
     return Scaffold(
       backgroundColor: Colors.black12,
       body: SafeArea(
-        child: Center(
-          child: SizedBox(
-            width: ResponsiveUtils.maxContentWidth(context),
-            child: SingleChildScrollView(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final w = ResponsiveUtils.resolveWidth(context, constraints);
+            return Center(
+              child: SizedBox(
+                width: ResponsiveUtils.maxContentWidthFromWidth(w),
+                child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -112,8 +115,10 @@ class _AnonymousInfoScreenState extends ConsumerState<AnonymousInfoScreen> {
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
+    ),
+    ),
     );
   }
 }

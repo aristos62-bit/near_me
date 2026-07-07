@@ -59,6 +59,35 @@ class _SearchCard extends ConsumerWidget {
   final bool isGreek;
   const _SearchCard({required this.search, required this.isGreek});
 
+  Widget _buildBadge(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    Color? iconColor,
+  }) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: iconColor ?? theme.colorScheme.onSecondaryContainer),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSecondaryContainer,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
@@ -136,6 +165,36 @@ class _SearchCard extends ConsumerWidget {
                 const SizedBox(height: 6),
                 Text(summary, style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant)),
+              ],
+              if (search.allowVideoCall == true ||
+                  search.allowDirectChat == true ||
+                  search.onlineOnly == true) ...[
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    if (search.allowVideoCall == true)
+                      _buildBadge(
+                        context,
+                        icon: Icons.videocam,
+                        label: isGreek ? 'Βίντεο' : 'Video',
+                      ),
+                    if (search.allowDirectChat == true)
+                      _buildBadge(
+                        context,
+                        icon: Icons.chat,
+                        label: isGreek ? 'Chat' : 'Chat',
+                      ),
+                    if (search.onlineOnly == true)
+                      _buildBadge(
+                        context,
+                        icon: Icons.circle,
+                        label: isGreek ? 'Μόνο Online' : 'Online Only',
+                        iconColor: Colors.green,
+                      ),
+                  ],
+                ),
               ],
               const SizedBox(height: 4),
               Text(

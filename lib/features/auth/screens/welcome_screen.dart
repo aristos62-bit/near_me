@@ -114,13 +114,18 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
     });
 
     return Scaffold(
-      body: Center(
-        child: SizedBox(
-          width: ResponsiveUtils.maxContentWidth(context),
-          child: state.status == WelcomeStatus.loading || state.isSignedIn
-              ? const LoadingView()
-              : _buildContent(isGreek, state),
-        ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final w = ResponsiveUtils.resolveWidth(context, constraints);
+          return Center(
+            child: SizedBox(
+              width: ResponsiveUtils.maxContentWidthFromWidth(w),
+              child: state.status == WelcomeStatus.loading || state.isSignedIn
+                  ? const LoadingView()
+                  : _buildContent(isGreek, state),
+            ),
+          );
+        },
       ),
     );
   }

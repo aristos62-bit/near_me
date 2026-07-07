@@ -95,11 +95,14 @@ class _PublicProfileViewScreenState extends ConsumerState<PublicProfileViewScree
               'PublicProfileView uid=$uid distance=${distanceKm.toStringAsFixed(1)}km');
         }
         return Scaffold(
-          body: SingleChildScrollView(
-            child: Center(
-              child: SizedBox(
-                width: ResponsiveUtils.maxContentWidth(context),
-                child: Column(
+          body: LayoutBuilder(
+            builder: (context, constraints) {
+              final w = ResponsiveUtils.resolveWidth(context, constraints);
+              return SingleChildScrollView(
+                child: Center(
+                  child: SizedBox(
+                    width: ResponsiveUtils.maxContentWidthFromWidth(w),
+                    child: Column(
                   children: [
                     PublicProfileHeader(profile: profile, uid: uid, distanceKm: distanceKm),
                     if (profile.photoUrls != null && profile.photoUrls!.isNotEmpty)
@@ -116,8 +119,10 @@ class _PublicProfileViewScreenState extends ConsumerState<PublicProfileViewScree
                 ),
               ),
             ),
-          ),
-        );
+          );
+          },
+        ),
+      );
       },
     );
   }

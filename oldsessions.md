@@ -277,6 +277,65 @@ Zero occurrences of `No GoRouter found in context` or `_pendingChatId` or `check
 **Backups:** `discovery_screen.dart.backup`, `delete_account_screen.dart.backup`
 **Verification:** `flutter analyze` — No issues found
 
+### Session 146 — Breakpoint spam fix: cache + constraint-based responsive helpers
+
+**Problem:** `breakpointFromWidth: 393px → ScreenBreakpoint.mobile` log 300+ φορές σε cascade (20-30 κλήσεις ανά rebuild chain). 40+ logs/sec σε filters μετά από reset. Κάθε `LayoutBuilder`/`Center+SizedBox` rebuild (viewInsets, navigation transitions) πυροδοτούσε `maxContentWidth(context)` → `MediaQuery.of(context).size.width` → `breakpointFromWidth()` χωρίς cache.
+
+**Root cause:** 17 files χρησιμοποιούσαν context-based `maxContentWidth(context)` που καλούσε `MediaQuery.of(context).size.width`. Κάθε rebuild δημιουργούσε νέο width → log. Δεν υπήρχε caching, ούτε constraint-based εναλλακτική.
+
+**Phase 1 — Log cache (`responsive_utils.dart:29`):**
+- `static double _lastLoggedWidth = -1;` — log μόνο όταν `w` αλλάζει
+- Μηδενίζει το `breakpointFromWidth` spam χωρίς αλλαγή αρχιτεκτονικής
+- `flutter analyze` ✅ clean
+
+**Phase 2 — Constraint-based helpers (16/16 files migrated ✅):**
+- Νέο pattern: `LayoutBuilder(builder: (ctx, c) { final w = ResponsiveUtils.resolveWidth(ctx, c); return SizedBox(width: maxContentWidthFromWidth(w), ...) })`
+- `resolveWidth(ctx, constraints)` — χρησιμοποιεί `constraints.maxWidth` με `MediaQuery` fallback
+- `maxContentWidthFromWidth(w)` — width-based χωρίς context lookup
+- **Migrated files:**
+  1. `search_filters_screen.dart` ✅
+  2. `profile_editor_screen.dart` ✅
+  3. `settings_screen.dart` ✅
+  4. `verify_account_screen.dart` ✅
+  5. `public_profile_view_screen.dart` ✅
+  6. `send_request_screen.dart` ✅
+  7. `welcome_screen.dart` ✅
+  8. `phone_verify_screen.dart` ✅
+  9. `privacy_editor_screen.dart` ✅
+  10. `blocked_users_screen.dart` ✅
+  11. `anonymous_info_screen.dart` ✅
+  12. `requests_dashboard_screen.dart` ✅
+
+**Σημείωση:** 4 ακόμα files (`gps_strength_indicator`, `consent_log_screen`, `delete_account_screen`, `chat_screen`) χρησιμοποιούσαν `horizontalPadding/isTablet/paddingValue` — migrated στο Phase 3 παρακάτω.
+
+**Phase 3 — Context-based → constraint-based migration (4 files ✅):**
+
+| Αρχείο | Πριν | Μετά | Analyze |
+|--------|------|------|:-------:|
+| `gps_strength_indicator.dart` | `horizontalPadding(context)` | `LayoutBuilder` + `horizontalPaddingFromWidth(w)` | ✅ |
+| `consent_log_screen.dart` | `isTablet(context)` → `isWide ? 48 : 12` | `LayoutBuilder` + `isTabletFromWidth(w)` | ✅ |
+| `delete_account_screen.dart` | `isTablet(context)` → `maxWidth: isWide ? 600 : 480` | `LayoutBuilder` + `isTabletFromWidth(w)` | ✅ |
+| `chat_screen.dart` | `paddingValue(context)` × 2 widgets | `LayoutBuilder` + `paddingValueFromWidth(w)` | ✅ |
+
+**Σύνολο:** 16/16 files constraint-based, **καμία κλήση `MediaQuery.of(context).size.width`** σε responsive helpers (εκτός από `resolveWidth` fallback).
+
+**Runtime testing (`flutter run --dart-define=ENABLE_RELEASE_DEBUG=true`):**
+
+`breakpointFromWidth` log εμφανίστηκε **μόνο 4-5 φορές** σε ~3 λεπτά χρήσης (από 300+ πριν). Οι μόνες φορές που loggάρει είναι όταν το πλάτος όντως αλλάζει (384→320→384→320 px). Όλα τα screens λειτουργούν κανονικά: ProfileScreen ✅, ChatListScreen ✅, DiscoveryScreen ✅, SettingsScreen ✅, BlockedUsersScreen ✅.
+
+**Side effect detected (pre-existing):** `RenderFlex overflowed by 82 pixels` στο `requests_dashboard_screen.dart:217` — Row selection bar (414px content > 352px διαθέσιμο). ΔΕΝ σχετίζεται με τις αλλαγές μας — το `_buildSelectionBar` μπαίνει απ'ευθείας ως `Scaffold.body` χωρίς `maxContentWidth` wrapping.
+
+**Διαδικασία ελέγχου runtime:**
+1. `flutter run --dart-define=ENABLE_RELEASE_DEBUG=true`
+2. `adb logcat -s flutter:*` ή `flutter logs`
+3. Φιλτράρισμα: `grep breakpointFromWidth` — αναμένονται **<10 logs** σε όλη τη διάρκεια
+4. Πλοήγηση:
+   - Discovery → Filters → Apply → Results → Profile tap → Back → Chat tab → Συγκεκριμένο chat → Back → Settings tab → Profile editor → Save → Privacy editor → Save → Requests tab → Incoming/Outgoing tabs
+5. **Key check:** `breakpointFromWidth` logs μόνο όταν το πλάτος αλλάζει (π.χ. fold/unfold, orientation change, resize). **ΟΧΙ** spam σε rebuilds.
+6. **LayoutBuilder REBUILT logs** (flag: `uiRebuild`): αναμένονται rebuilds σε navigation transitions — φυσιολογικό. Αν υπάρχουν cascade rebuilds (10+ σε 1sec χωρίς user input) → regression.
+
+**Backups:** διαγράφηκαν 43 backup αρχεία (26 .bak + 17 .backup). Phase 3 backups: διατηρούνται 4 `.bak` (gps_strength_indicator, consent_log_screen, delete_account_screen, chat_screen).
+
 ## Current State
 
 | Μέτρο | Τιμή |
@@ -293,6 +352,7 @@ Zero occurrences of `No GoRouter found in context` or `_pendingChatId` or `check
 | **L2 — Badge count iOS** | ✅ Session 143 |
 | **L4 — Locale fallback `?? 'en'`** | ✅ Session 143 |
 | **City-filter Firestore crash** | ✅ Session 143 |
+| **Breakpoint spam fix** (Phase 1 cache + Phase 2+3 constraint-based) | ✅ Session 146 |
 
 ### Session 143 — L2 badge iOS + L4 locale fallback + Firestore city-filter crash
 
@@ -393,6 +453,37 @@ try {
 **Files:** `profile_editor_screen.dart:449`
 **Backup:** `profile_editor_screen.dart.backup` (updated)
 
+### Session 144 — Saved search bool filter DB fix verification (7-point plan)
+
+**Problem:** 3 bool filter fields (`allowVideoCall`, `allowDirectChat`, `onlineOnly`) από τα `SearchFilters` χάνονταν στη DB όταν αποθηκευόταν μια αναζήτηση. Το `saved_search_table.dart` ΔΕΝ είχε αντίστοιχες στήλες → το `Companion.insert()` δεν τα συμπεριλάμβανε → η restore (`toFilters()`) επέστρεφε πάντα `null`.
+
+**Verification — 7 σημεία ΕΛΕΓΧΘΗΚΑΝ και ΕΠΙΒΕΒΑΙΩΘΗΚΑΝ ήδη εφαρμοσμένα:**
+
+**Μέρος Α — Το Κύριο Bug**
+| Βήμα | Αρχείο | Κατάσταση |
+|:----:|--------|:---------:|
+| 1 | `saved_search_table.dart:17-19` — 3 `BoolColumn` (allowVideoCall, allowDirectChat, onlineOnly) | ✅ |
+| 2 | `database.dart:73-79` — Migration v7→v8 `addColumn` ×3 | ✅ |
+| 3 | `database.g.dart` — `build_runner` regenerated (317+ refs στα 3 πεδία) | ✅ |
+| 4α | `saved_search_repository.dart:36-38` — `save()`: `Companion.insert` με τα 3 Value | ✅ |
+| 4β | `saved_search_repository.dart:91-93` — `toFilters()`: `allowVideoCall`, `allowDirectChat`, `isOnlineNow` | ✅ |
+
+**Μέρος Β — Debug Logging**
+| Βήμα | Αρχείο | Κατάσταση |
+|:----:|--------|:---------:|
+| 5α | `saved_search_repository.dart:41-45` — `save()`: log των 3 bool τιμών | ✅ |
+| 5β | `saved_search_repository.dart:95-96` — `toFilters()`: `DebugConfig.log` | ✅ (υπήρχε ήδη) |
+
+**Μέρος Γ — UI Display**
+| Βήμα | Αρχείο | Κατάσταση |
+|:----:|--------|:---------:|
+| 6 | `saved_searches_screen.dart:169-197` — `_SearchCard` δείχνει badges (Video/Chat/Online Only) | ✅ (user είχε ήδη υλοποιήσει) |
+
+**Πρόσθετο pre-existing UX bug (επιβεβαιώθηκε):**
+- `search_filters_screen.dart:174` — `_saveSearch()` διαβάζει `ref.read(searchFiltersProvider)` αντί για local UI vars. Αν ο χρήστης αλλάξει toggle χωρίς Apply → save κρατάει ΠΑΛΙΑ τιμή. **ΔΕΝ διορθώθηκε** (εκτός scope του DB fix).
+
+**Συμπέρασμα:** Η υλοποίηση είναι **100% πλήρης**. Όλα τα βήματα του 7-point plan είχαν ήδη γίνει. Χρειάστηκε μόνο επιβεβαίωση και documentation στο `oldsessions.md`.
+
 ### Tech Debt Backlog
 | # | Item | Status |
 |---|---|---|
@@ -401,6 +492,16 @@ try {
 | 3 | GPS fallback staleness (>5min rejection) | ✅ Session 126 |
 | 4 | Mock location detection | Pending |
 | 5 | **Riverpod scheduler race (debug-only)** — `Only one task can be scheduled at a time` σε respondToRequest. Αναβάθμιση Riverpod σε stable (όχι dev) στο τελικό στάδιο πριν production | Deferred (Session 141) |
+
+### Session 145 — Log Review: 3 optimization issues found
+
+**Issue 1 — breakpointFromWidth spam:** `breakpointFromWidth: 393px → ScreenBreakpoint.mobile` εμφανίζεται 300+ φορές σε cascade (20-30 συνεχόμενες κλήσεις ανά rebuild chain). Στη σελίδα filters μετά από reset, 40+ logs σε 1sec. Κάθε `LayoutBuilder` rebuild (viewInsets, navigation transitions) πυροδοτεί επανυπολογισμό χωρίς cache.
+
+**Issue 2 — Duplicate encrypt/decrypt σε sendMessage:** Το μήνυμα (3 chars) encrypt 2 φορές και decrypt 3-4 φορές λόγω πολλαπλών `messagesStream` listeners/emissions. Πιθανό race condition ή dispose/recreate του `messagesProvider`.
+
+**Issue 3 — chatProvider dispose/recreate cascade:** Κατά το άνοιγμα chat, το `chatsProvider` disposed+created 2-3 φορές (started → sync completed → cancelled → started). Πιθανή αναντιστοιχία routing ή autoDispose timeout.
+
+**Build logs:** APK 14.8MB (+0.3MB από image_cropper). Startup ~392ms. Όλες οι λειτουργίες 100% stable.
 
 ### Key Conventions
 - File size ≤ 500 lines (1 exception: profile_repository_impl ~570)

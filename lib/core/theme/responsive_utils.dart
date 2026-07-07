@@ -20,13 +20,18 @@ class ResponsiveUtils {
   // ─────────────────────────────────────────────────────────────
   // PURE WIDTH-BASED (no MediaQuery dependency)
   // ─────────────────────────────────────────────────────────────
+  static double _lastLoggedWidth = -1;
+
   static ScreenBreakpoint breakpointFromWidth(double w) {
     final bp = w < 600
         ? ScreenBreakpoint.mobile
         : w < 900
             ? ScreenBreakpoint.tablet
             : ScreenBreakpoint.desktop;
-    DebugConfig.log(DebugConfig.uiRebuild, 'breakpointFromWidth: ${w.toStringAsFixed(0)}px → $bp');
+    if (w != _lastLoggedWidth) {
+      _lastLoggedWidth = w;
+      DebugConfig.log(DebugConfig.uiRebuild, 'breakpointFromWidth: ${w.toStringAsFixed(0)}px → $bp');
+    }
     return bp;
   }
 

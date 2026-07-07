@@ -14,5 +14,8 @@ class SavedSearchTable extends Table {
       text().map(const StringListConverter()).nullable()();
   TextColumn get lookingFor => text().nullable()();
   RealColumn get radiusKm => real().nullable()();
+  BoolColumn get allowVideoCall => boolean().nullable()();
+  BoolColumn get allowDirectChat => boolean().nullable()();
+  BoolColumn get onlineOnly => boolean().nullable()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }

@@ -100,7 +100,6 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
     final state = ref.watch(deleteAccountProvider);
     final theme = Theme.of(context);
     final greek = L10n.isGreek(context);
-    final isWide = ResponsiveUtils.isTablet(context);
     final isAnonymous = ref.watch(authStateProvider).value?.isAnonymous ?? true;
 
     if (isAnonymous) {
@@ -165,30 +164,36 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
       appBar: AppBar(title: Text(greek ? 'Διαγραφή Λογαριασμού' : 'Delete Account')),
       body: state.status == DeleteState.loading
           ? const LoadingView()
-          : Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: isWide ? 600 : 480),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      GradientHeader(
-                        gradientColors: [AppColors.error, AppColors.error.withAlpha(200)],
-                        icon: Icons.warning_rounded,
-                        title: greek ? 'Διαγραφή Λογαριασμού' : 'Delete Account',
-                        subtitle: greek ? 'Αυτή η ενέργεια είναι μη αναστρέψιμη' : 'This action cannot be undone',
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                final w = ResponsiveUtils.resolveWidth(context, constraints);
+                final isWide = ResponsiveUtils.isTabletFromWidth(w);
+                return Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: isWide ? 600 : 480),
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          GradientHeader(
+                            gradientColors: [AppColors.error, AppColors.error.withAlpha(200)],
+                            icon: Icons.warning_rounded,
+                            title: greek ? 'Διαγραφή Λογαριασμού' : 'Delete Account',
+                            subtitle: greek ? 'Αυτή η ενέργεια είναι μη αναστρέψιμη' : 'This action cannot be undone',
+                          ),
+                          const SizedBox(height: 20),
+                          _buildWarningCard(theme, greek),
+                          const SizedBox(height: 16),
+                          _buildConfirmationCard(theme, greek),
+                          const SizedBox(height: 24),
+                          _buildDeleteButton(theme, greek),
+                        ],
                       ),
-                      const SizedBox(height: 20),
-                      _buildWarningCard(theme, greek),
-                      const SizedBox(height: 16),
-                      _buildConfirmationCard(theme, greek),
-                      const SizedBox(height: 24),
-                      _buildDeleteButton(theme, greek),
-                    ],
+                    ),
                   ),
-                ),
-              ),
+                );
+              },
             ),
     );
   }

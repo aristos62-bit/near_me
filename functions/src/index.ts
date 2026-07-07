@@ -40,7 +40,7 @@ export const sendChatNotification = functions.firestore
       senderSnap.data()?.nickname ??
       senderSnap.data()?.displayName ??
       'Someone';
-    const lang = langSnap.data()?.lang ?? 'el';
+    const lang = langSnap.data()?.lang ?? 'en';
     const strings = getNotificationStrings(lang);
 
     const tokensSnap = await db
@@ -260,7 +260,7 @@ export const sendRequestNotification = functions.firestore
       db.doc(`users/${toUid}/public/profile`).get(),
     ]);
     const senderName = senderSnap.data()?.nickname ?? 'Someone';
-    const lang = langSnap.data()?.lang ?? 'el';
+    const lang = langSnap.data()?.lang ?? 'en';
     const strings = getNotificationStrings(lang);
 
     let body: string;
@@ -386,7 +386,7 @@ export const sendRequestResponseNotification = functions.firestore
       db.doc(`users/${fromUid}/public/profile`).get(),
     ]);
     const responderName = responderSnap.data()?.nickname ?? 'Someone';
-    const lang = langSnap.data()?.lang ?? 'el';
+    const lang = langSnap.data()?.lang ?? 'en';
     const strings = getNotificationStrings(lang);
 
     let body: string;

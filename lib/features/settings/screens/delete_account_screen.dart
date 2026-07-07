@@ -106,37 +106,46 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
     if (isAnonymous) {
       return Scaffold(
         appBar: AppBar(title: Text(greek ? 'Διαγραφή Λογαριασμού' : 'Delete Account')),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.verified_user_outlined, size: 72,
-                    color: theme.colorScheme.primary.withAlpha(80)),
-                const SizedBox(height: 20),
-                Text(
-                  greek ? 'Ο λογαριασμός είναι προσωρινός' : 'Account is temporary',
-                  style: theme.textTheme.titleLarge,
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.verified_user_outlined, size: 72,
+                            color: theme.colorScheme.primary.withAlpha(80)),
+                        const SizedBox(height: 20),
+                        Text(
+                          greek ? 'Ο λογαριασμός είναι προσωρινός' : 'Account is temporary',
+                          style: theme.textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          greek
+                              ? 'Για να διαγράψεις τον λογαριασμό σου, πρέπει πρώτα να τον επαληθεύσεις με email.'
+                              : 'To delete your account, you need to verify it with an email first.',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant, height: 1.5),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 24),
+                        FilledButton.icon(
+                          onPressed: () => context.push('/auth'),
+                          icon: const Icon(Icons.verified_user_outlined, size: 18),
+                          label: Text(greek ? 'Επαλήθευση Λογαριασμού' : 'Verify Account'),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  greek
-                      ? 'Για να διαγράψεις τον λογαριασμό σου, πρέπει πρώτα να τον επαληθεύσεις με email.'
-                      : 'To delete your account, you need to verify it with an email first.',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant, height: 1.5),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-                FilledButton.icon(
-                  onPressed: () => context.push('/auth'),
-                  icon: const Icon(Icons.verified_user_outlined, size: 18),
-                  label: Text(greek ? 'Επαλήθευση Λογαριασμού' : 'Verify Account'),
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       );
     }

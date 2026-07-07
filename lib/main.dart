@@ -14,6 +14,7 @@ import 'core/utils/app_messenger.dart';
 import 'core/utils/lock_screen.dart';
 import 'core/utils/screen_protector.dart';
 import 'features/settings/providers/app_settings_provider.dart';
+import 'providers/unread_badge_provider.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 void main() async {
@@ -190,6 +191,7 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
       onError: (e) => DebugConfig.error('main: FCM foreground stream error', data: e),
       cancelOnError: false,
     );
+
   }
 
   Future<void> _applyStartupLock() async {
@@ -331,6 +333,7 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(unreadBadgeProvider, (_, _) {});
     ref.listen(appSettingsProvider, (prev, next) {
       if (!mounted) return;
       final p = prev?.value;

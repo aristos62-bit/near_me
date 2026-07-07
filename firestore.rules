@@ -130,7 +130,7 @@ service cloud.firestore {
         allow update: if isAuthenticated()
                       && request.auth.uid == resource.data.toUid
                       && request.resource.data.diff(resource.data).affectedKeys()
-                           .hasOnly(['status', 'chatId', 'respondedAt']);
+                           .hasOnly(['status', 'chatId', 'respondedAt', 'readAt']);
         allow delete: if isAuthenticated()
                       && (request.auth.uid == resource.data.fromUid
                        || request.auth.uid == resource.data.toUid);

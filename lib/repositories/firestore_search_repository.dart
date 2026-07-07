@@ -44,9 +44,8 @@ class FirestoreSearchRepository implements SearchRepository {
         return await _geoSearch(filters, cursor, effectiveLimit);
       }
 
-      // ── City / Country / General search ──────────────────────────
-      return await _generalSearch(
-          filters, cursor, effectiveLimit, cityFilterActive, countryFilterActive);
+      // ── General search (city/country server-side, age client-side) ─
+      return await _generalSearch(filters, cursor, effectiveLimit);
     } catch (e, s) {
       DebugConfig.error('FirestoreSearchRepository.search failed',
           data: e, exception: s);
@@ -169,38 +168,30 @@ class FirestoreSearchRepository implements SearchRepository {
     return SearchResult(filtered, hasMore, cursorOut);
   }
 
-  /// General search (city/country/no-geo).
+  /// General search — city/country server-side for narrowing; age
+  /// and other filters applied client-side via [_passesFilters].
   Future<SearchResult> _generalSearch(
       SearchFilters filters,
       SearchCursor? cursor,
       int effectiveLimit,
-      bool cityFilterActive,
-      bool countryFilterActive,
       ) async {
     Query query = _firestore
         .collectionGroup('public')
         .where('isVisible', isEqualTo: true);
 
-    // City: normalized lowercase για case-insensitive match
-    if (cityFilterActive) {
+    // City/country: normalized lowercase για case-insensitive match
+    // (age removed — range + orderBy('__name__') causes invalid-argument)
+    if (filters.city != null && filters.city!.isNotEmpty) {
       query = query.where('cityNormalized',
           isEqualTo: filters.city!.toLowerCase().trim());
     }
-    if (countryFilterActive) {
+    if (filters.country != null && filters.country!.isNotEmpty) {
       query = query.where('countryNormalized',
           isEqualTo: filters.country!.toLowerCase().trim());
     }
-
-    // Age filters (μόνο χωρίς geo range)
-    if (filters.minAge != null) {
-      query = query.where('age', isGreaterThanOrEqualTo: filters.minAge);
-    }
-    if (filters.maxAge != null) {
-      query = query.where('age', isLessThanOrEqualTo: filters.maxAge);
-    }
     DebugConfig.log(
       DebugConfig.repositoryFilter,
-      '_generalSearch: gender="${filters.gender}" handled client-side',
+      '_generalSearch: city/country server-side, all other filters client-side',
     );
 
     query = query.orderBy('__name__').limit(effectiveLimit);

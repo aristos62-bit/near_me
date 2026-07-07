@@ -32,7 +32,7 @@ class FcmService {
     DebugConfig.log(DebugConfig.chatFcm,
       'Permission: ${settings.authorizationStatus}');
 
-    _resetBadge();
+    setBadge(0);
 
     await _trySaveToken(messaging);
 
@@ -56,8 +56,9 @@ class FcmService {
     if (initial != null) {
       final data = initial.data;
       if (data['type'] == 'request') {
-        _pendingFcmPath = '/requests';
-        DebugConfig.log(DebugConfig.requestFcm, 'Pending nav set: /requests');
+        final rid = data['requestId'];
+        _pendingFcmPath = (rid != null && rid is String) ? '/requests/$rid' : '/requests';
+        DebugConfig.log(DebugConfig.requestFcm, 'Pending nav set: $_pendingFcmPath');
       } else {
         final cid = data['chatId'];
         if (cid != null && cid is String) {
@@ -70,12 +71,15 @@ class FcmService {
     FirebaseMessaging.onBackgroundMessage(_onBackgroundHandler);
   }
 
-  static void _resetBadge() {
+  static void setBadge(int count) {
     try {
       SystemChannels.platform.invokeMethod<void>(
-        'SystemChrome.setApplicationBadge', 0,
+        'SystemChrome.setApplicationBadge', count,
       );
-    } catch (_) {}
+      DebugConfig.log(DebugConfig.chatFcm, 'Badge set to $count');
+    } catch (_) {
+      DebugConfig.warn('Badge set failed for count=$count');
+    }
   }
 
   static Future<void> _trySaveToken(FirebaseMessaging messaging) async {
@@ -124,7 +128,8 @@ class FcmService {
     final data = msg.data;
     String? path;
     if (data['type'] == 'request') {
-      path = '/requests';
+      final rid = data['requestId'];
+      path = (rid != null && rid is String) ? '/requests/$rid' : '/requests';
     } else {
       final cid = data['chatId'];
       if (cid != null && cid is String) path = '/chat/$cid';

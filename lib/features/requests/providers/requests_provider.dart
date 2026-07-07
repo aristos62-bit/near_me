@@ -19,3 +19,13 @@ final outgoingRequestsProvider = StreamProvider.autoDispose<List<Map<String, dyn
   DebugConfig.log(DebugConfig.providerCreate, 'outgoingRequestsProvider: stream starting');
   return repo.streamOutgoingRequests();
 });
+
+final unreadRequestsProvider = Provider.autoDispose<int>((ref) {
+  final incoming = ref.watch(incomingRequestsProvider);
+  final value = incoming.asData?.value;
+  final count = value == null
+      ? 0
+      : value.where((r) => r['status'] == 'pending' && r['readAt'] == null).length;
+  DebugConfig.log(DebugConfig.repositoryResult, 'unreadRequestsProvider: count=$count');
+  return count;
+});

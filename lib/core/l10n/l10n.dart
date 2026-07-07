@@ -262,6 +262,11 @@ class L10n {
       isGreek
           ? 'Αυτόματο κλείδωμα: $minutes λεπτά'
           : 'Auto-lock: $minutes minutes';
+
+  static String unreadRequestsLabel(int count, {required bool isGreek}) =>
+      isGreek
+          ? (count == 1 ? '$count νέο αίτημα' : '$count νέα αιτήματα')
+          : '$count new request${count == 1 ? '' : 's'}';
 }
 
 enum TemperatureUnit { celsius, fahrenheit }

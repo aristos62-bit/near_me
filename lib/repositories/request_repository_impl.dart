@@ -282,6 +282,7 @@ class RequestRepositoryImpl implements RequestRepository {
         final updateData = <String, dynamic>{
           'status': status,
           'respondedAt': FieldValue.serverTimestamp(),
+          'readAt': FieldValue.serverTimestamp(),
         };
         if (chatId != null) updateData['chatId'] = chatId;
         await docRef.update(updateData);
@@ -289,6 +290,7 @@ class RequestRepositoryImpl implements RequestRepository {
         await docRef.update({
           'status': status,
           'respondedAt': FieldValue.serverTimestamp(),
+          'readAt': FieldValue.serverTimestamp(),
         });
       }
 
@@ -335,6 +337,23 @@ class RequestRepositoryImpl implements RequestRepository {
       if (e is AppException) rethrow;
       DebugConfig.error('deleteRequest failed', data: e);
       throw AppException.firestore('delete_request', 'Αποτυχία διαγραφής / Failed to delete request');
+    }
+  }
+
+  @override
+  Future<void> markRequestAsSeen(String requestId) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    DebugConfig.log(DebugConfig.repositoryCall, 'markRequestAsSeen: requestId=$requestId');
+
+    try {
+      await _firestore.collection('requests').doc(requestId).update({
+        'readAt': FieldValue.serverTimestamp(),
+      });
+      DebugConfig.log(DebugConfig.repositoryResult, 'markRequestAsSeen: done requestId=$requestId');
+    } catch (e) {
+      DebugConfig.warn('markRequestAsSeen failed', data: e);
     }
   }
 

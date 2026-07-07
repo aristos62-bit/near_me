@@ -219,6 +219,64 @@ Zero occurrences of `No GoRouter found in context` or `_pendingChatId` or `check
 
 **Verification:** `npm run build` (tsc) ✅ clean. `flutter analyze` ✅ clean. `flutter run --release` on 24094RAD4G ✅ (14.5MB APK). Deploy: `firebase deploy --only functions`.
 
+### Session 139 — L1: Unread tracking για requests + L3: FCM deep link /requests/:requestId
+
+**Problem:** Τα requests δεν είχαν unread tracking — ούτε visual distinction, ούτε badge, ούτε mark-as-read. 
+Το FCM notification tap πήγαινε σε generic `/requests` χωρίς requestId.
+
+**Fix — 8 αρχεία Dart + 1 rules deploy:**
+
+**L1.1 — Widget extraction (`requests_dashboard_screen.dart` 622→285 lines):**
+- `_RequestCard`, `_TypeBadge`, `_StatusBadge`, `_ActionChip`, `_ChatButton`, `_FilterBar` → extracted to `lib/features/requests/widgets/request_card_widgets.dart` (343 lines)
+- Dashboard now under 400 line limit ✅
+
+**L1.2 — `readAt` Firestore πεδίο:**
+- `sendRequest()` persists without `readAt` → default null = unread
+- `markRequestAsSeen(requestId)` sets `readAt: FieldValue.serverTimestamp()`
+- Rules: `hasOnly(['status','chatId','respondedAt','readAt'])` → deployed
+
+**L1.3 — Repository:**
+- Interface: `request_repository.dart` → `markRequestAsSeen()`
+- Impl: `request_repository_impl.dart` → Firestore update με try-catch (non-fatal)
+
+**L1.4 — Provider:**
+- `unreadRequestsProvider` — derived από `incomingRequestsProvider`, φιλτράρει `pending && readAt == null`
+
+**L1.5 — Unread visual (RequestCard):**
+- Μπλε κουκκίδα (8px) + bold nickname + bold message when `isUnread`
+- Mark as seen on tap (only in normal mode, not selection mode)
+
+**L1.6 — Profile badge:**
+- `_buildMenu()` accepts `unreadRequests` param
+- Requests menu item: `Icons.mail` (filled) όταν unread > 0 + `Badge` widget με count (99+ cap)
+- `L10n.unreadRequestsLabel()` bilingual
+
+**L3.1 — FCM deep link:**
+- `fcm_service.dart`: `_onMessageOpened` + `getInitialMessage` → `/requests/{requestId}` αν υπάρχει, `/requests` fallback
+- `app_router.dart`: `GoRoute(path: '/requests/:requestId')` → `RequestsDashboardScreen(highlightRequestId: requestId)`
+
+**Backups:** 10 `.bak` files (όλων των εμπλεκόμενων αρχείων)
+**Verification:** `flutter analyze` — No issues found. `firebase deploy --only firestore` — rules deployed.
+
+### Session 140 — RenderFlex overflow fixes (discovery + delete account)
+
+**Problem:** 2 screens had `Center > Padding(all: 32) > Column(mainAxisSize: Min)` χωρίς scroll wrapping. Σε tablet (Android 16) ή με accessibility font scaling, το Column ξεπερνούσε το διαθέσιμο ύψος → **RenderFlex overflow** (κίτρινη/μαύρη γραμμή σε debug mode). Επηρέαζε:
+1. `discovery_screen.dart:310` — `_buildSearchPrompt()` (idle state με "Αναζήτησε άτομα κοντά σου")
+2. `delete_account_screen.dart:112` — `isAnonymous` block (προσωρινός λογαριασμός)
+
+**Fix — 2 files, 1 pattern:**
+- Αντικατάσταση του return με `LayoutBuilder` + `SingleChildScrollView` + `ConstrainedBox(minHeight: constraints.maxHeight)` + `Center`:
+  - `ConstrainedBox(minHeight)` κάνει το child τουλάχιστον όσο το viewport
+  - `Center` κεντράρει το Column όταν χωράει
+  - `SingleChildScrollView` επιτρέπει scroll όταν το περιεχόμενο είναι ψηλότερο από το viewport
+- **discovery_screen.dart**: `_buildSearchPrompt()` — γραμμές 306-336
+- **delete_account_screen.dart**: `isAnonymous` return block — γραμμές 111-143
+
+**Edge cases covered:** landscape mode, tablet (24094RAD4G), accessibility font scaling (200%), keyboard open, hot reload — όλα λειτουργούν με scroll όταν χρειάζεται, κεντραρισμένο όταν χωράει.
+
+**Backups:** `discovery_screen.dart.backup`, `delete_account_screen.dart.backup`
+**Verification:** `flutter analyze` — No issues found
+
 ## Current State
 
 | Μέτρο | Τιμή |
@@ -227,14 +285,113 @@ Zero occurrences of `No GoRouter found in context` or `_pendingChatId` or `check
 | Firestore indexes | 17 composite deployed |
 | Build | `flutter analyze` clean, release APK ~14.5MB |
 | Tests | **30/30 passed** |
-| `.dart` files | ~108 (non-generated) |
+| `.dart` files | ~109 (non-generated) |
 | Cloud Functions | 5 deployed + `fcm-utils.ts` helper |
+| **L1 — Unread tracking requests** | ✅ Session 139 |
+| **L3 — FCM deep link /requests/:requestId** | ✅ Session 139 |
+| **RenderFlex overflow fixes** (discovery + delete) | ✅ Session 140 |
+| **L2 — Badge count iOS** | ✅ Session 143 |
+| **L4 — Locale fallback `?? 'en'`** | ✅ Session 143 |
+| **City-filter Firestore crash** | ✅ Session 143 |
 
-### Known Issues
-- `authStateProvider` first emission `null` κατά την 1η `watch()` — ProfileScreen βλέπει `canComm=false (null user)` για 1 frame πριν το `userChanges()` emit. ChatListScreen έχει fallback `?? FirebaseAuth.instance.currentUser`. ProfileScreen + ChatScreen ΔΕΝ έχουν — low priority (1 frame flash).
+### Session 143 — L2 badge iOS + L4 locale fallback + Firestore city-filter crash
+
+**3 fixes, 0 regressions.**
+
+### L2: Badge count management (iOS)
+
+**Problem:** Το `_resetBadge()` στο init έκανε μόνο reset (badge=0). Δεν υπήρχε `setBadge()` για να ενημερώνει το iOS app icon badge με το πραγματικό unread count.
+
+**Fix — 3 files:**
+- **`fcm_service.dart`**: Added `static Future<void> setBadge(int count)` — καλεί `FirebaseMessaging.instance.setBadge(count)`. Public static για χρήση από `unreadBadgeProvider`.
+- **`providers/unread_badge_provider.dart`**: Νέα `unreadBadgeProvider` (Provider<int>) που αθροίζει `unreadChatsProvider` + `unreadRequestsProvider`. Listen σε κάθε αλλαγή και καλεί `FcmService.setBadge(count)`. `DebugConfig.log(DebugConfig.service, ...)`.
+- **`main.dart`**: `ref.listen(unreadBadgeProvider, ...)` στην `build()` του `_NearMeAppState` — ενημερώνει badge σε κάθε αλλαγή.
+
+**Edge cases:** cold start (υπάρχον init reset), 2+ unread sources (άθροισμα), badge=0 (reset), iOS only (`setBadge` no-op σε άλλα OS).
+
+### L4: Locale fallback `?? 'el'` → `?? 'en'`
+
+**Problem:** Στα Cloud Functions, όταν το `lang` ήταν null, το fallback ήταν `'el'`. Σε English users χωρίς locale → λάμβαναν ελληνικά notifications.
+
+**Fix — 1 file:**
+- **`functions/src/index.ts`**: 3 changes `?? 'el'` → `?? 'en'` (γραμμές 43, 263, 389).
+
+**Edge cases:** Greek users χωρίς locale → θα δουν English notifications (υπέρ της πλειοψηφίας των μη-Ελλήνων χρηστών). Users με locale → no change.
+
+### City-filter Firestore crash (P0)
+
+**Problem:** `_generalSearch()` είχε `where('age', >=/<=, ...)` range filters + `orderBy('__name__')` χωρίς `orderBy('age')` → illegal Firestore query structure → `INVALID_ARGUMENT` crash. Η αναζήτηση με city + age ηλικίας έπεφτε πάντα.
+
+**Root cause:** Firestore queries με range filter (`>=`, `<=`) σε πεδίο (`age`) απαιτούν `orderBy` στο ίδιο πεδίο πριν από `orderBy('__name__')`. Δεν υπήρχε `orderBy('age')` → `INVALID_ARGUMENT`.
+
+**Fix — 1 file (`firestore_search_repository.dart`):**
+- `_generalSearch()`: αφαιρέθηκαν τα age `where()` clauses (server-side range filters).
+- Κρατήθηκαν `cityNormalized`/`countryNormalized` equality filters (existing composite indexes καλύπτουν).
+- Age filtering μεταφέρθηκε εξ ολοκλήρου στο client-side `_passesFilters()` (όπου ήδη υπήρχε).
+- Signature: `_generalSearch(filters, cursor, limit)` — 3 params, αφαιρέθηκαν flags.
+- `firestore.indexes.json`: unchanged (restored to original 16 indexes).
+
+**Device test OK (Περιστέρι + age 18-80 + GPS):**
+```
+_generalSearch: city=Περιστέρι, country=null
+_generalSearch: 3 results (raw 3), hasMore=false
+SearchNotifier.search: 2 results
+```
+3 raw, 2 filtered (αφαιρέθηκε ο εαυτός σου). **Κανένα error.**
+
+**Backups:** `fcm_service.dart.bak`, `unread_badge_provider.dart.bak`, `main.dart.bak`, `firestore_search_repository.dart.bak`, `index.ts.bak`
+**Verification:** `flutter analyze` — No issues found ✅
 
 ### Remaining Gaps
 - **Phase 4**: Video (Agora), AI matching, Groups, Admin, Web, Premium, Typesense
+
+## Session 141 — Image Cropper (zoom + center) για φωτογραφίες προφίλ
+
+### Προστέθηκε
+- **Package:** `image_cropper: ^12.2.1` (αντί για το outdated `^5.x` του blueprint)
+- **Android:** `UCropActivity` στο `AndroidManifest.xml` (native crop UI)
+
+### Τροποποιήθηκε
+- `profile_editor_screen.dart`:
+  - `_pickAndUploadAvatar()` — pickImage → cropImage (1:1 locked square) → upload
+  - `_pickAndUploadPhoto()` — pickImage → cropImage (ελεύθερο aspect ratio: original/square/4:3/16:9) → upload
+  - Και στα δύο methods: `maxWidth`/`maxHeight`/`imageQuality` μεταφέρθηκαν από `pickImage` στο `cropImage`
+  - Προστέθηκε double-tap guard (`if (_isUploadingAvatar) return` / `if (_uploadingPhotoIndex != null) return`)
+  - Debug logs στο crop step (flag: `DebugConfig.storageUpload`)
+  - Bilingual toolbar labels (el/en) στα `AndroidUiSettings` / `IOSUiSettings`
+
+### Edge cases covered
+- User ακυρώνει crop → `cropped == null` check (ίδιο pattern με pick)
+- Crop fails (OOM κλπ) → πιάνεται από υπάρχον `try/catch`
+- Widget disposed → `mounted` checks after crop return
+- Πολύ μεγάλη εικόνα → uCrop handles via bitmap subsampling
+- App backgrounded → native Activity/ViewController survives lifecycle
+
+### ΔΕΝ επηρεάστηκαν
+- `profile_repository.dart`, `profile_storage_mixin.dart`, `storage_service.dart` — 0 changes (bytes flow identical)
+- `debug_config.dart`, `l10n.dart`, `app_messenger.dart` — 0 changes
+- Backups: `pubspec.yaml.backup`, `profile_editor_screen.dart.backup`, `AndroidManifest.xml.backup`
+
+### Verified
+- `flutter analyze`: No issues found ✅
+
+### Session 142 — Riverpod autoDispose race fix στο `_save()` του profile editor
+
+**Problem:** Όταν ο χρήστης πατούσε Χ → dialog → "Αποθήκευση", το `_save()` αποθήκευε τα δεδομένα αλλά το `ref.invalidate(currentProfileProvider)` (γρ. 449) έριχνε Riverpod assertion error `_task == null || _task!.completed`: Only one task can be scheduled at a time. Αυτό πιανόταν στο `catch` → εμφανιζόταν "Αποτυχία αποθήκευσης" αντί για success message + pop, παρόλο που τα δεδομένα είχαν αποθηκευτεί.
+
+**Root cause:** Το `currentProfileProvider` είναι `StreamProvider.autoDispose` → έχει stream subscription που μπαίνει σε race με το `ref.invalidate()`. Αντίθετα, το `privacySettingsProvider` είναι απλό `FutureProvider` (χωρίς autoDispose), γι' αυτό το privacy editor δεν είχε το ίδιο πρόβλημα.
+
+**Fix:** Wrapped `ref.invalidate(currentProfileProvider)` σε δικό του try-catch ώστε να μη σπάει η ροή save:
+```dart
+try {
+  ref.invalidate(currentProfileProvider);
+} catch (_) {
+  // autoDispose stream race — data already saved, ignore
+}
+```
+
+**Files:** `profile_editor_screen.dart:449`
+**Backup:** `profile_editor_screen.dart.backup` (updated)
 
 ### Tech Debt Backlog
 | # | Item | Status |
@@ -243,6 +400,7 @@ Zero occurrences of `No GoRouter found in context` or `_pendingChatId` or `check
 | 2 | Gender composite index — 100% client-side | ✅ Session 125 |
 | 3 | GPS fallback staleness (>5min rejection) | ✅ Session 126 |
 | 4 | Mock location detection | Pending |
+| 5 | **Riverpod scheduler race (debug-only)** — `Only one task can be scheduled at a time` σε respondToRequest. Αναβάθμιση Riverpod σε stable (όχι dev) στο τελικό στάδιο πριν production | Deferred (Session 141) |
 
 ### Key Conventions
 - File size ≤ 500 lines (1 exception: profile_repository_impl ~570)

@@ -11,6 +11,7 @@ import '../../../data/local/database.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../../../shared/widgets/gradient_header.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../requests/providers/requests_provider.dart';
 import '../providers/profile_provider.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -35,7 +36,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final profileAsync = ref.watch(currentProfileProvider);
     final user = ref.watch(authStateProvider).value;
     final canComm = AuthRepository.canUserCommunicate(user);
-    DebugConfig.log(DebugConfig.uiInteraction, 'ProfileScreen build: canComm=$canComm');
+    final unreadRequests = ref.watch(unreadRequestsProvider);
+    DebugConfig.log(DebugConfig.uiInteraction, 'ProfileScreen build: canComm=$canComm unreadRequests=$unreadRequests');
 
     return Scaffold(
       appBar: AppBar(
@@ -61,7 +63,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         },
         data: (profile) {
           if (profile == null) return _buildEmptyState(isGreek);
-          return _buildProfileView(profile, isGreek, canComm);
+          return _buildProfileView(profile, isGreek, canComm, unreadRequests: unreadRequests);
         },
       ),
     );
@@ -99,7 +101,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  Widget _buildProfileView(UserProfileTableData profile, bool isGreek, bool canComm) {
+  Widget _buildProfileView(UserProfileTableData profile, bool isGreek, bool canComm, {int unreadRequests = 0}) {
     final age = profile.birthYear != null ? DateTime.now().year - profile.birthYear! : null;
     final theme = Theme.of(context);
 
@@ -155,7 +157,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 else
                   _buildVerifyBanner(theme, isGreek, canComm),
                 const SizedBox(height: 8),
-                _buildMenu(theme, isGreek),
+                _buildMenu(theme, isGreek, unreadRequests: unreadRequests),
                 const SizedBox(height: 32),
               ],
             ));
@@ -292,7 +294,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
-  Widget _buildMenu(ThemeData theme, bool isGreek) {
+  Widget _buildMenu(ThemeData theme, bool isGreek, {int unreadRequests = 0}) {
     final items = [
       _MenuItem(Icons.edit_outlined, 'Επεξεργασία', 'Edit', '/profile/edit'),
       _MenuItem(Icons.shield_outlined, 'Απόρρητο', 'Privacy', '/profile/privacy'),
@@ -313,9 +315,25 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               children: [
                 if (i > 0) const Divider(height: 1),
                 ListTile(
-                  leading: Icon(item.icon),
+                  leading: Icon(
+                    item.route == '/requests' && unreadRequests > 0
+                        ? Icons.mail
+                        : item.icon,
+                  ),
                   title: Text(isGreek ? item.labelEl : item.labelEn),
-                  trailing: const Icon(Icons.chevron_right, size: 20),
+                  trailing: item.route == '/requests' && unreadRequests > 0
+                      ? Tooltip(
+                          message: L10n.unreadRequestsLabel(unreadRequests, isGreek: isGreek),
+                          child: Badge(
+                            isLabelVisible: true,
+                            label: Text(
+                              unreadRequests > 99 ? '99+' : unreadRequests.toString(),
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                            child: const Icon(Icons.chevron_right, size: 20),
+                          ),
+                        )
+                      : const Icon(Icons.chevron_right, size: 20),
                   onTap: () {
                     DebugConfig.log(DebugConfig.uiInteraction, 'ProfileScreen menu: ${item.route}');
                     context.push(item.route);

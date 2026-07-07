@@ -304,37 +304,46 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
   }
 
   Widget _buildSearchPrompt(ThemeData theme, bool isGreek) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.person_search,
-                size: 72,
-                color: theme.colorScheme.primary.withAlpha(80)),
-            const SizedBox(height: 20),
-            Text(
-              isGreek ? 'Αναζήτησε άτομα κοντά σου' : 'Find people near you',
-              style: theme.textTheme.titleMedium,
-              textAlign: TextAlign.center,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.person_search,
+                        size: 72,
+                        color: theme.colorScheme.primary.withAlpha(80)),
+                    const SizedBox(height: 20),
+                    Text(
+                      isGreek ? 'Αναζήτησε άτομα κοντά σου' : 'Find people near you',
+                      style: theme.textTheme.titleMedium,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    FilledButton.icon(
+                      onPressed: _isDetecting ? null : _performSearch,
+                      icon: _isDetecting
+                          ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.search, size: 20),
+                      label: Text(_isDetecting
+                          ? (isGreek ? 'Εντοπισμός...' : 'Locating...')
+                          : (isGreek ? 'Αναζήτηση' : 'Search')),
+                    ),
+                  ],
+                ),
+              ),
             ),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: _isDetecting ? null : _performSearch,
-              icon: _isDetecting
-                  ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.search, size: 20),
-              label: Text(_isDetecting
-                  ? (isGreek ? 'Εντοπισμός...' : 'Locating...')
-                  : (isGreek ? 'Αναζήτηση' : 'Search')),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 

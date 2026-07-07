@@ -6,4 +6,5 @@ abstract class RequestRepository {
   Stream<List<Map<String, dynamic>>> streamOutgoingRequests();
   Future<String?> respondToRequest(String requestId, String status);
   Future<void> deleteRequest(String requestId);
+  Future<void> markRequestAsSeen(String requestId);
 }

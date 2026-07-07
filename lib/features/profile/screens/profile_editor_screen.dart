@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/theme/app_colors.dart';
@@ -230,17 +231,53 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
   }
 
   Future<void> _pickAndUploadAvatar() async {
-    final picked = await _picker.pickImage(source: ImageSource.gallery, maxWidth: 800, maxHeight: 800, imageQuality: 85);
+    if (_isUploadingAvatar) return;
+    final picked = await _picker.pickImage(source: ImageSource.gallery);
     if (picked == null || !mounted) return;
-    if (!context.mounted)return;
+    if (!context.mounted) return;
     final ctx = context;
+    final g = L10n.isGreek(ctx);
     DebugConfig.log(DebugConfig.storageUpload, 'Avatar file picked: ${picked.name}');
+    final cropped = await ImageCropper().cropImage(
+      sourcePath: picked.path,
+      maxWidth: 800,
+      maxHeight: 800,
+      compressFormat: ImageCompressFormat.jpg,
+      compressQuality: 85,
+      uiSettings: [
+        AndroidUiSettings(
+          toolbarTitle: g ? 'Περικοπή' : 'Crop',
+          toolbarColor: AppColors.primary,
+          toolbarWidgetColor: Colors.white,
+          backgroundColor: Colors.black,
+          activeControlsWidgetColor: AppColors.primary,
+          cropFrameColor: Colors.white,
+          cropGridColor: Colors.white38,
+          lockAspectRatio: true,
+          initAspectRatio: CropAspectRatioPreset.square,
+          cropStyle: CropStyle.rectangle,
+          aspectRatioPresets: [CropAspectRatioPreset.square],
+          showCropGrid: true,
+          hideBottomControls: false,
+        ),
+        IOSUiSettings(
+          title: g ? 'Περικοπή' : 'Crop',
+          doneButtonTitle: g ? 'Τέλος' : 'Done',
+          cancelButtonTitle: g ? 'Ακύρωση' : 'Cancel',
+          aspectRatioLockEnabled: true,
+          aspectRatioPresets: [CropAspectRatioPreset.square],
+        ),
+      ],
+    );
+    if (cropped == null || !mounted) return;
+    if (!context.mounted) return;
+    DebugConfig.log(DebugConfig.storageUpload, 'Avatar cropped: ${cropped.path}');
     setState(() => _isUploadingAvatar = true);
     try {
-      final bytes = await picked.readAsBytes();
+      final bytes = await cropped.readAsBytes();
       final url = await ref.read(profileRepositoryProvider).saveAvatar(bytes);
       setState(() { _avatarUrl = url; _avatarErrorShown = false; });
-      if (!context.mounted)return;
+      if (!context.mounted) return;
       if (mounted) AppMessenger.showSuccess(ctx, L10n.localizedMessage(ctx, 'Η φωτογραφία αποθηκεύτηκε! / Photo saved!'));
     } catch (e, s) {
       DebugConfig.error('Avatar upload failed', data: e, exception: s);
@@ -251,19 +288,64 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
   }
 
   Future<void> _pickAndUploadPhoto(int index) async {
-    final picked = await _picker.pickImage(source: ImageSource.gallery, maxWidth: 1024, maxHeight: 1024, imageQuality: 85);
+    if (_uploadingPhotoIndex != null) return;
+    final picked = await _picker.pickImage(source: ImageSource.gallery);
     if (picked == null || !mounted) return;
-    if (!context.mounted)return;
+    if (!context.mounted) return;
     final ctx = context;
+    final g = L10n.isGreek(ctx);
     DebugConfig.log(DebugConfig.storageUpload, 'Photo picked: ${picked.name} index=$index');
+    final cropped = await ImageCropper().cropImage(
+      sourcePath: picked.path,
+      maxWidth: 1024,
+      maxHeight: 1024,
+      compressFormat: ImageCompressFormat.jpg,
+      compressQuality: 85,
+      uiSettings: [
+        AndroidUiSettings(
+          toolbarTitle: g ? 'Περικοπή' : 'Crop',
+          toolbarColor: AppColors.primary,
+          toolbarWidgetColor: Colors.white,
+          backgroundColor: Colors.black,
+          activeControlsWidgetColor: AppColors.primary,
+          cropFrameColor: Colors.white,
+          cropGridColor: Colors.white38,
+          lockAspectRatio: false,
+          initAspectRatio: CropAspectRatioPreset.original,
+          cropStyle: CropStyle.rectangle,
+          aspectRatioPresets: [
+            CropAspectRatioPreset.original,
+            CropAspectRatioPreset.square,
+            CropAspectRatioPreset.ratio4x3,
+            CropAspectRatioPreset.ratio16x9,
+          ],
+          showCropGrid: true,
+          hideBottomControls: false,
+        ),
+        IOSUiSettings(
+          title: g ? 'Περικοπή' : 'Crop',
+          doneButtonTitle: g ? 'Τέλος' : 'Done',
+          cancelButtonTitle: g ? 'Ακύρωση' : 'Cancel',
+          aspectRatioPresets: [
+            CropAspectRatioPreset.original,
+            CropAspectRatioPreset.square,
+            CropAspectRatioPreset.ratio4x3,
+            CropAspectRatioPreset.ratio16x9,
+          ],
+        ),
+      ],
+    );
+    if (cropped == null || !mounted) return;
+    if (!context.mounted) return;
+    DebugConfig.log(DebugConfig.storageUpload, 'Photo cropped: ${cropped.path} index=$index');
     setState(() => _uploadingPhotoIndex = index);
     try {
-      final bytes = await picked.readAsBytes();
+      final bytes = await cropped.readAsBytes();
       final url = await ref.read(profileRepositoryProvider).savePhoto(bytes, index);
       setState(() { while (_photoUrls.length <= index) { _photoUrls.add(''); } _photoUrls[index] = url; });
     } catch (e, s) {
       DebugConfig.error('Photo upload failed', data: e, exception: s);
-      if (!context.mounted)return;
+      if (!context.mounted) return;
       if (mounted) AppMessenger.showError(ctx, L10n.localizedMessage(ctx, 'Αποτυχία μεταφόρτωσης φωτογραφίας / Photo upload failed'));
     } finally {
       if (mounted) setState(() => _uploadingPhotoIndex = null);
@@ -364,7 +446,11 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
           DebugConfig.warn('ProfileEditor: auto-publish failed', data: '$e\n$s');
         }
       }
-      ref.invalidate(currentProfileProvider);
+      try {
+        ref.invalidate(currentProfileProvider);
+      } catch (_) {
+        // autoDispose stream race — data already saved, ignore
+      }
       if (mounted) {
         AppMessenger.showSuccess(context, L10n.localizedMessage(context, 'Το προφίλ αποθηκεύτηκε! / Profile saved!'));
         context.pop();

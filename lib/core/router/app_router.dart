@@ -148,6 +148,10 @@ class AppRouter {
       GoRoute(path: '/welcome', builder: (context, state) => const WelcomeScreen()),
       GoRoute(path: '/anonymous-info', builder: (context, state) => const AnonymousInfoScreen()),
       GoRoute(path: '/requests', pageBuilder: (context, state) => _modal(const RequestsDashboardScreen())),
+      GoRoute(path: '/requests/:requestId', pageBuilder: (context, state) {
+        final requestId = state.pathParameters['requestId']!;
+        return _modal(RequestsDashboardScreen(highlightRequestId: requestId));
+      }),
       GoRoute(path: '/requests/send/:uid', pageBuilder: (context, state) {
         final uid = state.pathParameters['uid']!;
         return _modal(SendRequestScreen(uid: uid));

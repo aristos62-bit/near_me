@@ -13,6 +13,7 @@ import '../../../shared/widgets/gradient_header.dart';
 import '../providers/filters_provider.dart';
 import '../providers/saved_search_provider.dart';
 import '../providers/search_provider.dart';
+import '../../../repositories/search_repository.dart';
 import '../../profile/providers/location_service.dart';
 
 class SearchFiltersScreen extends ConsumerStatefulWidget {
@@ -118,9 +119,18 @@ class _SearchFiltersScreenState extends ConsumerState<SearchFiltersScreen> {
   }
 
   void _reset() {
-    DebugConfig.log(DebugConfig.uiInteraction, 'SearchFiltersScreen reset');
+    DebugConfig.log(DebugConfig.uiInteraction, 'SearchFiltersScreen reset → auto-search');
+    final current = ref.read(searchFiltersProvider);
+    final lat = current.latitude;
+    final lng = current.longitude;
+    final radius = current.radiusKm;
     ref.read(searchFiltersProvider.notifier).reset();
-    ref.read(searchProvider.notifier).clearResults();
+    if (lat != null && lng != null) {
+      ref.read(searchFiltersProvider.notifier).updateLocation(lat, lng, radiusKm: radius);
+      ref.read(searchProvider.notifier).search();
+    } else {
+      ref.read(searchProvider.notifier).clearResults();
+    }
     context.pop();
   }
 
@@ -171,7 +181,24 @@ class _SearchFiltersScreenState extends ConsumerState<SearchFiltersScreen> {
       ),
     );
     if (label == null || label.isEmpty) return;
-    final filters = ref.read(searchFiltersProvider);
+    DebugConfig.log(DebugConfig.uiInteraction,
+        'SearchFiltersScreen save: label=$label');
+    final currentProvider = ref.read(searchFiltersProvider);
+    final filters = SearchFilters(
+      minAge: _ageRange.start.round(),
+      maxAge: _ageRange.end.round(),
+      gender: _gender == 'all' ? null : _gender,
+      interests: _interests.isEmpty ? null : _interests,
+      lookingFor: _lookingFor.isEmpty ? null : _lookingFor,
+      allowVideoCall: _allowVideoCall ? true : null,
+      allowDirectChat: _allowDirectChat ? true : null,
+      isOnlineNow: _onlineOnly ? true : null,
+      city: _cityCtrl.text.trim().isEmpty ? null : _cityCtrl.text.trim(),
+      country: _countryCtrl.text.trim().isEmpty ? null : _countryCtrl.text.trim(),
+      radiusKm: _radiusLimited ? _radiusKm : null,
+      latitude: currentProvider.latitude,
+      longitude: currentProvider.longitude,
+    );
     await ref.read(savedSearchActionsProvider).save(filters, label);
     if (context.mounted) {
       AppMessenger.showSuccess(context,

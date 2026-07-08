@@ -113,11 +113,11 @@ class _SearchCard extends ConsumerWidget {
     return Card(
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () {
+        onTap: () async {
           DebugConfig.log(DebugConfig.uiInteraction,
               'SavedSearch apply: ${search.label}');
-          ref.read(savedSearchActionsProvider).apply(search);
-          context.pop();
+          await ref.read(savedSearchActionsProvider).apply(search);
+          if (context.mounted) context.pop();
         },
         child: Padding(
           padding: const EdgeInsets.all(16),

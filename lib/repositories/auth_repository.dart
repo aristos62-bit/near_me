@@ -2,6 +2,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../core/debug/debug_config.dart';
 
 abstract class AuthRepository {
+  static bool _signingOut = false;
+  static bool get isSigningOut => _signingOut;
+  static void setSigningOut(bool v) => _signingOut = v;
   /// Single point of truth: can this user send messages, requests, publish, etc.?
   /// Requires: authenticated + NOT anonymous + (email verified OR phone linked).
   static bool canUserCommunicate(User? user) {

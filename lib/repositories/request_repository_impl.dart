@@ -173,6 +173,10 @@ class RequestRepositoryImpl implements RequestRepository {
 
   @override
   Stream<List<Map<String, dynamic>>> streamIncomingRequests() {
+    if (AuthRepository.isSigningOut) {
+      DebugConfig.log(DebugConfig.firestoreStream, 'streamIncomingRequests: blocked (signing out)');
+      return const Stream.empty();
+    }
     final user = _auth.currentUser;
     if (user == null) {
       DebugConfig.warn('streamIncomingRequests: no authenticated user');
@@ -199,6 +203,10 @@ class RequestRepositoryImpl implements RequestRepository {
 
   @override
   Stream<List<Map<String, dynamic>>> streamOutgoingRequests() {
+    if (AuthRepository.isSigningOut) {
+      DebugConfig.log(DebugConfig.firestoreStream, 'streamOutgoingRequests: blocked (signing out)');
+      return const Stream.empty();
+    }
     final user = _auth.currentUser;
     if (user == null) {
       DebugConfig.warn('streamOutgoingRequests: no authenticated user');

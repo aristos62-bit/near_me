@@ -10,7 +10,7 @@ class UserStatus {
 
 const Duration _presenceTTL = Duration(seconds: 120);
 
-final userStatusProvider = StreamProvider.family<UserStatus, String>((ref, uid) {
+final userStatusProvider = StreamProvider.autoDispose.family<UserStatus, String>((ref, uid) {
   return FirebaseFirestore.instance
       .doc('users/$uid/status/status')
       .snapshots()
@@ -32,5 +32,9 @@ final userStatusProvider = StreamProvider.family<UserStatus, String>((ref, uid) 
       isOnline: effectiveOnline,
       lastSeen: lastSeen,
     );
+  }).handleError((e) {
+    DebugConfig.log(DebugConfig.presence,
+        'userStatusProvider: uid=$uid error=$e (non-fatal)');
+    return const UserStatus(isOnline: false);
   });
 });

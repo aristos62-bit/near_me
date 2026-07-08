@@ -15,6 +15,10 @@ class ChatRepositoryImpl implements ChatRepository {
   final FirebaseAuth _auth;
   final AppDatabase _db;
 
+  // Cache αποκρυπτογραφημένων messages — αποφυγή re-decrypt σε κάθε Firestore snapshot
+  final Map<String, Map<String, String>> _messageEncryptCache = {};
+  final Map<String, Map<String, String>> _messageDecryptCache = {};
+
   ChatRepositoryImpl({
     FirebaseFirestore? firestore,
     FirebaseAuth? auth,
@@ -149,11 +153,10 @@ class ChatRepositoryImpl implements ChatRepository {
         'timestamp': FieldValue.serverTimestamp(),
         'isRead': false,
       });
-      final lastMessageEncrypted = EncryptionUtils.encryptMessage(key, content);
       batch.update(chatRef, {
         'lastMessageAt': FieldValue.serverTimestamp(),
         'lastMessageBy': user.uid,
-        'lastMessage': lastMessageEncrypted,
+        'lastMessage': encrypted,
         'lastMessageType': 'text',
       });
       await batch.commit();
@@ -203,24 +206,40 @@ class ChatRepositoryImpl implements ChatRepository {
         })
         .asyncMap((snapshot) async {
           final key = await EncryptionUtils.getKeyOrDerive(chatId);
+          final encCache = _messageEncryptCache.putIfAbsent(chatId, () => {});
+          final decCache = _messageDecryptCache.putIfAbsent(chatId, () => {});
           return snapshot.docs.map((doc) {
             final data = doc.data();
             final encrypted = data['content'] as String? ?? '';
+            final docId = doc.id;
+
             String decrypted;
-            try {
-              decrypted = EncryptionUtils.decryptMessage(key, encrypted);
-            } catch (e) {
+            if (encCache[docId] == encrypted && decCache.containsKey(docId)) {
+              decrypted = decCache[docId]!;
+              DebugConfig.log(DebugConfig.chatEncrypt, 'decrypt cache hit: msg=$docId');
+            } else {
               try {
-                final fallbackKey = EncryptionUtils.deriveKey(chatId);
-                decrypted = EncryptionUtils.decryptMessage(fallbackKey, encrypted);
-                DebugConfig.log(DebugConfig.chatEncrypt, 'messagesStream: decrypt with derived key succeeded for msg ${doc.id}');
-              } catch (_) {
-                DebugConfig.warn('messagesStream: decrypt failed for msg ${doc.id}', data: e);
-                decrypted = '[Μη αναγνώσιμο μήνυμα / Unreadable message]';
+                decrypted = EncryptionUtils.decryptMessage(key, encrypted);
+                encCache[docId] = encrypted;
+                decCache[docId] = decrypted;
+                DebugConfig.log(DebugConfig.chatEncrypt, 'decrypt cache miss: msg=$docId');
+              } catch (e) {
+                encCache.remove(docId);
+                decCache.remove(docId);
+                try {
+                  final fallbackKey = EncryptionUtils.deriveKey(chatId);
+                  decrypted = EncryptionUtils.decryptMessage(fallbackKey, encrypted);
+                  encCache[docId] = encrypted;
+                  decCache[docId] = decrypted;
+                  DebugConfig.log(DebugConfig.chatEncrypt, 'messagesStream: decrypt with derived key succeeded for msg $docId');
+                } catch (_) {
+                  DebugConfig.warn('messagesStream: decrypt failed for msg $docId', data: e);
+                  decrypted = '[Μη αναγνώσιμο μήνυμα / Unreadable message]';
+                }
               }
             }
             return {
-              'id': doc.id,
+              'id': docId,
               'senderId': data['senderId'] ?? '',
               'content': decrypted,
               'type': data['type'] ?? 'text',
@@ -431,6 +450,11 @@ class ChatRepositoryImpl implements ChatRepository {
 
   @override
   Stream<List<ChatCacheTableData>> streamChats() async* {
+    if (AuthRepository.isSigningOut) {
+      DebugConfig.log(DebugConfig.chatStream, 'streamChats: blocked (signing out)');
+      yield [];
+      return;
+    }
     final user = _auth.currentUser;
     if (user == null || !AuthRepository.canUserCommunicate(user)) {
       final reason = user == null ? 'null user' : 'unverified user';
@@ -504,12 +528,16 @@ class ChatRepositoryImpl implements ChatRepository {
 
       await (_db.delete(_db.chatCacheTable)..where((t) => t.chatId.equals(chatId))).go();
       await EncryptionUtils.deleteKey(chatId);
+      _messageEncryptCache.remove(chatId);
+      _messageDecryptCache.remove(chatId);
 
       DebugConfig.log(DebugConfig.repositoryResult, 'deleteChat: done chat=$chatId');
     } catch (e) {
       DebugConfig.warn('deleteChat failed, cleaning local cache', data: e);
       await (_db.delete(_db.chatCacheTable)..where((t) => t.chatId.equals(chatId))).go();
       await EncryptionUtils.deleteKey(chatId);
+      _messageEncryptCache.remove(chatId);
+      _messageDecryptCache.remove(chatId);
       throw AppException.firestore('delete_chat', 'Αποτυχία διαγραφής συνομιλίας / Failed to delete chat');
     }
   }
@@ -531,6 +559,8 @@ class ChatRepositoryImpl implements ChatRepository {
         batch.delete(doc.reference);
       }
       await batch.commit();
+      _messageEncryptCache.remove(chatId);
+      _messageDecryptCache.remove(chatId);
 
       DebugConfig.log(DebugConfig.repositoryResult, 'clearMessages: done chat=$chatId');
     } catch (e) {

@@ -4,6 +4,7 @@ import '../../../data/local/database.dart';
 import '../../../providers/database_provider.dart';
 import '../../../repositories/saved_search_repository.dart';
 import '../../../repositories/search_repository.dart';
+import '../../profile/providers/location_service.dart';
 import 'filters_provider.dart';
 import 'search_provider.dart';
 
@@ -37,7 +38,7 @@ class SavedSearchActions {
     _ref.invalidate(savedSearchesProvider);
   }
 
-  void apply(SavedSearchTableData s) {
+  Future<void> apply(SavedSearchTableData s) async {
     final filters = _ref.read(savedSearchRepositoryProvider).toFilters(s);
     final fn = _ref.read(searchFiltersProvider.notifier);
     fn.updateAge(filters.minAge, filters.maxAge);
@@ -45,10 +46,25 @@ class SavedSearchActions {
     fn.updateInterests(filters.interests);
     fn.updateLookingFor(filters.lookingFor);
     fn.updateCity(filters.city);
+    fn.updateCountry(filters.country);
     fn.updateRadius(filters.radiusKm);
     fn.updateAllowVideoCall(filters.allowVideoCall);
     fn.updateAllowDirectChat(filters.allowDirectChat);
     fn.updateOnlineOnly(filters.isOnlineNow);
+    try {
+      final loc = await LocationService.getCurrentLocation(forceRefresh: false);
+      if (loc.latitude != null && loc.longitude != null) {
+        fn.updateLocation(loc.latitude!, loc.longitude!);
+        DebugConfig.log(DebugConfig.gpsLocation,
+            'SavedSearch: refreshed location (${loc.latitude}, ${loc.longitude})');
+      } else {
+        DebugConfig.log(DebugConfig.gpsLocation,
+            'SavedSearch: location refresh failed (${loc.failure}) — kept existing');
+      }
+    } catch (e) {
+      DebugConfig.log(DebugConfig.gpsLocation,
+          'SavedSearch: location refresh error ($e) — kept existing');
+    }
     _ref.read(searchProvider.notifier).search();
   }
 }

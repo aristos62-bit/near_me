@@ -11,6 +11,9 @@ import '../../../shared/widgets/app_state_widget.dart';
 import '../../../shared/widgets/form_section.dart';
 import '../../../shared/widgets/gradient_header.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../chat/providers/chat_provider.dart';
+import '../../requests/providers/requests_provider.dart';
+import '../../../providers/unread_badge_provider.dart';
 import '../providers/delete_account_provider.dart';
 
 class DeleteAccountScreen extends ConsumerStatefulWidget {
@@ -84,6 +87,11 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
               onPressed: () {
                 if (_passwordCtrl.text.trim().isNotEmpty) {
                   Navigator.of(ctx).pop();
+                  DebugConfig.log(DebugConfig.providerDispose, 'deleteAccount reauth: invalidating Firestore stream providers');
+                  ref.invalidate(chatsProvider);
+                  ref.invalidate(incomingRequestsProvider);
+                  ref.invalidate(outgoingRequestsProvider);
+                  ref.invalidate(unreadBadgeProvider);
                   ref.read(deleteAccountProvider.notifier).deleteWithPassword(_passwordCtrl.text.trim());
                 }
               },
@@ -280,6 +288,11 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
                 isDestructive: true,
               );
               if (proceed && mounted) {
+                DebugConfig.log(DebugConfig.providerDispose, 'deleteAccount: invalidating Firestore stream providers');
+                ref.invalidate(chatsProvider);
+                ref.invalidate(incomingRequestsProvider);
+                ref.invalidate(outgoingRequestsProvider);
+                ref.invalidate(unreadBadgeProvider);
                 ref.read(deleteAccountProvider.notifier).delete();
               }
             }

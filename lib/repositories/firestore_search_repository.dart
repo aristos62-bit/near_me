@@ -25,22 +25,24 @@ class FirestoreSearchRepository implements SearchRepository {
           filters.city != null && filters.city!.isNotEmpty;
       final countryFilterActive =
           filters.country != null && filters.country!.isNotEmpty;
-      final hasLocationFilter = cityFilterActive || countryFilterActive;
       final hasGeoSearch = filters.latitude != null ||
           filters.geoHash != null;
-
       DebugConfig.log(
         DebugConfig.repositoryCall,
         'search: city=$cityFilterActive, country=$countryFilterActive, '
-            'hasLocationFilter=$hasLocationFilter, '
             'lat=${filters.latitude}, lng=${filters.longitude}',
       );
 
       final effectiveLimit =
       filters.limit > 300 ? 300 : filters.limit;
 
+      // ── City filter → general search (cityNormalized server-side) ──
+      if (cityFilterActive) {
+        return await _generalSearch(filters, cursor, effectiveLimit);
+      }
+
       // ── Geo search με neighbouring cells ──────────────────────────
-      if (hasGeoSearch && !hasLocationFilter) {
+      if (hasGeoSearch) {
         return await _geoSearch(filters, cursor, effectiveLimit);
       }
 

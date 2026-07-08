@@ -87,7 +87,6 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
   Future<void> markAsRead(String chatId) async {
     try {
       await _chatRepo.markAsRead(chatId);
-      ref.invalidate(chatsProvider);
     } catch (e) {
       DebugConfig.warn('ChatActions: markAsRead failed', data: e);
     }

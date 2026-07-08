@@ -157,6 +157,7 @@ class _ChatMessagesListState extends ConsumerState<_ChatMessagesList> {
   final _scrollCtrl = ScrollController();
   int _lastMessageCount = 0;
   bool _hasMarkedRead = false;
+  bool _isFirstLoad = true;
 
   @override
   void initState() {
@@ -183,11 +184,18 @@ class _ChatMessagesListState extends ConsumerState<_ChatMessagesList> {
 
   void _onMessagesChanged(List<Map<String, dynamic>> messages) {
     if (messages.isEmpty || !mounted) return;
-    if (messages.length == _lastMessageCount) return;
+    if (messages.length == _lastMessageCount && !_isFirstLoad) return;
+    final isNewMessage = messages.length > _lastMessageCount;
     _lastMessageCount = messages.length;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scrollCtrl.hasClients) return;
       final maxScroll = _scrollCtrl.position.maxScrollExtent;
+      if (_isFirstLoad) {
+        _isFirstLoad = false;
+        _scrollCtrl.jumpTo(maxScroll);
+        return;
+      }
+      if (!isNewMessage) return;
       final currentScroll = _scrollCtrl.position.pixels;
       if ((maxScroll - currentScroll) > 50.0) {
         DebugConfig.log(DebugConfig.uiInteraction,

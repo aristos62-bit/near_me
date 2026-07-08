@@ -44,6 +44,7 @@ https://github.com/aristos62-bit/near_me
 | `intl` | ^0.20.2 | i18n |
 | `cached_network_image` | ^3.4.1 | Image cache |
 | `image_picker` | ^1.2.2 | Pick photos |
+| `image_cropper` | 12.2.1 | Crop images (1:1 avatar, free aspect ratio) |
 | `freezed_annotation` | ^3.1.0 | Immutable models |
 | `json_annotation` | ^4.12.0 | JSON serialization |
 | `uuid` | ^4.5.3 | UUID generation |
@@ -69,7 +70,7 @@ https://github.com/aristos62-bit/near_me
 - **Release override**: `--dart-define=ENABLE_RELEASE_DEBUG=true` για να βλέπεις debugs και σε release
 - **Κατηγορίες flags**: databaseLocal, firestoreRead/Write, authFlow, gps, provider*, service*, repository*, navigation*, ui*, consentLog*, chat*, storage*
 - **Log levels**: `DebugConfig.log(flag, msg)` (υπόκειται σε flag), `warn(msg)` (debug mode μόνο), `error(msg)` (πάντα)
-- **Περιορισμός**: κανένα .dart αρχείο > 400 γραμμές (1 exception: profile_repository_impl). Σε εξαιρετικές περιπτώσεις μέχρι 650 γραμμες μετα απο ρητή εντολή του χρήστη. 
+- **Περιορισμός**: κανένα .dart αρχείο > 500 γραμμές (exceptions: profile_repository_impl ~570, chat_repository_impl ~590 με ρητή εντολή του χρήστη). 
 
 ## Αρχιτεκτονική
 
@@ -78,7 +79,7 @@ https://github.com/aristos62-bit/near_me
 lib/
 ├── core/               # config, theme, l10n, router, firebase_init, utils
 ├── data/
-│   ├── local/          # Drift database (7 tables, schema v6)
+│   ├── local/          # Drift database (7 tables, schema v8)
 │   └── remote/         # firestore_service, storage_service
 ├── providers/          # database provider (Drift)
 ├── repositories/       # 8 abstract interfaces + implementations
@@ -123,12 +124,14 @@ lib/
 - `shared/widgets/profile_card.dart` — ProfileCard (για search results)
 - `shared/widgets/online_indicator.dart` — OnlineIndicator (πράσινο/γκρι κουκκίδα)
 - `shared/widgets/consent_badge.dart` — ConsentBadge (χρησιμοποιεί ConsentActionConfig)
+- `shared/widgets/gps_strength_indicator.dart` — GpsStrengthIndicator (ποιότητα σήματος GPS)
+- `shared/widgets/report_user_dialog.dart` — ReportUserDialog (report user με λόγο)
 - `shared/utils/consent_action_config.dart` — ConsentActionConfig (centralized action→icon/color/label ιδιότητες)
 - `core/l10n/l10n.dart` — L10n (locale detection, isGreek(), formatters)
 - `core/theme/responsive_utils.dart` — ResponsiveUtils + ResponsiveBuilder + ResponsivePadding
 
 ## Φάσεις Υλοποίησης (από blueprint)
-1. **Φάση 1 — Core & Privacy**: Drift schemas (7 tables, schema v6), Firebase init, Anonymous auth, Profile CRUD (local), PrivacySettings editor, ConsentLog, Publish/Unpublish, GPS flow, i18n, Theme, Delete account, Feature flags, Security Rules
+1. **Φάση 1 — Core & Privacy**: Drift schemas (7 tables, schema v8), Firebase init, Anonymous auth, Profile CRUD (local), PrivacySettings editor, ConsentLog, Publish/Unpublish, GPS flow, i18n, Theme, Delete account, Feature flags, Security Rules
 2. **Φάση 2 — Discovery**: Firestore search, Filters UI, Results dashboard, PublicProfile view, Saved searches, Block/Report
 3. **Φάση 3 — Communication**: Email/Phone verify, Request system, E2E chat, FCM push, Online presence, Rate limiting
 4. **Φάση 4+**: Typesense, Video calls, AI matching, Groups, Verified badge, Premium, Web, Admin panel

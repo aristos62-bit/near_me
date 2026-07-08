@@ -30,11 +30,12 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<void> signOut() async {
+    AuthRepository.setSigningOut(true);
     DebugConfig.log(DebugConfig.authFlow, 'Signing out');
     await PresenceService.setOffline();
     PresenceService.reset();
     await FcmService.clearTokens();
-    LocationService.clearSession(); // ← Καθαρισμός cached τοποθεσίας
+    LocationService.clearSession();
     try {
       await (_db.delete(_db.chatCacheTable)).go();
       DebugConfig.log(DebugConfig.databaseLocal,
@@ -42,7 +43,13 @@ class AuthRepositoryImpl implements AuthRepository {
     } catch (e) {
       DebugConfig.warn('signOut: chat cache clear failed (non-fatal)', data: e);
     }
-    await _auth.signOut();
+    DebugConfig.log(DebugConfig.authFlow,
+        'signOut: guard set, proceeding to _auth.signOut');
+    try {
+      await _auth.signOut();
+    } finally {
+      AuthRepository.setSigningOut(false);
+    }
   }
 
   @override
@@ -50,11 +57,12 @@ class AuthRepositoryImpl implements AuthRepository {
     final user = _auth.currentUser;
     if (user == null) return;
     final uid = user.uid;
-    DebugConfig.log(DebugConfig.authFlow, 'deleteAccount started: $uid');
-
+    AuthRepository.setSigningOut(true);
+    DebugConfig.log(DebugConfig.authFlow, 'deleteAccount started: $uid (isSigningOut=true)');
     try {
-      final result = await FirebaseFunctions.instance.httpsCallable('deleteUserData').call({'uid': uid});
-      DebugConfig.log(DebugConfig.cloudFunctions, 'deleteAccount: CF deleteUserData success: ${result.data}');
+      try {
+        final result = await FirebaseFunctions.instance.httpsCallable('deleteUserData').call({'uid': uid});
+        DebugConfig.log(DebugConfig.cloudFunctions, 'deleteAccount: CF deleteUserData success: ${result.data}');
     } catch (e) {
       DebugConfig.warn('deleteAccount: CF deleteUserData failed, continuing with local cleanup', data: e);
     }
@@ -101,6 +109,10 @@ class AuthRepositoryImpl implements AuthRepository {
     } catch (e) {
       DebugConfig.error('deleteAccount: Auth deletion failed', data: e);
       rethrow;
+    }
+    } finally {
+      AuthRepository.setSigningOut(false);
+      DebugConfig.log(DebugConfig.authFlow, 'deleteAccount: isSigningOut=false');
     }
   }
 

@@ -176,6 +176,8 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
   bool _authInProgress = false;
   DateTime _lastUnlockTime = DateTime(2000);
   DateTime? _lastPauseTime;
+  DateTime? _lastIdleReset;
+  int _lastResetDuration = 0;
   Timer? _idleTimer;
   int _cachedAutoLockMinutes = 0;
   bool _cachedBiometricEnabled = false;
@@ -291,6 +293,17 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
 
   void _resetIdleTimer() {
     if (!_cachedBiometricEnabled || _cachedAutoLockMinutes <= 0) return;
+
+    final now = DateTime.now();
+    final durationChanged = _lastResetDuration != _cachedAutoLockMinutes;
+    if (!durationChanged && _idleTimer != null && _lastIdleReset != null &&
+        now.difference(_lastIdleReset!) < const Duration(seconds: 1)) {
+      return;
+    }
+
+    _lastIdleReset = now;
+    _lastResetDuration = _cachedAutoLockMinutes;
+
     _stopIdleTimer();
     if (_isLocked) {
       DebugConfig.log(DebugConfig.serviceCall,

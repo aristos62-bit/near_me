@@ -31,7 +31,7 @@ class _ConsentLogScreenState extends ConsumerState<ConsentLogScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final logsAsync = ref.watch(consentLogStreamProvider);
+    final logsAsync = ref.watch(consentLogProvider);
     final theme = Theme.of(context);
     final greek = L10n.isGreek(context);
 
@@ -42,12 +42,14 @@ class _ConsentLogScreenState extends ConsumerState<ConsentLogScreen> {
         error: (e, _) => ErrorView(
           message: L10n.localizedMessage(context, 'Σφάλμα φόρτωσης / Failed to load'),
           details: e.toString(),
-          onRetry: () => ref.invalidate(consentLogStreamProvider),
+          onRetry: () => ref.read(consentLogProvider.notifier).refresh(),
         ),
         data: (logs) {
           final filtered = _filterAction == null
               ? logs
               : logs.where((l) => l.action == _filterAction).toList();
+          final notifier = ref.read(consentLogProvider.notifier);
+          final hasMore = notifier.hasMore;
 
           return LayoutBuilder(
             builder: (context, constraints) {
@@ -75,8 +77,13 @@ class _ConsentLogScreenState extends ConsumerState<ConsentLogScreen> {
                               horizontal: isWide ? 48 : 12,
                               vertical: 8,
                             ),
-                            itemCount: filtered.length,
-                            itemBuilder: (_, i) => _buildEntry(theme, filtered[i], greek),
+                            itemCount: filtered.length + (hasMore ? 1 : 0),
+                            itemBuilder: (_, i) {
+                              if (i == filtered.length) {
+                                return _buildLoadMore(greek, notifier);
+                              }
+                              return _buildEntry(theme, filtered[i], greek);
+                            },
                           ),
                   ),
                 ],
@@ -84,6 +91,19 @@ class _ConsentLogScreenState extends ConsumerState<ConsentLogScreen> {
             },
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildLoadMore(bool greek, ConsentLogNotifier notifier) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      child: Center(
+        child: OutlinedButton.icon(
+          onPressed: () => notifier.loadMore(),
+          icon: const Icon(Icons.expand_more, size: 20),
+          label: Text(greek ? 'Φόρτωση παλαιότερων' : 'Load older entries'),
+        ),
       ),
     );
   }

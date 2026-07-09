@@ -20,6 +20,8 @@ class FirestoreSearchRepository implements SearchRepository {
           'cursor=${cursor?.docId}',
     );
 
+    GeoHashUtils.clearDistanceCache();
+
     try {
       final cityFilterActive =
           filters.city != null && filters.city!.isNotEmpty;
@@ -246,6 +248,8 @@ class FirestoreSearchRepository implements SearchRepository {
       DebugConfig.repositoryCall,
       'searchNearby: ($lat, $lng) r=$radiusKm, cursor=${cursor?.docId}',
     );
+
+    GeoHashUtils.clearDistanceCache();
 
     try {
       final sp = GeoHashUtils.searchPrecision(radiusKm, lat);

@@ -6,6 +6,14 @@ class GeoHashUtils {
 
   static const String _base32 = '0123456789bcdefghjkmnpqrstuvwxyz';
 
+  static final Map<String, double> _distanceCache = {};
+
+  static void clearDistanceCache() {
+    _distanceCache.clear();
+    DebugConfig.log(DebugConfig.repositoryCall,
+        'GeoHashUtils.clearDistanceCache');
+  }
+
   /// Encode [latitude]/[longitude] to a geohash with given [precision] chars.
   static String encode(double latitude, double longitude, {int precision = 5}) {
     precision = precision.clamp(1, 12);
@@ -306,19 +314,30 @@ class GeoHashUtils {
   ///   edgeDist > 0 → nearest edge distance (outside cell, Session 108)
   ///   edgeDist = 0 → haversine center-to-center (inside cell fallback)
   static double distanceToPoint(String geoHash, double centerLat, double centerLon) {
+    final key = '$geoHash|${centerLat.toStringAsFixed(4)}|${centerLon.toStringAsFixed(4)}';
+    final cached = _distanceCache[key];
+    if (cached != null) {
+      DebugConfig.log(DebugConfig.repositoryFilter,
+          'distanceToPoint: [CACHE HIT] geoHash=$geoHash → ${cached.toStringAsFixed(1)}km');
+      return cached;
+    }
+
     final edgeDist = distanceToNearestEdge(geoHash, centerLat, centerLon);
     final (cellLat, cellLng) = decode(geoHash);
     final centerDist = haversineDistance(centerLat, centerLon, cellLat, cellLng);
+    final result = edgeDist > 0 ? edgeDist : centerDist;
     DebugConfig.log(
       DebugConfig.repositoryFilter,
       'distanceToPoint: geoHash=$geoHash (len=${geoHash.length}) '
           'center=($cellLat, $cellLng) yourGPS=($centerLat, $centerLon) '
           'edgeDist=${edgeDist.toStringAsFixed(3)}km '
           'centerDist=${centerDist.toStringAsFixed(1)}km '
-          'result=${edgeDist > 0 ? edgeDist.toStringAsFixed(1) : centerDist.toStringAsFixed(1)}km',
+          'result=${result.toStringAsFixed(1)}km',
     );
-    if (edgeDist > 0) return edgeDist;
-    return centerDist;
+    if (result.isFinite) {
+      _distanceCache[key] = result;
+    }
+    return result;
   }
 
 

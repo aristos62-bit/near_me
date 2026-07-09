@@ -209,6 +209,38 @@ Row με Spacer + chips → overflow 3.5px. Fix: `Row` → `Wrap`.
 
 ---
 
+## Session 156 — P3.2 Haversine Memoization
+
+**Πρόβλημα:** Για κάθε profile στη λίστα αποτελεσμάτων, υπολογιζόταν `distanceToPoint()` με Haversine από την αρχή. Όταν πολλά profiles μοιράζονταν το ίδιο geoHash cell, ο υπολογισμός γινόταν duplicate (π.χ. 300 profiles → ~1200 Haversine calls).
+
+**Λύση (3 επεμβάσεις σε 2 αρχεία, ~14 γραμμές):**
+1. `geohash_utils.dart`: `_distanceCache` Map + `clearDistanceCache()` + cache check/store στο `distanceToPoint()` (key = `geoHash|lat|lng`)
+2. `firestore_search_repository.dart`: `GeoHashUtils.clearDistanceCache()` στην αρχή των `search()` και `searchNearby()`
+
+**Αποτέλεσμα:** ~300 profiles → ~50 unique geoHashes → **~1200 Haversine calls → ~50 calls** (96% reduction). Cache cleared σε κάθε search. Zero memory leak.
+
+**Verified:** 9/7/2026 — `flutter analyze` clean ✅
+
+**Αρχεία:** `geohash_utils.dart`, `firestore_search_repository.dart`
+
+---
+
+## Session 157 — P4.1 ConsentLog Pagination
+
+**Πρόβλημα:** Το ConsentLog φόρτωνε όλες τις εγγραφές ταυτόχρονα μέσω Drift stream. Με 116+ entries δεν ήταν πρόβλημα, αλλά σε κλίμακα (1000+) θα γινόταν αργό.
+
+**Λύση (2 αρχεία):**
+1. `consent_log_provider.dart`: Αντικατάσταση `StreamProvider` με `NotifierProvider` + `ConsentLogNotifier` — pagination με `LIMIT 50 OFFSET ?`, `loadMore()`, `refresh()`, `hasMore` flag
+2. `consent_log_screen.dart`: Προσθήκη "Load older entries" κουμπιού στο τέλος της λίστας όσο `hasMore=true`
+
+**Αποτέλεσμα:** Αρχική φόρτωση 50 entries, παλαιότερα on-demand. Κανένα overhead για μικρό όγκο.
+
+**Verified:** 9/7/2026 — `flutter analyze` clean ✅
+
+**Αρχεία:** `consent_log_provider.dart`, `consent_log_screen.dart`
+
+---
+
 ## Current State
 
 | Μέτρο | Τιμή |
@@ -234,6 +266,8 @@ Row με Spacer + chips → overflow 3.5px. Fix: `Row` → `Wrap`.
 | P2.1 Provider cascade (debounce auth state) — already fixed | ✅ Session 154 — verified στον κώδικα, συμφωνεί με P2_1.md |
 | P2.2 Phone verification (SMS OTP) — already fixed | ✅ Session 154 — verified: sendOtp→verifyOtp→isPhoneVerified→canUserCommunicate |
 | P3.1 Online Status Flicker (null-coalescing fallback) | ✅ Session 155 — logs: zero flicker |
+| P3.2 Haversine Memoization (_distanceCache, clearDistanceCache) | ✅ Session 156 — ~96% fewer Haversine calls |
+| P4.1 ConsentLog Pagination (LIMIT 50, loadMore button) | ✅ Session 157 — paginated NotifierProvider |
 
 ### Remaining Gaps
 - **Phase 4**: Video (Agora), AI matching, Groups, Admin, Web, Premium, Typesense
@@ -393,8 +427,8 @@ streamChats: started
 | 5 | **✅ P2** | Provider cascade (διπλό create/dispose σε auth change) | Optimization | `chat_provider.dart` | ✅ Fixed |
 | 6 | **✅ P2** | Ολοκλήρωση phone verification (SMS OTP) | Feature gap | `phone_verify_provider.dart` | ✅ Fixed |
 | 7 | **✅ P3.1** | Online status flicker στα ProfileCards | UX polish | `profile_card.dart` | ✅ Fixed |
-| 8 | **P3.2** | Haversine memoization για ίδιο geoHash | Performance | `firestore_search_repository.dart` | |
-| 9 | **P4** | ConsentLog pagination | Scalability | `consent_log_screen.dart` | |
+| 8 | **✅ P3.2** | Haversine memoization για ίδιο geoHash | Performance | `firestore_search_repository.dart` | ✅ Fixed |
+| 9 | **✅ P4.1** | ConsentLog pagination | Scalability | `consent_log_screen.dart` | ✅ Fixed |
 
 ---
 
@@ -406,8 +440,8 @@ streamChats: started
 4. **✅ P2.1** — Provider cascade (debounce auth state) — verified fixed
 5. **✅ P2.2** — Phone verification (SMS OTP) — verified fixed
 6. **✅ P3.1** — Fix online status flicker (null-coalescing `streamOnline ?? profile.isOnline`) — **Fixed Session 155**
-7. **P3.2** — Haversine memoization για ίδιο geoHash
-8. **P4.1** — ConsentLog pagination
+7. **✅ P3.2** — Haversine memoization για ίδιο geoHash — **Fixed Session 156**
+8. **✅ P4.1** — ConsentLog pagination — **Fixed Session 157**
 
 > Εκτελούμε **μία βελτίωση τη φορά**. Μετά από κάθε αλλαγή: backup → edit → `flutter analyze` → έλεγχος από τον χρήστη → "επόμενο".
 

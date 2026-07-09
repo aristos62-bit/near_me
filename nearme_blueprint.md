@@ -1,9 +1,9 @@
 # NearMe — Project Blueprint & Αποφάσεις Σχεδιασμού
 
-> **Έκδοση:** 1.1  
-> **Ημερομηνία:** Μάιος 2026  
-> **Κατάσταση:** Σχεδιασμός — έτοιμο για ανάπτυξη Φάσης 1  
-> **v1.1:** Προσθήκη ανάλυσης Firestore περιορισμού + client-side filtering στρατηγική
+> **Έκδοση:** 2.0  
+> **Ημερομηνία:** Ιούλιος 2026  
+> **Κατάσταση:** Phases 1-3: **100% υλοποιημένο** — Phase 4+: Σχεδιασμός
+> **v2.0:** Πλήρης ενημέρωση μετά από 151+ sessions ανάπτυξης. Isar→Drift migration, Riverpod 3.x, Phone verification, 5 Cloud Functions, 17 composite indexes, Biometric Lock, Screenshot Prevention, search overhaul, 30 tests, `flutter analyze` clean.
 
 ---
 
@@ -14,13 +14,13 @@
 3. [Αρχετυπικοί Χρήστες (Personas)](#3-αρχετυπικοί-χρήστες-personas)
 4. [Technology Stack](#4-technology-stack)
 5. [Αρχιτεκτονική Δεδομένων](#5-αρχιτεκτονική-δεδομένων)
-   - 5a. [Isar Local Schema](#5a-isar-local-schema-κινητό-μόνο)
+   - 5a. [Drift Local Schema](#5a-drift-local-schema-7-tables-schema-v8)
    - 5b. [Firestore Public Schema](#5b-firestore-public-schema)
    - 5c. [Firebase Storage](#5c-firebase-storage)
 6. [Firestore Security Rules](#6-firestore-security-rules)
 7. [Ασφάλεια — 5-Layer Model](#7-ασφάλεια--5-layer-model)
 8. [Κρίσιμες Αποφάσεις Σχεδιασμού](#8-κρίσιμες-αποφάσεις-σχεδιασμού)
-9. [Search Architecture](#9-search-architecture--απόφαση)
+9. [Search Architecture](#9-search-architecture)
 10. [Γεωγραφία & Privacy](#10-γεωγραφία--privacy)
 11. [Authentication Flow](#11-authentication-flow)
 12. [Chat & Encryption](#12-chat--encryption)
@@ -48,7 +48,7 @@
 
 > **"Ο χρήστης ελέγχει πλήρως τι υπάρχει online — και μπορεί να το κατεβάσει ανά πάσα στιγμή."**
 
-Το πλήρες profile ζει **αποκλειστικά** στο κινητό (Isar). Στο cloud ανεβαίνει **μόνο** το public snapshot που ο ίδιος ο χρήστης επιλέγει, και μόνο όσο το θέλει.
+Το πλήρες profile ζει **αποκλειστικά** στο κινητό (Drift SQLite). Στο cloud ανεβαίνει **μόνο** το public snapshot που ο ίδιος ο χρήστης επιλέγει, και μόνο όσο το θέλει.
 
 ---
 
@@ -57,21 +57,23 @@
 | Αρχή | Περιγραφή |
 |---|---|
 | **Privacy-first** | Κανένα δεδομένο στο cloud χωρίς ρητή συγκατάθεση |
-| **Local-first** | Το full profile ζει στο Isar — ποτέ δεν φεύγει αυτόματα |
+| **Local-first** | Το full profile ζει στο Drift — ποτέ δεν φεύγει αυτόματα |
 | **Granular control** | Κάθε πεδίο χωριστά: on/off ορατότητα |
 | **Reversible** | Ο χρήστης μπορεί να κατεβάσει τα πάντα με ένα toggle |
 | **Transparent** | ConsentLog: ο χρήστης βλέπει τι έχει κοινοποιήσει πότε |
 | **Extensible** | Repository pattern, Feature flags, Schema versioning |
-| **Multilingual** | flutter_localizations + device locale auto-detect |
+| **Multilingual** | flutter_localizations + device locale auto-detect (el/en) |
 | **Adaptive theme** | Dark/Light από system settings (MediaQuery.platformBrightness) |
 | **Real-time** | Riverpod streams + Firestore listeners όπου χρειάζεται |
-| **Responsive** | Κάθε screen λειτουργεί σωστά σε mobile/tablet/desktop (LayoutBuilder, breakpoints) |
-| **Shared widgets** | Κάθε επαναλαμβανόμενο UI component γίνεται shared widget — όχι duplication |
-| **Shared utils** | Common logic (formatters, validators, helpers) σε κεντρικά utils, όχι copy-paste |
-| **File size limit** | Κανένα αρχείο δεν ξεπερνά τις 400 γραμμές — enforced από την αρχή |
-| **Schema versioning** | Αλλαγές σε Isar schemas → νέο schemaVersion + migration, όχι placeholder πεδία |
-| **Debug logging** | `DebugConfig.log()` σε κάθε operational action — init, read, write, stream, error |
-| **Unified error handling** | `ErrorView`/`LoadingView`/`EmptyView` από `app_state_widget.dart` για async states (loading/error/empty). `AppMessenger.showSuccess/Error/Info/ConfirmDialog` για snackbars, dialogs, loading overlay. Ποτέ raw `ScaffoldMessenger`, `AlertDialog` ή error/loading widgets ανά screen. |
+| **Responsive** | ResponsiveUtils + ResponsiveBuilder σε κάθε screen — LayoutBuilder constraint-based helpers |
+| **Shared widgets** | Κάθε επαναλαμβανόμενο UI component γίνεται shared widget |
+| **Shared utils** | Common logic (formatters, validators, helpers) σε κεντρικά utils |
+| **File size limit** | Κανένα αρχείο δεν ξεπερνά τις **500** γραμμές (exceptions: profile_repository_impl ~570, chat_repository_impl ~590 με ρητή άδεια) |
+| **Schema versioning** | Drift schema migrations σε κάθε αλλαγή (schema v8) |
+| **Debug logging** | `DebugConfig.log()` σε κάθε operational action — 33 flags, 3 log levels, release override |
+| **Unified error handling** | `ErrorView`/`LoadingView`/`EmptyView` για async states. `AppMessenger.showSuccess/Error/Info/ConfirmDialog` για snackbars, dialogs, loading overlay. Ποτέ raw ScaffoldMessenger, AlertDialog ή error/loading widgets ανά screen |
+| **E2E Encryption** | AES-256 GCM για chat messages, deriveKey deterministic, keys μόνο στο flutter_secure_storage |
+| **GPS session cache** | GPS-first location → session cache (5min) → last known → failure |
 
 ---
 
@@ -121,7 +123,7 @@
 - Ανώνυμη περιήγηση χωρίς εγγραφή
 
 **Ανησυχεί για:**
-- Screenshots χωρίς άδεια
+- Screenshots χωρίς άδεια (Screenshot Prevention — FLAG_SECURE)
 - Τρίτες χρήσεις δεδομένων
 - Ακριβής γεωγραφικός εντοπισμός
 
@@ -131,22 +133,27 @@
 
 | Layer | Τεχνολογία | Λόγος επιλογής |
 |---|---|---|
-| Framework | Flutter (latest stable) + Dart | Cross-platform, performance |
-| State Management | Riverpod 2 (`@riverpod`, AsyncNotifier) | Type-safe, testable, real-time streams |
-| Local Database | Isar | Fast NoSQL, schema versioning, offline-first |
-| Navigation | GoRouter | Deep links, declarative routing |
-| Cloud Auth | Firebase Authentication | Email, phone, anonymous — όλα σε ένα |
-| Cloud Database | Cloud Firestore | Real-time, offline support, security rules |
-| Cloud Storage | Firebase Storage | Photos, avatars |
-| Push Notifications | Firebase Cloud Messaging (FCM) | iOS + Android unified |
-| Cloud Functions | Firebase Functions | Triggers, moderation, email, rate limiting |
-| Geo Search (v1) | geoflutterfire_plus | Firestore native, μηδενικό κόστος |
-| Search (v2) | Typesense (self-hosted) | Compound filters, full-text, €10/μήνα |
-| Video Calls | Agora RTC ή flutter_webrtc | Opt-in μόνο για επιλεγμένα profiles |
-| Encryption | encrypt (AES-256) | E2E chat encryption |
-| Secure Storage | flutter_secure_storage | Tokens, chat keys |
-| i18n | flutter_localizations + intl | Auto από device locale |
-| Images | cached_network_image + image_picker | Cache + upload |
+| Framework | Flutter 3.44.4 / Dart 3.12.2 (SDK ^3.12.0) | Cross-platform, performance |
+| State Management | Riverpod 3.x (`flutter_riverpod ^3.3.1`, `@riverpod` annotation) | Type-safe, testable, real-time streams |
+| Local Database | **Drift 2.33** (SQLite) | Αντικατέστησε το Isar λόγω καλύτερης σταθερότητας, schema versioning (v8), migrations |
+| Navigation | GoRouter ^17.2.3 | Deep links, StatefulShellRoute, declarative routing |
+| Cloud Auth | Firebase Authentication (^6.5.1) | Email, phone, anonymous — όλα σε ένα |
+| Cloud Database | Cloud Firestore (^6.4.1) | Real-time, collectionGroup queries, security rules |
+| Cloud Storage | Firebase Storage (^13.4.1) | Photos, avatars |
+| Push Notifications | Firebase Cloud Messaging (^16.2.2) | iOS + Android unified, 3 Cloud Functions |
+| Cloud Functions | Firebase Functions (^6.3.1) | 5 deployed: onReportCreated, deleteUserData, 3 FCM triggers |
+| Geo Search (v1) | geoflutterfire_plus ^0.0.34 | Firestore native, μηδενικό κόστος |
+| Search (v2) | Typesense (self-hosted) — stub ready | Compound filters, full-text, €10/μήνα |
+| Video Calls | Agora RTC ή flutter_webrtc | Opt-in μόνο για επιλεγμένα profiles (Phase 4) |
+| Encryption | encrypt ^5.0.3 (AES-256 GCM) + crypto ^3.0.6 (SHA-256) | E2E chat encryption, deriveKey deterministic |
+| Secure Storage | flutter_secure_storage ^10.3.1 | Tokens, chat keys |
+| Biometric | local_auth ^3.0.1 | Biometric lock + auto-lock timer |
+| i18n | flutter_localizations + intl ^0.20.2 | Auto από device locale (el/en) |
+| Images | cached_network_image ^3.4.1 + image_picker ^1.2.2 | Cache + upload |
+| Image Cropper | image_cropper ^12.2.1 | 1:1 locked για avatar, free ratio για photos |
+| Connectivity | connectivity_plus ^7.1.1 | Network status |
+| Geocoding | geocoding ^4.0.0 | Reverse geocoding |
+| Code Gen | build_runner ^2.15.0 + drift_dev ^2.33.0 + riverpod_generator ^4.0.3 + freezed ^3.2.5 + json_serializable ^6.14.0 | |
 
 ---
 
@@ -155,162 +162,159 @@
 ### Αρχή διαχωρισμού
 
 ```
-ΚΙΝΗΤΟ (Isar)                    FIREBASE (Cloud)
-─────────────────                ─────────────────────────
-UserProfile (full)      ──→      users/{uid}/public (snapshot)
-PrivacySettings         ──→      users/{uid}/status
-BlockedUser             ──→      users/{uid}/blocked/{targetUid}
-ConsentLog              (local only)
-ChatHistory (cache)     ←──      chats/{chatId}/messages
-SearchFilters (saved)   (local only)
-AppSettings             (local only)
+ΚΙΝΗΤΟ (Drift)                        FIREBASE (Cloud)
+─────────────────                     ─────────────────────────
+UserProfile (full)              ──→   users/{uid}/public (snapshot)
+PrivacySettings                 ──→   users/{uid}/status
+BlockedUser                     ──→   users/{uid}/blocked/{targetUid}
+ConsentLog                      (local only)
+ChatCache (cache)               ←──   chats/{chatId}/messages
+SearchFilters (saved)           (local only)
+AppSettings                     (local only)
 ```
 
 ---
 
-### 5a. Isar Local Schema (κινητό μόνο)
+### 5a. Drift Local Schema (7 tables, schema v8)
+
+Το project χρησιμοποιεί **Drift** (SQLite ORM) αντί του Isar που αναφερόταν στον αρχικό σχεδιασμό. Το migration έγινε στα πρώτα sessions λόγω καλύτερης σταθερότητας και SQL.
 
 ```dart
 // ============================================================
-// UserProfile — το πλήρες ιδιωτικό profile
+// UserProfileTable — το πλήρες ιδιωτικό profile
 // ΠΟΤΕ δεν ανεβαίνει ολόκληρο στο cloud
 // ============================================================
-@collection
-class UserProfile {
-  Id id = Isar.autoIncrement;
+class UserProfileTable extends Table {
+  TextColumn get uid => text()();
+  TextColumn get nickname => text()();
+  TextColumn? get fullName => text().nullable()();
+  TextColumn? get email => text().nullable()();
+  TextColumn? get phone => text().nullable()();
 
-  // Ταυτοποίηση
-  late String uid;               // Firebase UID (μετά login)
-  late String nickname;          // εμφανιζόμενο όνομα
-  String? fullName;              // προαιρετικό, ποτέ public by default
-  String? email;
-  String? phone;
+  TextColumn get bio => text()();
+  IntColumn get birthYear => integer()();
+  TextColumn get gender => text()();
+  TextColumn get interests => text()();       // JSON array
+  TextColumn get occupations => text()();     // JSON array
+  TextColumn get lookingFor => text()();
 
-  // Προφίλ
-  late String bio;
-  late int birthYear;
-  late String gender;            // 'male' | 'female' | 'other' | 'prefer_not'
-  late List<String> interests;   // ['gamer', 'programmer', 'student', ...]
-  late List<String> occupations;
-  late String lookingFor;        // 'roommate' | 'social' | 'friendship' | 'networking'
+  TextColumn get city => text()();
+  TextColumn get country => text()();
+  RealColumn? get latitudeExact => real().nullable()();
+  RealColumn? get longitudeExact => real().nullable()();
+  TextColumn? get manualLocationText => text().nullable()();
 
-  // Γεωγραφία
-  late String city;
-  late String country;
-  double? latitudeExact;         // ΠΟΤΕ δεν πηγαίνει στο Firestore
-  double? longitudeExact;        // ΠΟΤΕ δεν πηγαίνει στο Firestore
-  String? manualLocationText;    // fallback αν δεν δώσει GPS
+  TextColumn get avatarUrl => text()();
+  TextColumn get photoUrls => text()();        // JSON array
 
-  // Επικοινωνία
-  late bool allowVideoCall;
-  late bool allowDirectChat;
+  BoolColumn get allowVideoCall => boolean()();
+  BoolColumn get allowDirectChat => boolean()();
 
-  // Status
-  late bool isPublished;
-  late DateTime createdAt;
-  late DateTime updatedAt;
+  BoolColumn get isPublished => boolean()();
+  BoolColumn get isManualLocation => boolean()();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {uid};
 }
 
 // ============================================================
-// PrivacySettings — ποια πεδία φαίνονται δημόσια
+// PrivacySettingsTable — ποια πεδία φαίνονται δημόσια
+// 12 toggles
 // ============================================================
-@collection
-class PrivacySettings {
-  Id id = Isar.autoIncrement;
-  late String uid;
+class PrivacySettingsTable extends Table {
+  TextColumn get uid => text()();
+  BoolColumn get showNickname => boolean().withDefault(const Constant(true))();
+  BoolColumn get showFullName => boolean().withDefault(const Constant(false))();
+  BoolColumn get showAge => boolean().withDefault(const Constant(true))();
+  BoolColumn get showGender => boolean().withDefault(const Constant(true))();
+  BoolColumn get showCity => boolean().withDefault(const Constant(true))();
+  BoolColumn get showCountry => boolean().withDefault(const Constant(true))();
+  BoolColumn get showExactLocation => boolean().withDefault(const Constant(false))();
+  BoolColumn get showPhone => boolean().withDefault(const Constant(false))();
+  BoolColumn get showEmail => boolean().withDefault(const Constant(false))();
+  BoolColumn get showInterests => boolean().withDefault(const Constant(true))();
+  BoolColumn get showOccupation => boolean().withDefault(const Constant(true))();
+  BoolColumn get showBio => boolean().withDefault(const Constant(true))();
+  BoolColumn get showLookingFor => boolean().withDefault(const Constant(true))();
+  BoolColumn get showPhotos => boolean().withDefault(const Constant(true))();
+  BoolColumn get allowVideoCall => boolean().withDefault(const Constant(false))();
+  BoolColumn get allowDirectChat => boolean().withDefault(const Constant(true))();
+  TextColumn get geoPrecision => text().withDefault(const Constant('neighborhood'))();
 
-  // Ορατότητα ανά πεδίο (default: συντηρητικό)
-  bool showNickname = true;
-  bool showFullName = false;       // default OFF
-  bool showAge = true;
-  bool showGender = true;
-  bool showCity = true;
-  bool showExactLocation = false;  // default OFF — μόνο GeoHash
-  bool showPhone = false;          // default OFF
-  bool showEmail = false;          // default OFF
-  bool showInterests = true;
-  bool showOccupation = true;
-  bool showBio = true;
-  bool showLookingFor = true;
-  bool allowVideoCall = false;     // default OFF — opt-in
-  bool allowDirectChat = true;
-
-  // Geo precision level
-  // 'city' | 'neighborhood' (~2.5km) | 'hidden'
-  String geoPrecision = 'neighborhood';
+  @override
+  Set<Column> get primaryKey => {uid};
 }
 
 // ============================================================
-// ConsentLog — ιστορικό ενεργειών για GDPR & εμπιστοσύνη
+// ConsentLogTable — ιστορικό ενεργειών για GDPR & εμπιστοσύνη
 // ============================================================
-@collection
-class ConsentLog {
-  Id id = Isar.autoIncrement;
-  late String uid;
-  late String action;      // 'published' | 'unpublished' | 'sent_request' |
-                           // 'shared_location' | 'uploaded_photo' | 'deleted_account'
-  late String dataType;    // 'profile' | 'location' | 'photo' | 'chat_key'
-  String? details;         // προαιρετικές λεπτομέρειες
-  late DateTime timestamp;
+class ConsentLogTable extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get uid => text()();
+  TextColumn get action => text()();
+  TextColumn get dataType => text()();
+  TextColumn? get details => text().nullable()();
+  DateTimeColumn get timestamp => dateTime()();
 }
 
 // ============================================================
-// ChatCache — τοπικό backup chat history
+// BlockedUserTable — λίστα μπλοκαρισμένων χρηστών
 // ============================================================
-@collection
-class ChatCache {
-  Id id = Isar.autoIncrement;
-  late String chatId;
-  late String otherUid;
-  late String otherNickname;
-  late DateTime lastMessageAt;
-  late bool hasUnread;
+class BlockedUserTable extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get uid => text()();
+  TextColumn get blockedUid => text()();
+  DateTimeColumn get blockedAt => dateTime()();
+  TextColumn? get reason => text().nullable()();
 }
 
 // ============================================================
-// SavedSearch — αποθηκευμένες αναζητήσεις
+// ChatCacheTable — τοπικό backup chat history
 // ============================================================
-@collection
-class SavedSearch {
-  Id id = Isar.autoIncrement;
-  late String label;
-  String? city;
-  String? country;
-  int? minAge;
-  int? maxAge;
-  String? gender;
-  late List<String> interests;
-  String? lookingFor;
-  double? radiusKm;
-  late DateTime createdAt;
+class ChatCacheTable extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get chatId => text()();
+  TextColumn get otherUid => text()();
+  TextColumn get otherNickname => text()();
+  DateTimeColumn get lastMessageAt => dateTime()();
+  BoolColumn get hasUnread => boolean()();
 }
 
 // ============================================================
-// AppSettings — τοπικές ρυθμίσεις εφαρμογής
+// SavedSearchTable — αποθηκευμένες αναζητήσεις
+// (schema v8: 3 bool columns: allowVideoCall, allowDirectChat, onlineOnly)
 // ============================================================
-@collection
-class AppSettings {
-  Id id = Isar.autoIncrement;
-  String locale = 'system';            // 'system' | 'el' | 'en' | ...
-  String themeMode = 'system';         // 'system' | 'light' | 'dark'
-  bool notificationsEnabled = true;
-  bool biometricLockEnabled = false;
-  bool screenshotPreventionEnabled = true;
-  int autoLockMinutes = 5;
-  late DateTime updatedAt;
+class SavedSearchTable extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get label => text()();
+  TextColumn? get city => text().nullable()();
+  TextColumn? get country => text().nullable()();
+  IntColumn? get minAge => integer().nullable()();
+  IntColumn? get maxAge => integer().nullable()();
+  TextColumn? get gender => text().nullable()();
+  TextColumn get interests => text()();
+  TextColumn? get lookingFor => text().nullable()();
+  RealColumn? get radiusKm => real().nullable()();
+  BoolColumn get allowVideoCall => boolean().withDefault(const Constant(false))();
+  BoolColumn get allowDirectChat => boolean().withDefault(const Constant(false))();
+  BoolColumn get onlineOnly => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get createdAt => dateTime()();
 }
 
 // ============================================================
-// BlockedUser — λίστα μπλοκαρισμένων χρηστών
-// (synced με Firestore users/{uid}/blocked/{targetUid})
+// AppSettingsTable — τοπικές ρυθμίσεις εφαρμογής
 // ============================================================
-@collection
-class BlockedUser {
-  Id id = Isar.autoIncrement;
-  late String uid;               // current user (owner)
-  late String blockedUid;        // blocked target
-  late DateTime blockedAt;
-  String? reason;
+class AppSettingsTable extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get locale => text().withDefault(const Constant('system'))();
+  TextColumn get themeMode => text().withDefault(const Constant('system'))();
+  BoolColumn get notificationsEnabled => boolean().withDefault(const Constant(true))();
+  BoolColumn get biometricLockEnabled => boolean().withDefault(const Constant(false))();
+  BoolColumn get screenshotPreventionEnabled => boolean().withDefault(const Constant(true))();
+  IntColumn get autoLockMinutes => integer().withDefault(const Constant(5))();
+  DateTimeColumn get updatedAt => dateTime()();
 }
 ```
 
@@ -326,6 +330,7 @@ class BlockedUser {
 │   ├── age: int?             (αν showAge == true)
 │   ├── gender: string?       (αν showGender == true)
 │   ├── city: string?         (αν showCity == true)
+│   ├── country: string?      (αν showCountry == true)
 │   ├── geoHash: string?      (precision ανάλογα geoPrecision)
 │   │                          π.χ. 'sx3q' = ~2.5km² περιοχή
 │   ├── interests: string[]
@@ -337,12 +342,20 @@ class BlockedUser {
 │   ├── allowVideoCall: bool
 │   ├── allowDirectChat: bool
 │   ├── isVisible: bool       ← master switch
+│   ├── isManualLocation: bool
 │   └── updatedAt: timestamp
 │
-└── status
-    ├── isOnline: bool
-    ├── lastSeen: timestamp
-    └── isVisible: bool       ← αντίγραφο για queries
+├── status
+│   ├── isOnline: bool
+│   ├── lastSeen: timestamp
+│   └── isVisible: bool       ← αντίγραφο για queries
+│
+└── blocked/{blockedUid}/
+│   ├── blockedAt: timestamp
+│   └── reason: string?
+│
+└── fcm_tokens/{tokenId}
+    └── token: string
 
 /chats/{chatId}/
 ├── participants: string[]    [uid1, uid2]
@@ -350,8 +363,8 @@ class BlockedUser {
 ├── isActive: bool
 └── messages/{msgId}/
     ├── senderId: string
-    ├── content: string       ← AES-256 encrypted
-    ├── type: string          'text' | 'image' | 'system'
+    ├── content: string       ← AES-256 GCM encrypted
+    ├── type: string          'text' | 'system'
     ├── timestamp: timestamp
     └── isRead: bool
 
@@ -361,8 +374,10 @@ class BlockedUser {
 ├── type: string              'chat' | 'video' | 'email'
 ├── status: string            'pending' | 'accepted' | 'declined' | 'expired'
 ├── message: string?          προαιρετικό μήνυμα
+├── chatId: string?           (μετά από accept)
 ├── createdAt: timestamp
-└── expiresAt: timestamp      (48h αν δεν απαντηθεί)
+├── expiresAt: timestamp      (48h αν δεν απαντηθεί)
+└── readAt: timestamp?        (unread tracking)
 
 /reports/{reportId}/
 ├── reporterUid: string
@@ -379,10 +394,6 @@ class BlockedUser {
 ├── reason: string
 ├── reportsCount: number
 └── bannedBy: string          'system'
-
-/users/{uid}/blocked/{blockedUid}/
-├── blockedAt: timestamp
-└── reason: string?
 ```
 
 ---
@@ -390,8 +401,8 @@ class BlockedUser {
 ### 5c. Firebase Storage
 
 ```
-/avatars/{uid}/profile.jpg          ← 400x400 max, compressed
-/photos/{uid}/{photoIndex}.jpg      ← max 5 photos, 1024x1024 max
+/avatars/{uid}/profile.jpg          ← 400x400 max, compressed (1:1 crop)
+/photos/{uid}/{photoIndex}.jpg      ← max 5 photos, 1024x1024 max (free ratio)
 ```
 
 **Κανόνες Storage:**
@@ -409,7 +420,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ─────────────────────────────────────────────────────────
-    // Helper functions
+    // Helper functions (7 total)
     // ─────────────────────────────────────────────────────────
 
     function isAuthenticated() {
@@ -429,8 +440,26 @@ service cloud.firestore {
     }
 
     function notBanned() {
-      // Ελέγχει αν ο χρήστης ΔΕΝ είναι banned (Cloud Function το θέτει)
+      // Live Firestore read (όχι custom claims — stale cache fix)
       return !exists(/databases/$(database)/documents/banned/$(request.auth.uid));
+    }
+
+    function isNotBlockedInChat(chatId) {
+      let chat = get(/databases/$(database)/documents/chats/$(chatId)).data;
+      let otherUid = chat.participants[0] == request.auth.uid
+        ? chat.participants[1]
+        : chat.participants[0];
+      return !exists(/databases/$(database)/documents/users/$(otherUid)/blocked/$(request.auth.uid));
+    }
+
+    function isNotBlockedByTarget(toUid) {
+      return !exists(/databases/$(database)/documents/users/$(toUid)/blocked/$(request.auth.uid));
+    }
+
+    function targetCommAllowed(toUid, type) {
+      let targetPublic = get(/databases/$(database)/documents/users/$(toUid)/public).data;
+      return targetPublic.isVisible == true
+        && (type == 'chat' ? targetPublic.allowDirectChat == true : targetPublic.allowVideoCall == true);
     }
 
     // ─────────────────────────────────────────────────────────
@@ -438,34 +467,40 @@ service cloud.firestore {
     // ─────────────────────────────────────────────────────────
 
     match /users/{uid} {
-      // Κανένας δεν διαβάζει το root document απευθείας
       allow read, write: if false;
 
       match /public/{doc} {
-        // Διαβάζουν ΜΟΝΟ authenticated + isVisible == true
         allow read: if isAuthenticated()
                     && notBanned()
                     && resource.data.isVisible == true;
-        // Γράφει ΜΟΝΟ ο ίδιος
         allow write: if isOwner(uid) && notBanned();
       }
 
       match /status/{doc} {
-        // Ο ίδιος γράφει, authenticated διαβάζουν
         allow read: if isAuthenticated();
         allow write: if isOwner(uid);
+      }
+
+      match /blocked/{blockedUid} {
+        allow read: if isOwner(uid);
+        allow create: if isOwner(uid);
+        allow delete: if isOwner(uid);
+        allow update: if false;
+      }
+
+      match /fcm_tokens/{tokenId} {
+        allow read, write: if isOwner(uid);
       }
     }
 
     // ─────────────────────────────────────────────────────────
-    // Collection group (απαραίτητο για collectionGroup('public') queries)
+    // Collection group
     // ─────────────────────────────────────────────────────────
 
     match /{path=**}/public/{doc} {
       allow read: if isAuthenticated()
                   && notBanned()
                   && resource.data.isVisible == true;
-      // Το write ελέγχεται από το match /users/{uid}/public/{doc}
     }
 
     // ─────────────────────────────────────────────────────────
@@ -474,7 +509,8 @@ service cloud.firestore {
 
     match /chats/{chatId} {
       allow read: if isAuthenticated()
-                  && isParticipant(resource.data);
+                  && isParticipant(resource.data)
+                  && isNotBlockedInChat(chatId);
       allow create: if isAuthenticated()
                     && request.auth.uid in request.resource.data.participants
                     && request.resource.data.participants.size() == 2;
@@ -491,11 +527,9 @@ service cloud.firestore {
                       && isParticipant(
                            get(/databases/$(database)/documents/chats/$(chatId)).data
                          );
-        // Τα μηνύματα ΔΕΝ επεξεργάζονται — μόνο isRead update επιτρέπεται
         allow update: if isAuthenticated()
                       && request.resource.data.diff(resource.data).affectedKeys()
                            .hasOnly(['isRead']);
-        // ΔΕΝ διαγράφονται μηνύματα (ατομικά)
         allow delete: if false;
       }
     }
@@ -505,20 +539,19 @@ service cloud.firestore {
     // ─────────────────────────────────────────────────────────
 
     match /requests/{reqId} {
-      // Διαβάζει: sender ή receiver
       allow read: if isAuthenticated()
                   && (request.auth.uid == resource.data.fromUid
                    || request.auth.uid == resource.data.toUid);
-      // Δημιουργεί: μόνο ο sender, μόνο για visible profile
       allow create: if isAuthenticated()
                     && request.auth.uid == request.resource.data.fromUid
                     && isPubliclyVisible(request.resource.data.toUid)
-                    && notBanned();
-      // Ενημερώνει status: μόνο ο receiver
+                    && notBanned()
+                    && isNotBlockedByTarget(request.resource.data.toUid)
+                    && targetCommAllowed(request.resource.data.toUid, request.resource.data.type);
       allow update: if isAuthenticated()
                     && request.auth.uid == resource.data.toUid
                     && request.resource.data.diff(resource.data).affectedKeys()
-                         .hasOnly(['status']);
+                         .hasOnly(['status', 'readAt', 'chatId']);
       allow delete: if false;
     }
 
@@ -529,35 +562,37 @@ service cloud.firestore {
     match /reports/{reportId} {
       allow create: if isAuthenticated()
                     && request.auth.uid == request.resource.data.reporterUid;
-      allow read: if false;   // μόνο Cloud Functions / Admin SDK
+      allow read: if false;
       allow update, delete: if false;
     }
 
     // ─────────────────────────────────────────────────────────
-    // Banned users (γράφεται μόνο από Admin SDK)
+    // Banned
     // ─────────────────────────────────────────────────────────
 
     match /banned/{uid} {
       allow read: if isAuthenticated() && isOwner(uid);
-      allow write: if false;  // μόνο Cloud Functions
+      allow write: if false;
     }
   }
 }
 ```
 
-### Required Composite Indexes
+### Required Composite Indexes (17 deployed)
 
-Για να λειτουργούν τα collection group queries, απαιτούνται composite indexes στο Firestore. Βλ. `firestore.indexes.json` για την πλήρη λίστα. Κύρια indexes:
+Για collection group queries και efficient search, απαιτούνται composite indexes. Αναπτύχθηκαν σταδιακά κατά τα Sessions 72, 100-101, 143.
 
 | Collection | Fields | Scope | Χρήση |
 |---|---|---|---|
-| `public` | `isVisible` ↑, `geoHash` ↑ | COLLECTION_GROUP | Geo αναζήτηση |
+| `public` | `isVisible` ↑, `geoHash` ↑ | COLLECTION_GROUP | Geo αναζήτηση (GPS + radius) |
 | `public` | `isVisible` ↑, `city` ↑ | COLLECTION_GROUP | Αναζήτηση ανά πόλη |
+| `public` | `isVisible` ↑, `country` ↑ | COLLECTION_GROUP | Αναζήτηση ανά χώρα |
 | `public` | `city` ↑, `isVisible` ↑, `geoHash` ↑ | COLLECTION_GROUP | Πόλη + radius |
 | `public` | `isVisible` ↑, `updatedAt` ↓ | COLLECTION_GROUP | Ταξινόμηση κατά ημερομηνία |
 | `messages` | `senderId` ↑, `timestamp` ↑ | COLLECTION | Ανάγνωση μηνυμάτων |
 | `requests` | `toUid` ↑, `status` ↑, `createdAt` ↓ | COLLECTION | Dashboard εισερχομένων |
 | `requests` | `fromUid` ↑, `status` ↑, `createdAt` ↓ | COLLECTION | Dashboard εξερχομένων |
+| (επιπλέον 9 indexes για διάφορους συνδυασμούς queries) | | | |
 
 Deploy: `firebase deploy --only firestore`
 
@@ -569,18 +604,18 @@ Deploy: `firebase deploy --only firestore`
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  Layer 5 — Behaviour (Cloud Functions)                          │
-│  Rate limiting, auto-ban σε abuse, content moderation AI        │
+│  Layer 5 — Behaviour (5 Cloud Functions)                        │
+│  Rate limiting, auto-ban σε abuse, delete account, 3 FCM sends  │
 │  ┌───────────────────────────────────────────────────────────┐  │
-│  │  Layer 4 — Transport (TLS 1.3 + AES-256 E2E chat)        │  │
+│  │  Layer 4 — Transport (TLS 1.3 + AES-256 GCM E2E chat)    │  │
 │  │  ┌─────────────────────────────────────────────────────┐  │  │
-│  │  │  Layer 3 — Data (Firestore Security Rules)          │  │  │
-│  │  │  read μόνο αν isVisible, write μόνο owner           │  │  │
+│  │  │  Layer 3 — Data (Firestore Security Rules, 7 helpers)│  │  │
+│  │  │  read μόνο αν isVisible, write μόνο owner            │  │  │
 │  │  │  ┌───────────────────────────────────────────────┐  │  │  │
 │  │  │  │  Layer 2 — Auth (Firebase Authentication)     │  │  │  │
 │  │  │  │  Anonymous → Email/Phone verify, token mgmt   │  │  │  │
 │  │  │  │  ┌─────────────────────────────────────────┐  │  │  │  │
-│  │  │  │  │  Layer 1 — Device (Isar + Secure Store) │  │  │  │  │
+│  │  │  │  │  Layer 1 — Device (Drift + Secure Store) │  │  │  │  │
 │  │  │  │  │  Full profile, chat keys, biometric lock │  │  │  │  │
 │  │  │  │  │  Screenshot prevention, auto-lock        │  │  │  │  │
 │  │  │  │  └─────────────────────────────────────────┘  │  │  │  │
@@ -591,58 +626,58 @@ Deploy: `firebase deploy --only firestore`
 ```
 
 ### Layer 1 — Device
-- `Isar` με schema versioning — full profile ποτέ δεν φεύγει αυτόματα
+- **Drift** (SQLite) με schema versioning (v8) — full profile ποτέ δεν φεύγει αυτόματα
 - `flutter_secure_storage` για Firebase tokens και chat encryption keys
-- Biometric lock (opt-in): `local_auth` package
-- Screenshot prevention: `FlutterWindowManager.addFlags(FLAG_SECURE)` (Android) / iOS equivalent
-- Auto-lock μετά από N λεπτά αδράνειας (configurable)
+- Biometric lock (opt-in): `local_auth` package + auto-lock timer (configurable 1–30 λεπτά)
+- Screenshot prevention: `FlutterWindowManager.addFlags(FLAG_SECURE)` (Android) + MethodChannel toggle
+- Auto-lock μετά από N λεπτά αδράνειας
+- Chat encryption keys: `getKeyOrDerive(chatId)` — try storage → fallback deriveKey() (KeyStore corruption fix)
 
 ### Layer 2 — Authentication
 - Anonymous auth → περιήγηση χωρίς λογαριασμό
 - Upgrade σε email ή phone verification όταν θέλει να επικοινωνήσει
+- `FirebaseAuth.instance.userChanges()` (όχι `authStateChanges()`) — εκπέμπει και μετά από `reload()`
 - Silent token refresh (χωρίς re-login)
-- Logout = διαγραφή local tokens + unpublish profile
+- `canUserCommunicate` single point of truth (5-layer guard)
+- Logout = `isSigningOut` static flag + provider invalidation → listeners απενεργοποιούνται πριν signOut (Session 151 fix)
 
 ### Layer 3 — Data Rules
-- Βλέπε Section 6 (Firestore Security Rules)
+- Βλέπε Section 6 (Firestore Security Rules) — 7 helpers
 - Κάθε read/write ελέγχεται server-side
+- `notBanned()` με live Firestore read (όχι custom claims — stale cache bug fix)
 
 ### Layer 4 — Transport
 - TLS 1.3 σε όλες τις Firebase κλήσεις (default)
-- AES-256 encryption για chat messages (βλέπε Section 12)
-- Chat encryption keys: παράγονται on-device, αποθηκεύονται στο flutter_secure_storage
+- AES-256 GCM encryption για chat messages
+- `deriveKey(chatId)`: deterministic SHA-256 → επιτρέπει και στα 2 devices να παράγουν το ίδιο key
+- Encryption keys: παράγονται on-device, αποθηκεύονται στο flutter_secure_storage
+- Encrypt/decrypt cache για αποφυγή duplicate operations (Session 147b)
 
-### Layer 5 — Behaviour (Cloud Functions)
-- **Rate limiting:** max 10 reports/ώρα ανά reporter (Cloud Function `onReportCreated`)
+### Layer 5 — Behaviour (5 Cloud Functions + 1 helper)
+
+#### `onReportCreated` (reports/{reportId}.onCreate)
+- **Rate limiting:** max 10 reports/ώρα ανά reporter
 - **Duplicate check:** αποτροπή πολλαπλών reports από τον ίδιο reporter για τον ίδιο χρήστη
 - **Auto-ban trigger:** 5 reports → Cloud Function → set `banned/{uid}` document
 - **Auto-unpublish:** auto-ban → `users/{uid}/public/profile` → `isVisible = false`
 - **Self-report protection:** απόρριψη αν reporterUid === reportedUid
 - **Already-banned check:** skip processing αν ο χρήστης είναι ήδη banned
-- **Audit trail:** κάθε report παίρνει `status` (processed, banned, rate_limited, duplicate, κλπ.) + `processedAt` timestamp
-- **Content moderation:** Firebase Extensions (Perspective API) για κείμενο (Φάση 3+)
-- **Request expiry:** Cloud Function ελέγχει κάθε 6 ώρες και expire-αρει requests > 48h (Φάση 3)
-- **Account deletion:** Cloud Function διαγράφει όλα τα cloud δεδομένα (Φάση 3)
+- **Audit trail:** κάθε report παίρνει `status` + `processedAt` timestamp
 
-#### Υλοποίηση: `onReportCreated` Cloud Function
-```typescript
-// functions/src/index.ts
-// Trigger: firestore.document('reports/{reportId}').onCreate()
+#### `deleteUserData` (callable)
+- Διαγραφή users/{uid}/public + status
+- Διαγραφή Storage avatars/{uid}/ + photos/{uid}/
+- Anonymization ενεργών requests (content → '[deleted]')
+- Anonymization chat messages (senderId → '[deleted]')
+- Firebase Auth: deleteUser(uid)
 
-export const onReportCreated = functions.firestore
-  .document('reports/{reportId}')
-  .onCreate(async (snap, context) => {
-    const { reporterUid, reportedUid, reason } = snap.data();
-    // 1. Validate + self-report check
-    // 2. Existing ban check
-    // 3. Rate limit (≥10 reports/1h από ίδιο reporter)
-    // 4. Duplicate check (ίδιος reporter + reportedUid)
-    // 5. Report count → if ≥5: write banned/{uid} + unpublish
-    // 6. Update report status + audit log
-  });
-```
+#### FCM Cloud Functions (3 + 1 helper)
+- `sendFcmNewMessage` — notification για νέο μήνυμα σε chat
+- `sendFcmNewRequest` — notification για νέο αίτημα επικοινωνίας
+- `sendFcmRequestAccepted` — notification για αποδοχή αιτήματος
+- `fcm-utils.ts` — helper με exponential backoff (1s→2s→4s), 3 retries for retryable codes, locale-aware notifications (el/en fallback `?? 'en'`)
 
-**Deploy:** `firebase deploy --only functions` (απαιτεί Blaze plan)
+**Deploy:** `firebase deploy --only functions`
 **Runtime:** Node.js 22 (1st Gen), region: us-central1
 
 ---
@@ -651,16 +686,16 @@ export const onReportCreated = functions.firestore
 
 ### ✅ Απόφαση Α: Authentication — Anonymous + Lazy Upgrade
 
-**Τι επιλέξαμε:** Ο χρήστης ξεκινά ανώνυμα (Firebase Anonymous Auth) και αναβαθμίζει σε verified (email ή phone) μόνο όταν θέλει να επικοινωνήσει.
+**Τι επιλέξαμε:** Ο χρήστης ξεκινά ανώνυμα (Firebase Anonymous Auth) και αναβαθμίζει σε verified (email ή **phone**) μόνο όταν θέλει να επικοινωνήσει.
 
-**Λόγος:** Μέγιστη ευκολία χρήσης, χωρίς friction στην αρχή. Το Isar αποθηκεύει δεδομένα από την πρώτη στιγμή — η Firebase εγγραφή γίνεται lazy.
+**Λόγος:** Μέγιστη ευκολία χρήσης, χωρίς friction στην αρχή. Το Drift αποθηκεύει δεδομένα από την πρώτη στιγμή — η Firebase εγγραφή γίνεται lazy.
 
 **Υλοποίηση:**
 ```dart
 // Ροή:
 // 1. App launch → Firebase.signInAnonymously()
-// 2. Χρήστης δημιουργεί profile → αποθηκεύεται ΜΟΝΟ στο Isar
-// 3. Χρήστης θέλει να επικοινωνήσει → ζητά email/phone verification
+// 2. Χρήστης δημιουργεί profile → αποθηκεύεται ΜΟΝΟ στο Drift
+// 3. Χρήστης θέλει να επικοινωνήσει → ζητά email ή phone verification
 // 4. Successful verify → linkWithCredential() στον ήδη anonymous account
 // 5. isAnonymous = false → unlock chat/requests features
 ```
@@ -676,13 +711,20 @@ if (user.isAnonymous) {
 
 ---
 
+### ✅ Απόφαση Α2: Phone Verification (P2.5 — SMS)
+
+Προστέθηκε ως δεύτερη μέθοδος verification, με state machine (5 states), OTP validation, prefixText για Ελλάδα (+30), inline spinners, 30s timeout. Υλοποίηση: `phone_verify_provider.dart`, `phone_verify_screen.dart`.
+
+---
+
 ### ✅ Απόφαση Β: Γεωγραφία — GPS με fallback manual
 
 **Τι επιλέξαμε:**
 1. Ζητά GPS permission με πλήρη εξήγηση γιατί
-2. Αν δοθεί → χρησιμοποιούμε `geolocator` για lat/lng
+2. Αν δοθεί → χρησιμοποιούμε `geolocator` για lat/lng + auto-fill city/country (Nominatim)
 3. Αν αρνηθεί → text field για χειροκίνητη εισαγωγή πόλης/περιοχής
-4. **Σε καμία περίπτωση** δεν αποθηκεύεται το ακριβές lat/lng στο Firestore
+4. GPS-first location → session cache (5min) → last known → failure
+5. **Σε καμία περίπτωση** δεν αποθηκεύεται το ακριβές lat/lng στο Firestore
 
 **GeoHash privacy levels:**
 ```dart
@@ -695,51 +737,59 @@ enum GeoPrecision {
 
 **Στο Firestore αποθηκεύεται μόνο το GeoHash** — ποτέ raw lat/lng. Ο χρήστης επιλέγει precision level στο Privacy Editor.
 
+**Nominatim autocomplete:** 800ms debounce, 1 req/sec rate limit, για city/country auto-fill.
+
 ---
 
 ### ✅ Απόφαση Γ: Search — Υβριδικό Firestore v1 → Typesense v2
 
-**Τι επιλέξαμε:** Repository Pattern που επιτρέπει swap χωρίς αλλαγή UI.
+**Τι επιλέξαμε:** Repository Pattern που επιτρέπει swap χωρίς αλλαγή UI. Typesense stub `implements SearchRepository` έτοιμο από Session 74.
 
 **Λόγος απόρριψης Algolia:** Πολύ ακριβό σε scale. 100k users → €800–1500/μήνα vs €60/μήνα για Typesense.
 
-**Φάση 1 (0–5k users):** Firestore native + geoflutterfire_plus
+**Φάση 1 (0–5k users):** Firestore native + geoflutterfire_plus (τρέχουσα υλοποίηση)
 - Μηδενικό κόστος
-- Μηδενική πολυπλοκότητα infra
-- Περιορισμός: 1 range filter ανά query
+- 4 query paths: GPS-only, City+radius, City-only, Country-only
+- Cursor pagination + 300 cap
+- `hasLocationFilter` flag για σωστό routing
+- Server-side filters (isVisible, geoHash, city, country) + `_passesFilters()` client safety net
 
-**Φάση 2 (5k+ users ή όταν χρειαστούν compound filters):** Typesense self-hosted
+**Φάση 2 (5k+ users):** Typesense self-hosted
 - Hetzner VPS CX11: €3.8/μήνα
 - Full-text search, geo, compound filters, typo tolerance
 - Cloud Function sync: `onWrite users/{uid}/public → typesense.upsert()`
 
-**Repository Pattern implementation:**
-```dart
-// Abstract interface — ΠΟΤΕ δεν αλλάζει
-abstract class SearchRepository {
-  Future<List<PublicProfile>> search(SearchFilters filters);
-  Future<List<PublicProfile>> searchNearby(LatLng center, double radiusKm);
-}
+---
 
-// Φάση 1 implementation
-class FirestoreSearchRepository implements SearchRepository { ... }
+### ✅ Απόφαση Δ: Local Database — Drift (SQLite) αντί Isar
 
-// Φάση 2 implementation
-class TypesenseSearchRepository implements SearchRepository { ... }
+**Απόφαση:** Το Isar αντικαταστάθηκε από Drift στα πρώτα sessions λόγω καλύτερης σταθερότητας, SQL migration support, και μεγαλύτερης ωριμότητας.
 
-// Provider — αλλάζει μόνο εδώ για swap
-@riverpod
-SearchRepository searchRepository(SearchRepositoryRef ref) {
-  if (FeatureFlags.typesenseEnabled) {
-    return TypesenseSearchRepository();
-  }
-  return FirestoreSearchRepository();
-}
-```
+**Οφέλη:**
+- SQL-based schema versioning με migration support
+- type-safe queries χωρίς code gen limitations
+- Καλύτερη απόδοση σε complex queries
+- 7 tables, schema v8 (από schema v1)
 
 ---
 
-## 9. Search Architecture — Απόφαση
+### ✅ Απόφαση Ε: Biometric Lock + Screenshot Prevention
+
+**Biometric Lock:**
+- LockScreen widget → εμφανίζεται πριν από οποιοδήποτε screen όταν είναι κλειδωμένο
+- Lifecycle hooks (AppLifecycleState.paused → auto-lock)
+- Provider toggle (AppSettings.biometricLockEnabled)
+- Auto-lock timer (configurable 1–30 λεπτά)
+- FCM bypass fix: `FcmService.isLocked` flag + `tryExecutePendingNav()` (Session 135-136)
+
+**Screenshot Prevention:**
+- `FlutterWindowManager.addFlags(FLAG_SECURE)` (Android)
+- MethodChannel for platform-specific toggle
+- Configurable από Settings screen
+
+---
+
+## 9. Search Architecture
 
 ### Σύγκριση επιλογών
 
@@ -758,143 +808,18 @@ SearchRepository searchRepository(SearchRepositoryRef ref) {
 | Κόστος 100k users | €200–400/μήνα | €400–900/μήνα | €30–60/μήνα |
 | **Βαθμολογία** | **5/10 (αρκεί v1)** | **8/10 (ακριβό)** | **9/10 (best value)** |
 
----
+### Search Query Architecture (τρέχουσα υλοποίηση)
 
-### Γιατί δεν κάνουμε τα φίλτρα "ένα τη φορά" — Ο περιορισμός του Firestore
+Το `firestore_search_repository.dart` έχει 4 query paths:
 
-> **Ερώτηση που τέθηκε κατά τον σχεδιασμό:**  
-> *"Γιατί να μην εφαρμόζουμε τα φίλτρα διαδοχικά (πρώτα ηλικία, μετά περιοχή, μετά interests) αντί για compound query;"*
+| Συνθήκη | Query | Index |
+|---|---|---|
+| **GPS only** (city/country null) | `WHERE isVisible AND geoHash BETWEEN [...] ORDER BY geoHash` | `isVisible↑ geoHash↑` |
+| **City+radius** (`hasRadiusFilter=true`) | `WHERE isVisible AND geoHash BETWEEN [...] ORDER BY geoHash` + client-side city filter (`_passesFilters`) | `isVisible↑ geoHash↑` |
+| **City only** (`hasLocationFilter=true`, no radius) | `WHERE isVisible AND city = '...' ORDER BY __name__` | `isVisible↑ city↑` |
+| **Country only** (`hasLocationFilter=true`) | `WHERE isVisible AND country = '...' ORDER BY __name__` | `isVisible↑ country↑` |
 
-#### Η απάντηση: Το πρόβλημα δεν είναι η λογική — είναι το Firestore backend
-
-Το Firestore έχει έναν **αρχιτεκτονικό** (όχι απόδοσης) περιορισμό: επιτρέπει **μόνο ένα πεδίο** με range operator (`>`, `<`, `>=`, `<=`) ανά query. Αν προσπαθήσεις να βάλεις δύο range filters σε διαφορετικά πεδία, πετά **runtime error** — δεν εκτελείται καθόλου.
-
-```dart
-// ❌ ΑΔΥΝΑΤΟ — Firestore runtime error
-firestore.collection('users/public')
-  .where('age', isGreaterThan: 20)       // range filter #1 στο 'age'
-  .where('age', isLessThan: 30)
-  .where('distanceKm', isLessThan: 10)   // range filter #2 σε άλλο πεδίο → CRASH
-  .where('interests', arrayContains: 'gamer');
-
-// ✅ ΕΠΙΤΡΕΠΕΤΑΙ — ένα range + equality filters
-firestore.collection('users/public')
-  .where('age', isGreaterThan: 20)       // range: μόνο σε ένα πεδίο
-  .where('age', isLessThan: 30)
-  .where('gender', isEqualTo: 'male')    // equality: OK
-  .where('interests', arrayContains: 'gamer'); // arrayContains: OK
-```
-
-Ακόμα και αν ο χρήστης επέλεγε φίλτρα "ένα τη φορά", η εφαρμογή θέλει να τα συνδυάζει όλα μαζί στο αποτέλεσμα. Ένα "ηλικία 20–30" query και ένα "εντός 10km" query δίνουν **δύο ξεχωριστές λίστες** — δεν υπάρχει τρόπος να πεις στο Firestore "δώσε μου την τομή τους" σε ένα call.
-
----
-
-#### Η λύση για Φάση 1: Firestore + Client-side filtering
-
-Αντί να προσπαθήσουμε να κάνουμε το Firestore να κάνει κάτι που δεν μπορεί, χρησιμοποιούμε μια **υβριδική στρατηγική**:
-
-```
-Βήμα 1 — Firestore query (1 range filter μόνο):
-  Χρησιμοποιούμε το πιο "επιλεκτικό" φίλτρο ως anchor
-  → συνήθως geoHash (περιοχή) ή age range
-  → επιστρέφει N records (π.χ. 100–300 profiles)
-
-Βήμα 2 — Client-side filter (στη μνήμη του κινητού):
-  Από τα N records κρατάμε μόνο αυτά που περνούν ΟΛΑ τα φίλτρα
-  → ηλικία εντός range
-  → απόσταση εντός X km (υπολογισμός από GeoHash)
-  → interests περιέχει τα επιλεγμένα
-  → lookingFor ταιριάζει
-  → gender ταιριάζει
-```
-
-```dart
-// Παράδειγμα υλοποίησης στο FirestoreSearchRepository
-Future<List<PublicProfile>> search(SearchFilters filters) async {
-
-  // Βήμα 1: Firestore query — anchor στο geoHash (1 range μόνο)
-  Query query = firestore
-      .collection('users')
-      .doc('public')  // subcollection group query
-      .where('isVisible', isEqualTo: true);
-
-  // Προσθέτουμε ΜΟΝΟ ένα range filter στο Firestore
-  if (filters.geoHash != null) {
-    final bounds = GeoHashUtils.getBounds(filters.geoHash!, filters.radiusKm ?? 10);
-    query = query
-        .where('geoHash', isGreaterThanOrEqualTo: bounds.lower)
-        .where('geoHash', isLessThanOrEqualTo: bounds.upper);
-  }
-
-  final snapshot = await query.limit(300).get();  // max 300 για client filter
-  final all = snapshot.docs.map(PublicProfile.fromFirestore).toList();
-
-  // Βήμα 2: Client-side filtering — εφαρμόζουμε ΟΛΑ τα φίλτρα
-  return all.where((profile) {
-    // Ηλικία
-    if (filters.minAge != null || filters.maxAge != null) {
-      final age = DateTime.now().year - profile.birthYear;
-      if (filters.minAge != null && age < filters.minAge!) return false;
-      if (filters.maxAge != null && age > filters.maxAge!) return false;
-    }
-
-    // Φύλο
-    if (filters.gender != null && filters.gender != 'all') {
-      if (profile.gender != filters.gender) return false;
-    }
-
-    // Interests (OR logic: αρκεί ένα να ταιριάζει)
-    if (filters.interests != null && filters.interests!.isNotEmpty) {
-      final hasMatch = filters.interests!
-          .any((i) => profile.interests.contains(i));
-      if (!hasMatch) return false;
-    }
-
-    // lookingFor
-    if (filters.lookingFor != null) {
-      if (profile.lookingFor != filters.lookingFor) return false;
-    }
-
-    // Video call
-    if (filters.allowVideoCall == true) {
-      if (!profile.allowVideoCall) return false;
-    }
-
-    return true;  // Πέρασε όλα τα φίλτρα
-  }).toList();
-}
-```
-
-#### Πότε αυτή η προσέγγιση δουλεύει καλά
-
-| Visible profiles | Records που φέρνει | Client filter χρόνος | Κόστος reads |
-|---|---|---|---|
-| 0–1k | ~50–200 | <10ms | Δωρεάν |
-| 1k–5k | ~100–300 | <20ms | ~€0.01/search |
-| 5k–20k | ~300–500 | ~50ms | ~€0.05/search |
-| 20k+ | 500+ | >100ms | Αρχίζει να κοστίζει |
-
-**Όριο χρησιμότητας: ~5.000–10.000 visible profiles.** Μετά από αυτό, το migration σε Typesense γίνεται αναγκαίο.
-
-#### Γιατί αυτό είναι αποδεκτό για Φάση 1
-
-Στην πράξη, η εφαρμογή **δεν θα έχει 10.000 visible profiles** στα πρώτα στάδια. Επιπλέον, το geo anchor filter (geoHash) είναι ήδη πολύ επιλεκτικό — σε μια πόλη σαν την Αθήνα, ένα neighborhood radius 5km επιστρέφει πολύ λιγότερα από 300 profiles ακόμα και με 50.000 εγγεγραμμένους χρήστες.
-
-#### Το migration path είναι έτοιμο
-
-Όταν έρθει η ώρα, αλλάζουμε **μόνο** το `searchRepository` provider:
-
-```dart
-// ΠΡΙΝ (Φάση 1)
-@riverpod
-SearchRepository searchRepository(ref) => FirestoreSearchRepository();
-
-// ΜΕΤΑ (Φάση 2) — η UI δεν αλλάζει καθόλου
-@riverpod
-SearchRepository searchRepository(ref) => TypesenseSearchRepository();
-```
-
----
+Routing logic: `hasGeoSearch && (!hasLocationFilter || hasRadiusFilter)` → `_geoSearch` (spatial). Διαφορετικά → `_generalSearch` (city/country exact match). City+radius χρησιμοποιεί geoHash για efficient spatial query + client-side city post-filter.
 
 ### SearchFilters model
 
@@ -908,14 +833,14 @@ class SearchFilters with _$SearchFilters {
     double? radiusKm,
     int? minAge,
     int? maxAge,
-    String? gender,           // null = all
-    List<String>? interests,  // OR logic
+    String? gender,
+    List<String>? interests,
     String? lookingFor,
     bool? allowVideoCall,
     bool? allowDirectChat,
     bool? isOnlineNow,
     @Default(20) int limit,
-    DocumentSnapshot? lastDocument,  // pagination
+    SearchCursor? cursor, // cursor-based pagination
   }) = _SearchFilters;
 }
 ```
@@ -930,12 +855,15 @@ class SearchFilters with _$SearchFilters {
 App ζητά GPS
      │
      ├── Αποδέχτηκε → geolocator.getCurrentPosition()
-     │                → αποθήκευση lat/lng ΜΟΝΟ στο Isar
+     │                → session cache (5min)
+     │                → αποθήκευση lat/lng ΜΟΝΟ στο Drift
+     │                → Nominatim reverse geocode → city/country
      │                → μετατροπή σε GeoHash ανάλογα precision
      │                → GeoHash → Firestore (αν published)
      │
      └── Αρνήθηκε  → Text field "Πόλη / Συνοικία"
-                     → Geocoding API για approximate coordinates
+                     → Nominatim autocomplete (800ms debounce)
+                     → Approximate coordinates
                      → Ίδια ροή GeoHash
 ```
 
@@ -959,32 +887,42 @@ App ζητά GPS
 │                      App Launch                              │
 └──────────────────────────────┬───────────────────────────────┘
                                │
-               ┌───────────────┴────────────────┐
-               │                                │
-        Firebase user;                   Κανένας user
-        exists (returning)               (new install)
-               │                                │
-               ▼                                ▼
-       Load Isar profile              signInAnonymously()
-       → Home screen                  → Onboarding flow
-                                      → Δημιουργία Isar profile
+                ┌───────────────┴────────────────┐
+                │                                │
+         Firebase user                     Κανένας user
+         exists (returning)                (new install)
+                │                                │
+                ▼                                ▼
+        Load Drift profile             signInAnonymously()
+        → Home screen                  → Onboarding flow
+                                       → Δημιουργία Drift profile
+                                               │
+                                     ┌─────────┴──────────┐
+                                     │  Θέλει να στείλει  │
+                                     │  request / chat;   │
+                                     └─────────┬──────────┘
+                                               │
+                                     Prompt: "Επαλήθευσε"
+                                               │
+                                     ┌─────────┴──────────┐
+                                     │                    │
+                                Email verify    Phone verify (SMS)
+                                (state machine: 5 states,
+                                 30s timeout, +30 prefix)
+                                     │                    │
+                                     └────────┬───────────┘
                                               │
-                                    ┌─────────┴──────────┐
-                                    │  Θέλει να στείλει  │
-                                    │  request / chat;   │
-                                    └─────────┬──────────┘
-                                              │
-                                    Prompt: "Επαλήθευσε"
-                                              │
-                                    ┌─────────┴──────────┐
-                                    │                    │
-                               Email verify         Phone verify
-                                    │                    │
-                                    └────────┬───────────┘
-                                             │
-                               linkWithCredential()
-                               isAnonymous = false
-                               → Unlock all features
+                                linkWithCredential()
+                                isAnonymous = false
+                                → Unlock all features
+```
+
+### Guard system — `canUserCommunicate`
+
+```dart
+// Single point of truth — 5-layer guard
+bool get canUserCommunicate =>
+    !user.isAnonymous && user.emailVerified;  // || isPhoneVerified
 ```
 
 ---
@@ -997,21 +935,28 @@ App ζητά GPS
 Χρήστης Α                              Χρήστης Β
     │                                      │
     │  1. Δημιουργία chat                  │
-    │     → παράγει AES-256 key            │
+    │     → παράγει AES-256 GCM key        │
+    │     → deriveKey(chatId)              │
     │     → αποθηκεύει key στο             │
     │       flutter_secure_storage         │
     │                                      │
     │  2. Στέλνει message                  │
     │     → encrypt(message, key)          │
+    │     → reuse encrypted string cache   │
     │     → Firestore.add(encrypted)       │
     │                                      │
     │                     3. Λαμβάνει message
     │                        → Firestore listener
     │                        → decrypt(encrypted, key)
+    │                        → decrypt cache (αποφυγή duplicate)
     │                        → εμφάνιση
 ```
 
-**Σημαντική επιλογή:** Το key δεν ανεβαίνει **ποτέ** στο Firestore. Αν χαθεί η συσκευή, το history χάνεται. **Αυτό είναι feature, όχι bug** — μέγιστη privacy.
+**Σημαντικές επιλογές:**
+- Το key δεν ανεβαίνει **ποτέ** στο Firestore
+- `deriveKey(chatId)`: deterministic SHA-256 → επιτρέπει και στα 2 devices να παράγουν το ίδιο key χωρίς ανταλλαγή
+- `getKeyOrDerive(chatId)`: try storage → fallback deriveKey() (KeyStore corruption fix — Session 21)
+- Encrypt/decrypt cache για αποφυγή duplicate operations (Session 147b)
 
 ### Key generation
 
@@ -1031,13 +976,18 @@ final parts = stored.split(':');
 final decrypted = encrypter.decrypt64(parts[1], iv: IV.fromBase64(parts[0]));
 ```
 
-### Chat features
-
+### Chat features (υλοποιημένα)
 - Real-time listeners (Firestore onSnapshot)
-- Read receipts (isRead flag)
-- Message expiry (opt-in: μηνύματα διαγράφονται μετά από X μέρες)
-- Online presence indicator
-- Typing indicator (ephemeral, Firestore status document)
+- Read receipts (double-check marks)
+- Auto-scroll to last message on chat open (Session 148β)
+- Chat preview (encrypted lastMessage + unread count badge)
+- E2E encryption indicator (lock icon + tap dialog)
+- Page keys + smart auth notifier + batch pagination (rebuild loop fix — Session 70)
+- Messages order by timestamp (no more 5× rebuilds in 4s)
+
+### Chat features (pending)
+- Message expiry (opt-in, CF scheduler) — P3.2
+- Image message type — P3.4
 
 ---
 
@@ -1054,6 +1004,8 @@ final decrypted = encrypter.decrypt64(parts[1], iv: IV.fromBase64(parts[0]));
 4. Και οι δύο συνδέονται με το token
 5. Token λήγει μετά το call — ποτέ δεν αποθηκεύεται
 
+**Stub:** `video_call_screen.dart` υπάρχει αλλά είναι κενό.
+
 ---
 
 ## 14. Feature Flags
@@ -1062,6 +1014,8 @@ final decrypted = encrypter.decrypt64(parts[1], iv: IV.fromBase64(parts[0]));
 
 ```dart
 class FeatureFlags {
+  const FeatureFlags._();
+
   // Search
   static const bool typesenseEnabled = false;  // v1: false, v2: true
 
@@ -1099,71 +1053,98 @@ if (FeatureFlags.videoCallEnabled) {
 lib/
 ├── core/
 │   ├── config/
-│   │   ├── feature_flags.dart
+│   │   ├── feature_flags.dart          # 8 flags
 │   │   └── app_config.dart
 │   ├── debug/
-│   │   └── debug_config.dart       # 33 debug flags, 3 log levels, release override
+│   │   └── debug_config.dart           # 33 debug flags, 3 log levels, release override
 │   ├── theme/
-│   │   ├── app_theme.dart          # dark/light από system
+│   │   ├── app_theme.dart              # dark/light από system, Material 3
 │   │   ├── app_colors.dart
 │   │   ├── app_typography.dart
-│   │   └── responsive_utils.dart   # ResponsiveUtils, ResponsiveBuilder, ResponsivePadding
+│   │   └── responsive_utils.dart       # ResponsiveUtils, ResponsiveBuilder, ResponsivePadding
 │   ├── l10n/
-│   │   └── l10n.dart               # locale detection, isGreek(), formatters
+│   │   ├── l10n.dart                   # locale detection, isGreek(), formatters
+│   │   ├── app_el.arb
+│   │   └── app_en.arb
 │   ├── router/
-│   │   ├── app_router.dart         # GoRouter
-│   │   └── main_shell.dart         # Adaptive shell (NavigationRail / NavigationBar)
+│   │   ├── app_router.dart             # GoRouter + errorBuilder
+│   │   └── main_shell.dart             # Adaptive shell (NavigationRail / NavigationBar)
 │   ├── firebase/
 │   │   └── firebase_init.dart
+│   ├── notifications/
+│   │   └── fcm_service.dart            # Foreground/Background/Killed handlers
+│   ├── services/
+│   │   └── presence_service.dart       # Online presence (heartbeat 60s, lifecycle-aware)
 │   └── utils/
 │       ├── geohash_utils.dart
-│       ├── encryption_utils.dart   # Phase 3 (chat)
-│       ├── app_exception.dart      # AppException.database/firestore/auth/...
-│       └── app_messenger.dart      # showSuccess/Error/Info/ConfirmDialog/Loading
+│       ├── encryption_utils.dart       # deriveKey, getKeyOrDerive, encrypt/decrypt cache
+│       ├── app_exception.dart          # AppException.database/firestore/auth/...
+│       ├── app_messenger.dart          # showSuccess/Error/Info/ConfirmDialog/Loading
+│       ├── error_messages.dart         # centralized bilingual error mapping
+│       ├── screen_protector.dart       # FLAG_SECURE toggle
+│       └── lock_screen.dart            # Biometric lock screen widget
 │
 ├── data/
-│   ├── local/                      # Isar
-│   │   ├── schemas/
-│   │   │   ├── user_profile.dart
-│   │   │   ├── privacy_settings.dart
-│   │   │   ├── consent_log.dart
-│   │   │   ├── chat_cache.dart
-│   │   │   ├── saved_search.dart
-│   │   │   └── app_settings.dart
-│   │   └── isar_service.dart       # init + migration
-│   └── remote/                     # Firebase
+│   ├── local/                          # Drift (7 tables, schema v8)
+│   │   ├── database.dart               # AppDatabase class
+│   │   ├── database.g.dart             # Generated
+│   │   ├── database_service.dart       # init + migrations
+│   │   └── tables/
+│   │       ├── user_profile_table.dart
+│   │       ├── privacy_settings_table.dart
+│   │       ├── consent_log_table.dart
+│   │       ├── chat_cache_table.dart
+│   │       ├── saved_search_table.dart
+│   │       ├── app_settings_table.dart
+│   │       ├── blocked_user_table.dart
+│   │       └── converters.dart
+│   └── remote/                         # Firebase
 │       ├── firestore_service.dart
 │       └── storage_service.dart
 │
-├── providers/                      # cross-cutting providers
-│   └── isar_provider.dart          # @riverpod Isar isar()
+├── providers/                          # cross-cutting providers
+│   └── database_provider.dart          # @riverpod AppDatabase database()
 │
-├── repositories/
-│   ├── search_repository.dart      # abstract + SearchFilters freezed model
+├── repositories/                       # 8 abstract interfaces + implementations
+│   ├── auth_repository.dart            # abstract
+│   ├── auth_repository_impl.dart
+│   ├── profile_repository.dart         # abstract
+│   ├── profile_repository_impl.dart
+│   ├── profile_storage_mixin.dart
+│   ├── search_repository.dart          # abstract + SearchFilters freezed
 │   ├── firestore_search_repository.dart
 │   ├── typesense_search_repository.dart  # Phase 4 stub
-│   ├── auth_repository.dart        # abstract
-│   ├── auth_repository_impl.dart
-│   ├── profile_repository.dart     # abstract
-│   ├── profile_repository_impl.dart
-│   ├── chat_repository.dart        # abstract
-│   └── request_repository.dart     # abstract
+│   ├── chat_repository.dart            # abstract
+│   ├── chat_repository_impl.dart
+│   ├── request_repository.dart         # abstract
+│   ├── request_repository_impl.dart
+│   ├── block_repository.dart           # abstract
+│   ├── block_repository_impl.dart
+│   ├── report_repository.dart          # abstract
+│   ├── report_repository_impl.dart
+│   └── saved_search_repository.dart
 │
 ├── features/
 │   ├── auth/
 │   │   ├── providers/
-│   │   │   └── auth_provider.dart
+│   │   │   ├── auth_provider.dart
+│   │   │   └── phone_verify_provider.dart  # state machine (5 states)
 │   │   └── screens/
-│   │       └── verify_account_screen.dart
+│   │       ├── welcome_screen.dart
+│   │       ├── anonymous_home_screen.dart
+│   │       ├── anonymous_info_screen.dart
+│   │       ├── verify_account_screen.dart
+│   │       └── phone_verify_screen.dart
 │   │
 │   ├── profile/
 │   │   ├── providers/
 │   │   │   ├── profile_provider.dart
 │   │   │   ├── privacy_provider.dart
 │   │   │   ├── consent_log_provider.dart
-│   │   │   └── location_service.dart  # GPS permission + geolocator
+│   │   │   ├── location_service.dart        # GPS permission + geolocator
+│   │   │   └── location_autocomplete_service.dart  # Nominatim (800ms debounce)
 │   │   └── screens/
-│   │       ├── profile_screen.dart     # main profile tab
+│   │       ├── profile_screen.dart
 │   │       ├── profile_editor_screen.dart
 │   │       ├── privacy_editor_screen.dart
 │   │       └── consent_log_screen.dart
@@ -1171,11 +1152,17 @@ lib/
 │   ├── discovery/
 │   │   ├── providers/
 │   │   │   ├── search_provider.dart
-│   │   │   └── filters_provider.dart
-│   │   └── screens/
-│   │       ├── discovery_screen.dart
-│   │       ├── search_filters_screen.dart
-│   │       └── public_profile_view_screen.dart
+│   │   │   ├── filters_provider.dart
+│   │   │   ├── saved_search_provider.dart
+│   │   │   └── status_provider.dart
+│   │   ├── screens/
+│   │   │   ├── discovery_screen.dart
+│   │   │   ├── search_filters_screen.dart
+│   │   │   ├── saved_searches_screen.dart
+│   │   │   └── public_profile_view_screen.dart
+│   │   └── widgets/
+│   │       ├── search_results_grid.dart
+│   │       └── public_profile_header.dart
 │   │
 │   ├── chat/
 │   │   ├── providers/
@@ -1187,37 +1174,52 @@ lib/
 │   ├── requests/
 │   │   ├── providers/
 │   │   │   └── requests_provider.dart
-│   │   └── screens/
-│   │       ├── requests_dashboard_screen.dart
-│   │       └── send_request_screen.dart
+│   │   ├── screens/
+│   │   │   ├── requests_dashboard_screen.dart
+│   │   │   └── send_request_screen.dart
+│   │   └── widgets/
+│   │       └── request_card_widgets.dart
 │   │
-│   ├── video/                      # Φάση 4
+│   ├── block/
+│   │   ├── providers/
+│   │   │   └── block_provider.dart
+│   │   └── screens/
+│   │       └── blocked_users_screen.dart
+│   │
+│   ├── report/
+│   │   └── providers/
+│   │       └── report_provider.dart
+│   │
+│   ├── video/                            # Φάση 4
 │   │   └── screens/
 │   │       └── video_call_screen.dart
 │   │
 │   └── settings/
 │       ├── providers/
 │       │   ├── settings_provider.dart
-│       │   └── delete_account_provider.dart  # DeleteAccountNotifier
+│       │   ├── app_settings_provider.dart  # biometric, screenshot, auto-lock
+│       │   └── delete_account_provider.dart
 │       └── screens/
 │           ├── settings_screen.dart
 │           └── delete_account_screen.dart
 │
 └── shared/
     ├── widgets/
-    │   ├── app_state_widget.dart   # ErrorView / LoadingView / EmptyView
-    │   ├── profile_card.dart
-    │   ├── online_indicator.dart
-    │   ├── consent_badge.dart
-    │   ├── form_section.dart       # FormSection card
-    │   ├── form_toggle.dart        # FormToggle SwitchListTile
-    │   ├── chip_selector.dart      # ChipSelector ChoiceChip group
-    │   ├── gradient_header.dart    # GradientHeader με icon/title/subtitle/child
-    │   └── save_button.dart        # SaveButton με loading state
+    │   ├── app_state_widget.dart         # ErrorView / LoadingView / EmptyView
+    │   ├── gradient_header.dart          # GradientHeader με icon/title/subtitle/child
+    │   ├── save_button.dart              # FilledButton με loading state
+    │   ├── form_section.dart             # FormSection card
+    │   ├── form_toggle.dart              # FormToggle SwitchListTile
+    │   ├── chip_selector.dart            # ChipSelector ChoiceChip group
+    │   ├── profile_card.dart             # ProfileCard για search results (responsive)
+    │   ├── online_indicator.dart         # OnlineIndicator (πράσινο/γκρι κουκκίδα)
+    │   ├── consent_badge.dart            # ConsentBadge
+    │   ├── gps_strength_indicator.dart   # GpsStrengthIndicator
+    │   └── report_user_dialog.dart       # ReportUserDialog
     ├── utils/
-    │   └── consent_action_config.dart  # centralized action→icon/color/label
+    │   └── consent_action_config.dart    # centralized action→icon/color/label
     └── models/
-        └── public_profile.dart     # read-only Firestore model (freezed)
+        └── public_profile.dart           # read-only Firestore model (freezed)
 ```
 
 ---
@@ -1228,118 +1230,155 @@ lib/
 dependencies:
   flutter:
     sdk: flutter
-
-  # State Management
-  flutter_riverpod: ^2.x
-  riverpod_annotation: ^2.x
-
-  # Local Database
-  isar: ^3.x
-  isar_flutter_libs: ^3.x
-  path_provider: ^2.x
-
-  # Firebase
-  firebase_core: ^2.x
-  firebase_auth: ^4.x
-  cloud_firestore: ^4.x
-  firebase_storage: ^11.x
-  firebase_messaging: ^14.x
-  cloud_functions: ^4.x
-
-  # Geo
-  geolocator: ^10.x
-  geoflutterfire_plus: ^0.x
-
-  # Navigation
-  go_router: ^13.x
-
-  # Encryption
-  encrypt: ^5.x
-  flutter_secure_storage: ^9.x
-  local_auth: ^2.x           # biometric
-
-  # i18n
   flutter_localizations:
     sdk: flutter
-  intl: ^0.18.x
+
+  # State Management
+  flutter_riverpod: ^3.3.1
+  riverpod: ^3.3.1
+  riverpod_annotation: ^4.0.2
+
+  # Local Database (Drift — SQLite)
+  drift: ^2.33.0
+  drift_flutter: ^0.3.0
+  sqlite3_flutter_libs: ^0.6.0+eol
+  path_provider: ^2.1.5
+
+  # Firebase
+  firebase_core: ^4.9.0
+  firebase_auth: ^6.5.1
+  cloud_firestore: ^6.4.1
+  firebase_storage: ^13.4.1
+  firebase_messaging: ^16.2.2
+  cloud_functions: ^6.3.1
+
+  # Geo
+  geolocator: ^14.0.2
+  geoflutterfire_plus: ^0.0.34
+  geocoding: ^4.0.0
+
+  # Navigation
+  go_router: ^17.2.3
+
+  # Encryption & Security
+  encrypt: ^5.0.3
+  crypto: ^3.0.6
+  flutter_secure_storage: ^10.3.1
+  local_auth: ^3.0.1
+
+  # i18n
+  intl: ^0.20.2
 
   # Images
-  cached_network_image: ^3.x
-  image_picker: ^1.x
-  image_cropper: ^5.x
-
-  # UI
-  flutter_svg: ^2.x
+  cached_network_image: ^3.4.1
+  image_picker: ^1.2.2
+  image_cropper: 12.2.1
 
   # Utilities
-  freezed_annotation: ^2.x
-  json_annotation: ^4.x
-  uuid: ^4.x
-  connectivity_plus: ^5.x
+  freezed_annotation: ^3.1.0
+  json_annotation: ^4.12.0
+  uuid: ^4.5.3
+  connectivity_plus: ^7.1.1
 
 dev_dependencies:
-  build_runner: ^2.x
-  isar_generator: ^3.x
-  riverpod_generator: ^2.x
-  freezed: ^2.x
-  json_serializable: ^6.x
-  flutter_lints: ^3.x
+  flutter_test:
+    sdk: flutter
+  build_runner: ^2.15.0
+  drift_dev: ^2.33.0
+  riverpod_generator: ^4.0.3
+  freezed: ^3.2.5
+  json_serializable: ^6.14.0
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.3
 ```
 
 ---
 
 ## 17. Roadmap Φάσεων
 
-### Φάση 1 — Core & Privacy (~2 μήνες)
+### Φάση 1 — Core & Privacy (100% ✅)
+
 **Στόχος:** Λειτουργικός σκελετός με πλήρη privacy control
 
-- [ ] Firebase init + Anonymous Auth
-- [ ] Isar init με schema versioning (schemaVersion: 1)
-- [ ] UserProfile CRUD (local)
-- [ ] PrivacySettings editor — ανά πεδίο toggle
-- [ ] ConsentLog implementation
-- [ ] Publish / Unpublish toggle → Firestore
-- [ ] GPS permission flow + GeoHash conversion
-- [ ] i18n setup (Ελληνικά + Αγγλικά)
-- [ ] Dark/Light theme από system
-- [ ] Delete account (local + cloud)
-- [ ] Feature flags infrastructure
-- [ ] Security Rules v1
+- [x] Firebase init + Anonymous Auth
+- [x] Drift init (7 tables, schema v1→v8)
+- [x] UserProfile CRUD (local, 23 fields)
+- [x] PrivacySettings editor — 12 toggles
+- [x] ConsentLog implementation
+- [x] Publish / Unpublish toggle → Firestore
+- [x] GPS permission flow + GeoHash conversion + Nominatim autocomplete
+- [x] i18n setup (Ελληνικά + Αγγλικά)
+- [x] Dark/Light theme από system (Material 3)
+- [x] Delete account (local + Cloud Function)
+- [x] Feature flags infrastructure (8 flags)
+- [x] Security Rules v1→v3 (7 helpers, 17 indexes)
+- [x] Repository Pattern (7 abstract interfaces)
+- [x] Unified Error Handling (AppMessenger + AppStateWidgets)
+- [x] Shared Widgets (12+ widgets)
+- [x] BlockedUser (local + Firestore sync)
+- [x] Report User + Auto-ban Cloud Function
+- [x] Screenshot Prevention (FLAG_SECURE)
+- [x] Biometric Lock + Auto-lock timer
+- [x] GoRouter errorBuilder
 
----
+### Φάση 2 — Discovery (100% ✅)
 
-### Φάση 2 — Discovery (~2 μήνες)
 **Στόχος:** Αναζήτηση και εύρεση χρηστών
 
-- [x] Firestore search με geoflutterfire_plus
-- [x] SearchFilters UI (ηλικία, περιοχή, interests, lookingFor)
-- [x] Results dashboard (cards)
+- [x] Firestore search (collectionGroup, 4 query paths)
+- [x] SearchFilters freezed model + UI
+- [x] ProfileCard results (responsive, lookingFor badge)
 - [x] PublicProfile view screen
-- [x] Saved searches
-- [ ] ~~View history (ποιον είδε ο χρήστης)~~ — **deferred** (χαμηλή προτεραιότητα)
-- [x] Block user (local + Firestore)
-- [ ] Report user → Cloud Function
-- [ ] Auto-ban Cloud Function
+- [x] Saved searches (CRUD, 3 bool filters, schema v8)
+- [x] Block user (stream-based, search exclusion)
+- [x] Report user UI (shared widget)
+- [x] Auto-ban Cloud Function (6-step validation)
+- [x] Typesense stub `implements SearchRepository`
+- [x] Cursor pagination (SearchCursor + startAfter + 300 cap)
+- [x] Server-side filters + `_passesFilters()` client safety net
+- [x] City + Country filter (hasLocationFilter flag)
+- [x] Nominatim autocomplete (800ms debounce, 1 req/sec)
+- [x] View History — deferred (χαμηλή προτεραιότητα)
 
----
+### Φάση 3 — Communication (100% ✅)
 
-### Φάση 3 — Communication (~2 μήνες)
 **Στόχος:** Πλήρης επικοινωνία μεταξύ χρηστών
 
-- [ ] Email/Phone verification (Anonymous → Verified upgrade)
-- [ ] Request system (chat / video / email request)
-- [ ] Requests dashboard (open requests)
-- [ ] E2E encrypted chat
-- [ ] FCM push notifications
-- [ ] Online presence indicator
-- [ ] Read receipts
-- [ ] Message expiry (opt-in)
-- [ ] Email trigger via Cloud Functions
-- [ ] Rate limiting Cloud Function
+- [x] Email verification (Welcome Screen, signIn/signUp)
+- [x] Phone verification (SMS — state machine 5 states, +30 prefix)
+- [x] `canUserCommunicate` single point of truth (5-layer guard)
+- [x] Request system (send, accept/decline, 48h expiry, chatId storage)
+- [x] Requests Dashboard (incoming/outgoing, unread tracking, FCM deep link)
+- [x] E2E encrypted chat (AES-256 GCM, deriveKey, getKeyOrDerive)
+- [x] FCM push notifications (3 CFs: new message, new request, accept/decline)
+- [x] FCM Foreground/Background/Killed handlers (συμπ. biometric guard)
+- [x] Online presence indicator (heartbeat 60s, lifecycle-aware, Future.wait)
+- [x] Read receipts (double-check marks)
+- [x] Rate limiting (reports: 10/hour, auto-ban at 5)
+- [x] Chat preview (encrypted lastMessage + unread count badge)
+- [x] E2E encryption indicator (lock icon + tap dialog)
+- [x] Unread tracking requests (readAt, blue dot, bold, badge)
+- [x] FCM retry mechanism (exponential backoff 1s→2s→4s)
 
----
+#### Υπόλοιπα P3 Gaps (για ολοκλήρωση)
 
-### Φάση 4+ — Advanced (ongoing)
+| Priority | Θέμα | Εκτίμηση |
+|:--------:|------|:--------:|
+| P3.2 | Message expiry (opt-in, CF scheduler) | 3-4 ώρες |
+| P3.3 | Email trigger CF (nodemailer/Resend) | 2 ώρες |
+| P3.4 | Image message type σε chat | 2-3 ώρες |
+| P3.10 | Data export (GDPR portability) | ~1 εβδομάδα |
+| P3.11 | Auto-expire stale requests (scheduled CF) | 1 ώρα |
+
+### Tech Debt
+
+| Θέμα | Κατάσταση |
+|------|:---------:|
+| Riverpod scheduler race (debug-only) — `Only one task can be scheduled at a time` σε respondToRequest | Deferred |
+| Mock location detection | Pending |
+
+### Φάση 4+ — Advanced (0%)
+
 **Στόχος:** Επεκτάσεις και premium features
 
 - [ ] Typesense migration (swap Repository)
@@ -1400,31 +1439,25 @@ dev_dependencies:
 ### Υλοποίηση
 
 1. **Ρητή συγκατάθεση** για κάθε είδος δεδομένου (GPS, photos, public profile)
-2. **ConsentLog** — τοπικό ιστορικό κάθε ενέργειας
+2. **ConsentLog** — τοπικό ιστορικό κάθε ενέργειας, UI με φίλτρα
 3. **Δικαίωμα πρόσβασης** — ο χρήστης βλέπει ακριβώς τι είναι στο cloud (Privacy Editor)
-4. **Δικαίωμα διαγραφής** — "Delete Account" διαγράφει όλα cloud δεδομένα μέσω Cloud Function
-5. **Δικαίωμα φορητότητας** — Export λειτουργία (Φάση 4+)
+4. **Δικαίωμα διαγραφής** — Cloud Function `deleteUserData`: storage cleanup, requests anonymize, chats anonymize, Auth user delete
+5. **Δικαίωμα φορητότητας** — Export λειτουργία (P3.10, ~1 εβδομάδα)
 6. **Data minimization** — ανεβαίνει μόνο ό,τι ο χρήστης επιλέξει ρητά
 7. **GeoHash** αντί raw coordinates — privacy by design
 
-### Delete Account Flow
+### Delete Account Flow (τρέχουσα υλοποίηση)
 
-> **Σημείωση υλοποίησης:** Στη Φάση 1, η διαγραφή γίνεται **client-side** (`auth_repository_impl.dart`): διαγράφει Firestore (public + status) + καθαρίζει Isar + διαγράφει Firebase Auth user. Το Cloud Function θα υλοποιηθεί στη **Φάση 3**, όταν θα υπάρχουν storage, requests και chat features που χρειάζονται server-side cleanup.
-
-```dart
-// Cloud Function (Φάση 3): deleteUserData(uid)
-// 1. Delete users/{uid}/public
-// 2. Delete users/{uid}/status
-// 3. Delete Storage avatars/{uid}/ + photos/{uid}/
-// 4. Mark all active requests as 'user_deleted'
-// 5. Anonymize chat messages (replace content with '[deleted]')
-// 6. Firebase Auth: deleteUser(uid)
-// 7. Return success
-
-// On device (μετά το Cloud Function success):
-// 1. Isar.writeTxn(() => isar.clear())
-// 2. flutter_secure_storage.deleteAll()
-// 3. GoRouter.go('/goodbye')
+```
+Client-side (auth_repository_impl.dart):
+  1. Call Cloud Function deleteUserData(uid)
+  2. Cloud Function: delete Firestore public + status
+  3. Cloud Function: delete Storage avatars/{uid}/ + photos/{uid}/
+  4. Cloud Function: anonymize active requests + chats
+  5. Cloud Function: delete Firebase Auth user
+  6. Client: Drift database clear
+  7. Client: flutter_secure_storage deleteAll()
+  8. GoRouter.go('/goodbye')
 ```
 
 ---
@@ -1433,18 +1466,18 @@ dev_dependencies:
 
 Ο αρχιτεκτονικός σχεδιασμός προβλέπει τις παρακάτω επεκτάσεις χωρίς ανάγκη refactor:
 
-| Feature | Προϋποθέσεις | Εκτίμηση προσπάθειας |
+| Feature | Current Status | Εκτίμηση προσπάθειας |
 |---|---|---|
-| Typesense search | Repository Pattern ήδη υλοποιημένο | 1 εβδομάδα |
+| Typesense search | Stub έτοιμο (Session 74) | 1 εβδομάδα |
 | Video calls | FeatureFlag.videoCallEnabled | 2–3 εβδομάδες |
-| AI matching | Search repo + scoring field στο Firestore | 3–4 εβδομάδες |
-| Groups / Events | Νέο Firestore collection, νέο feature module | 4–6 εβδομάδες |
-| Verified badge | Cloud Function ID check + badge field | 1–2 εβδομάδες |
-| Premium tier | in_app_purchase + RevenueCat + FeatureFlags | 2–3 εβδομάδες |
-| Web version | Flutter Web + Firebase same backend | 4–8 εβδομάδες |
-| Admin panel | Firebase Admin SDK + separate Flutter app | 3–4 εβδομάδες |
+| AI matching | FeatureFlag.aiMatchingEnabled | 3–4 εβδομάδες |
+| Groups / Events | FeatureFlag.groupEventsEnabled | 4–6 εβδομάδες |
+| Verified badge | FeatureFlag.verifiedBadgeEnabled | 1–2 εβδομάδες |
+| Premium tier | FeatureFlag.premiumTierEnabled | 2–3 εβδομάδες |
+| Web version | FeatureFlag.webVersionEnabled | 4–8 εβδομάδες |
+| Admin panel | Firebase Admin SDK | 3–4 εβδομάδες |
 | Remote feature flags | Firebase Remote Config (drop-in) | 3–5 ημέρες |
-| Export data (GDPR) | Cloud Function + zip + download link | 1 εβδομάδα |
+| Export data (GDPR) | P3.10 | 1 εβδομάδα |
 | Push-to-talk | Agora (ίδιο με video) | 1–2 εβδομάδες |
 | Multi-language (additional) | .arb αρχεία μόνο | 2–3 ημέρες/γλώσσα |
 
@@ -1452,48 +1485,40 @@ dev_dependencies:
 
 ## Σημειώσεις Υλοποίησης
 
-### Isar Migration Pattern
+### Drift Database Init
 
 ```dart
-// Πάντα στο isar_service.dart:
-final isar = await Isar.open(
-  [
-    UserProfileSchema,
-    PrivacySettingsSchema,
-    ConsentLogSchema,
-    ChatCacheSchema,
-    SavedSearchSchema,
-    AppSettingsSchema,
-  ],
-  directory: dir.path,
-  name: 'nearme_db',
-  inspector: kDebugMode,
-);
-// Σε κάθε schema αλλαγή → νέο schemaVersion + migration
+// database_service.dart
+final database = $FloorAppDatabase.databaseBuilder('nearme.db').build();
+
+// Database provider
+@riverpod
+AppDatabase database(DatabaseRef ref) {
+  return AppDatabase();
+}
 ```
 
 ### Riverpod Provider Patterns
 
 ```dart
-// Profile — με Isar stream για real-time UI update
+// Profile — με Drift stream για real-time UI update
 @riverpod
-Stream<UserProfile?> userProfile(UserProfileRef ref) {
-  final isar = ref.watch(isarProvider);
-  return isar.userProfiles.watchObject(0);
+Stream<UserProfileTableData?> userProfile(UserProfileRef ref) {
+  final db = ref.watch(databaseProvider);
+  return db.watchUserProfile();
 }
 
-// Publish/unpublish — μέσω repository από το provider
-// Η λογική βρίσκεται στο ProfileRepositoryImpl, όχι σε ξεχωριστό notifier
+// Repository pattern
 @riverpod
 ProfileRepository profileRepository(ProfileRepositoryRef ref) {
   return ProfileRepositoryImpl(
-    isar: ref.watch(isarProvider),
+    db: ref.watch(databaseProvider),
     firestore: FirebaseFirestore.instance,
   );
 }
 
 @riverpod
-Future<UserProfile?> currentProfile(CurrentProfileRef ref) {
+Future<UserProfileTableData?> currentProfile(CurrentProfileRef ref) {
   final repo = ref.watch(profileRepositoryProvider);
   return repo.getProfile();
 }
@@ -1519,6 +1544,9 @@ final router = GoRouter(
           GoRoute(path: '/chats', builder: (_, __) => const ChatListScreen()),
         ]),
         StatefulShellBranch(routes: [
+          GoRoute(path: '/requests', builder: (_, __) => const RequestsDashboardScreen()),
+        ]),
+        StatefulShellBranch(routes: [
           GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
         ]),
       ],
@@ -1526,21 +1554,39 @@ final router = GoRouter(
     // Push routes (slide-up transition)
     GoRoute(path: '/chat/:chatId', pageBuilder: (_, __) => _slideUp(const ChatScreen())),
     GoRoute(path: '/user/:uid', pageBuilder: (_, __) => _slideUp(const PublicProfileViewScreen())),
+    GoRoute(path: '/requests/:requestId', pageBuilder: (_, __) => _slideUp(const RequestsDashboardScreen())),
     // Modal routes (slide-from-bottom)
     GoRoute(path: '/profile/edit', pageBuilder: (_, __) => _modal(const ProfileEditorScreen())),
   ],
 );
 ```
 
+### Key Debug Conventions
+
+```dart
+// Master switch
+DebugConfig.debugMode  // auto OFF in release
+// Release override: --dart-define=ENABLE_RELEASE_DEBUG=true
+
+// Log levels
+DebugConfig.log(flag, msg)  // υπόκειται σε flag
+warn(msg)                   // debug mode only
+error(msg)                  // πάντα
+
+// Categories: databaseLocal, firestoreRead/Write, authFlow, gps,
+// provider*, service*, repository*, navigation*, ui*, consentLog*, chat*, storage*
+```
+
 ---
 
-*Τελευταία ενημέρωση: Μάιος 2026 (v1.1)*  
-*Επόμενο βήμα: Υλοποίηση Φάσης 1 — Isar schemas + Firebase init*
+*Τελευταία ενημέρωση: Ιούλιος 2026 (v2.0)*  
+*Κατάσταση: Phases 1-3 100% υλοποιημένα — `flutter analyze` clean ✅, 30/30 tests ✅, release APK ~14.5MB*
 
 ### Ιστορικό Αλλαγών
 
 | Έκδοση | Ημερομηνία | Αλλαγή |
 |--------|------------|--------|
 | 1.0 | Μάιος 2026 | Αρχικός σχεδιασμός |
-| 1.1 | Μάιος 2026 | Προσθήκη ανάλυσης Firestore compound query περιορισμού + client-side filtering στρατηγική στο Section 9 |
-| 1.2 | Μάιος 2026 | Προσθήκη `/reports/{reportId}` schema με status/processedAt, `/banned/{uid}` schema, Cloud Function `onReportCreated` (Layer 5), report reasons UI (L10n) |
+| 1.1 | Μάιος 2026 | Προσθήκη ανάλυσης Firestore compound query περιορισμού + client-side filtering στρατηγική (Section 9) |
+| 1.2 | Μάιος 2026 | Προσθήκη `/reports/{reportId}` schema, `/banned/{uid}`, Cloud Function `onReportCreated`, report reasons UI |
+| **2.0** | **Ιούλιος 2026** | **Πλήρης ενημέρωση: Isar→Drift, Riverpod 2→3, Phone verification, 5 CFs, 17 indexes, Biometric Lock, Screenshot Prevention, search overhaul, 30 tests, ~109 .dart files, Phases 1-3 100%** |

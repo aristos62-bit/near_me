@@ -13,6 +13,8 @@ import 'core/services/presence_service.dart';
 import 'core/utils/app_messenger.dart';
 import 'core/utils/lock_screen.dart';
 import 'core/utils/screen_protector.dart';
+import 'features/auth/providers/auth_provider.dart';
+import 'features/chat/providers/chat_provider.dart';
 import 'features/settings/providers/app_settings_provider.dart';
 import 'providers/unread_badge_provider.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -233,11 +235,11 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     PresenceService.handleLifecycle(state);
-    if (state == AppLifecycleState.paused) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
       _lastPauseTime = DateTime.now();
       _stopIdleTimer();
       DebugConfig.log(DebugConfig.serviceCall,
-          'main: lifecycle paused — idleTimer stopped');
+          'main: lifecycle $state — idleTimer stopped');
     } else if (state == AppLifecycleState.resumed && mounted) {
       _checkBiometricLock().then((_) {
         if (!_isLocked && mounted) {
@@ -347,6 +349,34 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
   @override
   Widget build(BuildContext context) {
     ref.listen(unreadBadgeProvider, (_, _) {});
+    ref.listen(authStateProvider, (prev, next) {
+      final prevUser = prev?.value;
+      final nextUser = next.value;
+      if (mounted) {
+        final uidChanged = prevUser?.uid != nextUser?.uid;
+        final emailVerifiedChanged =
+            prevUser?.emailVerified != nextUser?.emailVerified;
+        if (uidChanged || emailVerifiedChanged) {
+          ref.invalidate(chatsProvider);
+          if (uidChanged) {
+            DebugConfig.log(DebugConfig.authFlow,
+                'main: uid changed ${prevUser?.uid ?? "null"} → ${nextUser?.uid ?? "null"}');
+          }
+          if (emailVerifiedChanged) {
+            DebugConfig.log(DebugConfig.authFlow,
+                'main: emailVerified changed ${prevUser?.emailVerified} → ${nextUser?.emailVerified}');
+          }
+          DebugConfig.log(DebugConfig.providerDispose,
+              'main: invalidated chatsProvider (auth change)');
+        }
+      }
+      if (prevUser != null && nextUser == null && mounted) {
+        _stopIdleTimer();
+        if (_isLocked) {
+          setState(() => _isLocked = false);
+        }
+      }
+    });
     ref.listen(appSettingsProvider, (prev, next) {
       if (!mounted) return;
       final p = prev?.value;

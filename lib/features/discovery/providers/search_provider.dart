@@ -1,3 +1,4 @@
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/debug/debug_config.dart';
@@ -104,7 +105,23 @@ class SearchNotifier extends Notifier<SearchState> {
     return distances;
   }
 
+  void setError(String code) {
+    _resetPagination();
+    state = SearchState(status: SearchStatus.error, errorMessage: code);
+  }
+
   Future<void> search() async {
+    try {
+      final connectivity = await Connectivity().checkConnectivity();
+      if (connectivity.contains(ConnectivityResult.none)) {
+        DebugConfig.log(DebugConfig.networkConnectivity,
+            'SearchNotifier.search: no connectivity');
+        state = const SearchState(
+            status: SearchStatus.error, errorMessage: 'search/no-connectivity');
+        return;
+      }
+    } catch (_) {}
+
     final filters = ref.read(searchFiltersProvider);
     DebugConfig.log(DebugConfig.repositoryCall, 'SearchNotifier.search: $filters');
 
@@ -139,6 +156,17 @@ class SearchNotifier extends Notifier<SearchState> {
   }
 
   Future<void> searchNearby(double lat, double lng, double radiusKm) async {
+    try {
+      final connectivity = await Connectivity().checkConnectivity();
+      if (connectivity.contains(ConnectivityResult.none)) {
+        DebugConfig.log(DebugConfig.networkConnectivity,
+            'SearchNotifier.searchNearby: no connectivity');
+        state = const SearchState(
+            status: SearchStatus.error, errorMessage: 'search/no-connectivity');
+        return;
+      }
+    } catch (_) {}
+
     DebugConfig.log(DebugConfig.repositoryCall,
         'SearchNotifier.searchNearby: ($lat, $lng) r=$radiusKm');
 
@@ -175,6 +203,15 @@ class SearchNotifier extends Notifier<SearchState> {
       DebugConfig.log(DebugConfig.repositoryCall, 'SearchNotifier.loadMore: skipped (no more)');
       return;
     }
+
+    try {
+      final connectivity = await Connectivity().checkConnectivity();
+      if (connectivity.contains(ConnectivityResult.none)) {
+        DebugConfig.log(DebugConfig.networkConnectivity,
+            'SearchNotifier.loadMore: no connectivity — skip');
+        return;
+      }
+    } catch (_) {}
 
     DebugConfig.log(DebugConfig.repositoryCall,
         'SearchNotifier.loadMore: cursor=${_cursor!.docId}');

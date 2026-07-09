@@ -26,9 +26,10 @@ class ProfileCard extends ConsumerWidget {
     final theme = Theme.of(context);
     final isGreek = L10n.isGreek(context);
     final statusAsync = ref.watch(userStatusProvider(profile.uid));
-    final isOnline = statusAsync.value?.isOnline ?? false;
+    final streamOnline = statusAsync.value?.isOnline;
+    final isOnline = streamOnline ?? profile.isOnline;
     DebugConfig.log(DebugConfig.presence,
-        'ProfileCard uid=${profile.uid} isOnline=$isOnline (stream=${statusAsync.value?.isOnline} fallback=disabled)');
+        'ProfileCard uid=${profile.uid} isOnline=$isOnline (stream=$streamOnline profile=${profile.isOnline})');
     return SizedBox(
       width: width ?? 160,
       child: Card(

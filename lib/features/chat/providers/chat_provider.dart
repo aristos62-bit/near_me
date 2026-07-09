@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/utils/app_exception.dart';
 import '../../../data/local/database.dart';
-import '../../../features/auth/providers/auth_provider.dart';
 import '../../../repositories/chat_repository.dart';
 import '../../../repositories/chat_repository_impl.dart';
 
@@ -14,7 +13,6 @@ final chatRepositoryProvider = Provider<ChatRepository>((ref) {
 final chatsProvider = StreamProvider<List<ChatCacheTableData>>((ref) {
   DebugConfig.log(DebugConfig.providerCreate, 'chatsProvider created (StreamProvider)');
   final chatRepo = ref.watch(chatRepositoryProvider);
-  ref.watch(authStateProvider);
   final stream = chatRepo.streamChats();
   ref.onDispose(() => DebugConfig.log(DebugConfig.providerDispose, 'chatsProvider disposed'));
   return stream;

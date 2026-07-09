@@ -50,6 +50,8 @@ class ErrorMessages {
         return isGreek ? 'Σφάλμα ταυτοποίησης συσκευής. Βεβαιώσου ότι οι Υπηρεσίες Google Play είναι ενημερωμένες.' : 'Device identification error. Ensure Google Play Services are up to date.';
       case 'search/permission-denied':
         return isGreek ? 'Δεν βρέθηκαν χρήστες. Δοκίμασε άλλα φίλτρα.' : 'No users found. Try different filters.';
+      case 'search/no-connectivity':
+        return isGreek ? 'Δεν υπάρχει σύνδεση στο διαδίκτυο' : 'No internet connection';
       case 'search/unknown-error':
         return isGreek ? 'Σφάλμα αναζήτησης. Δοκίμασε ξανά.' : 'Search error. Try again.';
       case 'chat/encryption-error':

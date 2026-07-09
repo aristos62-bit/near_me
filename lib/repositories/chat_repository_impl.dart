@@ -78,7 +78,7 @@ class ChatRepositoryImpl implements ChatRepository {
     DebugConfig.log(DebugConfig.repositoryResult, 'createChat: new chat created: $chatId');
 
     await EncryptionUtils.storeKey(chatId, key);
-    await _saveChatCache(chatId, uid, otherUid, null);
+    // Chat cache γίνεται από το Firestore listener (streamChats → _syncChatFromFirestore)
     await _logConsent(uid, otherUid);
 
     return chatId;
@@ -288,39 +288,16 @@ class ChatRepositoryImpl implements ChatRepository {
     }
   }
 
-  Future<void> _saveChatCache(String chatId, String ownerUid, String otherUid, DateTime? lastMessageAt) async {
-    try {
-      final otherProfile = await _firestore
-          .collection('users').doc(otherUid).collection('public').doc('profile').get();
-      final otherNickname = otherProfile.data()?['nickname'] as String? ?? otherUid;
-      final otherAvatarUrl = otherProfile.data()?['avatarUrl'] as String?;
-
-      await _db.into(_db.chatCacheTable).insert(
-        ChatCacheTableCompanion.insert(
-          chatId: Value(chatId),
-          ownerUid: Value(ownerUid),
-          otherUid: Value(otherUid),
-          otherNickname: Value(otherNickname),
-          otherAvatarUrl: Value(otherAvatarUrl),
-          lastMessageAt: Value(lastMessageAt ?? DateTime.now()),
-          hasUnread: const Value(false),
-        ),
-      );
-      DebugConfig.log(DebugConfig.databaseLocal, 'createChat: cache saved chat=$chatId owner=$ownerUid');
-    } catch (e) {
-      DebugConfig.warn('createChat: cache save failed', data: e);
-    }
-  }
-
   Future<void> _updateChatCache(String chatId, {DateTime? lastMessageAt, bool? hasUnread, String? otherNickname, String? otherAvatarUrl, String? lastMessage, String? lastMessageSender, String? lastMessageType, int? unreadCount}) async {
     try {
-      final rows = await (_db.select(_db.chatCacheTable)
+      var rows = await (_db.select(_db.chatCacheTable)
         ..where((t) => t.chatId.equals(chatId))
       ).get();
 
       if (rows.length > 1) {
         await (_db.delete(_db.chatCacheTable)..where((t) => t.chatId.equals(chatId))).go();
         DebugConfig.log(DebugConfig.databaseLocal, '_updateChatCache: cleaned ${rows.length} duplicates chatId=$chatId');
+        rows = [];
       }
 
       if (rows.isEmpty) return;
@@ -380,13 +357,14 @@ class ChatRepositoryImpl implements ChatRepository {
           ? (lastMessageBy == uid ? 'me' : 'other')
           : null;
 
-      final rows = await (_db.select(_db.chatCacheTable)
+      var rows = await (_db.select(_db.chatCacheTable)
         ..where((t) => t.chatId.equals(chatId))
       ).get();
 
       if (rows.length > 1) {
         await (_db.delete(_db.chatCacheTable)..where((t) => t.chatId.equals(chatId))).go();
         DebugConfig.log(DebugConfig.databaseLocal, '_syncChatFromFirestore: cleaned ${rows.length} duplicates chatId=$chatId');
+        rows = [];
       }
 
       int unreadCount = rows.isNotEmpty ? rows.first.unreadCount : 0;

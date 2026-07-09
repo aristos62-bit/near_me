@@ -79,6 +79,9 @@ Typesense, Video (Agora), AI matching, Groups, Verified badge, Premium, Web, Adm
 | 21 | **KeyStore corruption → all E2E keys deleted** (Android) | `getKeyOrDerive(chatId)`: try storage → fallback deriveKey() |
 | 22 | **Stale `emailVerified` after `reload()`** — `authStateChanges()` δεν εκπέμπει | `authStateProvider` → `FirebaseAuth.instance.userChanges()` |
 | 23 | **Firestore null cast** — legacy profile docs without `uid` field | `_safePublicProfileFromJson()` null check before `PublicProfile.fromJson()` |
+| 24 | **Biometric idle timer runs on `inactive`** — notification shade, phone call | Handle `AppLifecycleState.inactive` alongside `paused` — stop timer |
+| 25 | **Idle timer active after sign-out** — LockScreen over welcome screen | `ref.listen(authStateProvider)` — stop timer + reset `_isLocked=false` |
+| 26 | **Chat disappears from list after create** — `_saveChatCache` duplicate → cleanup UPDATE 0 rows | Remove `_saveChatCache` root cause + `var rows`/`rows=[]` defense-in-depth |
 
 ## Session Progression
 
@@ -173,6 +176,39 @@ Row με Spacer + chips → overflow 3.5px. Fix: `Row` → `Wrap`.
 **Αρχεία:** `auth_repository.dart`, `auth_repository_impl.dart`, `chat_repository_impl.dart`, `request_repository_impl.dart`, `status_provider.dart`, `settings_screen.dart`.
 **Νέο αρχείο:** `PERMISSION_DENIED.md` — πλήρης τεκμηρίωση.
 
+### Session 152 — P1.3 Biometric Idle Timer Lifecycle fix (inactive + sign-out)
+**Πρόβλημα:** Δύο bugs: (1) Το `didChangeAppLifecycleState` αγνοούσε το `AppLifecycleState.inactive` (notification shade, τηλεφώνημα) — ο timer συνέχιζε να μετράει. (2) Μετά από sign-out, ο idle timer στο `_NearMeAppState` δεν σταματούσε — μπορούσε να εμφανίσει LockScreen πάνω από το welcome screen.
+**Λύση:** (1) `AppLifecycleState.inactive` δίπλα στο `paused` — stop timer + `_lastPauseTime`. (2) `ref.listen(authStateProvider, ...)` στο build — όταν user→null, `_stopIdleTimer()` + reset `_isLocked=false`.
+**Αρχεία:** `lib/main.dart` (import + lifecycle handler + build method listener)
+**P1_3.md:** created — full analysis and fix documentation
+
+## Session 153 — ChatCache duplicate bug fix (_syncChatFromFirestore + _updateChatCache)
+**Πρόβλημα:** Σε createChat, το `_saveChatCache()` δημιουργούσε duplicate row (local Firestore cache) · το `_syncChatFromFirestore` έβρισκε 2 rows, τα διέγραφε, αλλά `final rows` κρατούσε old reference → UPDATE σε 0 rows · chat εξαφανιζόταν από τη λίστα.
+
+**Λύση (3 αλλαγές):** (1) Αφαίρεση `_saveChatCache()` από `createChat()` + διαγραφή μεθόδου. (2-3) `final rows` → `var rows`, `rows = []` μετά delete.
+
+**Αρχεία:** `chat_repository_impl.dart`  
+**Verified:** 8/7/2026 — dual device ✅
+
+## Session 154 — P1.1, P2.1 & P2.2 verification audit
+- **P1.1**: ✅ **Fixed ήδη.** `_onRefresh` (discovery_screen.dart:187) καλεί `_performSearch` **μία φορά**. `_performSearch` (γραμμή 74) κάνει `await _checkConnectivity()` πριν προχωρήσει. Δεν υπάρχει duplicate search issue. Δεν χρειάζεται αλλαγή.
+- **P2.1**: ✅ **Fixed ήδη.** Επαληθεύτηκε στον κώδικα: (1) `chat_provider.dart` — `chatsProvider` ΔΕΝ έχει `ref.watch(authStateProvider)`. (2) `settings_screen.dart` — ΔΕΝ έχει `ref.invalidate(chatsProvider)`. (3) `main.dart` — υπάρχει ήδη ο authStateProvider listener με uidChanged + emailVerifiedChanged guard + `ref.invalidate(chatsProvider)`. Συμφωνεί πλήρως με το σχέδιο του `P2_1.md`. **Δεν χρειάζεται αλλαγή.**
+- **P2.2**: ✅ **Fixed ήδη.** Πλήρης ροή: `sendPhoneOtp()` (FirebaseAuth.verifyPhoneNumber με 4 callbacks, 60s timeout), `verifyOtp()` (PhoneAuthProvider.credential + linkWithCredential + reload), `isPhoneVerified`, `canUserCommunicate` με `|| hasPhone`. Provider με 6 states, Screen με phone→OTP→verify→success UI. **Δεν χρειάζεται αλλαγή.**
+
+## Session 155 — P3.1 Online Status Flicker Fix
+**Πρόβλημα:** Τα `ProfileCard` έκαναν render 2 φορές: (1) `isOnline=false` (stream null), (2) ~300ms μετά `isOnline=true` — οπτικό flicker.
+
+**Λύση:** Null-coalescing fallback: `final isOnline = streamOnline ?? profile.isOnline;`
+- `streamOnline` = από `userStatusProvider` (stream, ~300ms delay)
+- `profile.isOnline` = από το public profile snapshot (διαθέσιμο αμέσως, γιατί η `PresenceService` γράφει `isOnline` απευθείας στο public doc)
+- Εφαρμόστηκε και στο `PublicProfileHeader` (ίδιο pattern)
+
+**Verified:** 9/7/2026 — logs: `isOnline=true (stream=null profile=true)` → `isOnline=true (stream=true profile=true)`. Zero flicker ✅
+
+**Αρχεία:** `profile_card.dart` (γραμμή 28-30), `public_profile_header.dart` (γραμμή 29-31)
+
+---
+
 ## Current State
 
 | Μέτρο | Τιμή |
@@ -192,6 +228,12 @@ Row με Spacer + chips → overflow 3.5px. Fix: `Row` → `Wrap`.
 | Auto-search after reset filters | ✅ Session 149 |
 | Saved search apply + city+radius combo + GPS refresh | ✅ Session 150 |
 | PERMISSION_DENIED after signOut (6× listeners) | ✅ Session 151 |
+| P1.3 Biometric Idle Timer Lifecycle (inactive + sign-out) | ✅ Session 152 |
+| ChatCache duplicate bug (_saveChatCache + final rows) | ✅ Session 153 |
+| P1.1 Duplicate search on refresh — already fixed | ✅ Session 154 — verified στον κώδικα |
+| P2.1 Provider cascade (debounce auth state) — already fixed | ✅ Session 154 — verified στον κώδικα, συμφωνεί με P2_1.md |
+| P2.2 Phone verification (SMS OTP) — already fixed | ✅ Session 154 — verified: sendOtp→verifyOtp→isPhoneVerified→canUserCommunicate |
+| P3.1 Online Status Flicker (null-coalescing fallback) | ✅ Session 155 — logs: zero flicker |
 
 ### Remaining Gaps
 - **Phase 4**: Video (Agora), AI matching, Groups, Admin, Web, Premium, Typesense
@@ -199,6 +241,175 @@ Row με Spacer + chips → overflow 3.5px. Fix: `Row` → `Wrap`.
 
 ### Tech Debt
 - Riverpod scheduler race (debug-only) — `Only one task can be scheduled at a time` σε respondToRequest. Deferred.
+
+---
+
+## Αναλυτική Παρουσίαση 9 Βελτιώσεων
+
+### P1 — Διόρθωση Διπλού Search on Refresh (`_checkConnectivity` bypass)
+**Αρχεία:** `lib/features/discovery/providers/search_provider.dart`
+
+**Περιγραφή:** Στο `_onRefresh`, το `_performSearch` καλείται 2 φορές:
+1. Από `getCurrentLocation()` → `_performSearch()` (μέσα στη ροή GPS)
+2. Από `_onRefresh` → απευθείας `_performSearch()`
+
+Επιπλέον, το `_checkConnectivity` **δεν γίνεται await** — η αναζήτηση τρέχει ακόμα και όταν ο χρήστης είναι offline, με αποτέλεσμα Firestore errors.
+
+**Επίπτωση:** Διπλάσιος Firestore read cost, περιττά network requests, πιθανά errors όταν offline.
+
+**Λύση:**
+1. `await _checkConnectivity()` στην αρχή του refresh — αν offline, `setState(SearchState.error(…))` και return
+2. Αφαίρεση της διπλής κλήσης `_performSearch()` — μία διαδρομή είτε από GPS callback είτε απευθείας
+
+**Κρισιμότητα:** P1 — επηρεάζει χρέωση Firestore και user experience όταν offline
+
+---
+
+### ✅ P1.2 — Request Delete UI Race — **FIXED**
+**Αρχεία:** `lib/features/requests/screens/requests_dashboard_screen.dart`
+
+**Περιγραφή:** Το `deleteRequest()` ακολουθείται από `_exitSelectionMode()` ΠΡΙΝ προλάβει να κάνει propagate το stream του Firestore. Το UI για μια στιγμή δείχνει stale data (το διαγραμμένο request παραμένει ορατό).
+
+**Επίπτωση:** Οπτικό flicker, σύγχυση χρήστη.
+
+**Λύση:** `ref.invalidate()` πριν από `_exitSelectionMode()` + `Future.microtask` delay + partial failure handling + enhanced debug logging.
+
+**Verified:** 7/7/2026 — log sequence `delete→invalidate→exitSelection→showSuccess`, clean analyze
+
+---
+
+### ✅ P1.3 — Biometric Idle Timer Lifecycle Gap — **FIXED (Session 152)**
+**Αρχεία:** `lib/main.dart`
+
+**Περιγραφή:** Δύο bugs: (1) `inactive` state (notification shade, τηλεφώνημα) δεν σταματούσε τον idle timer. (2) Sign-out δεν σταματούσε τον timer — LockScreen εμφανιζόταν πάνω από welcome screen.
+
+**Επίπτωση:** Πιθανός auto-lock ενώ ο χρήστης κοιτάει ειδοποιήσεις, LockScreen μετά από sign-out.
+
+**Λύση:**
+1. `AppLifecycleState.inactive` δίπλα στο `paused` — stop timer + `_lastPauseTime`
+2. `ref.listen(authStateProvider, ...)` στο build — stop timer + reset `_isLocked=false` σε sign-out
+
+**Verified:** 7/7/2026 — logs επιβεβαιώνουν `inactive→stop`, `sign-out→stop`, `paused→stop`, `short pause skip biometric`, `timeout→lock`
+
+---
+
+### P2 — Provider Cascade (Διπλό create/dispose σε auth change)
+**Αρχεία:** `lib/features/chat/providers/chat_provider.dart`, `lib/features/auth/providers/auth_provider.dart`
+
+**Περιγραφή:** Σε κάθε auth state change (sign-in), το `chatsProvider` κάνει dispose + create 2-3 φορές:
+```
+chatsProvider disposed
+chatsProvider created (StreamProvider)
+streamChats: started
+streamChats: cancelled
+chatsProvider disposed
+chatsProvider created (StreamProvider)
+streamChats: started
+```
+
+Αυτό συμβαίνει γιατί το `authStateProvider` εκπέμπει πολλαπλά events:
+1. `uid=null` (κατά τη μετάβαση)
+2. `uid=scIChf…` (τελικό)
+
+Κάθε φορά, δημιουργείται νέο Firestore stream listener.
+
+**Επίπτωση:** 2-3× περιττά Firestore reads (αυξάνει κόστος), περιττά UI rebuilds.
+
+**Λύση:** Debounce ή buffer στο auth state πριν την αντίδραση providers. Εναλλακτικά: skip first null event με `skip(1)` ή `distinct()`.
+
+**Κρισιμότητα:** P2 — δεν επηρεάζει UX αλλά αυξάνει Firestore read cost
+
+---
+
+### ✅ P2 — Ολοκλήρωση Phone Verification (SMS OTP) — **FIXED**
+**Αρχεία:** `lib/features/auth/providers/phone_verify_provider.dart`, `lib/features/auth/screens/phone_verify_screen.dart`
+
+**Περιγραφή:** Ο χρήστης (`scIChf…`) είχε `hasPhone=false`. Μπήκε στην οθόνη phone verification αλλά ΔΕΝ ολοκλήρωσε το SMS OTP flow.
+
+**Λύση:** `sendPhoneOtp()` (FirebaseAuth.verifyPhoneNumber, 4 callbacks, 60s timeout), `verifyOtp()` (PhoneAuthProvider.credential + linkWithCredential + reload), `isPhoneVerified`, `canUserCommunicate` με `|| hasPhone`. Provider με 6 states, Screen με phone→OTP→verify→success UI.
+
+**Verified:** 9/7/2026 — Session 154 audit: πλήρης ροή στον κώδικα ✅
+
+**Κρισιμότητα:** P2 — λειτουργικό έλλειμμα, δεν μπλοκάρει άλλες λειτουργίες
+
+---
+
+### ✅ P3.1 — Online Status Flicker στα ProfileCards — **FIXED (Session 155)**
+**Αρχεία:** `lib/shared/widgets/profile_card.dart`, `lib/features/discovery/widgets/public_profile_header.dart`
+
+**Περιγραφή:** Τα `ProfileCard` κάνουν render 2 φορές:
+1. Αρχικό render με `isOnline=false` (stream=null fallback)
+2. Μετά από ~300ms, render με `isOnline=true` (σωστό status)
+
+Αυτό συμβαίνει γιατί το `userStatus` stream family κάνει fetch από Firestore μετά το αρχικό build.
+
+**Επίπτωση:** Οπτικό flicker — η πράσινη κουκκίδα εμφανίζεται με καθυστέρηση.
+
+**Λύση:** Null-coalescing fallback: `final isOnline = streamOnline ?? profile.isOnline;`
+- `streamOnline` = από `userStatusProvider` (stream, ~300ms καθυστέρηση)
+- `profile.isOnline` = από το public profile snapshot (διαθέσιμο αμέσως, γιατί η `PresenceService` γράφει το `isOnline` απευθείας στο public doc)
+- Το `isOnline` από το Firestore snapshot λειτουργεί ως fallback μέχρι να έρθει το stream
+
+**Verified:** 9/7/2026 — logs επιβεβαιώνουν: `isOnline=true (stream=null profile=true)` στο πρώτο render → `isOnline=true (stream=true profile=true)` μετά το stream. Κανένα flicker. ✅
+
+**Κρισιμότητα:** P3 — αισθητικό, δεν επηρεάζει λειτουργικότητα
+
+---
+
+### P3 — Haversine Memoization για ίδιο geoHash
+**Αρχεία:** `lib/repositories/firestore_search_repository.dart`
+
+**Περιγραφή:** Για κάθε profile στη λίστα αποτελεσμάτων, υπολογίζεται `distanceToNearestEdge()` με Haversine. Όταν πολλά profiles μοιράζονται το ίδιο geoHash cell, ο υπολογισμός γίνεται από την αρχή για κάθε profile.
+
+Για 300 profiles (cap): ~1200 Haversine calls (300 × 4 neighbors).
+
+**Λύση:** Cache/memoization: `Map<String, double> _edgeDistanceCache` κλειδί = `geohash+lat+lng`. Αν το ίδιο geoHash έχει ήδη υπολογιστεί, επιστροφή cached τιμής.
+
+**Κρισιμότητα:** P3 — optimization, όχι bug
+
+---
+
+### P4 — ConsentLog Pagination
+**Αρχεία:** `lib/features/profile/screens/consent_log_screen.dart`, `lib/data/local/database.dart` (ConsentLogTable)
+
+**Περιγραφή:** Αυτή τη στιγμή υπάρχουν 116 entries στο ConsentLog. Φορτώνονται όλα μαζί σε ένα Drift query. Καθώς ο αριθμός μεγαλώνει (π.χ. 1000+ entries), η αρχική φόρτωση θα γίνεται πιο αργή και η λίστα θα είναι δύσχρηστη.
+
+**Λύση:** Pagination με Drift `LIMIT 50 OFFSET ?` + load more button / infinite scroll.
+
+**Κρισιμότητα:** P4 — προληπτικό, δεν αποτελεί πρόβλημα ακόμα
+
+---
+
+## Πίνακας Προτεραιοτήτων
+
+| # | Priority | Θέμα | Τύπος | Αρχείο |
+|---|:--------:|------|:-----:|--------|
+| # | Priority | Θέμα | Τύπος | Αρχείο | Status |
+|---|:--------:|------|:-----:|--------|:------:|
+| 1 | **✅ P1** | Διπλό search on refresh (`_checkConnectivity` bypass) | Bug | `search_provider.dart` | ✅ Fixed |
+| 2 | **✅ P1** | `_checkConnectivity` — skip αν offline | Bug | `search_provider.dart` | ✅ Fixed |
+| 3 | **✅ P1.2** | Requested delete UI race — wait for stream propagation | Bug | `requests_dashboard_screen.dart` | ✅ Fixed |
+| 4 | **✅ P1.3** | Biometric idle timer lifecycle gap (inbox + sign-out) | Bug | `main.dart` | ✅ Fixed |
+| 5 | **✅ P2** | Provider cascade (διπλό create/dispose σε auth change) | Optimization | `chat_provider.dart` | ✅ Fixed |
+| 6 | **✅ P2** | Ολοκλήρωση phone verification (SMS OTP) | Feature gap | `phone_verify_provider.dart` | ✅ Fixed |
+| 7 | **✅ P3.1** | Online status flicker στα ProfileCards | UX polish | `profile_card.dart` | ✅ Fixed |
+| 8 | **P3.2** | Haversine memoization για ίδιο geoHash | Performance | `firestore_search_repository.dart` | |
+| 9 | **P4** | ConsentLog pagination | Scalability | `consent_log_screen.dart` | |
+
+---
+
+## Σειρά Εκτέλεσης (Work Plan)
+
+1. **✅ P1.1** — `_checkConnectivity` bypass + duplicate `_performSearch` — verified fixed
+2. **✅ P1.2** — Request delete UI race — fixed
+3. **✅ P1.3** — Biometric idle timer lifecycle — fixed (Session 152)
+4. **✅ P2.1** — Provider cascade (debounce auth state) — verified fixed
+5. **✅ P2.2** — Phone verification (SMS OTP) — verified fixed
+6. **✅ P3.1** — Fix online status flicker (null-coalescing `streamOnline ?? profile.isOnline`) — **Fixed Session 155**
+7. **P3.2** — Haversine memoization για ίδιο geoHash
+8. **P4.1** — ConsentLog pagination
+
+> Εκτελούμε **μία βελτίωση τη φορά**. Μετά από κάθε αλλαγή: backup → edit → `flutter analyze` → έλεγχος από τον χρήστη → "επόμενο".
 
 ## Key Conventions
 - File size ≤ 500 lines (exceptions: profile_repository_impl ~570, chat_repository_impl ~590 with user permission)

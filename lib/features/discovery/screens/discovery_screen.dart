@@ -1,3 +1,4 @@
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -52,11 +53,31 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
     await _performSearch();
   }
 
+  Future<bool> _checkConnectivity() async {
+    try {
+      final connectivity = await Connectivity().checkConnectivity();
+      if (connectivity.contains(ConnectivityResult.none)) {
+        DebugConfig.log(DebugConfig.networkConnectivity,
+            '_performSearch: no connectivity — setting error state');
+        ref.read(searchProvider.notifier).setError('search/no-connectivity');
+        return false;
+      }
+      DebugConfig.log(DebugConfig.networkConnectivity,
+          '_performSearch: connectivity OK ($connectivity)');
+      return true;
+    } catch (e) {
+      DebugConfig.warn('_performSearch: connectivity check failed', data: e);
+      return true;
+    }
+  }
+
   Future<void> _performSearch() async {
     if (_isDetecting) return;
     if (mounted) setState(() => _isDetecting = true);
 
     try {
+      if (!await _checkConnectivity()) return;
+
       final loc = await LocationService.getCurrentLocation();
       if (!mounted) return;
 

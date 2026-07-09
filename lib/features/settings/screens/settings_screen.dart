@@ -9,7 +9,6 @@ import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
 import '../../../core/utils/lock_screen.dart';
 import '../../auth/providers/auth_provider.dart';
-import '../../chat/providers/chat_provider.dart';
 import '../../requests/providers/requests_provider.dart';
 import '../../../providers/unread_badge_provider.dart';
 import '../providers/app_settings_provider.dart';
@@ -60,7 +59,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     DebugConfig.log(DebugConfig.authFlow, 'SettingsScreen: sign out');
     DebugConfig.log(DebugConfig.providerDispose,
         '_signOut: invalidating Firestore stream providers');
-    ref.invalidate(chatsProvider);
     ref.invalidate(incomingRequestsProvider);
     ref.invalidate(outgoingRequestsProvider);
     ref.invalidate(unreadBadgeProvider);

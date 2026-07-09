@@ -27,9 +27,10 @@ class PublicProfileHeader extends ConsumerWidget {
     final headerBody = theme.textTheme.bodyMedium!.copyWith(color: Colors.white.withAlpha(220));
     final headerSmall = theme.textTheme.bodySmall!.copyWith(color: Colors.white.withAlpha(180));
     final statusAsync = ref.watch(userStatusProvider(uid));
-    final isOnline = statusAsync.value?.isOnline ?? false;
+    final streamOnline = statusAsync.value?.isOnline;
+    final isOnline = streamOnline ?? profile.isOnline;
     DebugConfig.log(DebugConfig.presence,
-        'PublicProfileHeader uid=$uid isOnline=$isOnline (stream=${statusAsync.value?.isOnline} fallback=disabled)');
+        'PublicProfileHeader uid=$uid isOnline=$isOnline (stream=$streamOnline profile=${profile.isOnline})');
 
     return Stack(
       children: [

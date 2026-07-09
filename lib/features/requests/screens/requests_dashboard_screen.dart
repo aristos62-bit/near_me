@@ -107,7 +107,8 @@ class _RequestsDashboardScreenState extends ConsumerState<RequestsDashboardScree
 
   Future<void> _deleteSelected() async {
     final count = _selectedIds.length;
-    DebugConfig.log(DebugConfig.uiInteraction, '_deleteSelected: count=$count');
+    final idsToDelete = _selectedIds.toList();
+    DebugConfig.log(DebugConfig.uiInteraction, '_deleteSelected: count=$count ids=$idsToDelete');
     final confirmed = await AppMessenger.showConfirmDialog(
       context,
       title: L10n.localizedMessage(context, 'Διαγραφή / Delete'),
@@ -119,21 +120,36 @@ class _RequestsDashboardScreenState extends ConsumerState<RequestsDashboardScree
     if (!confirmed || !mounted) return;
 
     final repo = ref.read(requestRepositoryProvider);
-    for (final id in _selectedIds.toList()) {
+    bool allSucceeded = true;
+    for (final id in idsToDelete) {
       try {
         await repo.deleteRequest(id);
+        DebugConfig.log(DebugConfig.repositoryResult, '_deleteSelected: deleted id=$id');
       } catch (e) {
-        DebugConfig.warn('deleteSelected: failed for $id', data: e);
+        allSucceeded = false;
+        DebugConfig.error('_deleteSelected: failed for $id', data: e);
       }
     }
-    _exitSelectionMode();
+
     ref.invalidate(incomingRequestsProvider);
     ref.invalidate(outgoingRequestsProvider);
+    DebugConfig.log(DebugConfig.providerInvalidate, '_deleteSelected: invalidated incoming+outgoing providers');
+
+    await Future<void>.microtask(() {});
+    if (mounted) _exitSelectionMode();
+
     if (mounted) {
-      AppMessenger.showSuccess(
-        context,
-        L10n.localizedMessage(context, 'Διαγράφηκαν $count αιτήματα / Deleted $count requests'),
-      );
+      if (allSucceeded) {
+        AppMessenger.showSuccess(
+          context,
+          L10n.localizedMessage(context, 'Διαγράφηκαν $count αιτήματα / Deleted $count requests'),
+        );
+      } else {
+        AppMessenger.showError(
+          context,
+          L10n.localizedMessage(context, 'Ορισμένα αιτήματα δεν διαγράφηκαν / Some requests failed to delete'),
+        );
+      }
     }
   }
 

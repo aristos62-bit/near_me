@@ -9,6 +9,78 @@ const db = admin.firestore();
 const REPORT_LIMIT = 10;
 const BAN_THRESHOLD = 5;
 
+interface TokenEntry {
+  uid: string;
+  token: string;
+  ref: admin.firestore.DocumentReference;
+}
+
+async function fetchTokensForUids(
+  uids: string[],
+): Promise<{ allTokens: string[]; tokenRefMap: Map<string, TokenEntry[]> }> {
+  const allTokens: string[] = [];
+  const tokenRefMap = new Map<string, TokenEntry[]>();
+
+  const results = await Promise.allSettled(
+    uids.map(async (uid) => {
+      const snap = await db.collection(`users/${uid}/fcm_tokens`).get();
+      return snap.docs.map((doc) => {
+        const entry: TokenEntry = {
+          uid,
+          token: doc.data().token as string,
+          ref: doc.ref,
+        };
+        return entry;
+      });
+    }),
+  );
+
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      for (const entry of result.value) {
+        const existing = tokenRefMap.get(entry.token);
+        if (existing) {
+          existing.push(entry);
+        } else {
+          tokenRefMap.set(entry.token, [entry]);
+          allTokens.push(entry.token);
+        }
+      }
+    }
+  }
+
+  return { allTokens, tokenRefMap };
+}
+
+function cleanupInvalidTokens(
+  responses: admin.messaging.SendResponse[],
+  tokens: string[],
+  tokenRefMap: Map<string, TokenEntry[]>,
+  firestore: admin.firestore.Firestore,
+): void {
+  const refsToDelete = new Set<admin.firestore.DocumentReference>();
+  responses.forEach((resp, idx) => {
+    if (
+      !resp.success &&
+      (resp.error?.code === 'messaging/invalid-registration-token' ||
+        resp.error?.code === 'messaging/registration-token-not-registered')
+    ) {
+      const entries = tokenRefMap.get(tokens[idx]);
+      if (entries) {
+        entries.forEach((e) => refsToDelete.add(e.ref));
+      }
+    }
+  });
+
+  if (refsToDelete.size > 0) {
+    const batch = firestore.batch();
+    refsToDelete.forEach((ref) => batch.delete(ref));
+    batch.commit().catch((e) =>
+      functions.logger.warn('cleanupInvalidTokens batch commit failed', e),
+    );
+  }
+}
+
 export const sendChatNotification = functions.firestore
   .document('chats/{chatId}/messages/{messageId}')
   .onCreate(async (snap, context) => {
@@ -24,93 +96,102 @@ export const sendChatNotification = functions.firestore
 
     const chatData = chatSnap.data()!;
     const participants = chatData.participants as string[];
-    const recipientUid = participants.find((uid: string) => uid !== message.senderId);
-    if (!recipientUid) return null;
+    const isGroupChat = chatData.isGroupChat === true;
+    const groupName = chatData.groupName as string | undefined;
 
-    const blockSnap = await db
-      .doc(`users/${recipientUid}/blocked/${message.senderId}`)
-      .get();
-    if (blockSnap.exists) return null;
-
-    const [senderSnap, langSnap] = await Promise.all([
-      db.doc(`users/${message.senderId}/public/profile`).get(),
-      db.doc(`users/${recipientUid}/public/profile`).get(),
-    ]);
+    const senderSnap = await db.doc(`users/${message.senderId}/public/profile`).get();
     const senderName =
       senderSnap.data()?.nickname ??
       senderSnap.data()?.displayName ??
       'Someone';
-    const lang = langSnap.data()?.lang ?? 'en';
-    const strings = getNotificationStrings(lang);
 
-    const tokensSnap = await db
-      .collection(`users/${recipientUid}/fcm_tokens`)
-      .get();
-    const tokens: string[] = [];
-    tokensSnap.forEach((doc) => tokens.push(doc.data().token));
+    if (isGroupChat) {
+      // ── Group chat: send to all participants except sender ──
+      const recipientUids = participants.filter((uid: string) => uid !== message.senderId);
+      if (recipientUids.length === 0) return null;
 
-    if (tokens.length === 0) return null;
-
-    functions.logger.info(
-      `Chat ${chatId}: sender=${message.senderId}, lang=${lang}, body=${strings.new_chat_message}`,
-    );
-
-    const payload: admin.messaging.MulticastMessage = {
-      tokens,
-      notification: {
-        title: senderName,
-        body: strings.new_chat_message,
-      },
-      data: {
-        chatId,
-        type: 'chat_message',
-      },
-      android: {
-        priority: 'high',
-      },
-      apns: {
-        payload: {
-          aps: {
-            sound: 'default',
-          },
-        },
-      },
-    };
-
-    try {
-      const response = await sendWithRetry(payload);
-
-      if (response.failureCount > 0) {
-        const invalidTokens: string[] = [];
-        response.responses.forEach((resp, idx) => {
-          if (
-            !resp.success &&
-            (resp.error?.code === 'messaging/invalid-registration-token' ||
-              resp.error?.code === 'messaging/registration-token-not-registered')
-          ) {
-            invalidTokens.push(tokens[idx]);
-          }
-        });
-
-        if (invalidTokens.length > 0) {
-          const batch = db.batch();
-          tokensSnap.docs.forEach((doc) => {
-            if (invalidTokens.includes(doc.data().token)) {
-              batch.delete(doc.ref);
-            }
-          });
-          await batch.commit();
-          functions.logger.info(
-            `Deleted ${invalidTokens.length} invalid tokens for ${recipientUid}`,
-          );
-        }
-      }
+      const { allTokens, tokenRefMap } = await fetchTokensForUids(recipientUids);
+      if (allTokens.length === 0) return null;
 
       functions.logger.info(
-        `Chat ${chatId}: ${response.successCount} sent, ${response.failureCount} failed`,
+        `Group chat ${chatId}: sender=${message.senderId}, ${recipientUids.length} recipients, ${allTokens.length} tokens`,
       );
-    } catch (error) {
-      functions.logger.error(`sendChatNotification failed for ${chatId} after 3 attempts`, error);
+
+      const payload: admin.messaging.MulticastMessage = {
+        tokens: allTokens,
+        notification: {
+          title: senderName,
+          body: groupName ?? '',
+        },
+        data: {
+          chatId,
+          type: 'chat_message',
+          isGroupChat: 'true',
+          groupName: groupName ?? '',
+        },
+        android: { priority: 'high' },
+        apns: { payload: { aps: { sound: 'default' } } },
+      };
+
+      try {
+        const response = await sendWithRetry(payload);
+        if (response.failureCount > 0) {
+          cleanupInvalidTokens(response.responses, allTokens, tokenRefMap, db);
+        }
+        functions.logger.info(
+          `Group chat ${chatId}: ${response.successCount} sent, ${response.failureCount} failed`,
+        );
+      } catch (error) {
+        functions.logger.error(`sendChatNotification (group) failed for ${chatId}`, error);
+      }
+    } else {
+      // ── 1-to-1 chat (existing logic) ──
+      const recipientUid = participants.find((uid: string) => uid !== message.senderId);
+      if (!recipientUid) return null;
+
+      const blockSnap = await db
+        .doc(`users/${recipientUid}/blocked/${message.senderId}`)
+        .get();
+      if (blockSnap.exists) return null;
+
+      const langSnap = await db.doc(`users/${recipientUid}/public/profile`).get();
+      const lang = langSnap.data()?.lang ?? 'en';
+      const strings = getNotificationStrings(lang);
+
+      const tokensSnap = await db.collection(`users/${recipientUid}/fcm_tokens`).get();
+      const tokens: string[] = [];
+      const tokenRefMap = new Map<string, TokenEntry[]>();
+      tokensSnap.forEach((doc) => {
+        const token = doc.data().token as string;
+        tokens.push(token);
+        tokenRefMap.set(token, [{ uid: recipientUid, token, ref: doc.ref }]);
+      });
+
+      if (tokens.length === 0) return null;
+
+      functions.logger.info(
+        `Chat ${chatId}: sender=${message.senderId}, lang=${lang}, body=${strings.new_chat_message}`,
+      );
+
+      const payload: admin.messaging.MulticastMessage = {
+        tokens,
+        notification: { title: senderName, body: strings.new_chat_message },
+        data: { chatId, type: 'chat_message' },
+        android: { priority: 'high' },
+        apns: { payload: { aps: { sound: 'default' } } },
+      };
+
+      try {
+        const response = await sendWithRetry(payload);
+        if (response.failureCount > 0) {
+          cleanupInvalidTokens(response.responses, tokens, tokenRefMap, db);
+        }
+        functions.logger.info(
+          `Chat ${chatId}: ${response.successCount} sent, ${response.failureCount} failed`,
+        );
+      } catch (error) {
+        functions.logger.error(`sendChatNotification failed for ${chatId} after 3 attempts`, error);
+      }
     }
 
     return null;

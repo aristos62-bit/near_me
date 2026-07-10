@@ -67,6 +67,9 @@ mixin GroupChatMixin {
       case 'role_changed':
         message = 'Ο ρόλος άλλαξε';
         break;
+      case 'group_deleted':
+        message = 'Η ομάδα διαγράφηκε';
+        break;
       default:
         message = action;
     }
@@ -126,12 +129,16 @@ mixin GroupChatMixin {
     int unreadCount = 0;
     if (lastMessageBy != null && lastMessageBy != uid) {
       try {
-        final count = await firestore
+        final allCount = await firestore
             .collection('chats').doc(chatId).collection('messages')
-            .where('senderId', isNotEqualTo: uid)
             .where('timestamp', isGreaterThan: Timestamp.fromDate(lastRead))
             .count().get();
-        unreadCount = count.count ?? 0;
+        final ownCount = await firestore
+            .collection('chats').doc(chatId).collection('messages')
+            .where('senderId', isEqualTo: uid)
+            .where('timestamp', isGreaterThan: Timestamp.fromDate(lastRead))
+            .count().get();
+        unreadCount = (allCount.count ?? 0) - (ownCount.count ?? 0);
       } catch (_) {
         unreadCount = rows.isNotEmpty ? rows.first.unreadCount + 1 : 1;
       }
@@ -514,6 +521,46 @@ mixin GroupChatMixin {
       DebugConfig.error('deletePermissionOverrides failed', data: e, exception: s);
       throw AppException.firestore('delete_permission_overrides',
           'Αποτυχία διαγραφής overrides / Failed to reset permissions');
+    }
+  }
+
+  Future<void> deleteGroup(String chatId) async {
+    DebugConfig.log(DebugConfig.repositoryCall, 'deleteGroup: $chatId');
+    final uid = _currentUid;
+    try {
+      final chatDoc = await firestore.collection('chats').doc(chatId).get();
+      if (!chatDoc.exists) return;
+      final data = chatDoc.data()!;
+      final isGroup = data['isGroupChat'] == true;
+      if (!isGroup) {
+        throw AppException.auth('delete_group',
+            'Δεν είναι ομαδική συνομιλία / Not a group chat');
+      }
+      await _requirePermission(chatId, GroupPermission.managePermissions);
+      await _sendSystemMessage(chatId, 'group_deleted', uid);
+      await _logAudit(chatId, 'group_deleted', uid);
+
+      if (data['isPublic'] == true) {
+        try {
+          await FirestoreGroupSearchRepository(firestore: firestore).deletePublicProfile(chatId);
+        } catch (_) {}
+      }
+
+      final messages = await firestore
+          .collection('chats').doc(chatId).collection('messages').get();
+      final batch = firestore.batch();
+      for (final doc in messages.docs) {
+        batch.delete(doc.reference);
+      }
+      batch.delete(firestore.collection('chats').doc(chatId));
+      await batch.commit();
+      await (db.delete(db.chatCacheTable)..where((t) => t.chatId.equals(chatId))).go();
+      DebugConfig.log(DebugConfig.repositoryResult, 'deleteGroup: done $chatId');
+    } catch (e, s) {
+      if (e is AppException) rethrow;
+      DebugConfig.error('deleteGroup failed', data: e, exception: s);
+      throw AppException.firestore('delete_group',
+          'Αποτυχία διαγραφής ομάδας / Failed to delete group');
     }
   }
 

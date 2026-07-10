@@ -137,6 +137,19 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
     }
   }
 
+  Future<void> deleteGroup(String chatId) async {
+    DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: deleteGroup chat=$chatId');
+    state = const ChatActionState(status: ChatActionStatus.loading);
+    try {
+      await _chatRepo.deleteGroup(chatId);
+      state = const ChatActionState(status: ChatActionStatus.success);
+      ref.invalidate(chatsProvider);
+    } catch (e, s) {
+      DebugConfig.error('ChatActions: deleteGroup failed', data: e, exception: s);
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+    }
+  }
+
   Future<void> clearMessages(String chatId) async {
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: clearMessages chat=$chatId');
     state = const ChatActionState(status: ChatActionStatus.loading);

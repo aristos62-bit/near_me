@@ -133,6 +133,31 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
     }
   }
 
+  Future<void> _deleteGroup() async {
+    final greek = L10n.isGreek(context);
+    final confirmed = await AppMessenger.showConfirmDialog(
+      context,
+      title: L10n.localizedMessage(context, 'Διαγραφή ομάδας / Delete group'),
+      message: L10n.localizedMessage(context,
+          'Θα διαγραφεί ΟΛΟΚΛΗΡΗ η ομάδα μαζί με όλα τα μηνύματα. Αυτή η ενέργεια είναι μη αναστρέψιμη. Συνέχεια; / The ENTIRE group and all messages will be permanently deleted. This action cannot be undone. Continue?'),
+      confirmLabel: greek ? 'Διαγραφή' : 'Delete',
+      cancelLabel: greek ? 'Ακύρωση' : 'Cancel',
+      isDestructive: true,
+    );
+    if (!confirmed || !mounted) return;
+    try {
+      await ref.read(chatActionsProvider.notifier).deleteGroup(widget.chatId);
+      if (!mounted) return;
+      context.pop();
+    } catch (e, s) {
+      DebugConfig.error('GroupInfo: delete group failed', data: e, exception: s);
+      if (!mounted) return;
+      AppMessenger.showError(context, greek
+          ? 'Αποτυχία διαγραφής ομάδας'
+          : 'Failed to delete group');
+    }
+  }
+
   Future<void> _leaveGroup() async {
     final greek = L10n.isGreek(context);
     final confirmed = await AppMessenger.showConfirmDialog(
@@ -298,6 +323,17 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                   icon: const Icon(Icons.exit_to_app),
                   label: Text(greek ? 'Αποχώρηση από ομάδα' : 'Leave group'),
                 ),
+                if (isCreator) ...[
+                  const SizedBox(height: 16),
+                  OutlinedButton.icon(
+                    onPressed: _deleteGroup,
+                    icon: const Icon(Icons.delete_forever),
+                    label: Text(greek ? 'Διαγραφή ομάδας' : 'Delete group'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: theme.colorScheme.error,
+                    ),
+                  ),
+                ],
               ],
             ),
     );

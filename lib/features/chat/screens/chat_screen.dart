@@ -10,6 +10,7 @@ import '../../../core/utils/error_messages.dart';
 import '../../../core/notifications/fcm_service.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
+import '../../../shared/widgets/avatar_stack.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
 import '../widgets/chat_messages_list.dart';
@@ -142,8 +143,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           child: _isGroupChat
               ? Column(children: [
                   Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.group, size: 18, color: theme.colorScheme.onSurface),
-                    const SizedBox(width: 6),
+                    AvatarStack(
+                      uids: participantUids,
+                      nicknames: _participantNicknames,
+                      size: 22,
+                    ),
+                    const SizedBox(width: 8),
                     Flexible(
                       child: Text(_groupName ?? widget.chatId, overflow: TextOverflow.ellipsis),
                     ),

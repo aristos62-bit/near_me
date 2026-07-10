@@ -146,7 +146,7 @@ service cloud.firestore {
                        && resource.data.participantRoles[request.auth.uid] == 'creator')
                     );
       allow delete: if isAuthenticated()
-                    && isParticipant(resource.data);
+                     && (isGroupChatRef(chatId) ? isGroupAdmin(resource.data) : isParticipant(resource.data));
 
       match /messages/{msgId} {
         allow read: if isAuthenticated()
@@ -215,7 +215,10 @@ service cloud.firestore {
     // ─────────────────────────────────────────────────────────
 
     match /chats/{chatId}/invites/{inviteId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthenticated()
+                  && isParticipant(
+                       get(/databases/$(database)/documents/chats/$(chatId)).data
+                     );
       allow create: if isAuthenticated()
                     && isVerified()
                     && isParticipant(

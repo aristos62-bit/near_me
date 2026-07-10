@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/utils/app_exception.dart';
@@ -5,6 +6,12 @@ import '../../../data/local/database.dart';
 import '../../../repositories/chat_repository.dart';
 import '../../../repositories/chat_repository_impl.dart';
 import '../../../repositories/group_search_repository.dart';
+
+final chatDocProvider = StreamProvider.autoDispose.family<DocumentSnapshot?, String>((ref, chatId) {
+  DebugConfig.log(DebugConfig.providerCreate, 'chatDocProvider created for chat: $chatId');
+  ref.onDispose(() => DebugConfig.log(DebugConfig.providerDispose, 'chatDocProvider disposed for chat: $chatId'));
+  return FirebaseFirestore.instance.collection('chats').doc(chatId).snapshots();
+});
 
 final chatRepositoryProvider = Provider<ChatRepository>((ref) {
   DebugConfig.log(DebugConfig.providerCreate, 'chatRepositoryProvider created');

@@ -11,6 +11,10 @@ import '../router/app_router.dart';
 class FcmService {
   static bool isLocked = false;
   static String? _pendingFcmPath;
+  static StreamSubscription<User?>? _authSub;
+  static StreamSubscription<String>? _tokenSub;
+  static StreamSubscription<RemoteMessage>? _msgSub;
+  static StreamSubscription<RemoteMessage>? _openSub;
 
   static bool get hasPendingNavigation => _pendingFcmPath != null;
 
@@ -26,6 +30,15 @@ class FcmService {
   static void unregisterActiveChat(String chatId) {
     activeChatIds.remove(chatId);
     DebugConfig.log(DebugConfig.chatFcm, 'unregisterActiveChat: $chatId (total=${activeChatIds.length})');
+  }
+
+  static void dispose() {
+    _authSub?.cancel();
+    _tokenSub?.cancel();
+    _msgSub?.cancel();
+    _openSub?.cancel();
+    _foregroundCtrl.close();
+    DebugConfig.log(DebugConfig.chatFcm, 'FcmService disposed');
   }
 
   static final _foregroundCtrl = StreamController<RemoteMessage>.broadcast();
@@ -46,7 +59,7 @@ class FcmService {
 
     await _trySaveToken(messaging);
 
-    FirebaseAuth.instance.authStateChanges().listen((user) {
+    _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
       if (user != null) {
         DebugConfig.log(DebugConfig.chatFcm,
             'Auth state → user available, saving token');
@@ -54,13 +67,13 @@ class FcmService {
       }
     });
 
-    messaging.onTokenRefresh.listen((_) {
+    _tokenSub = messaging.onTokenRefresh.listen((_) {
       DebugConfig.log(DebugConfig.chatFcm, 'Token refresh');
       _trySaveToken(messaging);
     });
 
-    FirebaseMessaging.onMessage.listen(_onForegroundMessage);
-    FirebaseMessaging.onMessageOpenedApp.listen(_onMessageOpened);
+    _msgSub = FirebaseMessaging.onMessage.listen(_onForegroundMessage);
+    _openSub = FirebaseMessaging.onMessageOpenedApp.listen(_onMessageOpened);
 
     final initial = await messaging.getInitialMessage();
     if (initial != null) {

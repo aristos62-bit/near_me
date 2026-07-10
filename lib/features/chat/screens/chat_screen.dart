@@ -14,12 +14,6 @@ import '../../auth/providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
 import '../widgets/chat_messages_list.dart';
 
-final _chatDocProvider = StreamProvider.autoDispose.family<DocumentSnapshot?, String>((ref, chatId) {
-  DebugConfig.log(DebugConfig.providerCreate, '_chatDocProvider created for chat: $chatId');
-  ref.onDispose(() => DebugConfig.log(DebugConfig.providerDispose, '_chatDocProvider disposed for chat: $chatId'));
-  return FirebaseFirestore.instance.collection('chats').doc(chatId).snapshots();
-});
-
 class ChatScreen extends ConsumerStatefulWidget {
   final String chatId;
   const ChatScreen({super.key, required this.chatId});
@@ -110,8 +104,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
     if (confirmed && mounted) {
       final uid = ref.read(authStateProvider).value?.uid ?? '';
-      await ref.read(chatActionsProvider.notifier).removeParticipant(widget.chatId, uid);
-      if (mounted) context.pop();
+      final ok = await ref.read(chatActionsProvider.notifier).removeParticipant(widget.chatId, uid);
+      if (ok && mounted) context.pop();
     }
   }
 
@@ -119,13 +113,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Widget build(BuildContext context) {
     final greek = L10n.isGreek(context);
     final theme = Theme.of(context);
-    final chatDocAsync = ref.watch(_chatDocProvider(widget.chatId));
     final participantUidsAsync = ref.watch(participantUidsProvider(widget.chatId));
 
-    chatDocAsync.whenData((snap) => _onChatDocChanged(snap));
-
+    ref.listen(chatDocProvider(widget.chatId), (prev, next) {
+      if (mounted) _onChatDocChanged(next.asData?.value);
+      if (next.hasError && mounted) {
+        DebugConfig.error('ChatScreen: chatDoc error', data: next.error);
+      }
+    });
     final participantUids = participantUidsAsync.asData?.value ?? <String>[];
     final memberCount = _isGroupChat ? participantUids.length : null;
+
+    final currentUid = ref.read(authStateProvider).value?.uid ?? '';
+    ref.listen(participantUidsProvider(widget.chatId), (prev, next) {
+      if (!mounted) return;
+      final uids = next.asData?.value ?? <String>[];
+      if (_isGroupChat && currentUid.isNotEmpty && !uids.contains(currentUid)) {
+        context.pop();
+      }
+    });
 
     return Scaffold(
       appBar: AppBar(

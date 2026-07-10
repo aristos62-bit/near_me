@@ -495,7 +495,10 @@ class ChatRepositoryImpl with GroupChatMixin implements ChatRepository {
     final uid = user.uid;
     DebugConfig.log(DebugConfig.chatStream, 'streamChats: started for uid=$uid');
 
+    final controller = StreamController<List<ChatCacheTableData>>();
     StreamSubscription<QuerySnapshot>? firestoreSub;
+    StreamSubscription<List<ChatCacheTableData>>? driftSub;
+
     try {
       firestoreSub = firestore
           .collection('chats')
@@ -523,14 +526,19 @@ class ChatRepositoryImpl with GroupChatMixin implements ChatRepository {
         },
       );
 
-      await for (final rows in (db.select(db.chatCacheTable)
+      driftSub = (db.select(db.chatCacheTable)
         ..where((t) => t.ownerUid.equals(uid))
         ..orderBy([(t) => OrderingTerm.desc(t.lastMessageAt)])
-      ).watch()) {
-        yield rows;
-      }
+      ).watch().listen(
+        controller.add,
+        onError: controller.addError,
+      );
+
+      yield* controller.stream;
     } finally {
       await firestoreSub?.cancel();
+      await driftSub?.cancel();
+      await controller.close();
       DebugConfig.log(DebugConfig.chatStream, 'streamChats: cancelled');
     }
   }

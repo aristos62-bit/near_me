@@ -17,6 +17,9 @@ import '../../features/chat/screens/group_settings_screen.dart';
 import '../../features/chat/screens/group_search_screen.dart';
 import '../../features/chat/screens/group_invite_screen.dart';
 import '../../features/chat/screens/group_info_screen.dart';
+import '../../features/chat/screens/add_participant_screen.dart';
+import '../../features/chat/screens/group_audit_log_screen.dart';
+import '../../features/chat/screens/join_confirmation_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
 import '../../features/profile/screens/profile_editor_screen.dart';
 import '../../features/profile/screens/privacy_editor_screen.dart';
@@ -205,6 +208,31 @@ class AppRouter {
         pageBuilder: (context, state) => _slideUp(Scaffold(
           body: Center(child: Text('GroupChatScreen: ${state.pathParameters['chatId']}')),
         )),
+      ),
+      GoRoute(
+        path: '/groups/:chatId/add',
+        pageBuilder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          return _modal(AddParticipantScreen(
+            chatId: state.pathParameters['chatId']!,
+            currentParticipantUids:
+                (extra?['currentParticipantUids'] as List<dynamic>?)?.cast<String>() ?? [],
+            maxParticipants: (extra?['maxParticipants'] as int?) ?? 8,
+          ));
+        },
+      ),
+      GoRoute(
+        path: '/groups/:chatId/audit-log',
+        pageBuilder: (context, state) => _modal(GroupAuditLogScreen(
+          chatId: state.pathParameters['chatId']!,
+        )),
+      ),
+      GoRoute(
+        path: '/join',
+        pageBuilder: (context, state) {
+          final token = state.uri.queryParameters['token'] ?? '';
+          return _slideUp(JoinConfirmationScreen(token: token));
+        },
       ),
       GoRoute(
         path: '/groups/search',

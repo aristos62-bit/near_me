@@ -84,6 +84,34 @@ class ConsentActionConfig {
       enLabel: 'Unpublish',
       elLabel: 'Απόσυρση',
     ),
+    'group_created': ConsentActionInfo(
+      icon: Icons.group_add,
+      outlinedIcon: Icons.group_add_outlined,
+      color: Colors.indigo,
+      enLabel: 'Created a group',
+      elLabel: 'Δημιουργία ομάδας',
+    ),
+    'group_joined': ConsentActionInfo(
+      icon: Icons.login,
+      outlinedIcon: Icons.login_outlined,
+      color: Colors.teal,
+      enLabel: 'Joined a group',
+      elLabel: 'Εγγραφή σε ομάδα',
+    ),
+    'group_left': ConsentActionInfo(
+      icon: Icons.exit_to_app,
+      outlinedIcon: Icons.exit_to_app_outlined,
+      color: AppColors.warning,
+      enLabel: 'Left a group',
+      elLabel: 'Αποχώρηση από ομάδα',
+    ),
+    'group_member_added': ConsentActionInfo(
+      icon: Icons.person_add,
+      outlinedIcon: Icons.person_add_outlined,
+      color: Colors.green,
+      enLabel: 'Added a member',
+      elLabel: 'Προσθήκη μέλους',
+    ),
   };
 
   static ConsentActionInfo? get(String action) => actions[action];

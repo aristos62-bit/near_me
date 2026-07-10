@@ -17,6 +17,7 @@ import '../../auth/providers/auth_provider.dart';
 import '../../block/providers/block_provider.dart';
 import '../../profile/providers/profile_provider.dart';
 import '../../report/providers/report_provider.dart';
+import '../../chat/providers/chat_provider.dart';
 
 
 class PublicProfileViewScreen extends ConsumerStatefulWidget {
@@ -113,6 +114,7 @@ class _PublicProfileViewScreenState extends ConsumerState<PublicProfileViewScree
                     _buildCommunicationCard(profile, theme, isGreek),
                     _buildContactCard(profile, theme, isGreek, uid),
                     _buildRequestButton(profile, theme, isGreek),
+                    _buildInviteToGroupButton(theme, isGreek),
                     _buildBlockButton(theme, isGreek),
                     _buildReportButton(theme, isGreek),
                   ],
@@ -348,6 +350,85 @@ class _PublicProfileViewScreenState extends ConsumerState<PublicProfileViewScree
         ),
       ),
     );
+  }
+
+  Widget _buildInviteToGroupButton(ThemeData theme, bool isGreek) {
+    final user = ref.watch(authStateProvider).value;
+    final currentUid = user?.uid;
+    final isSelf = currentUid != null && currentUid == _uid;
+    final canComm = AuthRepository.canUserCommunicate(user);
+    if (!canComm || isSelf || _uid == null) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+      child: SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: () => _showGroupPickerSheet(isGreek),
+          icon: const Icon(Icons.group_add_outlined, size: 20),
+          label: Text(isGreek ? 'Πρόσκληση σε Ομάδα' : 'Invite to Group'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: theme.colorScheme.onSurfaceVariant,
+            side: BorderSide(color: theme.colorScheme.outline.withAlpha(120)),
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showGroupPickerSheet(bool isGreek) async {
+    final uidToInvite = _uid;
+    if (uidToInvite == null) return;
+
+    final chats = ref.read(chatsProvider).asData?.value ?? [];
+    final groupChats = chats.where((c) => c.isGroupChat).toList();
+
+    if (groupChats.isEmpty) {
+      AppMessenger.showInfo(context, isGreek
+          ? 'Δεν έχεις ομάδες για πρόσκληση'
+          : 'No groups to invite to');
+      return;
+    }
+
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => ListView(
+        shrinkWrap: true,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Text(
+              isGreek ? 'Επιλογή Ομάδας' : 'Select Group',
+              style: Theme.of(ctx).textTheme.titleMedium,
+            ),
+          ),
+          ...groupChats.map((chat) => ListTile(
+            leading: const CircleAvatar(child: Icon(Icons.group)),
+            title: Text(chat.groupName ?? chat.chatId ?? ''),
+            subtitle: Text('${chat.participantCount} members'),
+            onTap: () => Navigator.of(ctx).pop(chat.chatId),
+          )),
+        ],
+      ),
+    );
+
+    if (result == null || !mounted) return;
+
+    final success = await ref.read(chatActionsProvider.notifier)
+        .addParticipant(result, uidToInvite);
+    if (!mounted) return;
+    if (success) {
+      AppMessenger.showSuccess(context, isGreek
+          ? 'Προστέθηκε στην ομάδα'
+          : 'Invited to group');
+    } else {
+      final state = ref.read(chatActionsProvider);
+      AppMessenger.showError(context, state.errorMessage ??
+          (isGreek ? 'Αποτυχία πρόσκλησης' : 'Failed to invite'));
+    }
   }
 
   Widget _buildReportButton(ThemeData theme, bool isGreek) {

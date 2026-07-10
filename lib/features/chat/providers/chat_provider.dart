@@ -325,6 +325,18 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
     }
   }
 
+  Future<InviteInfo?> getInviteInfo(String token) async {
+    DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: getInviteInfo');
+    try {
+      final info = await _chatRepo.getInviteInfo(token);
+      DebugConfig.log(DebugConfig.repositoryResult, 'ChatActions: getInviteInfo -> ${info?.groupName}');
+      return info;
+    } catch (e, s) {
+      DebugConfig.error('ChatActions: getInviteInfo failed', data: e, exception: s);
+      return null;
+    }
+  }
+
   Future<bool> revokeInvite(String chatId, String inviteId) async {
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: revokeInvite chat=$chatId');
     try {

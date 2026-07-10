@@ -187,6 +187,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 }
               } else if (v == 'group_info') {
                 context.push('/groups/${widget.chatId}/info');
+              } else if (v == 'add_member') {
+                context.push('/groups/${widget.chatId}/add');
+              } else if (v == 'group_audit_log') {
+                context.push('/groups/${widget.chatId}/audit-log');
               } else if (v == 'group_call') {
                 context.push('/groups/${widget.chatId}/call', extra: _groupName);
               } else if (v == 'leave_group') {
@@ -200,6 +204,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   child: ListTile(
                     leading: Icon(Icons.info_outline, size: 20),
                     title: Text('Group info'),
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'add_member',
+                  child: ListTile(
+                    leading: Icon(Icons.person_add, size: 20),
+                    title: Text('Add member'),
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'group_audit_log',
+                  child: ListTile(
+                    leading: Icon(Icons.history, size: 20),
+                    title: Text('Audit log'),
                     dense: true,
                     contentPadding: EdgeInsets.zero,
                   ),

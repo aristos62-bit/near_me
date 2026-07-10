@@ -30,6 +30,22 @@ service cloud.firestore {
       return !exists(/databases/$(database)/documents/users/$(otherUid)/blocked/$(request.auth.uid));
     }
 
+    function isGroupChatRef(chatId) {
+      let chatData = get(/databases/$(database)/documents/chats/$(chatId)).data;
+      return chatData != null && chatData.isGroupChat == true;
+    }
+
+    function isGroupCreator(chatId) {
+      let chatData = get(/databases/$(database)/documents/chats/$(chatId)).data;
+      return chatData != null && chatData.createdBy == request.auth.uid;
+    }
+
+    function isGroupAdmin(chatId) {
+      let chatData = get(/databases/$(database)/documents/chats/$(chatId)).data;
+      return chatData != null && (chatData.createdBy == request.auth.uid
+        || (chatData.roles != null && chatData.roles[request.auth.uid] == 'admin'));
+    }
+
     function isNotBlockedByTarget(toUid) {
       return !exists(/databases/$(database)/documents/users/$(toUid)/blocked/$(request.auth.uid));
     }
@@ -85,7 +101,7 @@ service cloud.firestore {
       allow create: if isAuthenticated()
                     && isVerified()
                     && request.auth.uid in request.resource.data.participants
-                    && request.resource.data.participants.size() == 2;
+                    && request.resource.data.participants.size() >= 2;
       allow update: if isAuthenticated()
                     && isParticipant(resource.data);
       allow delete: if isAuthenticated()
@@ -102,7 +118,7 @@ service cloud.firestore {
                       && isParticipant(
                            get(/databases/$(database)/documents/chats/$(chatId)).data
                          )
-                      && isNotBlockedInChat(chatId);
+                      && (isGroupChatRef(chatId) || isNotBlockedInChat(chatId));
         allow update: if isAuthenticated()
                       && request.resource.data.diff(resource.data).affectedKeys()
                            .hasOnly(['isRead']);
@@ -137,6 +153,46 @@ service cloud.firestore {
       }
 
     // ─────────────────────────────────────────────────────────
+    // Group audit log (subcollection of chats)
+    // ─────────────────────────────────────────────────────────
+
+    match /chats/{chatId}/audit_log/{logId} {
+      allow read: if isAuthenticated()
+                  && isParticipant(
+                       get(/databases/$(database)/documents/chats/$(chatId)).data
+                     );
+      allow create: if isAuthenticated()
+                    && isVerified()
+                    && isParticipant(
+                         get(/databases/$(database)/documents/chats/$(chatId)).data
+                       );
+      allow update, delete: if false;
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // Invites (subcollection of chats)
+    // ─────────────────────────────────────────────────────────
+
+    match /chats/{chatId}/invites/{inviteId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated()
+                    && isVerified()
+                    && isParticipant(
+                         get(/databases/$(database)/documents/chats/$(chatId)).data
+                       );
+      allow update: if isAuthenticated()
+                    && (isParticipant(
+                          get(/databases/$(database)/documents/chats/$(chatId)).data
+                        )
+                     || request.resource.data.diff(resource.data).affectedKeys()
+                          .hasOnly(['usedBy', 'useCount']));
+      allow delete: if isAuthenticated()
+                    && isParticipant(
+                         get(/databases/$(database)/documents/chats/$(chatId)).data
+                       );
+    }
+
+    // ─────────────────────────────────────────────────────────
     // Reports
     // ─────────────────────────────────────────────────────────
 
@@ -153,6 +209,38 @@ service cloud.firestore {
 
     match /{path=**}/public/{doc} {
       allow read: if isAuthenticated() && notBanned() && resource.data.isVisible == true;
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // Collection group: invites (for collectionGroup queries)
+    // ─────────────────────────────────────────────────────────
+
+    match /{path=**}/invites/{inviteId} {
+      allow read: if isAuthenticated();
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // Collection group: groups (public profile search)
+    // ─────────────────────────────────────────────────────────
+
+    match /{path=**}/groups/{doc} {
+      allow read: if isAuthenticated() && notBanned() && resource.data.isPublic == true;
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // Groups public profiles (top-level collection for search)
+    // ─────────────────────────────────────────────────────────
+
+    match /groups/{doc} {
+      allow read: if isAuthenticated() && notBanned() && resource.data.isPublic == true;
+      allow create: if isAuthenticated()
+                    && isVerified()
+                    && request.auth.uid == request.resource.data.createdBy;
+      allow update: if isAuthenticated()
+                    && isVerified()
+                    && isGroupCreator(doc);
+      allow delete: if isAuthenticated()
+                    && isGroupCreator(doc);
     }
 
     // ─────────────────────────────────────────────────────────

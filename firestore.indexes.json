@@ -138,6 +138,39 @@
         { "fieldPath": "reporterUid", "order": "ASCENDING" },
         { "fieldPath": "reportedUid", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "groups",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "isPublic", "order": "ASCENDING" },
+        { "fieldPath": "city", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "groups",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "isPublic", "order": "ASCENDING" },
+        { "fieldPath": "tags", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "groups",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "isPublic", "order": "ASCENDING" },
+        { "fieldPath": "city", "order": "ASCENDING" },
+        { "fieldPath": "tags", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "invites",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "token", "order": "ASCENDING" },
+        { "fieldPath": "isRevoked", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

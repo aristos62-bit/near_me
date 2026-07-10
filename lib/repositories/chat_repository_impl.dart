@@ -238,9 +238,13 @@ class ChatRepositoryImpl with GroupChatMixin implements ChatRepository {
             final data = doc.data();
             final encrypted = data['content'] as String? ?? '';
             final docId = doc.id;
+            final type = data['type'] as String? ?? 'text';
 
             String decrypted;
-            if (encCache[docId] == encrypted && decCache.containsKey(docId)) {
+            if (type == 'system') {
+              decrypted = encrypted;
+              DebugConfig.log(DebugConfig.chatStream, 'system message: $docId content=$encrypted');
+            } else if (encCache[docId] == encrypted && decCache.containsKey(docId)) {
               decrypted = decCache[docId]!;
               DebugConfig.log(DebugConfig.chatEncrypt, 'decrypt cache hit: msg=$docId');
             } else {
@@ -271,6 +275,8 @@ class ChatRepositoryImpl with GroupChatMixin implements ChatRepository {
               'type': data['type'] ?? 'text',
               'timestamp': data['timestamp'],
               'isRead': data['isRead'] ?? false,
+              'seenBy': (data['seenBy'] as List?)?.cast<String>() ?? <String>[],
+              'mentions': (data['mentions'] as List?)?.cast<String>() ?? <String>[],
             };
           }).toList();
         });

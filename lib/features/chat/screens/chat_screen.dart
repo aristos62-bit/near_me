@@ -10,11 +10,15 @@ import '../../../core/utils/error_messages.dart';
 import '../../../core/notifications/fcm_service.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
-import '../../../shared/widgets/app_state_widget.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
+import '../widgets/chat_messages_list.dart';
 
-// ── ChatScreen shell (Scaffold + AppBar only) ───────────────
+final _chatDocProvider = StreamProvider.autoDispose.family<DocumentSnapshot?, String>((ref, chatId) {
+  DebugConfig.log(DebugConfig.providerCreate, '_chatDocProvider created for chat: $chatId');
+  ref.onDispose(() => DebugConfig.log(DebugConfig.providerDispose, '_chatDocProvider disposed for chat: $chatId'));
+  return FirebaseFirestore.instance.collection('chats').doc(chatId).snapshots();
+});
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String chatId;
@@ -28,6 +32,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   String? _nickname;
   static int _counter = 0;
   final int _instanceId = _counter++;
+  bool _isGroupChat = false;
+  String? _groupName;
+  Map<String, String> _participantNicknames = {};
 
   @override
   void initState() {
@@ -54,80 +61,174 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             'nickname=${_nickname ?? "null (will show chatId)"}');
   }
 
+  void _onChatDocChanged(DocumentSnapshot? snap) {
+    if (snap == null || !snap.exists || !mounted) return;
+    final data = snap.data() as Map<String, dynamic>?;
+    if (data == null) return;
+    final isGroup = data['isGroupChat'] == true;
+    if (isGroup != _isGroupChat || _groupName != data['groupName']) {
+      setState(() {
+        _isGroupChat = isGroup;
+        _groupName = data['groupName'] as String?;
+        _participantNicknames = (data['participantNicknames'] as Map<String, dynamic>?)
+                ?.map((k, v) => MapEntry(k, v as String? ?? k)) ??
+            {};
+      });
+      DebugConfig.log(DebugConfig.uiInteraction,
+          'ChatScreen #$_instanceId: isGroup=$isGroup groupName=${data['groupName']}');
+    }
+  }
+
   void _showE2EInfo() {
     final greek = L10n.isGreek(context);
+    final label = _isGroupChat
+        ? (_groupName ?? widget.chatId)
+        : (_nickname ?? widget.chatId);
     AppMessenger.showInfoDialog(
       context,
       icon: Icons.lock,
       title: greek ? 'E2E Κρυπτογράφηση' : 'E2E Encryption',
       message: greek
           ? 'Τα μηνύματά σου προστατεύονται με κρυπτογράφηση AES-256 από άκρο σε άκρο. '
-              'Μόνο εσύ και ο/η ${_nickname ?? widget.chatId} μπορείτε να τα διαβάσετε.'
+              'Μόνο εσύ και η ομάδα "$label" μπορείτε να τα διαβάσετε.'
           : 'Your messages are protected with end-to-end AES-256 encryption. '
-              'Only you and ${_nickname ?? widget.chatId} can read them.',
+              'Only you and group "$label" can read them.',
       dismissLabel: greek ? 'Εντάξει' : 'OK',
     );
+  }
+
+  Future<void> _leaveGroup() async {
+    final greek = L10n.isGreek(context);
+    final confirmed = await AppMessenger.showConfirmDialog(
+      context,
+      title: L10n.localizedMessage(context, 'Αποχώρηση / Leave group'),
+      message: L10n.localizedMessage(context,
+          'Θα αποχωρήσεις από την ομάδα. Συνέχεια; / You will leave the group. Continue?'),
+      confirmLabel: greek ? 'Αποχώρηση' : 'Leave',
+      cancelLabel: greek ? 'Ακύρωση' : 'Cancel',
+      isDestructive: true,
+    );
+    if (confirmed && mounted) {
+      final uid = ref.read(authStateProvider).value?.uid ?? '';
+      await ref.read(chatActionsProvider.notifier).removeParticipant(widget.chatId, uid);
+      if (mounted) context.pop();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final greek = L10n.isGreek(context);
     final theme = Theme.of(context);
+    final chatDocAsync = ref.watch(_chatDocProvider(widget.chatId));
+    final participantUidsAsync = ref.watch(participantUidsProvider(widget.chatId));
+
+    chatDocAsync.whenData((snap) => _onChatDocChanged(snap));
+
+    final participantUids = participantUidsAsync.asData?.value ?? <String>[];
+    final memberCount = _isGroupChat ? participantUids.length : null;
 
     return Scaffold(
       appBar: AppBar(
         title: GestureDetector(
           onTap: _showE2EInfo,
-          child: Column(children: [
-            Text(_nickname ?? widget.chatId),
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.lock, size: 12,
-                  color: theme.colorScheme.onSurfaceVariant),
-              const SizedBox(width: 4),
-              Text(
-                greek ? 'Προσωπικά μηνύματα' : 'Personal messages',
-                style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant),
-              ),
-            ]),
-          ]),
+          child: _isGroupChat
+              ? Column(children: [
+                  Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.group, size: 18, color: theme.colorScheme.onSurface),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(_groupName ?? widget.chatId, overflow: TextOverflow.ellipsis),
+                    ),
+                  ]),
+                  if (memberCount != null)
+                    Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.lock, size: 12, color: theme.colorScheme.onSurfaceVariant),
+                      const SizedBox(width: 4),
+                      Text(
+                        greek ? '$memberCount μέλη' : '$memberCount members',
+                        style: theme.textTheme.labelSmall
+                            ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                      ),
+                    ]),
+                ])
+              : Column(children: [
+                  Text(_nickname ?? widget.chatId),
+                  Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.lock, size: 12, color: theme.colorScheme.onSurfaceVariant),
+                    const SizedBox(width: 4),
+                    Text(
+                      greek ? 'Προσωπικά μηνύματα' : 'Personal messages',
+                      style: theme.textTheme.labelSmall
+                          ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                    ),
+                  ]),
+                ]),
         ),
         actions: [
           PopupMenuButton<String>(
             onSelected: (v) async {
-              if (v != 'clear') return;
-              final confirmed = await AppMessenger.showConfirmDialog(
-                context,
-                title: L10n.localizedMessage(context,
-                    'Διαγραφή μηνυμάτων / Clear messages'),
-                message: L10n.localizedMessage(context,
-                    'Θα διαγραφούν όλα τα μηνύματα. Η συνομιλία θα παραμείνει. '
-                    'Συνέχεια; / All messages will be deleted. '
-                    'The conversation remains. Continue?'),
-                confirmLabel: greek ? 'Διαγραφή' : 'Delete',
-                cancelLabel: greek ? 'Ακύρωση' : 'Cancel',
-                isDestructive: true,
-              );
-              if (confirmed && context.mounted) {
-                await ref.read(chatActionsProvider.notifier)
-                    .clearMessages(widget.chatId);
-                if (context.mounted) {
-                  AppMessenger.showSuccess(context,
-                      L10n.localizedMessage(context,
-                          'Τα μηνύματα διαγράφηκαν / Messages cleared'));
+              if (v == 'clear') {
+                final confirmed = await AppMessenger.showConfirmDialog(
+                  context,
+                  title: L10n.localizedMessage(context, 'Διαγραφή μηνυμάτων / Clear messages'),
+                  message: L10n.localizedMessage(context,
+                      'Θα διαγραφούν όλα τα μηνύματα. Η συνομιλία θα παραμείνει. '
+                      'Συνέχεια; / All messages will be deleted. The conversation remains. Continue?'),
+                  confirmLabel: greek ? 'Διαγραφή' : 'Delete',
+                  cancelLabel: greek ? 'Ακύρωση' : 'Cancel',
+                  isDestructive: true,
+                );
+                if (confirmed && context.mounted) {
+                  await ref.read(chatActionsProvider.notifier).clearMessages(widget.chatId);
+                  if (context.mounted) {
+                    AppMessenger.showSuccess(context,
+                        L10n.localizedMessage(context, 'Τα μηνύματα διαγράφηκαν / Messages cleared'));
+                  }
                 }
+              } else if (v == 'group_info') {
+                context.push('/groups/${widget.chatId}/info');
+              } else if (v == 'group_call') {
+                context.push('/groups/${widget.chatId}/call', extra: _groupName);
+              } else if (v == 'leave_group') {
+                await _leaveGroup();
               }
             },
             itemBuilder: (_) => [
+              if (_isGroupChat) ...[
+                const PopupMenuItem(
+                  value: 'group_info',
+                  child: ListTile(
+                    leading: Icon(Icons.info_outline, size: 20),
+                    title: Text('Group info'),
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'group_call',
+                  child: ListTile(
+                    leading: Icon(Icons.videocam, size: 20),
+                    title: Text('Call'),
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'leave_group',
+                  child: ListTile(
+                    leading: Icon(Icons.exit_to_app, size: 20),
+                    title: Text('Leave group'),
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ],
               PopupMenuItem(
                 value: 'clear',
                 child: Row(children: [
-                  Icon(Icons.delete_sweep,
-                      color: theme.colorScheme.error, size: 20),
+                  Icon(Icons.delete_sweep, color: theme.colorScheme.error, size: 20),
                   const SizedBox(width: 8),
-                  Text(greek
-                      ? 'Διαγραφή μηνυμάτων'
-                      : 'Clear messages'),
+                  Text(greek ? 'Διαγραφή μηνυμάτων' : 'Clear messages'),
                 ]),
               ),
             ],
@@ -135,133 +236,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ],
       ),
       body: Column(children: [
-        Expanded(child: _ChatMessagesList(chatId: widget.chatId)),
-        _ChatInputBar(chatId: widget.chatId),
+        Expanded(child: ChatMessagesList(
+          chatId: widget.chatId,
+          isGroupChat: _isGroupChat,
+          participantNicknames: _isGroupChat ? _participantNicknames : null,
+        )),
+        _ChatInputBar(chatId: widget.chatId, isGroupChat: _isGroupChat),
       ]),
     );
   }
 }
 
-// ── _ChatMessagesList (scroll + markAsRead + guard) ─────────
-
-class _ChatMessagesList extends ConsumerStatefulWidget {
-  final String chatId;
-  const _ChatMessagesList({required this.chatId});
-
-  @override
-  ConsumerState<_ChatMessagesList> createState() =>
-      _ChatMessagesListState();
-}
-
-class _ChatMessagesListState extends ConsumerState<_ChatMessagesList> {
-  final _scrollCtrl = ScrollController();
-  int _lastMessageCount = 0;
-  bool _hasMarkedRead = false;
-  bool _isFirstLoad = true;
-
-  @override
-  void initState() {
-    super.initState();
-    DebugConfig.log(DebugConfig.uiInteraction,
-        'ChatMessagesList init: ${widget.chatId}');
-    Future.microtask(_markAsReadOnce);
-  }
-
-  @override
-  void dispose() {
-    DebugConfig.log(DebugConfig.uiInteraction,
-        'ChatMessagesList dispose: ${widget.chatId}');
-    _scrollCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _markAsReadOnce() async {
-    if (_hasMarkedRead) return;
-    _hasMarkedRead = true;
-    await ref.read(chatActionsProvider.notifier)
-        .markAsRead(widget.chatId);
-  }
-
-  void _onMessagesChanged(List<Map<String, dynamic>> messages) {
-    if (messages.isEmpty || !mounted) return;
-    if (messages.length == _lastMessageCount && !_isFirstLoad) return;
-    final isNewMessage = messages.length > _lastMessageCount;
-    _lastMessageCount = messages.length;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scrollCtrl.hasClients) return;
-      final maxScroll = _scrollCtrl.position.maxScrollExtent;
-      if (_isFirstLoad) {
-        _isFirstLoad = false;
-        _scrollCtrl.jumpTo(maxScroll);
-        return;
-      }
-      if (!isNewMessage) return;
-      final currentScroll = _scrollCtrl.position.pixels;
-      if ((maxScroll - currentScroll) > 50.0) {
-        DebugConfig.log(DebugConfig.uiInteraction,
-            'auto-scroll: suppressed (user ${(maxScroll - currentScroll).toInt()}px from bottom)');
-        return;
-      }
-      _scrollCtrl.animateTo(
-        maxScroll,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
-      );
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final messagesAsync = ref.watch(messagesProvider(widget.chatId));
-    final currentUid = ref.watch(authStateProvider).value?.uid ?? '';
-    final greek = L10n.isGreek(context);
-
-    return messagesAsync.when(
-      loading: () => const LoadingView(),
-      error: (e, _) {
-        DebugConfig.error('ChatScreen messages error', data: e);
-        return ErrorView(
-          message: L10n.localizedMessage(context,
-              'Σφάλμα φόρτωσης / Failed to load'),
-          onRetry: () =>
-              ref.invalidate(messagesProvider(widget.chatId)),
-        );
-      },
-      data: (messages) {
-        _onMessagesChanged(messages);
-        if (messages.isEmpty) {
-          return EmptyView(
-            icon: Icons.chat_bubble_outline,
-            message: greek ? 'Καμία συνομιλία' : 'No messages',
-          );
-        }
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final w = ResponsiveUtils.resolveWidth(context, constraints);
-            return ListView.builder(
-              controller: _scrollCtrl,
-              padding: EdgeInsets.symmetric(
-                horizontal: ResponsiveUtils.paddingValueFromWidth(w),
-                vertical: 8,
-              ),
-              itemCount: messages.length,
-              itemBuilder: (_, i) => _MessageBubble(
-                message: messages[i],
-                currentUid: currentUid,
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-}
-
-// ── _ChatInputBar (input + send, isolated from messages) ────
-
 class _ChatInputBar extends ConsumerStatefulWidget {
   final String chatId;
-  const _ChatInputBar({required this.chatId});
+  final bool isGroupChat;
+  const _ChatInputBar({required this.chatId, this.isGroupChat = false});
 
   @override
   ConsumerState<_ChatInputBar> createState() => _ChatInputBarState();
@@ -289,7 +278,8 @@ class _ChatInputBarState extends ConsumerState<_ChatInputBar> {
     if (!ok) {
       _textCtrl.text = text;
       final chatState = ref.read(chatActionsProvider);
-      AppMessenger.showError(context, ErrorMessages.get(chatState.errorMessage ?? 'chat/send-failed', L10n.isGreek(context)));
+      AppMessenger.showError(context, ErrorMessages.get(
+          chatState.errorMessage ?? 'chat/send-failed', L10n.isGreek(context)));
     }
   }
 
@@ -300,6 +290,10 @@ class _ChatInputBarState extends ConsumerState<_ChatInputBar> {
     final currentUser = ref.watch(authStateProvider).value ?? FirebaseAuth.instance.currentUser;
     final canComm = AuthRepository.canUserCommunicate(currentUser);
     DebugConfig.log(DebugConfig.uiInteraction, '_ChatInputBar build: canComm=$canComm');
+
+    final hintText = widget.isGroupChat
+        ? (greek ? 'Γράψε στην ομάδα...' : 'Type to group...')
+        : (greek ? 'Γράψε ένα μήνυμα...' : 'Type a message...');
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -318,16 +312,14 @@ class _ChatInputBarState extends ConsumerState<_ChatInputBar> {
           child: !canComm
               ? Row(children: [
                   const SizedBox(width: 12),
-                  Icon(Icons.info_outline, size: 18,
-                      color: theme.colorScheme.primary),
+                  Icon(Icons.info_outline, size: 18, color: theme.colorScheme.primary),
                   const SizedBox(width: 8),
                   Expanded(child: Text(
                     greek
-                        ? 'Πρέπει να επαληθεύσεις τον λογαριασμό σου '
-                            'για να στείλεις μηνύματα'
+                        ? 'Πρέπει να επαληθεύσεις τον λογαριασμό σου για να στείλεις μηνύματα'
                         : 'You must verify your account to send messages',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant),
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                   )),
                 ])
               : Row(children: [
@@ -336,16 +328,11 @@ class _ChatInputBarState extends ConsumerState<_ChatInputBar> {
                     textInputAction: TextInputAction.send,
                     onSubmitted: (_) => _send(),
                     decoration: InputDecoration(
-                      hintText: greek
-                          ? 'Γράψε ένα μήνυμα...'
-                          : 'Type a message...',
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24)),
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 10),
+                      hintText: hintText,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(24)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       filled: true,
-                      fillColor: theme.colorScheme.surfaceContainerHighest
-                          .withAlpha(80),
+                      fillColor: theme.colorScheme.surfaceContainerHighest.withAlpha(80),
                     ),
                   )),
                   const SizedBox(width: 8),
@@ -362,84 +349,4 @@ class _ChatInputBarState extends ConsumerState<_ChatInputBar> {
       },
     );
   }
-}
-
-// ── _MessageBubble ──────────────────────────────────────────
-
-class _MessageBubble extends StatelessWidget {
-  final Map<String, dynamic> message;
-  final String currentUid;
-
-  const _MessageBubble({
-    required this.message,
-    required this.currentUid,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final senderId = message['senderId'] as String? ?? '';
-    final content = message['content'] as String? ?? '';
-    final timestamp = message['timestamp'] as dynamic;
-    final isRead = message['isRead'] as bool? ?? false;
-    final isMe = senderId == currentUid;
-    final timeStr = timestamp is Timestamp
-        ? _formatTime(timestamp.toDate())
-        : '';
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Column(
-        crossAxisAlignment:
-            isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-        children: [
-          Container(
-            constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.75),
-            padding: const EdgeInsets.symmetric(
-                horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: isMe
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(16),
-                topRight: const Radius.circular(16),
-                bottomLeft: Radius.circular(isMe ? 16 : 4),
-                bottomRight: Radius.circular(isMe ? 4 : 16),
-              ),
-            ),
-            child: Text(content, style: TextStyle(
-              color: isMe
-                  ? theme.colorScheme.onPrimary
-                  : theme.colorScheme.onSurface,
-            )),
-          ),
-          Padding(
-            padding: EdgeInsets.only(
-                top: 2,
-                left: isMe ? 0 : 14,
-                right: isMe ? 14 : 0),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Text(timeStr, style: theme.textTheme.labelSmall
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-              if (isMe) ...[
-                const SizedBox(width: 4),
-                Icon(
-                  isRead ? Icons.done_all : Icons.done,
-                  size: 14,
-                  color: isRead
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.onSurfaceVariant,
-                ),
-              ],
-            ]),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatTime(DateTime dt) =>
-      '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
 }

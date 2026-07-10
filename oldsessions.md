@@ -241,6 +241,94 @@ Row με Spacer + chips → overflow 3.5px. Fix: `Row` → `Wrap`.
 
 ---
 
+## Session 158 — MultiChat (Group Chat) Υλοποίηση (Φάσεις 1-7)
+
+**Πεδίο:** Υλοποίηση Group Chat βάσει `multichat.md` (31 βήματα, 9 φάσεις). **22/31 βήματα (71%) ολοκληρωμένα.**
+
+### Φάση 1 — Foundation (Βήματα 1-3) ✅
+- `feature_flags.dart`: `groupChatEnabled = true`
+- `chat_cache_table.dart`: +4 group columns (`isGroupChat`, `participantCount`, `participantUids`, `groupName`)
+- `database.dart`: Migration v8→v9
+
+### Φάση 2 — Repository Layer (Βήματα 4-6) ✅
+- `chat_repository.dart`: Abstract interface +17 group methods (26 σύνολο)
+- `group_chat_mixin.dart` (796 γραμμές): `part of 'chat_repository_impl.dart'` — permissions, create, invites, avatar, audit, system messages, joinPublicGroup
+- `chat_repository_impl.dart` (619 γραμμές): `with GroupChatMixin implements ChatRepository`
+
+**Απόφαση:** `GroupChatMixin` χωρίς `on ChatRepositoryImpl` → abstract getters (λύση circular dependency `recursive_interface_inheritance`). Service classes inline στο mixin. `markAsRead` group-branch στο `ChatRepositoryImpl`.
+
+### Φάση 3 — Services (Βήματα 7-9) ✅
+- `sendMessage()`: @mentions extraction
+- `mention_utils.dart` (57 γραμμές): `MentionService` — 3 static methods
+- `group_search_repository.dart` (224 γραμμές): Abstract + Firestore impl (city/tag filtering)
+
+### Φάση 4 — Providers & State (Βήματα 10-11) ✅
+- `chat_provider.dart` (~360 γραμμές): `participantUidsProvider`, `groupPermissionsProvider`, `activeInvitesProvider`, `groupSearchRepositoryProvider` + 15 action methods (createGroupChat, addParticipant, removeParticipant, updateGroupName, updateGroupAvatar, removeGroupAvatar, updateParticipantRole, updatePermissionOverride, createInviteLink, redeemInviteLink, revokeInvite, joinPublicGroup, updateMaxParticipants)
+- `fcm_service.dart`: `activeChatId` (String?) → `activeChatIds` (Set<String>), `registerActiveChat`/`unregisterActiveChat`
+
+### Φάση 5 — Routing (Βήμα 12) ✅
+- `app_router.dart` (~274 γραμμές): +8 group routes (create, info, invite, call, settings, search, /:chatId placeholder, /groups list)
+- Sub-routes πριν parameterized για αποφυγή route hijack
+- `canCommunicate` redirect updated
+
+### Φάση 6 — Firestore (Βήματα 13-14) ✅
+- `firestore.rules` (256 γραμμές): `isGroupChatRef`/`isGroupCreator`/`isGroupAdmin` helpers, audit_log, invites, groups collection group rules
+- `firestore.indexes.json` (177 γραμμές): 4 composite indexes — **deployed**
+- **Rules ΔΕΝ έχουν deploy** (postponed στο τέλος Phase 7)
+
+### Φάση 7 — UI Screens (Βήματα 15-22) ✅
+| Βήμα | Αρχείο | Γραμμές |
+|------|--------|---------:|
+| 15 | `chat_screen.dart` group-aware (AppBar, PopupMenu, _chatDocProvider) + `message_bubble.dart` + `chat_messages_list.dart` + messagesStream +seenBy +mentions +system | ~345+140+130 |
+| 16 | `chat_list_screen.dart` — group tiles, FAB Create Group, AppBar search icon | ~278 |
+| 17 | `create_group_screen.dart` — search users (collectionGroup('public') + client-side nickname filter) | ~280 |
+| 18 | `group_info_screen.dart` — participant list, roles, name editor, leave | ~280 |
+| 19 | `group_invite_screen.dart` — λίστα active invites, create/revoke/copy | ~270 |
+| 20 | `group_search_screen.dart` — discover & join public groups (+ `joinPublicGroup` repo/mixin/provider) | ~220 |
+| 21 | `group_settings_screen.dart` — avatar upload/remove, max participants, permissions info | ~280 |
+| 22 | `group_call_screen.dart` — placeholder (2 states: videoCallEnabled true/false) | ~90 |
+
+### Αποκλίσεις από multichat.md
+- **GroupChatScreen**: Δεν δημιουργήθηκε — `chat_screen.dart` auto-detects groups via `_chatDocProvider` (reuse)
+- **joinPublicGroup**: Δεν προβλεπόταν — προστέθηκε για public group join χωρίς permission check
+- **description editor**: Δεν υλοποιήθηκε (δεν υπάρχει πεδίο description στο `chats` doc — απαιτεί public profile infrastructure)
+- **Service classes**: Inline στο mixin αντί ξεχωριστά αρχεία
+
+### Εκκρεμεί
+- **Φάση 8 (23-25):** Error handling edge cases, loading/empty states, animations & UX polish
+- **Φάση 9 (26-31):** Deploy firestore rules, build APK, install, test, release
+
+### Στατιστικά
+- **flutter analyze: 0 issues**
+- **22/31 βήματα (71%)**
+- **~30 νέα/τροποποιημένα αρχεία**
+- Backups: `backups/2026-07-10_*`
+
+### Αρχεία (νέα/τροποποιημένα)
+
+| Αρχείο | Γραμμές |
+|--------|---------:|
+| `lib/repositories/chat_repository.dart` | 104 |
+| `lib/repositories/group_chat_mixin.dart` | 796 |
+| `lib/repositories/group_search_repository.dart` | 224 |
+| `lib/features/chat/providers/chat_provider.dart` | ~360 |
+| `lib/core/router/app_router.dart` | ~274 |
+| `lib/core/notifications/fcm_service.dart` | ~220 |
+| `lib/features/chat/screens/chat_screen.dart` | ~345 |
+| `lib/features/chat/screens/chat_list_screen.dart` | ~278 |
+| `lib/features/chat/screens/create_group_screen.dart` | ~280 |
+| `lib/features/chat/screens/group_info_screen.dart` | ~280 |
+| `lib/features/chat/screens/group_invite_screen.dart` | ~270 |
+| `lib/features/chat/screens/group_search_screen.dart` | ~220 |
+| `lib/features/chat/screens/group_settings_screen.dart` | ~280 |
+| `lib/features/chat/screens/group_call_screen.dart` | ~90 |
+| `lib/features/chat/widgets/message_bubble.dart` | ~140 |
+| `lib/features/chat/widgets/chat_messages_list.dart` | ~130 |
+| `firestore.rules` | 256 |
+| `firestore.indexes.json` | 177 |
+
+---
+
 ## Current State
 
 | Μέτρο | Τιμή |

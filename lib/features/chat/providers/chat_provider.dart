@@ -4,6 +4,7 @@ import '../../../core/utils/app_exception.dart';
 import '../../../data/local/database.dart';
 import '../../../repositories/chat_repository.dart';
 import '../../../repositories/chat_repository_impl.dart';
+import '../../../repositories/group_search_repository.dart';
 
 final chatRepositoryProvider = Provider<ChatRepository>((ref) {
   DebugConfig.log(DebugConfig.providerCreate, 'chatRepositoryProvider created');
@@ -41,6 +42,18 @@ final groupPermissionsProvider = FutureProvider.autoDispose.family<GroupPermissi
   ref.onDispose(() => DebugConfig.log(DebugConfig.providerDispose, 'groupPermissionsProvider disposed for chat: $chatId'));
   final chatRepo = ref.watch(chatRepositoryProvider);
   return chatRepo.getPermissionsInfo(chatId);
+});
+
+final activeInvitesProvider = FutureProvider.autoDispose.family<List<InviteInfo>, String>((ref, chatId) {
+  DebugConfig.log(DebugConfig.providerCreate, 'activeInvitesProvider created for chat: $chatId');
+  ref.onDispose(() => DebugConfig.log(DebugConfig.providerDispose, 'activeInvitesProvider disposed for chat: $chatId'));
+  final chatRepo = ref.watch(chatRepositoryProvider);
+  return chatRepo.getActiveInvites(chatId);
+});
+
+final groupSearchRepositoryProvider = Provider<GroupSearchRepository>((ref) {
+  DebugConfig.log(DebugConfig.providerCreate, 'groupSearchRepositoryProvider created');
+  return FirestoreGroupSearchRepository();
 });
 
 enum ChatActionStatus { idle, loading, success, error }
@@ -235,6 +248,20 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
     }
   }
 
+  Future<bool> updateMaxParticipants(String chatId, int newMax) async {
+    DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: updateMaxParticipants chat=$chatId -> $newMax');
+    state = const ChatActionState(status: ChatActionStatus.loading);
+    try {
+      await _chatRepo.updateMaxParticipants(chatId, newMax);
+      state = const ChatActionState(status: ChatActionStatus.success);
+      return true;
+    } catch (e, s) {
+      DebugConfig.error('ChatActions: updateMaxParticipants failed', data: e, exception: s);
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+      return false;
+    }
+  }
+
   Future<bool> updateParticipantRole(String chatId, String uid, String newRole) async {
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: updateParticipantRole chat=$chatId');
     state = const ChatActionState(status: ChatActionStatus.loading);
@@ -270,6 +297,7 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
     try {
       final token = await _chatRepo.createInviteLink(chatId, expiresIn: expiresIn, maxUses: maxUses);
       DebugConfig.log(DebugConfig.repositoryResult, 'ChatActions: createInviteLink success token=$token');
+      ref.invalidate(activeInvitesProvider(chatId));
       return token;
     } catch (e, s) {
       DebugConfig.error('ChatActions: createInviteLink failed', data: e, exception: s);
@@ -301,9 +329,25 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: revokeInvite chat=$chatId');
     try {
       await _chatRepo.revokeInvite(chatId, inviteId);
+      ref.invalidate(activeInvitesProvider(chatId));
       return true;
     } catch (e, s) {
       DebugConfig.error('ChatActions: revokeInvite failed', data: e, exception: s);
+      return false;
+    }
+  }
+
+  Future<bool> joinPublicGroup(String chatId) async {
+    DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: joinPublicGroup chat=$chatId');
+    state = const ChatActionState(status: ChatActionStatus.loading);
+    try {
+      await _chatRepo.joinPublicGroup(chatId);
+      state = const ChatActionState(status: ChatActionStatus.success);
+      ref.invalidate(chatsProvider);
+      return true;
+    } catch (e, s) {
+      DebugConfig.error('ChatActions: joinPublicGroup failed', data: e, exception: s);
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
       return false;
     }
   }

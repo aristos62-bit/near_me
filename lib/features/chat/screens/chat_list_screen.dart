@@ -28,12 +28,24 @@ class ChatListScreen extends ConsumerWidget {
     DebugConfig.log(DebugConfig.uiRebuild, 'ChatListScreen build: canComm=$canComm');
 
     return Scaffold(
-      // ── FIX Πρόβλημα 2 (ίδια λογική με Discovery) ──
-      // Δεν υπάρχει TextField στη λίστα συνομιλιών (μόνο στο μεμονωμένο
-      // ChatScreen, που είναι ξεχωριστό route με δικό του Scaffold — δεν
-      // επηρεάζεται από αυτή την αλλαγή).
       resizeToAvoidBottomInset: false,
-      appBar: AppBar(title: Text(greek ? 'Μηνύματα' : 'Messages')),
+      appBar: AppBar(
+        title: Text(greek ? 'Μηνύματα' : 'Messages'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.explore),
+            tooltip: greek ? 'Ανακάλυψη ομάδων' : 'Discover groups',
+            onPressed: () => context.push('/groups/search'),
+          ),
+        ],
+      ),
+      floatingActionButton: canComm
+          ? FloatingActionButton.small(
+              onPressed: () => context.push('/groups/create'),
+              tooltip: greek ? 'Δημιουργία ομάδας' : 'Create group',
+              child: const Icon(Icons.group_add),
+            )
+          : null,
       body: !canComm
           ? _buildVerifyBanner(context, greek)
           : chatsAsync.when(
@@ -124,32 +136,38 @@ class _ChatTile extends ConsumerWidget {
     final greek = L10n.isGreek(context);
     final theme = Theme.of(context);
     final chatId = chat.chatId ?? '';
-    final nickname = chat.otherNickname ?? chat.otherUid ?? '?';
-    final initial = nickname.isNotEmpty ? nickname[0].toUpperCase() : '?';
-    final avatarUrl = chat.otherAvatarUrl;
+    final isGroup = chat.isGroupChat;
+    final title = isGroup ? (chat.groupName ?? chatId) : (chat.otherNickname ?? chat.otherUid ?? '?');
+    final initial = title.isNotEmpty ? title[0].toUpperCase() : '?';
+    final avatarUrl = isGroup ? null : chat.otherAvatarUrl;
     final hasUnread = chat.hasUnread;
     final lastTime = chat.lastMessageAt;
     final unreadCount = chat.unreadCount;
 
-    final previewText = _buildPreviewText(greek, nickname);
+    final previewText = _buildPreviewText(greek, title, isGroup);
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4),
       child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: theme.colorScheme.primaryContainer,
-          backgroundImage: avatarUrl != null
-              ? CachedNetworkImageProvider(avatarUrl)
-              : null,
-          child: avatarUrl == null
-              ? Text(initial, style: TextStyle(
-                  color: theme.colorScheme.onPrimaryContainer,
-                  fontWeight: FontWeight.bold,
-                ))
-              : null,
-        ),
+        leading: isGroup
+            ? CircleAvatar(
+                backgroundColor: theme.colorScheme.secondaryContainer,
+                child: Icon(Icons.group, color: theme.colorScheme.onSecondaryContainer),
+              )
+            : CircleAvatar(
+                backgroundColor: theme.colorScheme.primaryContainer,
+                backgroundImage: avatarUrl != null
+                    ? CachedNetworkImageProvider(avatarUrl)
+                    : null,
+                child: avatarUrl == null
+                    ? Text(initial, style: TextStyle(
+                        color: theme.colorScheme.onPrimaryContainer,
+                        fontWeight: FontWeight.bold,
+                      ))
+                    : null,
+              ),
         title: Text(
-          nickname,
+          title,
           style: TextStyle(fontWeight: hasUnread ? FontWeight.bold : FontWeight.normal),
         ),
         subtitle: Column(
@@ -166,6 +184,15 @@ class _ChatTile extends ConsumerWidget {
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
+              ),
+            if (isGroup && chat.participantCount > 2)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  greek ? '${chat.participantCount} μέλη' : '${chat.participantCount} members',
+                  style: theme.textTheme.labelSmall
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                ),
               ),
             if (lastTime != null)
               Text(_formatTime(context, greek, lastTime), style: theme.textTheme.bodySmall),
@@ -198,7 +225,7 @@ class _ChatTile extends ConsumerWidget {
                 final confirmed = await AppMessenger.showConfirmDialog(
                   context,
                   title: L10n.localizedMessage(context, 'Διαγραφή συνομιλίας / Delete conversation'),
-                  message: L10n.localizedMessage(context, 'Θα διαγραφεί ολόκληρη η συνομιλία με τον/την $nickname. Συνέχεια; / This will delete the entire conversation with $nickname. Continue?'),
+                  message: L10n.localizedMessage(context, 'Θα διαγραφεί ολόκληρη η συνομιλία "$title". Συνέχεια; / This will delete the entire conversation "$title". Continue?'),
                   confirmLabel: greek ? 'Διαγραφή' : 'Delete',
                   cancelLabel: greek ? 'Ακύρωση' : 'Cancel',
                   isDestructive: true,
@@ -211,14 +238,15 @@ class _ChatTile extends ConsumerWidget {
           ],
         ),
         onTap: () {
-          DebugConfig.log(DebugConfig.uiInteraction, 'ChatListScreen: tap chat=$chatId');
-          context.push('/chat/$chatId', extra: nickname);
+          DebugConfig.log(DebugConfig.uiInteraction, 'ChatListScreen: tap chat=$chatId isGroup=$isGroup');
+          final extra = isGroup ? null : title;
+          context.push('/chat/$chatId', extra: extra);
         },
       ),
     );
   }
 
-  String? _buildPreviewText(bool greek, String nickname) {
+  String? _buildPreviewText(bool greek, String title, bool isGroup) {
     final msg = chat.lastMessage;
     final sender = chat.lastMessageSender;
     final type = chat.lastMessageType ?? 'text';
@@ -231,11 +259,14 @@ class _ChatTile extends ConsumerWidget {
     if (msg == null) return null;
 
     final truncated = msg.length > 50 ? '${msg.substring(0, 50)}...' : msg;
+    if (isGroup) {
+      return truncated;
+    }
     if (sender == 'me') {
       final prefix = greek ? 'Εσύ: ' : 'You: ';
       return '$prefix$truncated';
     }
-    return '$nickname: $truncated';
+    return '$title: $truncated';
   }
 
   String _formatTime(BuildContext context, bool greek, DateTime dt) {

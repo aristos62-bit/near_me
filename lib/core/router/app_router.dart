@@ -11,6 +11,12 @@ import '../../features/discovery/screens/saved_searches_screen.dart';
 import '../../features/discovery/screens/search_filters_screen.dart';
 import '../../features/chat/screens/chat_list_screen.dart';
 import '../../features/chat/screens/chat_screen.dart';
+import '../../features/chat/screens/create_group_screen.dart';
+import '../../features/chat/screens/group_call_screen.dart';
+import '../../features/chat/screens/group_settings_screen.dart';
+import '../../features/chat/screens/group_search_screen.dart';
+import '../../features/chat/screens/group_invite_screen.dart';
+import '../../features/chat/screens/group_info_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
 import '../../features/profile/screens/profile_editor_screen.dart';
 import '../../features/profile/screens/privacy_editor_screen.dart';
@@ -167,18 +173,31 @@ class AppRouter {
       GoRoute(
         path: '/groups/create',
         pageBuilder: (context, state) =>
-            _modal(const Scaffold(body: Center(child: Text('CreateGroupScreen')))),
+            _modal(const CreateGroupScreen()),
       ),
       GoRoute(
         path: '/groups/:chatId/info',
-        pageBuilder: (context, state) => _modal(Scaffold(
-          body: Center(child: Text('GroupInfoScreen: ${state.pathParameters['chatId']}')),
+        pageBuilder: (context, state) => _modal(GroupInfoScreen(
+          chatId: state.pathParameters['chatId']!,
         )),
       ),
       GoRoute(
         path: '/groups/:chatId/invite',
-        pageBuilder: (context, state) => _modal(Scaffold(
-          body: Center(child: Text('GroupInviteScreen: ${state.pathParameters['chatId']}')),
+        pageBuilder: (context, state) => _modal(GroupInviteScreen(
+          chatId: state.pathParameters['chatId']!,
+        )),
+      ),
+      GoRoute(
+        path: '/groups/:chatId/call',
+        pageBuilder: (context, state) => _slideUp(GroupCallScreen(
+          chatId: state.pathParameters['chatId']!,
+          groupName: state.extra as String?,
+        )),
+      ),
+      GoRoute(
+        path: '/groups/:chatId/settings',
+        pageBuilder: (context, state) => _modal(GroupSettingsScreen(
+          chatId: state.pathParameters['chatId']!,
         )),
       ),
       GoRoute(
@@ -190,7 +209,7 @@ class AppRouter {
       GoRoute(
         path: '/groups/search',
         pageBuilder: (context, state) =>
-            _slideUp(const Scaffold(body: Center(child: Text('GroupSearchScreen')))),
+            _slideUp(const GroupSearchScreen()),
       ),
     ],
   );

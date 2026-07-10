@@ -92,10 +92,16 @@ abstract class ChatRepository {
   Future<void> updateGroupAvatar(String chatId, dynamic image);
   Future<void> removeGroupAvatar(String chatId);
 
+  // Group settings
+  Future<void> updateMaxParticipants(String chatId, int newMax);
+
   // Invite links
   Future<String> createInviteLink(String chatId, {Duration expiresIn = const Duration(days: 7), int? maxUses});
   Future<String?> redeemInviteLink(String token);
   Future<InviteInfo?> getInviteInfo(String token);
   Future<void> revokeInvite(String chatId, String inviteId);
   Future<List<InviteInfo>> getActiveInvites(String chatId);
+
+  // Public group join
+  Future<void> joinPublicGroup(String chatId);
 }

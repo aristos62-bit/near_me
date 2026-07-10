@@ -120,6 +120,12 @@ mixin GroupChatMixin {
     final groupName = data['groupName'] as String?;
     final groupAvatarUrl = data['groupAvatarUrl'] as String?;
     final participants = List<String>.from(data['participants'] ?? []);
+    final nicknamesRaw = data['participantNicknames'] as Map<String, dynamic>?;
+    DebugConfig.log(DebugConfig.repositoryResult,
+        '_syncGroupChatToCache: chat=$chatId groupName=$groupName '
+        'participants=${participants.length} '
+        'hasParticipantNicknames=${data.containsKey('participantNicknames')} '
+        'nicknameEntries=${nicknamesRaw?.length ?? 0}');
     final lastMessageAt = (data['lastMessageAt'] as Timestamp?)?.toDate();
     final lastMessageBy = data['lastMessageBy'] as String?;
     final lastMessageType = data['lastMessageType'] as String? ?? 'text';

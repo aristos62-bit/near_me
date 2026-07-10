@@ -137,6 +137,11 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
                 final senderNickname = widget.isGroupChat && nicknameMap != null
                     ? nicknameMap[senderId]
                     : null;
+                if (widget.isGroupChat && senderNickname == null) {
+                  DebugConfig.warn(
+                      'ChatMessagesList: senderNickname null for senderId=$senderId '
+                      'chat=${widget.chatId} nicknameMapSize=${nicknameMap?.length ?? 0}');
+                }
 
                 List<String> seenBy = [];
                 if (widget.isGroupChat) {

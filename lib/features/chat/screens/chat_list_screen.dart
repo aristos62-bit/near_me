@@ -138,6 +138,12 @@ class _ChatTile extends ConsumerWidget {
     final chatId = chat.chatId ?? '';
     final isGroup = chat.isGroupChat;
     final title = isGroup ? (chat.groupName ?? chatId) : (chat.otherNickname ?? chat.otherUid ?? '?');
+    DebugConfig.log(DebugConfig.uiInteraction,
+        '_ChatTile: chatId=$chatId isGroup=$isGroup '
+        'otherNickname=${chat.otherNickname ?? "null"} '
+        'otherUid=${chat.otherUid ?? "null"} '
+        'groupName=${chat.groupName ?? "null"} '
+        'title=$title');
     final initial = title.isNotEmpty ? title[0].toUpperCase() : '?';
     final avatarUrl = isGroup ? chat.groupAvatarUrl : chat.otherAvatarUrl;
     final hasUnread = chat.hasUnread;

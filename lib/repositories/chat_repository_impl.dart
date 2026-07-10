@@ -75,6 +75,11 @@ class ChatRepositoryImpl with GroupChatMixin implements ChatRepository {
     final otherProfile = await firestore
         .collection('users').doc(otherUid).collection('public').doc('profile').get();
     final otherNickname = otherProfile.data()?['nickname'] as String? ?? otherUid;
+    DebugConfig.log(DebugConfig.repositoryResult,
+        'createChat: myNickname=$myNickname '
+        'otherUid=$otherUid otherProfileExists=${otherProfile.exists} '
+        'otherDocHasNickname=${otherProfile.data()?.containsKey('nickname')} '
+        'otherNickname=$otherNickname ');
 
     final chatId = firestore.collection('chats').doc().id;
     final key = EncryptionUtils.deriveKey(chatId);
@@ -380,6 +385,11 @@ class ChatRepositoryImpl with GroupChatMixin implements ChatRepository {
 
       final nicknames = (data['participantNicknames'] as Map<String, dynamic>?) ?? {};
       final otherNickname = nicknames[otherUid] as String? ?? otherUid;
+      DebugConfig.log(DebugConfig.repositoryResult,
+          '_syncChatFromFirestore: chat=$chatId otherUid=$otherUid '
+          'hasParticipantNicknames=${data.containsKey('participantNicknames')} '
+          'participantNicknames=${nicknames.length} entries '
+          'otherNickname=$otherNickname');
       final lastMessageAt = (data['lastMessageAt'] as Timestamp?)?.toDate();
       final lastMessageBy = data['lastMessageBy'] as String?;
       final lastMessageType = data['lastMessageType'] as String? ?? 'text';

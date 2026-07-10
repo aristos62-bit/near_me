@@ -64,6 +64,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final nicknames = (data['participantNicknames'] as Map<String, dynamic>?)
             ?.map((k, v) => MapEntry(k, v as String? ?? k)) ??
         {};
+    DebugConfig.log(DebugConfig.uiInteraction,
+        '_onChatDocChanged: chat=${widget.chatId} isGroup=$isGroup '
+        'hasParticipantNicknames=${data.containsKey('participantNicknames')} '
+        'nicknameEntries=${nicknames.length}');
     if (isGroup != _isGroupChat || _groupName != data['groupName'] ||
         _participantNicknames != nicknames) {
       setState(() {

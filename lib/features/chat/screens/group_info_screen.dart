@@ -21,7 +21,6 @@ class GroupInfoScreen extends ConsumerStatefulWidget {
 class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
   String? _groupName;
   Map<String, dynamic>? _participantRoles;
-  Map<String, dynamic>? _participantNicknames;
   int? _maxParticipants;
   String? _createdBy;
   bool _isEditingName = false;
@@ -50,7 +49,6 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
       setState(() {
         _groupName = name;
         _participantRoles = roles;
-        _participantNicknames = data['participantNicknames'] as Map<String, dynamic>?;
         _maxParticipants = data['maxParticipants'] as int? ?? 10;
         _createdBy = data['createdBy'] as String?;
         _nameCtrl.text = name ?? widget.chatId;
@@ -67,9 +65,9 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
     }
   }
 
-  String _nicknameFor(String uid) {
-    if (_participantNicknames?.containsKey(uid) == true) {
-      return _participantNicknames![uid] as String? ?? uid;
+  String _nicknameFor(String uid, Map<String, dynamic>? nicknames) {
+    if (nicknames?.containsKey(uid) == true) {
+      return nicknames![uid] as String? ?? uid;
     }
     return uid.length > 12 ? '${uid.substring(0, 12)}...' : uid;
   }
@@ -182,6 +180,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
     final greek = L10n.isGreek(context);
     final theme = Theme.of(context);
     final chatDocAsync = ref.watch(chatDocProvider(widget.chatId));
+    final chatData = chatDocAsync.asData?.value?.data() as Map<String, dynamic>?;
     final participantUidsAsync = ref.watch(participantUidsProvider(widget.chatId));
     final currentUid = ref.read(authStateProvider).value?.uid ?? '';
 
@@ -192,12 +191,15 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
       }
     });
     final participantUids = participantUidsAsync.asData?.value ?? <String>[];
-    final isCreator = currentUid == _createdBy;
-    final myRole = _participantRoles?[currentUid] as String?;
+    final groupName = chatData?['groupName'] as String? ?? _groupName;
+    final createdBy = chatData?['createdBy'] as String? ?? _createdBy;
+    final rolesMap = chatData?['participantRoles'] as Map<String, dynamic>? ?? _participantRoles;
+    final isCreator = currentUid == createdBy;
+    final myRole = rolesMap?[currentUid] as String?;
     final isAdmin = isCreator || (myRole == 'admin');
 
     return Scaffold(
-      appBar: AppBar(title: Text(_groupName ?? widget.chatId)),
+      appBar: AppBar(title: Text(groupName ?? widget.chatId)),
       body: chatDocAsync.isLoading
           ? const LoadingView()
           : ListView(
@@ -225,14 +227,14 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                         : GestureDetector(
                             onTap: isAdmin ? () => setState(() => _isEditingName = true) : null,
                             child: Row(children: [
-                              Expanded(child: Text(_groupName ?? widget.chatId,
+                              Expanded(child: Text(groupName ?? widget.chatId,
                                   style: theme.textTheme.titleMedium)),
                               if (isAdmin) const Icon(Icons.edit, size: 16),
                             ]),
                           ),
                     subtitle: Text(greek
-                        ? '$_maxParticipants max μέλη'
-                        : '$_maxParticipants max members'),
+                        ? '${_maxParticipants ?? '-'} max μέλη'
+                        : '${_maxParticipants ?? '-'} max members'),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -241,7 +243,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                         color: theme.colorScheme.onSurfaceVariant)),
                 const SizedBox(height: 4),
                 ...participantUids.map((uid) {
-                  final role = _participantRoles?[uid] as String? ?? 'member';
+                  final role = rolesMap?[uid] as String? ?? 'member';
                   return Card(
                     margin: const EdgeInsets.symmetric(vertical: 2),
                     child: ListTile(
@@ -251,9 +253,9 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                             : role == 'admin'
                                 ? theme.colorScheme.secondaryContainer
                                 : theme.colorScheme.surfaceContainerHighest,
-                        child: Text(_nicknameFor(uid)[0].toUpperCase()),
+                        child: Text(_nicknameFor(uid, chatData?['participantNicknames'] as Map<String, dynamic>?)[0].toUpperCase()),
                       ),
-                      title: Text(_nicknameFor(uid)),
+                      title: Text(_nicknameFor(uid, chatData?['participantNicknames'] as Map<String, dynamic>?)),
                       subtitle: Text(_roleLabel(role),
                           style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant)),
@@ -272,13 +274,13 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                               },
                               itemBuilder: (_) => [
                                 if (isCreator && role != 'creator')
-                                  const PopupMenuItem(value: 'permissions', child: Text('Permissions')),
+                                  PopupMenuItem(value: 'permissions', child: Text(greek ? 'Δικαιώματα' : 'Permissions')),
                                 if (role != 'admin' && role != 'creator')
-                                  const PopupMenuItem(value: 'make_admin', child: Text('Make admin')),
+                                  PopupMenuItem(value: 'make_admin', child: Text(greek ? 'Ορισμός διαχειριστή' : 'Make admin')),
                                 if (role == 'admin')
-                                  const PopupMenuItem(value: 'make_member', child: Text('Remove admin')),
+                                  PopupMenuItem(value: 'make_member', child: Text(greek ? 'Αφαίρεση διαχειριστή' : 'Remove admin')),
                                 const PopupMenuDivider(),
-                                const PopupMenuItem(value: 'remove', child: Text('Remove')),
+                                PopupMenuItem(value: 'remove', child: Text(greek ? 'Αφαίρεση' : 'Remove')),
                               ],
                             )
                           : null,
@@ -291,7 +293,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                     onPressed: () => context.push(
                       '/groups/${widget.chatId}/add',
                       extra: <String, dynamic>{
-                        'currentParticipantUids': _participantRoles?.keys.toList() ?? [],
+                        'currentParticipantUids': rolesMap?.keys.toList() ?? [],
                         'maxParticipants': _maxParticipants,
                       },
                     ),

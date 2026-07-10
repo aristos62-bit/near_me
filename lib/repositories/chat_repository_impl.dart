@@ -12,6 +12,7 @@ import '../core/debug/debug_config.dart';
 import '../core/utils/app_exception.dart';
 import '../core/utils/encryption_utils.dart';
 import '../shared/utils/mention_utils.dart';
+import 'group_search_repository.dart';
 
 part 'group_chat_mixin.dart';
 
@@ -551,6 +552,15 @@ class ChatRepositoryImpl with GroupChatMixin implements ChatRepository {
     DebugConfig.log(DebugConfig.repositoryCall, 'deleteChat: deleting chat=$chatId');
 
     try {
+      // Cleanup public profile if this is a public group
+      try {
+        final chatDoc = await firestore.collection('chats').doc(chatId).get();
+        if (chatDoc.data()?['isPublic'] == true && chatDoc.data()?['isGroupChat'] == true) {
+          await FirestoreGroupSearchRepository(firestore: firestore).deletePublicProfile(chatId);
+          DebugConfig.log(DebugConfig.firestoreWrite, 'deleteChat: public profile deleted for $chatId');
+        }
+      } catch (_) {}
+
       final messages = await firestore
           .collection('chats').doc(chatId).collection('messages')
           .get();

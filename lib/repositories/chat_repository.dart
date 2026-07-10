@@ -77,7 +77,7 @@ abstract class ChatRepository {
   Future<void> clearMessages(String chatId);
 
   // Group chat
-  Future<String> createGroupChat(List<String> participantUids, {String? groupName});
+  Future<String> createGroupChat(List<String> participantUids, {String? groupName, bool isPublic = false, String? description, List<String>? tags, String? city});
   Future<void> addParticipant(String chatId, String newUid);
   Future<void> removeParticipant(String chatId, String uid);
   Future<List<String>> getParticipantUids(String chatId);
@@ -85,6 +85,7 @@ abstract class ChatRepository {
   Future<void> updateGroupName(String chatId, String name);
   Future<void> updateParticipantRole(String chatId, String uid, String newRole);
   Future<void> updatePermissionOverride(String chatId, String uid, GroupPermission permission, bool value);
+  Future<void> deletePermissionOverrides(String chatId, String targetUid);
   Future<bool> hasPermission(String chatId, GroupPermission permission);
   Future<GroupPermissionsInfo> getPermissionsInfo(String chatId);
 

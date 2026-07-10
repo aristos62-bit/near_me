@@ -17,6 +17,7 @@ import '../../features/chat/screens/group_settings_screen.dart';
 import '../../features/chat/screens/group_search_screen.dart';
 import '../../features/chat/screens/group_invite_screen.dart';
 import '../../features/chat/screens/group_info_screen.dart';
+import '../../features/chat/screens/permissions_editor_screen.dart';
 import '../../features/chat/screens/add_participant_screen.dart';
 import '../../features/chat/screens/group_audit_log_screen.dart';
 import '../../features/chat/screens/join_confirmation_screen.dart';
@@ -225,6 +226,13 @@ class AppRouter {
         path: '/groups/:chatId/audit-log',
         pageBuilder: (context, state) => _modal(GroupAuditLogScreen(
           chatId: state.pathParameters['chatId']!,
+        )),
+      ),
+      GoRoute(
+        path: '/groups/:chatId/permissions/:targetUid',
+        pageBuilder: (context, state) => _modal(PermissionsEditorScreen(
+          chatId: state.pathParameters['chatId']!,
+          targetUid: state.pathParameters['targetUid']!,
         )),
       ),
       GoRoute(

@@ -3017,6 +3017,17 @@ class $ChatCacheTableTable extends ChatCacheTable
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _groupAvatarUrlMeta = const VerificationMeta(
+    'groupAvatarUrl',
+  );
+  @override
+  late final GeneratedColumn<String> groupAvatarUrl = GeneratedColumn<String>(
+    'group_avatar_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -3035,6 +3046,7 @@ class $ChatCacheTableTable extends ChatCacheTable
     participantCount,
     participantUids,
     groupName,
+    groupAvatarUrl,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3171,6 +3183,15 @@ class $ChatCacheTableTable extends ChatCacheTable
         groupName.isAcceptableOrUnknown(data['group_name']!, _groupNameMeta),
       );
     }
+    if (data.containsKey('group_avatar_url')) {
+      context.handle(
+        _groupAvatarUrlMeta,
+        groupAvatarUrl.isAcceptableOrUnknown(
+          data['group_avatar_url']!,
+          _groupAvatarUrlMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -3244,6 +3265,10 @@ class $ChatCacheTableTable extends ChatCacheTable
         DriftSqlType.string,
         data['${effectivePrefix}group_name'],
       ),
+      groupAvatarUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}group_avatar_url'],
+      ),
     );
   }
 
@@ -3279,6 +3304,9 @@ class ChatCacheTableData extends DataClass
   final int participantCount;
   final String? participantUids;
   final String? groupName;
+
+  /// Group avatar URL (schema v10)
+  final String? groupAvatarUrl;
   const ChatCacheTableData({
     required this.id,
     this.ownerUid,
@@ -3296,6 +3324,7 @@ class ChatCacheTableData extends DataClass
     required this.participantCount,
     this.participantUids,
     this.groupName,
+    this.groupAvatarUrl,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -3337,6 +3366,9 @@ class ChatCacheTableData extends DataClass
     }
     if (!nullToAbsent || groupName != null) {
       map['group_name'] = Variable<String>(groupName);
+    }
+    if (!nullToAbsent || groupAvatarUrl != null) {
+      map['group_avatar_url'] = Variable<String>(groupAvatarUrl);
     }
     return map;
   }
@@ -3381,6 +3413,9 @@ class ChatCacheTableData extends DataClass
       groupName: groupName == null && nullToAbsent
           ? const Value.absent()
           : Value(groupName),
+      groupAvatarUrl: groupAvatarUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(groupAvatarUrl),
     );
   }
 
@@ -3408,6 +3443,7 @@ class ChatCacheTableData extends DataClass
       participantCount: serializer.fromJson<int>(json['participantCount']),
       participantUids: serializer.fromJson<String?>(json['participantUids']),
       groupName: serializer.fromJson<String?>(json['groupName']),
+      groupAvatarUrl: serializer.fromJson<String?>(json['groupAvatarUrl']),
     );
   }
   @override
@@ -3430,6 +3466,7 @@ class ChatCacheTableData extends DataClass
       'participantCount': serializer.toJson<int>(participantCount),
       'participantUids': serializer.toJson<String?>(participantUids),
       'groupName': serializer.toJson<String?>(groupName),
+      'groupAvatarUrl': serializer.toJson<String?>(groupAvatarUrl),
     };
   }
 
@@ -3450,6 +3487,7 @@ class ChatCacheTableData extends DataClass
     int? participantCount,
     Value<String?> participantUids = const Value.absent(),
     Value<String?> groupName = const Value.absent(),
+    Value<String?> groupAvatarUrl = const Value.absent(),
   }) => ChatCacheTableData(
     id: id ?? this.id,
     ownerUid: ownerUid.present ? ownerUid.value : this.ownerUid,
@@ -3479,6 +3517,9 @@ class ChatCacheTableData extends DataClass
         ? participantUids.value
         : this.participantUids,
     groupName: groupName.present ? groupName.value : this.groupName,
+    groupAvatarUrl: groupAvatarUrl.present
+        ? groupAvatarUrl.value
+        : this.groupAvatarUrl,
   );
   ChatCacheTableData copyWithCompanion(ChatCacheTableCompanion data) {
     return ChatCacheTableData(
@@ -3518,6 +3559,9 @@ class ChatCacheTableData extends DataClass
           ? data.participantUids.value
           : this.participantUids,
       groupName: data.groupName.present ? data.groupName.value : this.groupName,
+      groupAvatarUrl: data.groupAvatarUrl.present
+          ? data.groupAvatarUrl.value
+          : this.groupAvatarUrl,
     );
   }
 
@@ -3539,7 +3583,8 @@ class ChatCacheTableData extends DataClass
           ..write('isGroupChat: $isGroupChat, ')
           ..write('participantCount: $participantCount, ')
           ..write('participantUids: $participantUids, ')
-          ..write('groupName: $groupName')
+          ..write('groupName: $groupName, ')
+          ..write('groupAvatarUrl: $groupAvatarUrl')
           ..write(')'))
         .toString();
   }
@@ -3562,6 +3607,7 @@ class ChatCacheTableData extends DataClass
     participantCount,
     participantUids,
     groupName,
+    groupAvatarUrl,
   );
   @override
   bool operator ==(Object other) =>
@@ -3582,7 +3628,8 @@ class ChatCacheTableData extends DataClass
           other.isGroupChat == this.isGroupChat &&
           other.participantCount == this.participantCount &&
           other.participantUids == this.participantUids &&
-          other.groupName == this.groupName);
+          other.groupName == this.groupName &&
+          other.groupAvatarUrl == this.groupAvatarUrl);
 }
 
 class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
@@ -3602,6 +3649,7 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
   final Value<int> participantCount;
   final Value<String?> participantUids;
   final Value<String?> groupName;
+  final Value<String?> groupAvatarUrl;
   const ChatCacheTableCompanion({
     this.id = const Value.absent(),
     this.ownerUid = const Value.absent(),
@@ -3619,6 +3667,7 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
     this.participantCount = const Value.absent(),
     this.participantUids = const Value.absent(),
     this.groupName = const Value.absent(),
+    this.groupAvatarUrl = const Value.absent(),
   });
   ChatCacheTableCompanion.insert({
     this.id = const Value.absent(),
@@ -3637,6 +3686,7 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
     this.participantCount = const Value.absent(),
     this.participantUids = const Value.absent(),
     this.groupName = const Value.absent(),
+    this.groupAvatarUrl = const Value.absent(),
   });
   static Insertable<ChatCacheTableData> custom({
     Expression<int>? id,
@@ -3655,6 +3705,7 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
     Expression<int>? participantCount,
     Expression<String>? participantUids,
     Expression<String>? groupName,
+    Expression<String>? groupAvatarUrl,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -3673,6 +3724,7 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
       if (participantCount != null) 'participant_count': participantCount,
       if (participantUids != null) 'participant_uids': participantUids,
       if (groupName != null) 'group_name': groupName,
+      if (groupAvatarUrl != null) 'group_avatar_url': groupAvatarUrl,
     });
   }
 
@@ -3693,6 +3745,7 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
     Value<int>? participantCount,
     Value<String?>? participantUids,
     Value<String?>? groupName,
+    Value<String?>? groupAvatarUrl,
   }) {
     return ChatCacheTableCompanion(
       id: id ?? this.id,
@@ -3711,6 +3764,7 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
       participantCount: participantCount ?? this.participantCount,
       participantUids: participantUids ?? this.participantUids,
       groupName: groupName ?? this.groupName,
+      groupAvatarUrl: groupAvatarUrl ?? this.groupAvatarUrl,
     );
   }
 
@@ -3765,6 +3819,9 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
     if (groupName.present) {
       map['group_name'] = Variable<String>(groupName.value);
     }
+    if (groupAvatarUrl.present) {
+      map['group_avatar_url'] = Variable<String>(groupAvatarUrl.value);
+    }
     return map;
   }
 
@@ -3786,7 +3843,8 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
           ..write('isGroupChat: $isGroupChat, ')
           ..write('participantCount: $participantCount, ')
           ..write('participantUids: $participantUids, ')
-          ..write('groupName: $groupName')
+          ..write('groupName: $groupName, ')
+          ..write('groupAvatarUrl: $groupAvatarUrl')
           ..write(')'))
         .toString();
   }
@@ -6913,6 +6971,7 @@ typedef $$ChatCacheTableTableCreateCompanionBuilder =
       Value<int> participantCount,
       Value<String?> participantUids,
       Value<String?> groupName,
+      Value<String?> groupAvatarUrl,
     });
 typedef $$ChatCacheTableTableUpdateCompanionBuilder =
     ChatCacheTableCompanion Function({
@@ -6932,6 +6991,7 @@ typedef $$ChatCacheTableTableUpdateCompanionBuilder =
       Value<int> participantCount,
       Value<String?> participantUids,
       Value<String?> groupName,
+      Value<String?> groupAvatarUrl,
     });
 
 class $$ChatCacheTableTableFilterComposer
@@ -7020,6 +7080,11 @@ class $$ChatCacheTableTableFilterComposer
 
   ColumnFilters<String> get groupName => $composableBuilder(
     column: $table.groupName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get groupAvatarUrl => $composableBuilder(
+    column: $table.groupAvatarUrl,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -7112,6 +7177,11 @@ class $$ChatCacheTableTableOrderingComposer
     column: $table.groupName,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get groupAvatarUrl => $composableBuilder(
+    column: $table.groupAvatarUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ChatCacheTableTableAnnotationComposer
@@ -7190,6 +7260,11 @@ class $$ChatCacheTableTableAnnotationComposer
 
   GeneratedColumn<String> get groupName =>
       $composableBuilder(column: $table.groupName, builder: (column) => column);
+
+  GeneratedColumn<String> get groupAvatarUrl => $composableBuilder(
+    column: $table.groupAvatarUrl,
+    builder: (column) => column,
+  );
 }
 
 class $$ChatCacheTableTableTableManager
@@ -7245,6 +7320,7 @@ class $$ChatCacheTableTableTableManager
                 Value<int> participantCount = const Value.absent(),
                 Value<String?> participantUids = const Value.absent(),
                 Value<String?> groupName = const Value.absent(),
+                Value<String?> groupAvatarUrl = const Value.absent(),
               }) => ChatCacheTableCompanion(
                 id: id,
                 ownerUid: ownerUid,
@@ -7262,6 +7338,7 @@ class $$ChatCacheTableTableTableManager
                 participantCount: participantCount,
                 participantUids: participantUids,
                 groupName: groupName,
+                groupAvatarUrl: groupAvatarUrl,
               ),
           createCompanionCallback:
               ({
@@ -7281,6 +7358,7 @@ class $$ChatCacheTableTableTableManager
                 Value<int> participantCount = const Value.absent(),
                 Value<String?> participantUids = const Value.absent(),
                 Value<String?> groupName = const Value.absent(),
+                Value<String?> groupAvatarUrl = const Value.absent(),
               }) => ChatCacheTableCompanion.insert(
                 id: id,
                 ownerUid: ownerUid,
@@ -7298,6 +7376,7 @@ class $$ChatCacheTableTableTableManager
                 participantCount: participantCount,
                 participantUids: participantUids,
                 groupName: groupName,
+                groupAvatarUrl: groupAvatarUrl,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))

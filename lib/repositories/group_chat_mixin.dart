@@ -115,6 +115,7 @@ mixin GroupChatMixin {
     }
 
     final groupName = data['groupName'] as String?;
+    final groupAvatarUrl = data['groupAvatarUrl'] as String?;
     final participants = List<String>.from(data['participants'] ?? []);
     final lastMessageAt = (data['lastMessageAt'] as Timestamp?)?.toDate();
     final lastMessageBy = data['lastMessageBy'] as String?;
@@ -164,6 +165,7 @@ mixin GroupChatMixin {
             hasUnread: Value(isUnread),
             unreadCount: Value(unreadCount),
             groupName: Value(groupName),
+            groupAvatarUrl: groupAvatarUrl != null ? Value(groupAvatarUrl) : Value.absent(),
             participantCount: Value(participants.length),
             participantUids: participantUidsStr != null ? Value(participantUidsStr) : const Value(null),
             isGroupChat: const Value(true),
@@ -176,6 +178,7 @@ mixin GroupChatMixin {
           otherUid: const Value(null),
           otherNickname: const Value(null),
           otherAvatarUrl: const Value(null),
+          groupAvatarUrl: groupAvatarUrl != null ? Value(groupAvatarUrl) : const Value(null),
           lastMessageAt: Value(lastMessageAt ?? DateTime.now()),
           hasUnread: Value(isUnread),
           lastMessage: decryptedLastMessage != null
@@ -217,7 +220,7 @@ mixin GroupChatMixin {
 
   // ── Group Chat Public Methods ──────────────────────────────
 
-  Future<String> createGroupChat(List<String> participantUids, {String? groupName}) async {
+  Future<String> createGroupChat(List<String> participantUids, {String? groupName, bool isPublic = false, String? description, List<String>? tags, String? city}) async {
     final user = auth.currentUser;
     if (user == null) throw AppException.auth('create_group_chat', 'Δεν υπάρχει συνδεδεμένος χρήστης / No authenticated user');
     final uid = user.uid;
@@ -275,10 +278,34 @@ mixin GroupChatMixin {
         'groupName': groupName ?? _defaultGroupName(nicknames),
         'createdAt': FieldValue.serverTimestamp(),
         'isActive': true,
+        'createdBy': uid,
+        if (isPublic) 'isPublic': true,
       });
 
       final key = EncryptionUtils.deriveKey(chatId);
       await EncryptionUtils.storeKey(chatId, key);
+
+      if (isPublic) {
+        try {
+          final groupSearchRepo = FirestoreGroupSearchRepository(firestore: firestore);
+          await groupSearchRepo.createPublicProfile(chatId, GroupPublicProfile(
+            chatId: chatId,
+            groupName: groupName ?? _defaultGroupName(nicknames),
+            memberCount: allUids.length,
+            description: description,
+            tags: tags ?? [],
+            city: city,
+            isPublic: true,
+            createdBy: uid,
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          ));
+          DebugConfig.log(DebugConfig.repositoryResult, 'createGroupChat: public profile created for $chatId');
+        } catch (e, s) {
+          DebugConfig.error('createGroupChat: failed to create public profile', data: e, exception: s);
+        }
+      }
+
       await _sendSystemMessage(chatId, 'group_created', uid);
       await _logAudit(chatId, 'group_created', uid, details: {'participantUids': allUids});
       await db.logConsent(uid, 'group_created', 'group');
@@ -353,6 +380,7 @@ mixin GroupChatMixin {
       await _sendSystemMessage(chatId, 'participant_added', uid, [newUid]);
       await _logAudit(chatId, 'participant_added', uid, targetUid: newUid);
       await db.logConsent(uid, 'group_member_added', 'group');
+      await _updatePublicProfileMemberCount(chatId);
 
       DebugConfig.log(DebugConfig.repositoryResult, 'addParticipant: $newUid added to $chatId');
     } catch (e, s) {
@@ -387,6 +415,7 @@ mixin GroupChatMixin {
       await _logAudit(chatId, isSelf ? 'participant_left' : 'participant_removed', uid, targetUid: targetUid);
       await EncryptionUtils.deleteKey(chatId);
       if (isSelf) await db.logConsent(uid, 'group_left', 'group');
+      await _updatePublicProfileMemberCount(chatId);
       await removeChatCache(chatId);
 
       DebugConfig.log(DebugConfig.repositoryResult, 'removeParticipant: done $chatId');
@@ -407,6 +436,7 @@ mixin GroupChatMixin {
 
     try {
       await firestore.collection('chats').doc(chatId).update({'groupName': name.trim()});
+      await _syncPublicProfileField(chatId, {'groupName': name.trim()});
       DebugConfig.log(DebugConfig.repositoryResult, 'updateGroupName: done $chatId');
     } catch (e, s) {
       DebugConfig.error('updateGroupName failed', data: e, exception: s);
@@ -466,6 +496,24 @@ mixin GroupChatMixin {
     } catch (e, s) {
       DebugConfig.error('updatePermissionOverride failed', data: e, exception: s);
       throw AppException.firestore('update_permission', 'Αποτυχία αλλαγής δικαιώματος / Failed to update permission');
+    }
+  }
+
+  Future<void> deletePermissionOverrides(String chatId, String targetUid) async {
+    DebugConfig.log(DebugConfig.repositoryCall, 'deletePermissionOverrides: $targetUid in $chatId');
+    await _requirePermission(chatId, GroupPermission.managePermissions);
+
+    try {
+      await firestore.collection('chats').doc(chatId).update({
+        'permissionOverrides.$targetUid': FieldValue.delete(),
+      });
+      await _logAudit(chatId, 'permission_overrides_reset', _currentUid,
+          targetUid: targetUid);
+      DebugConfig.log(DebugConfig.repositoryResult, 'deletePermissionOverrides: done $chatId');
+    } catch (e, s) {
+      DebugConfig.error('deletePermissionOverrides failed', data: e, exception: s);
+      throw AppException.firestore('delete_permission_overrides',
+          'Αποτυχία διαγραφής overrides / Failed to reset permissions');
     }
   }
 
@@ -559,6 +607,7 @@ mixin GroupChatMixin {
       );
       final url = await task.ref.getDownloadURL();
       await firestore.collection('chats').doc(chatId).update({'groupAvatarUrl': url});
+      await _syncPublicProfileField(chatId, {'groupAvatarUrl': url});
       await _logAudit(chatId, 'avatar_changed', uid);
       DebugConfig.log(DebugConfig.repositoryResult, 'updateGroupAvatar: done $chatId');
     } catch (e, s) {
@@ -574,6 +623,7 @@ mixin GroupChatMixin {
       await FirebaseStorage.instance
           .ref().child('group_avatars').child(chatId).child('avatar.jpg').delete();
       await firestore.collection('chats').doc(chatId).update({'groupAvatarUrl': FieldValue.delete()});
+      await _syncPublicProfileField(chatId, {'groupAvatarUrl': FieldValue.delete()});
       DebugConfig.log(DebugConfig.repositoryResult, 'removeGroupAvatar: done $chatId');
     } catch (e) {
       DebugConfig.warn('removeGroupAvatar failed (non-fatal)', data: e);
@@ -638,6 +688,37 @@ mixin GroupChatMixin {
       if (e is AppException) rethrow;
       DebugConfig.error('joinPublicGroup failed', data: e, exception: s);
       throw AppException.firestore('join_public', 'Αποτυχία συμμετοχής / Failed to join group');
+    }
+  }
+
+  // ── Public Profile Sync ─────────────────────────────────────
+
+  Future<void> _updatePublicProfileMemberCount(String chatId) async {
+    try {
+      final chatDoc = await firestore.collection('chats').doc(chatId).get();
+      if (chatDoc.data()?['isPublic'] != true) return;
+      final count = (chatDoc.data()?['participants'] as List?)?.length ?? 0;
+      await firestore.collection('groups').doc(chatId).update({'memberCount': count});
+      DebugConfig.log(DebugConfig.firestoreWrite, '_updatePublicProfileMemberCount: $chatId -> $count');
+    } on FirebaseException catch (e) {
+      if (e.code != 'NOT_FOUND') {
+        DebugConfig.warn('_updatePublicProfileMemberCount failed for $chatId', data: e);
+      }
+    } catch (e) {
+      DebugConfig.warn('_updatePublicProfileMemberCount failed for $chatId', data: e);
+    }
+  }
+
+  Future<void> _syncPublicProfileField(String chatId, Map<String, dynamic> fields) async {
+    try {
+      await firestore.collection('groups').doc(chatId).update(fields);
+      DebugConfig.log(DebugConfig.firestoreWrite, '_syncPublicProfileField: $chatId');
+    } on FirebaseException catch (e) {
+      if (e.code != 'NOT_FOUND') {
+        DebugConfig.warn('_syncPublicProfileField failed for $chatId', data: e);
+      }
+    } catch (e) {
+      DebugConfig.warn('_syncPublicProfileField failed for $chatId', data: e);
     }
   }
 

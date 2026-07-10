@@ -21,11 +21,15 @@ class CreateGroupScreen extends ConsumerStatefulWidget {
 class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   final _searchCtrl = TextEditingController();
   final _groupNameCtrl = TextEditingController();
+  final _descriptionCtrl = TextEditingController();
+  final _tagsCtrl = TextEditingController();
+  final _cityCtrl = TextEditingController();
   final _selectedUids = <String>{};
   Timer? _debounce;
   List<Map<String, dynamic>> _searchResults = [];
   bool _isSearching = false;
   bool _isCreating = false;
+  bool _isPublic = false;
   String? _errorText;
 
   @override
@@ -38,6 +42,9 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   void dispose() {
     _searchCtrl.dispose();
     _groupNameCtrl.dispose();
+    _descriptionCtrl.dispose();
+    _tagsCtrl.dispose();
+    _cityCtrl.dispose();
     _debounce?.cancel();
     super.dispose();
   }
@@ -128,9 +135,14 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
     }
     setState(() => _isCreating = true);
     final groupName = _groupNameCtrl.text.trim();
+    final description = _descriptionCtrl.text.trim();
+    final tags = _tagsCtrl.text.trim().isNotEmpty
+        ? _tagsCtrl.text.trim().split(',').map((t) => t.trim()).where((t) => t.isNotEmpty).toList()
+        : <String>[];
+    final city = _cityCtrl.text.trim();
     try {
       final chatId = await ref.read(chatActionsProvider.notifier)
-          .createGroupChat(_selectedUids.toList(), groupName: groupName.isNotEmpty ? groupName : null);
+          .createGroupChat(_selectedUids.toList(), groupName: groupName.isNotEmpty ? groupName : null, isPublic: _isPublic, description: description.isNotEmpty ? description : null, tags: tags.isNotEmpty ? tags : null, city: city.isNotEmpty ? city : null);
       if (!mounted) return;
       AppMessenger.showSuccess(context, greek
           ? 'Η ομάδα δημιουργήθηκε'
@@ -169,6 +181,51 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 ),
               ),
+              const SizedBox(height: 8),
+              Card(
+                child: SwitchListTile(
+                  title: Text(greek ? 'Δημόσια ομάδα' : 'Public group'),
+                  subtitle: Text(
+                    greek
+                        ? 'Θα εμφανίζεται σε αναζήτηση ομάδων'
+                        : 'Will appear in group search',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                  value: _isPublic,
+                  onChanged: (v) => setState(() => _isPublic = v),
+                ),
+              ),
+              if (_isPublic) ...[
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _descriptionCtrl,
+                  maxLines: 2,
+                  decoration: InputDecoration(
+                    labelText: greek ? 'Περιγραφή (προαιρετικό)' : 'Description (optional)',
+                    border: const OutlineInputBorder(),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _tagsCtrl,
+                  decoration: InputDecoration(
+                    labelText: greek ? 'Ετικέτες (προαιρ., διαχωρισμός με κόμμα)' : 'Tags (optional, comma separated)',
+                    border: const OutlineInputBorder(),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _cityCtrl,
+                  decoration: InputDecoration(
+                    labelText: greek ? 'Πόλη (προαιρετικό)' : 'City (optional)',
+                    border: const OutlineInputBorder(),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
               if (_selectedUids.isNotEmpty)
                 Padding(

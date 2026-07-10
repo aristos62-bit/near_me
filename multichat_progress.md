@@ -2,7 +2,7 @@
 
 > Project: NearMe
 > Spec: multichat.md — 31 βήματα σε 9 φάσεις
-> Τελευταία ενημέρωση: 2026-07-10 (Φάση 7 ✅)
+> Τελευταία ενημέρωση: 2026-07-10 (Φάση 8 ✅)
 
 ---
 
@@ -106,13 +106,17 @@
 
 Υλοποιήθηκαν όλες οι οθόνες του group chat. Το `chat_screen.dart` έγινε group-aware (AppBar με group name, PopupMenu με Group info / Call / Leave group, _chatDocProvider για real-time group data). Δημιουργήθηκαν widgets: `message_bubble.dart` (extracted, sender labels, system messages, @mentions, seenBy), `chat_messages_list.dart` (extracted scroll logic + markAsRead). Το `chat_list_screen.dart` εμφανίζει group tiles και FAB Create Group. Δημιουργήθηκαν CreateGroupScreen (search & select users), GroupInfoScreen (μέλη, ρόλοι, name editor), GroupInviteScreen (manage invite links), GroupSearchScreen (ανακάλυψη public groups), GroupSettingsScreen (avatar, max participants, permissions), και GroupCallScreen (placeholder για μελλοντική υλοποίηση). Προστέθηκε `joinPublicGroup` στο repository/mixin/provider για δημόσια συμμετοχή χωρίς permission check. **flutter analyze: 0 issues.**
 
-## Φάση 8: Polish (Βήματα 23–25) ❌
+## Φάση 8: Polish (Βήματα 23–25) ✅
 
 | Βήμα | Περιγραφή | Status | Λεπτομέρειες |
 |------|-----------|--------|--------------|
-| 23 | Error handling edge cases | ⏳ Pending |
-| 24 | Loading states & empty views | ⏳ Pending |
-| 25 | Animations & UX polish | ⏳ Pending |
+| 23 | Error handling edge cases | ✅ Done | AppException handling, try-catch σε όλες τις group actions |
+| 24 | Loading states & empty views | ✅ Done | LoadingView/EmptyView σε όλες τις οθόνες, consistent UX |
+| 25 | Animations & UX polish | ✅ Done | AddParticipantScreen, GroupAuditLogScreen, JoinConfirmationScreen |
+
+### Φάση 8 — Ολοκλήρωση
+
+Ολοκληρώθηκε το polish του group chat UI. Προστέθηκαν νέες οθόνες: `add_participant_screen.dart` (αναζήτηση & προσθήκη μελών), `group_audit_log_screen.dart` (ιστορικό ενεργειών), `join_confirmation_screen.dart` (επιβεβαίωση συμμετοχής από invite link). Error handling edge cases, loading/empty states, και animations/UX polish σε όλες τις οθόνες. **flutter analyze: 0 issues.**
 
 ## Φάση 9: Build & Deploy (Βήματα 26–31) ❌
 
@@ -138,9 +142,9 @@
 | 5. Routing | 12 | ✅ |
 | 6. Firestore | 13–14 | ✅ |
 | 7. UI Screens | 15–22 | ✅ |
-| 8. Polish | 23–25 | ❌ Εκκρεμεί |
+| 8. Polish | 23–25 | ✅ |
 | 9. Build & Deploy | 26–31 | ❌ Εκκρεμεί |
-| **Σύνολο** | **31** | **22/31 (71%)** |
+| **Σύνολο** | **31** | **25/31 (81%)** |
 
 **flutter analyze: 0 issues** — 168 errors διορθώθηκαν
 

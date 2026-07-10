@@ -139,7 +139,7 @@ class _ChatTile extends ConsumerWidget {
     final isGroup = chat.isGroupChat;
     final title = isGroup ? (chat.groupName ?? chatId) : (chat.otherNickname ?? chat.otherUid ?? '?');
     final initial = title.isNotEmpty ? title[0].toUpperCase() : '?';
-    final avatarUrl = isGroup ? null : chat.otherAvatarUrl;
+    final avatarUrl = isGroup ? chat.groupAvatarUrl : chat.otherAvatarUrl;
     final hasUnread = chat.hasUnread;
     final lastTime = chat.lastMessageAt;
     final unreadCount = chat.unreadCount;
@@ -152,7 +152,12 @@ class _ChatTile extends ConsumerWidget {
         leading: isGroup
             ? CircleAvatar(
                 backgroundColor: theme.colorScheme.secondaryContainer,
-                child: Icon(Icons.group, color: theme.colorScheme.onSecondaryContainer),
+                backgroundImage: avatarUrl != null
+                    ? CachedNetworkImageProvider(avatarUrl)
+                    : null,
+                child: avatarUrl == null
+                    ? Icon(Icons.group, color: theme.colorScheme.onSecondaryContainer)
+                    : null,
               )
             : CircleAvatar(
                 backgroundColor: theme.colorScheme.primaryContainer,

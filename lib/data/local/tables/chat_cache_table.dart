@@ -30,4 +30,7 @@ class ChatCacheTable extends Table {
       integer().withDefault(const Constant(2))();
   TextColumn get participantUids => text().nullable()();
   TextColumn get groupName => text().nullable()();
+
+  /// Group avatar URL (schema v10)
+  TextColumn get groupAvatarUrl => text().nullable()();
 }

@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/debug/debug_config.dart';
@@ -85,7 +86,20 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
   Widget build(BuildContext context) {
     final messagesAsync = ref.watch(messagesProvider(widget.chatId));
     final currentUid = ref.watch(authStateProvider).value?.uid ?? '';
+    final chatDocAsync = ref.watch(chatDocProvider(widget.chatId));
     final greek = L10n.isGreek(context);
+
+    Map<String, DateTime> lastReadTimestamps = {};
+    if (widget.isGroupChat) {
+      final chatData = chatDocAsync.asData?.value?.data() as Map<String, dynamic>?;
+      final raw = chatData?['lastReadTimestamps'] as Map<String, dynamic>?;
+      if (raw != null) {
+        lastReadTimestamps = raw.map((k, v) {
+          final ts = (v as Timestamp?)?.toDate();
+          return MapEntry(k, ts ?? DateTime(2020));
+        });
+      }
+    }
 
     return messagesAsync.when(
       loading: () => const LoadingView(),
@@ -117,17 +131,31 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
               ),
               itemCount: messages.length,
               itemBuilder: (_, i) {
-                final senderId = messages[i]['senderId'] as String? ?? '';
+                final msg = messages[i];
+                final senderId = msg['senderId'] as String? ?? '';
                 final nicknameMap = widget.participantNicknames;
                 final senderNickname = widget.isGroupChat && nicknameMap != null
                     ? nicknameMap[senderId]
                     : null;
+
+                List<String> seenBy = [];
+                if (widget.isGroupChat) {
+                  final msgTimestamp = (msg['timestamp'] as Timestamp?)?.toDate();
+                  if (msgTimestamp != null) {
+                    seenBy = lastReadTimestamps.entries
+                        .where((e) => e.key != senderId && e.value.compareTo(msgTimestamp) >= 0)
+                        .map((e) => e.key)
+                        .toList();
+                  }
+                }
+
                 return MessageBubble(
-                  message: messages[i],
+                  message: msg,
                   currentUid: currentUid,
                   isGroupChat: widget.isGroupChat,
                   senderNickname: senderNickname,
                   participantNicknames: widget.participantNicknames,
+                  seenBy: seenBy,
                 );
               },
             );

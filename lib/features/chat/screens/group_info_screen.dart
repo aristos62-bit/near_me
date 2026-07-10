@@ -239,12 +239,16 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                                   _changeRole(uid, 'admin');
                                 } else if (v == 'make_member') {
                                   _changeRole(uid, 'member');
+                                } else if (v == 'permissions') {
+                                  context.push('/groups/${widget.chatId}/permissions/$uid');
                                 } else if (v == 'remove') {
                                   _removeParticipant(uid);
                                 }
                               },
                               itemBuilder: (_) => [
-                                if (role != 'admin')
+                                if (isCreator && role != 'creator')
+                                  const PopupMenuItem(value: 'permissions', child: Text('Permissions')),
+                                if (role != 'admin' && role != 'creator')
                                   const PopupMenuItem(value: 'make_admin', child: Text('Make admin')),
                                 if (role == 'admin')
                                   const PopupMenuItem(value: 'make_member', child: Text('Remove admin')),

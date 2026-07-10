@@ -168,11 +168,11 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
 
   // --- Group Chat Actions ---
 
-  Future<String?> createGroupChat(List<String> participantUids, {String? groupName}) async {
-    DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: createGroupChat');
+  Future<String?> createGroupChat(List<String> participantUids, {String? groupName, bool isPublic = false, String? description, List<String>? tags, String? city}) async {
+    DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: createGroupChat (public=$isPublic)');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
-      final chatId = await _chatRepo.createGroupChat(participantUids, groupName: groupName);
+      final chatId = await _chatRepo.createGroupChat(participantUids, groupName: groupName, isPublic: isPublic, description: description, tags: tags, city: city);
       state = ChatActionState(status: ChatActionStatus.success, createdChatId: chatId);
       ref.invalidate(chatsProvider);
       return chatId;
@@ -294,6 +294,21 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
       return true;
     } catch (e, s) {
       DebugConfig.error('ChatActions: updatePermissionOverride failed', data: e, exception: s);
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+      return false;
+    }
+  }
+
+  Future<bool> deletePermissionOverrides(String chatId, String targetUid) async {
+    DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: deletePermissionOverrides chat=$chatId');
+    state = const ChatActionState(status: ChatActionStatus.loading);
+    try {
+      await _chatRepo.deletePermissionOverrides(chatId, targetUid);
+      state = const ChatActionState(status: ChatActionStatus.success);
+      ref.invalidate(groupPermissionsProvider(chatId));
+      return true;
+    } catch (e, s) {
+      DebugConfig.error('ChatActions: deletePermissionOverrides failed', data: e, exception: s);
       state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
       return false;
     }

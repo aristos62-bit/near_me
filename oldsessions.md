@@ -243,7 +243,7 @@ Row με Spacer + chips → overflow 3.5px. Fix: `Row` → `Wrap`.
 
 ## Session 158 — MultiChat (Group Chat) Υλοποίηση (Φάσεις 1-7)
 
-**Πεδίο:** Υλοποίηση Group Chat βάσει `multichat.md` (31 βήματα, 9 φάσεις). **22/31 βήματα (71%) ολοκληρωμένα.**
+**Πεδίο:** Υλοποίηση Group Chat βάσει `multichat.md` (31 βήματα, 9 φάσεις). **22/31 βήματα (71%) ολοκληρωμένα.** — Συνέχεια στο Session 159
 
 ### Φάση 1 — Foundation (Βήματα 1-3) ✅
 - `feature_flags.dart`: `groupChatEnabled = true`
@@ -295,13 +295,13 @@ Row με Spacer + chips → overflow 3.5px. Fix: `Row` → `Wrap`.
 - **Service classes**: Inline στο mixin αντί ξεχωριστά αρχεία
 
 ### Εκκρεμεί
-- **Φάση 8 (23-25):** Error handling edge cases, loading/empty states, animations & UX polish
+- **Φάση 8 (23-25):** ✅ Ολοκληρώθηκε στο Session 159
 - **Φάση 9 (26-31):** Deploy firestore rules, build APK, install, test, release
 
 ### Στατιστικά
 - **flutter analyze: 0 issues**
-- **22/31 βήματα (71%)**
-- **~30 νέα/τροποποιημένα αρχεία**
+- **25/31 βήματα (81%)** — Φάση 8 ✅
+- **~34 νέα/τροποποιημένα αρχεία**
 - Backups: `backups/2026-07-10_*`
 
 ### Αρχεία (νέα/τροποποιημένα)

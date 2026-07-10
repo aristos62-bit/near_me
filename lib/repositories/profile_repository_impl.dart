@@ -328,8 +328,12 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
       if (publicProfile.country != null && publicProfile.country!.isNotEmpty) {
         json['countryNormalized'] = publicProfile.country!.toLowerCase().trim();
       }
+      if (publicProfile.nickname != null && publicProfile.nickname!.isNotEmpty) {
+        json['nicknameLowercase'] = publicProfile.nickname!.toLowerCase().trim();
+      }
       DebugConfig.log(DebugConfig.firestoreWrite,
-          'publish JSON: city=${json['city']}, country=${json['country']}, '
+          'publish JSON: nicknameLowercase=${json['nicknameLowercase']}, '
+          'city=${json['city']}, country=${json['country']}, '
           'geoHash=${json['geoHash']}, isManualLocation=${json['isManualLocation']}, '
           'showPhotos=${privacy?.showPhotos}, showCity=${privacy?.showCity}, showCountry=${privacy?.showCountry}, '
           'avatarUrl=${json['avatarUrl'] != null ? "present (${json['avatarUrl'].toString().length} chars)" : "absent"}');

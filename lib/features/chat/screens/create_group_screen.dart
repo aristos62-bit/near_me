@@ -68,6 +68,10 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
       final lowerQuery = query.toLowerCase();
       final snap = await FirebaseFirestore.instance
           .collectionGroup('public')
+          .where('isVisible', isEqualTo: true)
+          .where('nicknameLowercase', isGreaterThanOrEqualTo: lowerQuery)
+          .where('nicknameLowercase', isLessThanOrEqualTo: '$lowerQuery\uf8ff')
+          .orderBy('nicknameLowercase')
           .limit(50)
           .get();
 

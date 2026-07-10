@@ -102,6 +102,10 @@ class _AddParticipantScreenState extends ConsumerState<AddParticipantScreen> {
       final currentUids = _participantUids.toSet();
       final snap = await FirebaseFirestore.instance
           .collectionGroup('public')
+          .where('isVisible', isEqualTo: true)
+          .where('nicknameLowercase', isGreaterThanOrEqualTo: lowerQuery)
+          .where('nicknameLowercase', isLessThanOrEqualTo: '$lowerQuery\uf8ff')
+          .orderBy('nicknameLowercase')
           .limit(50)
           .get();
 

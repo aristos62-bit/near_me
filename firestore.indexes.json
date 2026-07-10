@@ -78,6 +78,14 @@
       "queryScope": "COLLECTION_GROUP",
       "fields": [
         { "fieldPath": "isVisible", "order": "ASCENDING" },
+        { "fieldPath": "nicknameLowercase", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "public",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "isVisible", "order": "ASCENDING" },
         { "fieldPath": "interests", "order": "ASCENDING" }
       ]
     },

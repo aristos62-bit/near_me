@@ -31,7 +31,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -76,6 +76,14 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(savedSearchTable, savedSearchTable.onlineOnly);
         DebugConfig.log(DebugConfig.databaseLocal,
             'Migration v7->v8: added allowVideoCall, allowDirectChat, onlineOnly columns to savedSearchTable');
+      }
+      if (from < 9) {
+        await m.addColumn(chatCacheTable, chatCacheTable.isGroupChat);
+        await m.addColumn(chatCacheTable, chatCacheTable.participantCount);
+        await m.addColumn(chatCacheTable, chatCacheTable.participantUids);
+        await m.addColumn(chatCacheTable, chatCacheTable.groupName);
+        DebugConfig.log(DebugConfig.databaseLocal,
+            'Migration v8->v9: added group chat columns to ChatCacheTable');
       }
     },
   );

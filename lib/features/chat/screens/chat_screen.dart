@@ -32,14 +32,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    FcmService.activeChatId = widget.chatId;
+    FcmService.registerActiveChat(widget.chatId);
     DebugConfig.log(DebugConfig.uiInteraction,
         'ChatScreen init #$_instanceId: ${widget.chatId}');
   }
 
   @override
   void dispose() {
-    FcmService.activeChatId = null;
+    FcmService.unregisterActiveChat(widget.chatId);
     DebugConfig.log(DebugConfig.uiInteraction,
         'ChatScreen dispose #$_instanceId: ${widget.chatId}');
     super.dispose();

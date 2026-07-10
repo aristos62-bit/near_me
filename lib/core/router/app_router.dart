@@ -63,7 +63,9 @@ class AppRouter {
         final canComm = AuthRepository.canUserCommunicate(user);
         if (!canComm) {
           final isCommPath = location == '/chats' || location == '/requests' ||
-              location.startsWith('/chat/') || location.startsWith('/requests/');
+              location == '/groups' ||
+              location.startsWith('/chat/') || location.startsWith('/requests/') ||
+              location.startsWith('/groups/');
           if (isCommPath) {
             DebugConfig.log(DebugConfig.navigationRoute,
                 'Redirect: communication path blocked (canComm=$canComm)');
@@ -156,6 +158,40 @@ class AppRouter {
         final uid = state.pathParameters['uid']!;
         return _modal(SendRequestScreen(uid: uid));
       }),
+      // --- Group Chat Routes (Phase 7: replace Scaffold placeholders with real screens) ---
+      GoRoute(
+        path: '/groups',
+        pageBuilder: (context, state) =>
+            _slideUp(const Scaffold(body: Center(child: Text('Groups / GroupListScreen')))),
+      ),
+      GoRoute(
+        path: '/groups/create',
+        pageBuilder: (context, state) =>
+            _modal(const Scaffold(body: Center(child: Text('CreateGroupScreen')))),
+      ),
+      GoRoute(
+        path: '/groups/:chatId/info',
+        pageBuilder: (context, state) => _modal(Scaffold(
+          body: Center(child: Text('GroupInfoScreen: ${state.pathParameters['chatId']}')),
+        )),
+      ),
+      GoRoute(
+        path: '/groups/:chatId/invite',
+        pageBuilder: (context, state) => _modal(Scaffold(
+          body: Center(child: Text('GroupInviteScreen: ${state.pathParameters['chatId']}')),
+        )),
+      ),
+      GoRoute(
+        path: '/groups/:chatId',
+        pageBuilder: (context, state) => _slideUp(Scaffold(
+          body: Center(child: Text('GroupChatScreen: ${state.pathParameters['chatId']}')),
+        )),
+      ),
+      GoRoute(
+        path: '/groups/search',
+        pageBuilder: (context, state) =>
+            _slideUp(const Scaffold(body: Center(child: Text('GroupSearchScreen')))),
+      ),
     ],
   );
 

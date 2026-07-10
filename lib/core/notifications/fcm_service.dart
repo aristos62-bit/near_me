@@ -14,9 +14,19 @@ class FcmService {
 
   static bool get hasPendingNavigation => _pendingFcmPath != null;
 
-  /// Chat ID που βλέπει ο χρήστης αυτή τη στιγμή.
-  /// Ενημερώνεται από `ChatScreen.initState` / `dispose`.
-  static String? activeChatId;
+  /// Chat IDs που βλέπει ο χρήστης αυτή τη στιγμή (1-to-1 + group).
+  /// Ενημερώνονται από `ChatScreen.initState` / `dispose`.
+  static final Set<String> activeChatIds = {};
+
+  static void registerActiveChat(String chatId) {
+    activeChatIds.add(chatId);
+    DebugConfig.log(DebugConfig.chatFcm, 'registerActiveChat: $chatId (total=${activeChatIds.length})');
+  }
+
+  static void unregisterActiveChat(String chatId) {
+    activeChatIds.remove(chatId);
+    DebugConfig.log(DebugConfig.chatFcm, 'unregisterActiveChat: $chatId (total=${activeChatIds.length})');
+  }
 
   static final _foregroundCtrl = StreamController<RemoteMessage>.broadcast();
   static Stream<RemoteMessage> get foregroundStream => _foregroundCtrl.stream;
@@ -185,11 +195,11 @@ class FcmService {
       return false;
     }
 
-    final inChat = chatId == activeChatId;
+    final inChat = activeChatIds.contains(chatId);
 
     DebugConfig.log(DebugConfig.chatFcm, inChat
         ? 'suppressed: user in chat $chatId'
-        : 'showing: user at "$activeChatId", not chat $chatId');
+        : 'showing: activeChats=$activeChatIds, not chat $chatId');
 
     return inChat;
   }

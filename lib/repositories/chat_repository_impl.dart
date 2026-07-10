@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:uuid/uuid.dart';
 import 'package:drift/drift.dart';
 import '../data/local/database.dart';
 import '../data/local/database_service.dart';
@@ -9,11 +11,17 @@ import 'chat_repository.dart';
 import '../core/debug/debug_config.dart';
 import '../core/utils/app_exception.dart';
 import '../core/utils/encryption_utils.dart';
+import '../shared/utils/mention_utils.dart';
 
-class ChatRepositoryImpl implements ChatRepository {
-  final FirebaseFirestore _firestore;
-  final FirebaseAuth _auth;
-  final AppDatabase _db;
+part 'group_chat_mixin.dart';
+
+class ChatRepositoryImpl with GroupChatMixin implements ChatRepository {
+  @override
+  final FirebaseFirestore firestore;
+  @override
+  final FirebaseAuth auth;
+  @override
+  final AppDatabase db;
 
   // Cache αποκρυπτογραφημένων messages — αποφυγή re-decrypt σε κάθε Firestore snapshot
   final Map<String, Map<String, String>> _messageEncryptCache = {};
@@ -23,13 +31,13 @@ class ChatRepositoryImpl implements ChatRepository {
     FirebaseFirestore? firestore,
     FirebaseAuth? auth,
     AppDatabase? db,
-  })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance,
-        _db = db ?? DatabaseService.instance;
+  })  : firestore = firestore ?? FirebaseFirestore.instance,
+        auth = auth ?? FirebaseAuth.instance,
+        db = db ?? DatabaseService.instance;
 
   @override
   Future<String> createChat(String otherUid) async {
-    final user = _auth.currentUser;
+    final user = auth.currentUser;
     if (user == null) throw AppException.auth('create_chat', 'Δεν υπάρχει συνδεδεμένος χρήστης / No authenticated user');
     if (!AuthRepository.canUserCommunicate(user)) {
       DebugConfig.log(DebugConfig.authGuard, 'createChat: blocked unverified user');
@@ -39,7 +47,7 @@ class ChatRepositoryImpl implements ChatRepository {
     final uid = user.uid;
 
     try {
-      final blockedDoc = await _firestore
+      final blockedDoc = await firestore
           .collection('users').doc(otherUid).collection('blocked').doc(uid)
           .get();
       if (blockedDoc.exists) {
@@ -60,16 +68,16 @@ class ChatRepositoryImpl implements ChatRepository {
       return existing;
     }
 
-    final myProfile = await _firestore
+    final myProfile = await firestore
         .collection('users').doc(uid).collection('public').doc('profile').get();
     final myNickname = myProfile.data()?['nickname'] as String? ?? uid;
-    final otherProfile = await _firestore
+    final otherProfile = await firestore
         .collection('users').doc(otherUid).collection('public').doc('profile').get();
     final otherNickname = otherProfile.data()?['nickname'] as String? ?? otherUid;
 
-    final chatId = _firestore.collection('chats').doc().id;
+    final chatId = firestore.collection('chats').doc().id;
     final key = EncryptionUtils.deriveKey(chatId);
-    await _firestore.collection('chats').doc(chatId).set({
+    await firestore.collection('chats').doc(chatId).set({
       'participants': [uid, otherUid],
       'participantNicknames': {uid: myNickname, otherUid: otherNickname},
       'createdAt': FieldValue.serverTimestamp(),
@@ -79,14 +87,14 @@ class ChatRepositoryImpl implements ChatRepository {
 
     await EncryptionUtils.storeKey(chatId, key);
     // Chat cache γίνεται από το Firestore listener (streamChats → _syncChatFromFirestore)
-    await _logConsent(uid, otherUid);
+    await logConsent(uid, otherUid);
 
     return chatId;
   }
 
   Future<String?> _findExistingChat(String uid1, String uid2) async {
     try {
-      final snapshot = await _firestore
+      final snapshot = await firestore
           .collection('chats')
           .where('participants', arrayContains: uid1)
           .get();
@@ -105,7 +113,7 @@ class ChatRepositoryImpl implements ChatRepository {
 
   @override
   Future<void> sendMessage(String chatId, String content) async {
-    final user = _auth.currentUser;
+    final user = auth.currentUser;
     if (user == null) throw AppException.auth('send_message', 'Δεν υπάρχει συνδεδεμένος χρήστης / No authenticated user');
     if (!AuthRepository.canUserCommunicate(user)) {
       DebugConfig.log(DebugConfig.authGuard, 'sendMessage: blocked unverified user');
@@ -114,15 +122,29 @@ class ChatRepositoryImpl implements ChatRepository {
 
     DebugConfig.log(DebugConfig.repositoryCall, 'sendMessage: chat=$chatId');
 
+    List<String>? validMentions;
     try {
-      final chatDoc = await _firestore.collection('chats').doc(chatId).get();
+      final chatDoc = await firestore.collection('chats').doc(chatId).get();
       if (!chatDoc.exists) {
         throw AppException.firestore('send_message', 'Η συνομιλία δεν βρέθηκε / Chat not found');
       }
-      final participants = List<String>.from(chatDoc.data()?['participants'] ?? []);
+      final data = chatDoc.data()!;
+      final participants = List<String>.from(data['participants'] ?? []);
+      final isGroupChat = data['isGroupChat'] == true;
+
+      if (isGroupChat) {
+        final nicknames = Map<String, String>.from(data['participantNicknames'] ?? {});
+        final uids = MentionService.extractMentions(content, nicknames);
+        validMentions = MentionService.validateParticipants(uids, participants);
+        if (validMentions.isNotEmpty) {
+          DebugConfig.log(DebugConfig.repositoryCall,
+              'sendMessage: extracted ${validMentions.length} mentions chat=$chatId');
+        }
+      }
+
       final otherUid = participants.where((p) => p != user.uid).firstOrNull;
       if (otherUid != null) {
-        final blockedDoc = await _firestore
+        final blockedDoc = await firestore
             .collection('users').doc(otherUid).collection('blocked').doc(user.uid)
             .get();
         if (blockedDoc.exists) {
@@ -141,18 +163,22 @@ class ChatRepositoryImpl implements ChatRepository {
     try {
       final encrypted = EncryptionUtils.encryptMessage(key, content);
 
-      final msgRef = _firestore
+      final msgRef = firestore
           .collection('chats').doc(chatId).collection('messages').doc();
-      final chatRef = _firestore.collection('chats').doc(chatId);
-      final batch = _firestore.batch();
+      final chatRef = firestore.collection('chats').doc(chatId);
+      final batch = firestore.batch();
 
-      batch.set(msgRef, {
+      final msgData = <String, dynamic>{
         'senderId': user.uid,
         'content': encrypted,
         'type': 'text',
         'timestamp': FieldValue.serverTimestamp(),
         'isRead': false,
-      });
+      };
+      if (validMentions != null && validMentions.isNotEmpty) {
+        msgData['mentions'] = validMentions;
+      }
+      batch.set(msgRef, msgData);
       batch.update(chatRef, {
         'lastMessageAt': FieldValue.serverTimestamp(),
         'lastMessageBy': user.uid,
@@ -163,7 +189,7 @@ class ChatRepositoryImpl implements ChatRepository {
 
       DebugConfig.log(DebugConfig.repositoryResult, 'sendMessage: success chat=$chatId');
 
-      await _updateChatCache(chatId, hasUnread: false);
+      await updateChatCache(chatId, hasUnread: false);
     } catch (e) {
       DebugConfig.error('sendMessage failed', data: e);
       throw AppException.firestore('send_message', 'Αποτυχία αποστολής μηνύματος / Failed to send message');
@@ -172,14 +198,14 @@ class ChatRepositoryImpl implements ChatRepository {
 
   @override
   Future<List<ChatCacheTableData>> getChats() async {
-    final uid = _auth.currentUser?.uid;
+    final uid = auth.currentUser?.uid;
     if (uid == null) {
       DebugConfig.warn('getChats: no authenticated user');
       return [];
     }
     DebugConfig.log(DebugConfig.repositoryCall, 'getChats: uid=$uid');
     try {
-      final chats = await (_db.select(_db.chatCacheTable)
+      final chats = await (db.select(db.chatCacheTable)
         ..where((t) => t.ownerUid.equals(uid))
         ..orderBy([(t) => OrderingTerm.desc(t.lastMessageAt)])
       ).get();
@@ -195,7 +221,7 @@ class ChatRepositoryImpl implements ChatRepository {
   Stream<List<Map<String, dynamic>>> messagesStream(String chatId) {
     DebugConfig.log(DebugConfig.chatStream, 'messagesStream: starting listener chat=$chatId');
 
-    final stream = _firestore
+    final stream = firestore
         .collection('chats').doc(chatId).collection('messages')
         .orderBy('timestamp', descending: false)
         .snapshots()
@@ -255,13 +281,26 @@ class ChatRepositoryImpl implements ChatRepository {
 
   @override
   Future<void> markAsRead(String chatId) async {
-    final user = _auth.currentUser;
+    final user = auth.currentUser;
     if (user == null) return;
 
     DebugConfig.log(DebugConfig.repositoryCall, 'markAsRead: chat=$chatId');
 
     try {
-      final unread = await _firestore
+      final chatDoc = await firestore.collection('chats').doc(chatId).get();
+      if (!chatDoc.exists) return;
+      final isGroup = chatDoc.data()?['isGroupChat'] == true;
+
+      if (isGroup) {
+        await firestore.collection('chats').doc(chatId).update({
+          'lastReadTimestamps.${user.uid}': FieldValue.serverTimestamp(),
+        });
+        await (db.update(db.chatCacheTable)..where((t) => t.chatId.equals(chatId)))
+            .write(const ChatCacheTableCompanion(hasUnread: Value(false), unreadCount: Value(0)));
+        return;
+      }
+
+      final unread = await firestore
           .collection('chats').doc(chatId).collection('messages')
           .where('isRead', isEqualTo: false)
           .get();
@@ -272,14 +311,14 @@ class ChatRepositoryImpl implements ChatRepository {
         DebugConfig.log(DebugConfig.repositoryResult, 'markAsRead: no unread messages chat=$chatId');
         return;
       }
-      final batch = _firestore.batch();
+      final batch = firestore.batch();
       for (final doc in docs) {
         batch.update(doc.reference, {'isRead': true});
       }
       await batch.commit();
       DebugConfig.log(DebugConfig.repositoryResult, 'markAsRead: marked ${docs.length} messages chat=$chatId');
 
-      await (_db.update(_db.chatCacheTable)..where((t) => t.chatId.equals(chatId)))
+      await (db.update(db.chatCacheTable)..where((t) => t.chatId.equals(chatId)))
           .write(const ChatCacheTableCompanion(hasUnread: Value(false), unreadCount: Value(0)));
       DebugConfig.log(DebugConfig.databaseLocal, 'markAsRead: cache updated chat=$chatId');
     } catch (e) {
@@ -288,21 +327,21 @@ class ChatRepositoryImpl implements ChatRepository {
     }
   }
 
-  Future<void> _updateChatCache(String chatId, {DateTime? lastMessageAt, bool? hasUnread, String? otherNickname, String? otherAvatarUrl, String? lastMessage, String? lastMessageSender, String? lastMessageType, int? unreadCount}) async {
+  Future<void> updateChatCache(String chatId, {DateTime? lastMessageAt, bool? hasUnread, String? otherNickname, String? otherAvatarUrl, String? lastMessage, String? lastMessageSender, String? lastMessageType, int? unreadCount}) async {
     try {
-      var rows = await (_db.select(_db.chatCacheTable)
+      var rows = await (db.select(db.chatCacheTable)
         ..where((t) => t.chatId.equals(chatId))
       ).get();
 
       if (rows.length > 1) {
-        await (_db.delete(_db.chatCacheTable)..where((t) => t.chatId.equals(chatId))).go();
-        DebugConfig.log(DebugConfig.databaseLocal, '_updateChatCache: cleaned ${rows.length} duplicates chatId=$chatId');
+        await (db.delete(db.chatCacheTable)..where((t) => t.chatId.equals(chatId))).go();
+        DebugConfig.log(DebugConfig.databaseLocal, 'updateChatCache: cleaned ${rows.length} duplicates chatId=$chatId');
         rows = [];
       }
 
       if (rows.isEmpty) return;
 
-      await (_db.update(_db.chatCacheTable)..where((t) => t.chatId.equals(chatId)))
+      await (db.update(db.chatCacheTable)..where((t) => t.chatId.equals(chatId)))
           .write(ChatCacheTableCompanion(
             lastMessageAt: lastMessageAt != null ? Value(lastMessageAt) : Value.absent(),
             hasUnread: hasUnread != null ? Value(hasUnread) : Value.absent(),
@@ -314,16 +353,21 @@ class ChatRepositoryImpl implements ChatRepository {
             unreadCount: unreadCount != null ? Value(unreadCount) : Value.absent(),
           ));
     } catch (e) {
-      DebugConfig.warn('_updateChatCache failed for $chatId', data: e);
+      DebugConfig.warn('updateChatCache failed for $chatId', data: e);
     }
   }
 
   Future<void> _syncChatFromFirestore(String chatId, Map<String, dynamic> data) async {
     try {
-      final uid = _auth.currentUser?.uid;
+      final uid = auth.currentUser?.uid;
       if (uid == null) return;
 
       final participants = List<String>.from(data['participants'] ?? []);
+      final isGroupChat = data['isGroupChat'] == true;
+      if (isGroupChat) {
+        await _syncGroupChatToCache(chatId, data);
+        return;
+      }
       final otherUid = participants.where((p) => p != uid).firstOrNull;
       if (otherUid == null) return;
 
@@ -336,7 +380,7 @@ class ChatRepositoryImpl implements ChatRepository {
 
       String? otherAvatarUrl;
       try {
-        final otherProfile = await _firestore
+        final otherProfile = await firestore
             .collection('users').doc(otherUid).collection('public').doc('profile').get();
         otherAvatarUrl = otherProfile.data()?['avatarUrl'] as String?;
       } catch (_) {}
@@ -357,12 +401,12 @@ class ChatRepositoryImpl implements ChatRepository {
           ? (lastMessageBy == uid ? 'me' : 'other')
           : null;
 
-      var rows = await (_db.select(_db.chatCacheTable)
+      var rows = await (db.select(db.chatCacheTable)
         ..where((t) => t.chatId.equals(chatId))
       ).get();
 
       if (rows.length > 1) {
-        await (_db.delete(_db.chatCacheTable)..where((t) => t.chatId.equals(chatId))).go();
+        await (db.delete(db.chatCacheTable)..where((t) => t.chatId.equals(chatId))).go();
         DebugConfig.log(DebugConfig.databaseLocal, '_syncChatFromFirestore: cleaned ${rows.length} duplicates chatId=$chatId');
         rows = [];
       }
@@ -374,7 +418,7 @@ class ChatRepositoryImpl implements ChatRepository {
                 lastMessageAt.isAfter(rows.first.lastMessageAt!));
         if (isNewMessage) {
           try {
-            final count = await _firestore
+            final count = await firestore
                 .collection('chats').doc(chatId).collection('messages')
                 .where('senderId', isNotEqualTo: uid)
                 .where('isRead', isEqualTo: false)
@@ -392,7 +436,7 @@ class ChatRepositoryImpl implements ChatRepository {
 
       if (rows.isNotEmpty) {
         final existing = rows.first;
-        await (_db.update(_db.chatCacheTable)..where((t) => t.chatId.equals(chatId)))
+        await (db.update(db.chatCacheTable)..where((t) => t.chatId.equals(chatId)))
             .write(ChatCacheTableCompanion(
               lastMessageAt: Value(lastMessageAt ?? existing.lastMessageAt),
               otherNickname: Value(otherNickname),
@@ -404,7 +448,7 @@ class ChatRepositoryImpl implements ChatRepository {
               unreadCount: Value(unreadCount),
             ));
       } else {
-        await _db.into(_db.chatCacheTable).insert(
+        await db.into(db.chatCacheTable).insert(
           ChatCacheTableCompanion.insert(
             chatId: Value(chatId),
             ownerUid: Value(uid),
@@ -433,11 +477,11 @@ class ChatRepositoryImpl implements ChatRepository {
       yield [];
       return;
     }
-    final user = _auth.currentUser;
+    final user = auth.currentUser;
     if (user == null || !AuthRepository.canUserCommunicate(user)) {
       final reason = user == null ? 'null user' : 'unverified user';
       DebugConfig.log(DebugConfig.authGuard, 'streamChats: blocked ($reason)');
-      await (_db.delete(_db.chatCacheTable)).go();
+      await (db.delete(db.chatCacheTable)).go();
       yield [];
       return;
     }
@@ -447,7 +491,7 @@ class ChatRepositoryImpl implements ChatRepository {
 
     StreamSubscription<QuerySnapshot>? firestoreSub;
     try {
-      firestoreSub = _firestore
+      firestoreSub = firestore
           .collection('chats')
           .where('participants', arrayContains: uid)
           .snapshots()
@@ -460,7 +504,7 @@ class ChatRepositoryImpl implements ChatRepository {
               await _syncChatFromFirestore(change.doc.id, change.doc.data() as Map<String, dynamic>);
               changed = true;
             } else if (change.type == DocumentChangeType.removed) {
-              await _removeChatCache(change.doc.id);
+              await removeChatCache(change.doc.id);
               changed = true;
             }
           }
@@ -473,7 +517,7 @@ class ChatRepositoryImpl implements ChatRepository {
         },
       );
 
-      await for (final rows in (_db.select(_db.chatCacheTable)
+      await for (final rows in (db.select(db.chatCacheTable)
         ..where((t) => t.ownerUid.equals(uid))
         ..orderBy([(t) => OrderingTerm.desc(t.lastMessageAt)])
       ).watch()) {
@@ -487,24 +531,24 @@ class ChatRepositoryImpl implements ChatRepository {
 
   @override
   Future<void> deleteChat(String chatId) async {
-    final user = _auth.currentUser;
+    final user = auth.currentUser;
     if (user == null) throw AppException.auth('delete_chat', 'Δεν υπάρχει συνδεδεμένος χρήστης / No authenticated user');
 
     DebugConfig.log(DebugConfig.repositoryCall, 'deleteChat: deleting chat=$chatId');
 
     try {
-      final messages = await _firestore
+      final messages = await firestore
           .collection('chats').doc(chatId).collection('messages')
           .get();
 
-      final batch = _firestore.batch();
+      final batch = firestore.batch();
       for (final doc in messages.docs) {
         batch.delete(doc.reference);
       }
-      batch.delete(_firestore.collection('chats').doc(chatId));
+      batch.delete(firestore.collection('chats').doc(chatId));
       await batch.commit();
 
-      await (_db.delete(_db.chatCacheTable)..where((t) => t.chatId.equals(chatId))).go();
+      await (db.delete(db.chatCacheTable)..where((t) => t.chatId.equals(chatId))).go();
       await EncryptionUtils.deleteKey(chatId);
       _messageEncryptCache.remove(chatId);
       _messageDecryptCache.remove(chatId);
@@ -512,7 +556,7 @@ class ChatRepositoryImpl implements ChatRepository {
       DebugConfig.log(DebugConfig.repositoryResult, 'deleteChat: done chat=$chatId');
     } catch (e) {
       DebugConfig.warn('deleteChat failed, cleaning local cache', data: e);
-      await (_db.delete(_db.chatCacheTable)..where((t) => t.chatId.equals(chatId))).go();
+      await (db.delete(db.chatCacheTable)..where((t) => t.chatId.equals(chatId))).go();
       await EncryptionUtils.deleteKey(chatId);
       _messageEncryptCache.remove(chatId);
       _messageDecryptCache.remove(chatId);
@@ -522,17 +566,17 @@ class ChatRepositoryImpl implements ChatRepository {
 
   @override
   Future<void> clearMessages(String chatId) async {
-    final user = _auth.currentUser;
+    final user = auth.currentUser;
     if (user == null) throw AppException.auth('clear_messages', 'Δεν υπάρχει συνδεδεμένος χρήστης / No authenticated user');
 
     DebugConfig.log(DebugConfig.repositoryCall, 'clearMessages: clearing messages chat=$chatId');
 
     try {
-      final messages = await _firestore
+      final messages = await firestore
           .collection('chats').doc(chatId).collection('messages')
           .get();
 
-      final batch = _firestore.batch();
+      final batch = firestore.batch();
       for (final doc in messages.docs) {
         batch.delete(doc.reference);
       }
@@ -547,18 +591,19 @@ class ChatRepositoryImpl implements ChatRepository {
     }
   }
 
-  Future<void> _removeChatCache(String chatId) async {
+  @override
+  Future<void> removeChatCache(String chatId) async {
     try {
-      await (_db.delete(_db.chatCacheTable)..where((t) => t.chatId.equals(chatId))).go();
+      await (db.delete(db.chatCacheTable)..where((t) => t.chatId.equals(chatId))).go();
       DebugConfig.log(DebugConfig.databaseLocal, 'removeChatCache: removed chat=$chatId');
     } catch (e) {
       DebugConfig.warn('removeChatCache failed for $chatId', data: e);
     }
   }
 
-  Future<void> _logConsent(String uid, String otherUid) async {
+  Future<void> logConsent(String uid, String otherUid) async {
     try {
-      await _db.into(_db.consentLogTable).insert(
+      await db.into(db.consentLogTable).insert(
         ConsentLogTableCompanion.insert(
           uid: Value(uid),
           action: Value('sent_request'),

@@ -2968,6 +2968,55 @@ class $ChatCacheTableTable extends ChatCacheTable
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _isGroupChatMeta = const VerificationMeta(
+    'isGroupChat',
+  );
+  @override
+  late final GeneratedColumn<bool> isGroupChat = GeneratedColumn<bool>(
+    'is_group_chat',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_group_chat" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _participantCountMeta = const VerificationMeta(
+    'participantCount',
+  );
+  @override
+  late final GeneratedColumn<int> participantCount = GeneratedColumn<int>(
+    'participant_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(2),
+  );
+  static const VerificationMeta _participantUidsMeta = const VerificationMeta(
+    'participantUids',
+  );
+  @override
+  late final GeneratedColumn<String> participantUids = GeneratedColumn<String>(
+    'participant_uids',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _groupNameMeta = const VerificationMeta(
+    'groupName',
+  );
+  @override
+  late final GeneratedColumn<String> groupName = GeneratedColumn<String>(
+    'group_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -2982,6 +3031,10 @@ class $ChatCacheTableTable extends ChatCacheTable
     lastMessageType,
     unreadCount,
     hasUnread,
+    isGroupChat,
+    participantCount,
+    participantUids,
+    groupName,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3085,6 +3138,39 @@ class $ChatCacheTableTable extends ChatCacheTable
         hasUnread.isAcceptableOrUnknown(data['has_unread']!, _hasUnreadMeta),
       );
     }
+    if (data.containsKey('is_group_chat')) {
+      context.handle(
+        _isGroupChatMeta,
+        isGroupChat.isAcceptableOrUnknown(
+          data['is_group_chat']!,
+          _isGroupChatMeta,
+        ),
+      );
+    }
+    if (data.containsKey('participant_count')) {
+      context.handle(
+        _participantCountMeta,
+        participantCount.isAcceptableOrUnknown(
+          data['participant_count']!,
+          _participantCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('participant_uids')) {
+      context.handle(
+        _participantUidsMeta,
+        participantUids.isAcceptableOrUnknown(
+          data['participant_uids']!,
+          _participantUidsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('group_name')) {
+      context.handle(
+        _groupNameMeta,
+        groupName.isAcceptableOrUnknown(data['group_name']!, _groupNameMeta),
+      );
+    }
     return context;
   }
 
@@ -3142,6 +3228,22 @@ class $ChatCacheTableTable extends ChatCacheTable
         DriftSqlType.bool,
         data['${effectivePrefix}has_unread'],
       )!,
+      isGroupChat: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_group_chat'],
+      )!,
+      participantCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}participant_count'],
+      )!,
+      participantUids: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}participant_uids'],
+      ),
+      groupName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}group_name'],
+      ),
     );
   }
 
@@ -3171,6 +3273,12 @@ class ChatCacheTableData extends DataClass
   final String? lastMessageType;
   final int unreadCount;
   final bool hasUnread;
+
+  /// Group chat flags (schema v9)
+  final bool isGroupChat;
+  final int participantCount;
+  final String? participantUids;
+  final String? groupName;
   const ChatCacheTableData({
     required this.id,
     this.ownerUid,
@@ -3184,6 +3292,10 @@ class ChatCacheTableData extends DataClass
     this.lastMessageType,
     required this.unreadCount,
     required this.hasUnread,
+    required this.isGroupChat,
+    required this.participantCount,
+    this.participantUids,
+    this.groupName,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -3218,6 +3330,14 @@ class ChatCacheTableData extends DataClass
     }
     map['unread_count'] = Variable<int>(unreadCount);
     map['has_unread'] = Variable<bool>(hasUnread);
+    map['is_group_chat'] = Variable<bool>(isGroupChat);
+    map['participant_count'] = Variable<int>(participantCount);
+    if (!nullToAbsent || participantUids != null) {
+      map['participant_uids'] = Variable<String>(participantUids);
+    }
+    if (!nullToAbsent || groupName != null) {
+      map['group_name'] = Variable<String>(groupName);
+    }
     return map;
   }
 
@@ -3253,6 +3373,14 @@ class ChatCacheTableData extends DataClass
           : Value(lastMessageType),
       unreadCount: Value(unreadCount),
       hasUnread: Value(hasUnread),
+      isGroupChat: Value(isGroupChat),
+      participantCount: Value(participantCount),
+      participantUids: participantUids == null && nullToAbsent
+          ? const Value.absent()
+          : Value(participantUids),
+      groupName: groupName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(groupName),
     );
   }
 
@@ -3276,6 +3404,10 @@ class ChatCacheTableData extends DataClass
       lastMessageType: serializer.fromJson<String?>(json['lastMessageType']),
       unreadCount: serializer.fromJson<int>(json['unreadCount']),
       hasUnread: serializer.fromJson<bool>(json['hasUnread']),
+      isGroupChat: serializer.fromJson<bool>(json['isGroupChat']),
+      participantCount: serializer.fromJson<int>(json['participantCount']),
+      participantUids: serializer.fromJson<String?>(json['participantUids']),
+      groupName: serializer.fromJson<String?>(json['groupName']),
     );
   }
   @override
@@ -3294,6 +3426,10 @@ class ChatCacheTableData extends DataClass
       'lastMessageType': serializer.toJson<String?>(lastMessageType),
       'unreadCount': serializer.toJson<int>(unreadCount),
       'hasUnread': serializer.toJson<bool>(hasUnread),
+      'isGroupChat': serializer.toJson<bool>(isGroupChat),
+      'participantCount': serializer.toJson<int>(participantCount),
+      'participantUids': serializer.toJson<String?>(participantUids),
+      'groupName': serializer.toJson<String?>(groupName),
     };
   }
 
@@ -3310,6 +3446,10 @@ class ChatCacheTableData extends DataClass
     Value<String?> lastMessageType = const Value.absent(),
     int? unreadCount,
     bool? hasUnread,
+    bool? isGroupChat,
+    int? participantCount,
+    Value<String?> participantUids = const Value.absent(),
+    Value<String?> groupName = const Value.absent(),
   }) => ChatCacheTableData(
     id: id ?? this.id,
     ownerUid: ownerUid.present ? ownerUid.value : this.ownerUid,
@@ -3333,6 +3473,12 @@ class ChatCacheTableData extends DataClass
         : this.lastMessageType,
     unreadCount: unreadCount ?? this.unreadCount,
     hasUnread: hasUnread ?? this.hasUnread,
+    isGroupChat: isGroupChat ?? this.isGroupChat,
+    participantCount: participantCount ?? this.participantCount,
+    participantUids: participantUids.present
+        ? participantUids.value
+        : this.participantUids,
+    groupName: groupName.present ? groupName.value : this.groupName,
   );
   ChatCacheTableData copyWithCompanion(ChatCacheTableCompanion data) {
     return ChatCacheTableData(
@@ -3362,6 +3508,16 @@ class ChatCacheTableData extends DataClass
           ? data.unreadCount.value
           : this.unreadCount,
       hasUnread: data.hasUnread.present ? data.hasUnread.value : this.hasUnread,
+      isGroupChat: data.isGroupChat.present
+          ? data.isGroupChat.value
+          : this.isGroupChat,
+      participantCount: data.participantCount.present
+          ? data.participantCount.value
+          : this.participantCount,
+      participantUids: data.participantUids.present
+          ? data.participantUids.value
+          : this.participantUids,
+      groupName: data.groupName.present ? data.groupName.value : this.groupName,
     );
   }
 
@@ -3379,7 +3535,11 @@ class ChatCacheTableData extends DataClass
           ..write('lastMessageSender: $lastMessageSender, ')
           ..write('lastMessageType: $lastMessageType, ')
           ..write('unreadCount: $unreadCount, ')
-          ..write('hasUnread: $hasUnread')
+          ..write('hasUnread: $hasUnread, ')
+          ..write('isGroupChat: $isGroupChat, ')
+          ..write('participantCount: $participantCount, ')
+          ..write('participantUids: $participantUids, ')
+          ..write('groupName: $groupName')
           ..write(')'))
         .toString();
   }
@@ -3398,6 +3558,10 @@ class ChatCacheTableData extends DataClass
     lastMessageType,
     unreadCount,
     hasUnread,
+    isGroupChat,
+    participantCount,
+    participantUids,
+    groupName,
   );
   @override
   bool operator ==(Object other) =>
@@ -3414,7 +3578,11 @@ class ChatCacheTableData extends DataClass
           other.lastMessageSender == this.lastMessageSender &&
           other.lastMessageType == this.lastMessageType &&
           other.unreadCount == this.unreadCount &&
-          other.hasUnread == this.hasUnread);
+          other.hasUnread == this.hasUnread &&
+          other.isGroupChat == this.isGroupChat &&
+          other.participantCount == this.participantCount &&
+          other.participantUids == this.participantUids &&
+          other.groupName == this.groupName);
 }
 
 class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
@@ -3430,6 +3598,10 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
   final Value<String?> lastMessageType;
   final Value<int> unreadCount;
   final Value<bool> hasUnread;
+  final Value<bool> isGroupChat;
+  final Value<int> participantCount;
+  final Value<String?> participantUids;
+  final Value<String?> groupName;
   const ChatCacheTableCompanion({
     this.id = const Value.absent(),
     this.ownerUid = const Value.absent(),
@@ -3443,6 +3615,10 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
     this.lastMessageType = const Value.absent(),
     this.unreadCount = const Value.absent(),
     this.hasUnread = const Value.absent(),
+    this.isGroupChat = const Value.absent(),
+    this.participantCount = const Value.absent(),
+    this.participantUids = const Value.absent(),
+    this.groupName = const Value.absent(),
   });
   ChatCacheTableCompanion.insert({
     this.id = const Value.absent(),
@@ -3457,6 +3633,10 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
     this.lastMessageType = const Value.absent(),
     this.unreadCount = const Value.absent(),
     this.hasUnread = const Value.absent(),
+    this.isGroupChat = const Value.absent(),
+    this.participantCount = const Value.absent(),
+    this.participantUids = const Value.absent(),
+    this.groupName = const Value.absent(),
   });
   static Insertable<ChatCacheTableData> custom({
     Expression<int>? id,
@@ -3471,6 +3651,10 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
     Expression<String>? lastMessageType,
     Expression<int>? unreadCount,
     Expression<bool>? hasUnread,
+    Expression<bool>? isGroupChat,
+    Expression<int>? participantCount,
+    Expression<String>? participantUids,
+    Expression<String>? groupName,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -3485,6 +3669,10 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
       if (lastMessageType != null) 'last_message_type': lastMessageType,
       if (unreadCount != null) 'unread_count': unreadCount,
       if (hasUnread != null) 'has_unread': hasUnread,
+      if (isGroupChat != null) 'is_group_chat': isGroupChat,
+      if (participantCount != null) 'participant_count': participantCount,
+      if (participantUids != null) 'participant_uids': participantUids,
+      if (groupName != null) 'group_name': groupName,
     });
   }
 
@@ -3501,6 +3689,10 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
     Value<String?>? lastMessageType,
     Value<int>? unreadCount,
     Value<bool>? hasUnread,
+    Value<bool>? isGroupChat,
+    Value<int>? participantCount,
+    Value<String?>? participantUids,
+    Value<String?>? groupName,
   }) {
     return ChatCacheTableCompanion(
       id: id ?? this.id,
@@ -3515,6 +3707,10 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
       lastMessageType: lastMessageType ?? this.lastMessageType,
       unreadCount: unreadCount ?? this.unreadCount,
       hasUnread: hasUnread ?? this.hasUnread,
+      isGroupChat: isGroupChat ?? this.isGroupChat,
+      participantCount: participantCount ?? this.participantCount,
+      participantUids: participantUids ?? this.participantUids,
+      groupName: groupName ?? this.groupName,
     );
   }
 
@@ -3557,6 +3753,18 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
     if (hasUnread.present) {
       map['has_unread'] = Variable<bool>(hasUnread.value);
     }
+    if (isGroupChat.present) {
+      map['is_group_chat'] = Variable<bool>(isGroupChat.value);
+    }
+    if (participantCount.present) {
+      map['participant_count'] = Variable<int>(participantCount.value);
+    }
+    if (participantUids.present) {
+      map['participant_uids'] = Variable<String>(participantUids.value);
+    }
+    if (groupName.present) {
+      map['group_name'] = Variable<String>(groupName.value);
+    }
     return map;
   }
 
@@ -3574,7 +3782,11 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
           ..write('lastMessageSender: $lastMessageSender, ')
           ..write('lastMessageType: $lastMessageType, ')
           ..write('unreadCount: $unreadCount, ')
-          ..write('hasUnread: $hasUnread')
+          ..write('hasUnread: $hasUnread, ')
+          ..write('isGroupChat: $isGroupChat, ')
+          ..write('participantCount: $participantCount, ')
+          ..write('participantUids: $participantUids, ')
+          ..write('groupName: $groupName')
           ..write(')'))
         .toString();
   }
@@ -6697,6 +6909,10 @@ typedef $$ChatCacheTableTableCreateCompanionBuilder =
       Value<String?> lastMessageType,
       Value<int> unreadCount,
       Value<bool> hasUnread,
+      Value<bool> isGroupChat,
+      Value<int> participantCount,
+      Value<String?> participantUids,
+      Value<String?> groupName,
     });
 typedef $$ChatCacheTableTableUpdateCompanionBuilder =
     ChatCacheTableCompanion Function({
@@ -6712,6 +6928,10 @@ typedef $$ChatCacheTableTableUpdateCompanionBuilder =
       Value<String?> lastMessageType,
       Value<int> unreadCount,
       Value<bool> hasUnread,
+      Value<bool> isGroupChat,
+      Value<int> participantCount,
+      Value<String?> participantUids,
+      Value<String?> groupName,
     });
 
 class $$ChatCacheTableTableFilterComposer
@@ -6780,6 +7000,26 @@ class $$ChatCacheTableTableFilterComposer
 
   ColumnFilters<bool> get hasUnread => $composableBuilder(
     column: $table.hasUnread,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isGroupChat => $composableBuilder(
+    column: $table.isGroupChat,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get participantCount => $composableBuilder(
+    column: $table.participantCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get participantUids => $composableBuilder(
+    column: $table.participantUids,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get groupName => $composableBuilder(
+    column: $table.groupName,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -6852,6 +7092,26 @@ class $$ChatCacheTableTableOrderingComposer
     column: $table.hasUnread,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get isGroupChat => $composableBuilder(
+    column: $table.isGroupChat,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get participantCount => $composableBuilder(
+    column: $table.participantCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get participantUids => $composableBuilder(
+    column: $table.participantUids,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get groupName => $composableBuilder(
+    column: $table.groupName,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ChatCacheTableTableAnnotationComposer
@@ -6912,6 +7172,24 @@ class $$ChatCacheTableTableAnnotationComposer
 
   GeneratedColumn<bool> get hasUnread =>
       $composableBuilder(column: $table.hasUnread, builder: (column) => column);
+
+  GeneratedColumn<bool> get isGroupChat => $composableBuilder(
+    column: $table.isGroupChat,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get participantCount => $composableBuilder(
+    column: $table.participantCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get participantUids => $composableBuilder(
+    column: $table.participantUids,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get groupName =>
+      $composableBuilder(column: $table.groupName, builder: (column) => column);
 }
 
 class $$ChatCacheTableTableTableManager
@@ -6963,6 +7241,10 @@ class $$ChatCacheTableTableTableManager
                 Value<String?> lastMessageType = const Value.absent(),
                 Value<int> unreadCount = const Value.absent(),
                 Value<bool> hasUnread = const Value.absent(),
+                Value<bool> isGroupChat = const Value.absent(),
+                Value<int> participantCount = const Value.absent(),
+                Value<String?> participantUids = const Value.absent(),
+                Value<String?> groupName = const Value.absent(),
               }) => ChatCacheTableCompanion(
                 id: id,
                 ownerUid: ownerUid,
@@ -6976,6 +7258,10 @@ class $$ChatCacheTableTableTableManager
                 lastMessageType: lastMessageType,
                 unreadCount: unreadCount,
                 hasUnread: hasUnread,
+                isGroupChat: isGroupChat,
+                participantCount: participantCount,
+                participantUids: participantUids,
+                groupName: groupName,
               ),
           createCompanionCallback:
               ({
@@ -6991,6 +7277,10 @@ class $$ChatCacheTableTableTableManager
                 Value<String?> lastMessageType = const Value.absent(),
                 Value<int> unreadCount = const Value.absent(),
                 Value<bool> hasUnread = const Value.absent(),
+                Value<bool> isGroupChat = const Value.absent(),
+                Value<int> participantCount = const Value.absent(),
+                Value<String?> participantUids = const Value.absent(),
+                Value<String?> groupName = const Value.absent(),
               }) => ChatCacheTableCompanion.insert(
                 id: id,
                 ownerUid: ownerUid,
@@ -7004,6 +7294,10 @@ class $$ChatCacheTableTableTableManager
                 lastMessageType: lastMessageType,
                 unreadCount: unreadCount,
                 hasUnread: hasUnread,
+                isGroupChat: isGroupChat,
+                participantCount: participantCount,
+                participantUids: participantUids,
+                groupName: groupName,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))

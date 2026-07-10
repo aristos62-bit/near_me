@@ -22,4 +22,12 @@ class ChatCacheTable extends Table {
       integer().withDefault(const Constant(0))();
   BoolColumn get hasUnread =>
       boolean().withDefault(const Constant(false))();
+
+  /// Group chat flags (schema v9)
+  BoolColumn get isGroupChat =>
+      boolean().withDefault(const Constant(false))();
+  IntColumn get participantCount =>
+      integer().withDefault(const Constant(2))();
+  TextColumn get participantUids => text().nullable()();
+  TextColumn get groupName => text().nullable()();
 }

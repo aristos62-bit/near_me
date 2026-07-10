@@ -329,13 +329,63 @@ Row με Spacer + chips → overflow 3.5px. Fix: `Row` → `Wrap`.
 
 ---
 
+## Session 159 — MultiChat Phase 9: Build & Deploy (Full Bugfix Pass)
+
+**Πεδίο:** Ολοκλήρωση 6 εκκρεμών διορθώσεων (3× P0, 1× P1, bilingual, deploy), build APK.
+
+### 🔴 P0 — `removeParticipant()` διαγράφει encryption key από όλους
+**Πρόβλημα:** `EncryptionUtils.deleteKey(chatId)` καλούνταν για κάθε αφαίρεση μέλους, διαγράφοντας το κλειδί και από τον admin που έκανε την αφαίρεση.
+**Λύση:** Μεταφορά `deleteKey` + `logConsent` ΜΟΝΟ στο `isSelf` block. Admin που αφαιρεί μέλος δεν χάνει το κλειδί του.
+**Αρχείο:** `group_chat_mixin.dart:429`
+
+### 🔴 P0 — `joinPublicGroup()` δεν κάνει update memberCount
+**Πρόβλημα:** Το `joinPublicGroup()` καλούσε `removeChatCache()` αλλά όχι `_updatePublicProfileMemberCount()`. Το public profile της ομάδας έδειχνε παλιό αριθμό μελών.
+**Λύση:** Προσθήκη `await _updatePublicProfileMemberCount(chatId)` μετά το `removeChatCache()`.
+**Αρχείο:** `group_chat_mixin.dart:738`
+
+### 🟡 P1 — `sendMessage()` block check λάθος για groups
+**Πρόβλημα:** Το block check έβρισκε `firstOrNull` otherUid (πρώτο μη-αποστολέα) και έλεγχε block μόνο για αυτόν — σε group 5 ατόμων, έλεγχε μόνο 1 τυχαίο άτομο.
+**Λύση:** Το block check έγινε conditional: `if (!isGroupChat) { ... }`. Για groups, το block check γίνεται από τα Firestore rules.
+**Αρχείο:** `chat_repository_impl.dart:151`
+
+### 🔴 P0 — FCM Group Notification Improvement
+**Πρόβλημα:** Το group notification είχε `body: groupName ?? ''` — κενό string όταν δεν υπήρχε groupName.
+**Λύση:** `title: groupName ?? senderName`, `body: senderName` (αν groupName υπάρχει) ή `new_group_message` localized string. Προστέθηκε `new_group_message` στα notification strings.
+**Αρχείο:** `functions/src/index.ts`
+
+### 🔴 P0 — Deploy Firestore Rules + Indexes + Cloud Functions
+**Ενέργεια:** `firebase deploy --only firestore` (rules + 4 composite indexes) + `firebase deploy --only functions` (5 Cloud Functions).
+**Αποτέλεσμα:** 21 composite indexes deployed, rules released, all 5 functions updated.
+
+### Bilingual LoadingView/EmptyView (4 strings)
+**Αρχεία:** `group_audit_log_screen.dart` (2 strings), `join_confirmation_screen.dart` (2 strings)
+**Αλλαγή:** Από μονόγλωσσα `const` σε `greek ? 'Ελληνικά' : 'English'`.
+
+### Build
+- `flutter analyze`: **0 issues**
+- `flutter build apk --release --dart-define=ENABLE_RELEASE_DEBUG=true`: **33.4MB** ✅
+- MultiChat Phase 9 (βήματα 26-31): **Ολοκληρωμένο** — 31/31 βήματα (100%)
+
+### Αρχεία
+| Αρχείο | Αλλαγή |
+|--------|--------|
+| `lib/repositories/group_chat_mixin.dart` | P0 fix #1 (deleteKey isSelf) + P0 fix #2 (memberCount) |
+| `lib/repositories/chat_repository_impl.dart` | P1 fix #3 (block check groups) |
+| `functions/src/index.ts` | P0 fix #4 (group notification body) |
+| `lib/features/chat/screens/group_audit_log_screen.dart` | Bilingual LoadingView/EmptyView |
+| `lib/features/chat/screens/join_confirmation_screen.dart` | Bilingual LoadingView/EmptyView |
+| `firestore.rules` | Deployed ✅ |
+| `firestore.indexes.json` | Deployed ✅ |
+
+---
+
 ## Current State
 
 | Μέτρο | Τιμή |
 |---|---|
-| Completion | ~99.9% (Phases 1-3 100%) |
-| Firestore indexes | 17 composite deployed |
-| Build | `flutter analyze` clean, release APK ~14.5MB |
+| Completion | ~99.9% (Phases 1-3 100%, MultiChat Phase 9 ✅) |
+| Firestore indexes | 21 composite deployed |
+| Build | `flutter analyze` clean, release APK ~33.4MB |
 | Tests | **30/30 passed** |
 | `.dart` files | ~109 (non-generated) |
 | Cloud Functions | 5 deployed + `fcm-utils.ts` helper |
@@ -356,9 +406,17 @@ Row με Spacer + chips → overflow 3.5px. Fix: `Row` → `Wrap`.
 | P3.1 Online Status Flicker (null-coalescing fallback) | ✅ Session 155 — logs: zero flicker |
 | P3.2 Haversine Memoization (_distanceCache, clearDistanceCache) | ✅ Session 156 — ~96% fewer Haversine calls |
 | P4.1 ConsentLog Pagination (LIMIT 50, loadMore button) | ✅ Session 157 — paginated NotifierProvider |
+| **MultiChat Phase 9 — Build & Deploy** (31/31 steps 100%) | ✅ **Session 159** — all fixes + deploy + APK |
+| P0 removeParticipant deleteKey (isSelf only) | ✅ Session 159 — `group_chat_mixin.dart` |
+| P0 joinPublicGroup memberCount | ✅ Session 159 — `group_chat_mixin.dart` |
+| P1 sendMessage block check for groups | ✅ Session 159 — `chat_repository_impl.dart` |
+| P0 FCM group notification body improvement | ✅ Session 159 — `functions/src/index.ts` |
+| Bilingual LoadingView/EmptyView (4 strings) | ✅ Session 159 — audit_log + join_confirmation |
+| Firestore rules + indexes deploy | ✅ Session 159 — `firebase deploy --only firestore` |
+| Cloud Functions deploy | ✅ Session 159 — all 5 functions updated |
 
 ### Remaining Gaps
-- **Phase 4**: Video (Agora), AI matching, Groups, Admin, Web, Premium, Typesense
+- **Phase 4**: Video (Agora), AI matching, Admin, Web, Premium, Typesense
 - Mock location detection (Pending)
 
 ### Tech Debt

@@ -60,13 +60,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final data = snap.data() as Map<String, dynamic>?;
     if (data == null) return;
     final isGroup = data['isGroupChat'] == true;
-    if (isGroup != _isGroupChat || _groupName != data['groupName']) {
+    final nicknames = (data['participantNicknames'] as Map<String, dynamic>?)
+            ?.map((k, v) => MapEntry(k, v as String? ?? k)) ??
+        {};
+    if (isGroup != _isGroupChat || _groupName != data['groupName'] ||
+        _participantNicknames != nicknames) {
       setState(() {
         _isGroupChat = isGroup;
         _groupName = data['groupName'] as String?;
-        _participantNicknames = (data['participantNicknames'] as Map<String, dynamic>?)
-                ?.map((k, v) => MapEntry(k, v as String? ?? k)) ??
-            {};
+        _participantNicknames = nicknames;
       });
       DebugConfig.log(DebugConfig.uiInteraction,
           'ChatScreen #$_instanceId: isGroup=$isGroup groupName=${data['groupName']}');

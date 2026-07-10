@@ -117,8 +117,11 @@ service cloud.firestore {
                                   'lastMessageType', 'lastMessageSender', 'systemMessage'])
                       ||
                       // Read receipts (own uid only — lastReadTimestamps.{uid})
-                      request.resource.data.diff(resource.data).affectedKeys()
-                        .hasOnly(['lastReadTimestamps.${request.auth.uid}'])
+                      (request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['lastReadTimestamps'])
+                       && request.resource.data.lastReadTimestamps.diff(
+                            resource.data.get('lastReadTimestamps', {})
+                          ).affectedKeys().hasOnly([request.auth.uid]))
                       ||
                       // Group name & avatar (admin+)
                       (request.resource.data.diff(resource.data).affectedKeys()

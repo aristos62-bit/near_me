@@ -699,6 +699,87 @@ export const deleteUserData = functions.https.onCall(async (data, context) => {
 
   return { success: true, errors: errors.length > 0 ? errors : undefined };
 });
+export const addGroupParticipant = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+  }
+
+  const { chatId, newUid } = data;
+  const callerUid = context.auth.uid;
+
+  if (!chatId || typeof chatId !== 'string') {
+    throw new functions.https.HttpsError('invalid-argument', 'chatId must be a string');
+  }
+  if (!newUid || typeof newUid !== 'string') {
+    throw new functions.https.HttpsError('invalid-argument', 'newUid must be a string');
+  }
+
+  const chatRef = db.doc(`chats/${chatId}`);
+
+  try {
+    const cache = await db.runTransaction(async (transaction) => {
+      const snap = await transaction.get(chatRef);
+      if (!snap.exists) {
+        throw new functions.https.HttpsError('not-found', 'Chat not found');
+      }
+
+      const chatData = snap.data()!;
+      const participants: string[] = chatData.participants ?? [];
+      const maxP = chatData.maxParticipants ?? 10;
+
+      if (!participants.includes(callerUid)) {
+        throw new functions.https.HttpsError('permission-denied', 'Not a participant');
+      }
+      if (participants.includes(newUid)) {
+        throw new functions.https.HttpsError('already-exists', 'Already in group');
+      }
+      if (participants.length >= maxP) {
+        throw new functions.https.HttpsError('resource-exhausted', 'Group is full');
+      }
+
+      for (const pUid of participants) {
+        const blockedSnap = await transaction.get(
+          db.doc(`users/${pUid}/blocked/${newUid}`),
+        );
+        if (blockedSnap.exists) {
+          throw new functions.https.HttpsError(
+            'failed-precondition',
+            'Blocked by a participant',
+          );
+        }
+      }
+
+      const newProfileSnap = await transaction.get(
+        db.doc(`users/${newUid}/public/profile`),
+      );
+      const newNickname = (newProfileSnap.data()?.nickname as string) ?? newUid;
+
+      transaction.update(chatRef, {
+        participants: admin.firestore.FieldValue.arrayUnion(newUid),
+        [`participantNicknames.${newUid}`]: newNickname,
+        [`participantRoles.${newUid}`]: 'member',
+        [`participantJoinedAt.${newUid}`]: admin.firestore.FieldValue.serverTimestamp(),
+        [`participantInvitedBy.${newUid}`]: callerUid,
+        [`participantIsActive.${newUid}`]: true,
+      });
+
+      return { newNickname };
+    });
+
+    functions.logger.info(
+      `addGroupParticipant: ${newUid} added to ${chatId} by ${callerUid}`,
+    );
+
+    return { success: true, chatId, newNickname: cache.newNickname };
+  } catch (e) {
+    if (e instanceof functions.https.HttpsError) {
+      throw e;
+    }
+    functions.logger.error(`addGroupParticipant: unexpected error for ${chatId}`, e);
+    throw new functions.https.HttpsError('internal', 'Internal error');
+  }
+});
+
 function getNotificationStrings(lang: string) {
   const isGreek = lang === 'el';
   return {

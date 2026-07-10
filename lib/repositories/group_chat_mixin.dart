@@ -40,6 +40,32 @@ mixin GroupChatMixin {
     }
   }
 
+  AppException _cfErrorToAppException(FirebaseFunctionsException e) {
+    switch (e.code) {
+      case 'functions/failed-precondition':
+        return AppException.auth('add_participant',
+            'Το άτομο έχει αποκλειστεί από συμμετέχοντα / Blocked by a participant');
+      case 'functions/not-found':
+        return AppException.firestore('add_participant',
+            'Η συνομιλία δεν βρέθηκε / Chat not found');
+      case 'functions/already-exists':
+        return AppException.auth('add_participant',
+            'Το άτομο είναι ήδη στην ομάδα / Already in group');
+      case 'functions/resource-exhausted':
+        return AppException.auth('add_participant',
+            'Η ομάδα είναι γεμάτη / Group is full');
+      case 'functions/permission-denied':
+        return AppException.auth('add_participant',
+            'Δεν έχεις δικαίωμα για αυτή την ενέργεια / You do not have permission for this action');
+      case 'functions/unauthenticated':
+        return AppException.auth('add_participant',
+            'Απαιτείται σύνδεση / Authentication required');
+      default:
+        return AppException.firestore('add_participant',
+            'Αποτυχία προσθήκης / Failed to add participant');
+    }
+  }
+
   String _defaultGroupName(Map<String, String> nicknames) {
     final names = nicknames.values.toList();
     if (names.length <= 3) return names.join(', ');
@@ -344,51 +370,9 @@ mixin GroupChatMixin {
     }
 
     try {
-      await firestore.runTransaction((transaction) async {
-        final chatRef = firestore.collection('chats').doc(chatId);
-        final snap = await transaction.get(chatRef);
-        if (!snap.exists) {
-          throw AppException.firestore('add_participant',
-              'Η συνομιλία δεν βρέθηκε / Chat not found');
-        }
-
-        final data = snap.data()!;
-        final participants = List<String>.from(data['participants'] ?? []);
-        final maxP = data['maxParticipants'] as int? ?? 10;
-
-        if (participants.contains(newUid)) {
-          throw AppException.auth('add_participant',
-              'Το άτομο είναι ήδη στην ομάδα / Already in group');
-        }
-        if (participants.length >= maxP) {
-          throw AppException.auth('add_participant',
-              'Η ομάδα είναι γεμάτη / Group is full');
-        }
-
-        _enforceParticipantLimit(participants.length + 1, maxP);
-
-        for (final pUid in participants) {
-          final blocked = await transaction.get(
-              firestore.doc('users/$pUid/blocked/$newUid'));
-          if (blocked.exists) {
-            throw AppException.auth('add_participant',
-                'Το άτομο έχει αποκλειστεί από συμμετέχοντα / Blocked by a participant');
-          }
-        }
-
-        final newDoc = await firestore
-            .collection('users').doc(newUid).collection('public').doc('profile').get();
-        final newNickname = newDoc.data()?['nickname'] as String? ?? newUid;
-
-        transaction.update(chatRef, {
-          'participants': FieldValue.arrayUnion([newUid]),
-          'participantNicknames.$newUid': newNickname,
-          'participantRoles.$newUid': 'member',
-          'participantJoinedAt.$newUid': FieldValue.serverTimestamp(),
-          'participantInvitedBy.$newUid': uid,
-          'participantIsActive.$newUid': true,
-        });
-      });
+      await FirebaseFunctions.instance
+          .httpsCallable('addGroupParticipant')
+          .call({'chatId': chatId, 'newUid': newUid});
 
       await _sendSystemMessage(chatId, 'participant_added', uid, [newUid]);
       await _logAudit(chatId, 'participant_added', uid, targetUid: newUid);
@@ -396,6 +380,9 @@ mixin GroupChatMixin {
       await _updatePublicProfileMemberCount(chatId);
 
       DebugConfig.log(DebugConfig.repositoryResult, 'addParticipant: $newUid added to $chatId');
+    } on FirebaseFunctionsException catch (e) {
+      DebugConfig.error('addParticipant failed', data: e);
+      throw _cfErrorToAppException(e);
     } catch (e, s) {
       if (e is AppException) rethrow;
       DebugConfig.error('addParticipant failed', data: e, exception: s);

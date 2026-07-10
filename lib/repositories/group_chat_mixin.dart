@@ -426,8 +426,10 @@ mixin GroupChatMixin {
 
       await _sendSystemMessage(chatId, isSelf ? 'participant_left' : 'participant_removed', uid, [targetUid]);
       await _logAudit(chatId, isSelf ? 'participant_left' : 'participant_removed', uid, targetUid: targetUid);
-      await EncryptionUtils.deleteKey(chatId);
-      if (isSelf) await db.logConsent(uid, 'group_left', 'group');
+      if (isSelf) {
+        await EncryptionUtils.deleteKey(chatId);
+        await db.logConsent(uid, 'group_left', 'group');
+      }
       await _updatePublicProfileMemberCount(chatId);
       await removeChatCache(chatId);
 
@@ -735,6 +737,7 @@ mixin GroupChatMixin {
       await _logAudit(chatId, 'public_join', uid);
       await db.logConsent(uid, 'group_joined', 'group');
       await removeChatCache(chatId);
+      await _updatePublicProfileMemberCount(chatId);
 
       DebugConfig.log(DebugConfig.repositoryResult, 'joinPublicGroup: done $chatId');
     } catch (e, s) {

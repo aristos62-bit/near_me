@@ -119,7 +119,7 @@ class _JoinConfirmationScreenState extends ConsumerState<JoinConfirmationScreen>
     if (_isLoading) {
       return [
         const SizedBox(height: 80),
-        const Center(child: LoadingView(message: 'Loading invite info...')),
+        Center(child: LoadingView(message: greek ? 'Φόρτωση πληροφοριών...' : 'Loading invite info...')),
       ];
     }
 
@@ -154,9 +154,9 @@ class _JoinConfirmationScreenState extends ConsumerState<JoinConfirmationScreen>
     if (_inviteInfo == null) {
       return [
         const SizedBox(height: 80),
-        const Center(child: EmptyView(
+        Center(child: EmptyView(
           icon: Icons.link_off,
-          message: 'Invite info not found',
+          message: greek ? 'Δεν βρέθηκαν πληροφορίες πρόσκλησης' : 'Invite info not found',
         )),
       ];
     }

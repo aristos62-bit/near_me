@@ -113,6 +113,9 @@ export const sendChatNotification = functions.firestore
       const { allTokens, tokenRefMap } = await fetchTokensForUids(recipientUids);
       if (allTokens.length === 0) return null;
 
+      const lang = (await db.doc(`users/${message.senderId}/public/profile`).get()).data()?.lang ?? 'en';
+      const strings = getNotificationStrings(lang);
+
       functions.logger.info(
         `Group chat ${chatId}: sender=${message.senderId}, ${recipientUids.length} recipients, ${allTokens.length} tokens`,
       );
@@ -120,8 +123,8 @@ export const sendChatNotification = functions.firestore
       const payload: admin.messaging.MulticastMessage = {
         tokens: allTokens,
         notification: {
-          title: senderName,
-          body: groupName ?? '',
+          title: groupName ?? senderName,
+          body: groupName ? senderName : strings.new_group_message,
         },
         data: {
           chatId,
@@ -700,6 +703,7 @@ function getNotificationStrings(lang: string) {
   const isGreek = lang === 'el';
   return {
     new_chat_message: isGreek ? 'Νέο μήνυμα' : 'New message',
+    new_group_message: isGreek ? 'Νέο μήνυμα στην ομάδα' : 'New group message',
     request_chat: isGreek ? 'Νέο αίτημα για συνομιλία' : 'Chat request',
     request_video: isGreek ? 'Νέο αίτημα για βιντεοκλήση' : 'Video call request',
     request_email: isGreek ? 'Νέο αίτημα μέσω email' : 'Email request',

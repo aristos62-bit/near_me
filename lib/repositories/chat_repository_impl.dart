@@ -148,15 +148,17 @@ class ChatRepositoryImpl with GroupChatMixin implements ChatRepository {
         }
       }
 
-      final otherUid = participants.where((p) => p != user.uid).firstOrNull;
-      if (otherUid != null) {
-        final blockedDoc = await firestore
-            .collection('users').doc(otherUid).collection('blocked').doc(user.uid)
-            .get();
-        if (blockedDoc.exists) {
-          DebugConfig.log(DebugConfig.repositoryCall, 'sendMessage: blocked by $otherUid');
-          throw AppException.auth('send_message',
-              'Δεν μπορείς να στείλεις μήνυμα σε αυτόν τον χρήστη / You cannot send messages to this user');
+      if (!isGroupChat) {
+        final otherUid = participants.where((p) => p != user.uid).firstOrNull;
+        if (otherUid != null) {
+          final blockedDoc = await firestore
+              .collection('users').doc(otherUid).collection('blocked').doc(user.uid)
+              .get();
+          if (blockedDoc.exists) {
+            DebugConfig.log(DebugConfig.repositoryCall, 'sendMessage: blocked by $otherUid');
+            throw AppException.auth('send_message',
+                'Δεν μπορείς να στείλεις μήνυμα σε αυτόν τον χρήστη / You cannot send messages to this user');
+          }
         }
       }
     } catch (e) {

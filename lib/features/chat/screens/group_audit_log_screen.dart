@@ -128,7 +128,7 @@ class GroupAuditLogScreen extends ConsumerWidget {
         title: Text(greek ? 'Αρχείο Καταγραφής' : 'Audit Log'),
       ),
       body: logsAsync.when(
-        loading: () => const Center(child: LoadingView(message: 'Loading audit log...')),
+        loading: () => Center(child: LoadingView(message: greek ? 'Φόρτωση αρχείου...' : 'Loading audit log...')),
         error: (e, s) {
           DebugConfig.error('AuditLog stream error', data: e, exception: s);
           return Center(
@@ -139,9 +139,9 @@ class GroupAuditLogScreen extends ConsumerWidget {
           );
         },
         data: (entries) => entries.isEmpty
-            ? const Center(child: EmptyView(
+            ? Center(child: EmptyView(
                 icon: Icons.history,
-                message: 'No audit entries yet',
+                message: greek ? 'Δεν υπάρχουν ακόμα καταχωρήσεις' : 'No audit entries yet',
               ))
             : LayoutBuilder(
                 builder: (context, constraints) {

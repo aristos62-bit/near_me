@@ -10,6 +10,7 @@ import '../data/local/database_service.dart';
 import 'auth_repository.dart';
 import 'chat_repository.dart';
 import '../core/debug/debug_config.dart';
+import '../core/notifications/fcm_service.dart';
 import '../core/utils/app_exception.dart';
 import '../core/utils/encryption_utils.dart';
 import '../shared/utils/mention_utils.dart';
@@ -524,7 +525,22 @@ class ChatRepositoryImpl with GroupChatMixin implements ChatRepository {
           for (final change in snapshot.docChanges) {
             if (change.type == DocumentChangeType.added ||
                 change.type == DocumentChangeType.modified) {
-              await _syncChatFromFirestore(change.doc.id, change.doc.data() as Map<String, dynamic>);
+              final chatId = change.doc.id;
+              final isActive = FcmService.activeChatIds.contains(chatId);
+              if (isActive && change.type == DocumentChangeType.modified) {
+                DebugConfig.log(DebugConfig.chatStream,
+                    'streamChats: lightweight sync for active chat=$chatId');
+                final data = change.doc.data() as Map<String, dynamic>;
+                final lastMessageAt = (data['lastMessageAt'] as Timestamp?)?.toDate();
+                final lastMessageBy = data['lastMessageBy'] as String?;
+                if (lastMessageAt != null) {
+                  await updateChatCache(chatId,
+                      lastMessageAt: lastMessageAt,
+                      hasUnread: lastMessageBy != null && lastMessageBy != uid);
+                }
+              } else {
+                await _syncChatFromFirestore(chatId, change.doc.data() as Map<String, dynamic>);
+              }
               changed = true;
             } else if (change.type == DocumentChangeType.removed) {
               await removeChatCache(change.doc.id);

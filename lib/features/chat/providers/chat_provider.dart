@@ -37,11 +37,17 @@ final messagesProvider = StreamProvider.autoDispose.family<List<Map<String, dyna
   return stream;
 });
 
-final participantUidsProvider = StreamProvider.autoDispose.family<List<String>, String>((ref, chatId) {
-  DebugConfig.log(DebugConfig.providerCreate, 'participantUidsProvider created for chat: $chatId');
-  ref.onDispose(() => DebugConfig.log(DebugConfig.providerDispose, 'participantUidsProvider disposed for chat: $chatId'));
-  final chatRepo = ref.watch(chatRepositoryProvider);
-  return chatRepo.participantUidsStream(chatId);
+final participantUidsProvider = Provider.autoDispose.family<List<String>, String>((ref, chatId) {
+  DebugConfig.log(DebugConfig.providerCreate, 'participantUidsProvider created (derived) for chat: $chatId');
+  ref.onDispose(() => DebugConfig.log(DebugConfig.providerDispose, 'participantUidsProvider disposed (derived) for chat: $chatId'));
+  final chatDocAsync = ref.watch(chatDocProvider(chatId));
+  final snap = chatDocAsync.asData?.value;
+  if (snap == null || !snap.exists) return [];
+  final data = snap.data() as Map<String, dynamic>?;
+  if (data == null) return [];
+  final participants = List<String>.from(data['participants'] ?? []);
+  final activeMap = (data['participantIsActive'] as Map?) ?? {};
+  return participants.where((p) => activeMap[p] != false).toList();
 });
 
 final groupPermissionsProvider = FutureProvider.autoDispose.family<GroupPermissionsInfo, String>((ref, chatId) {

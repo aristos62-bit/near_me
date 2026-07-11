@@ -185,7 +185,6 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
     final theme = Theme.of(context);
     final chatDocAsync = ref.watch(chatDocProvider(widget.chatId));
     final chatData = chatDocAsync.asData?.value?.data() as Map<String, dynamic>?;
-    final participantUidsAsync = ref.watch(participantUidsProvider(widget.chatId));
     final currentUid = ref.read(authStateProvider).value?.uid ?? '';
 
     ref.listen(chatDocProvider(widget.chatId), (prev, next) {
@@ -194,7 +193,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
         DebugConfig.error('GroupInfoScreen: chatDoc error', data: next.error);
       }
     });
-    final participantUids = participantUidsAsync.asData?.value ?? <String>[];
+    final participantUids = ref.watch(participantUidsProvider(widget.chatId));
     final groupName = chatData?['groupName'] as String? ?? _groupName;
     final createdBy = chatData?['createdBy'] as String? ?? _createdBy;
     final rolesMap = chatData?['participantRoles'] as Map<String, dynamic>? ?? _participantRoles;

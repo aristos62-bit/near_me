@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -27,9 +26,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   String? _nickname;
   static int _counter = 0;
   final int _instanceId = _counter++;
-  bool _isGroupChat = false;
-  String? _groupName;
-  Map<String, String> _participantNicknames = {};
 
   @override
   void initState() {
@@ -56,34 +52,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             'nickname=${_nickname ?? "null (will show chatId)"}');
   }
 
-  void _onChatDocChanged(DocumentSnapshot? snap) {
-    if (snap == null || !snap.exists || !mounted) return;
-    final data = snap.data() as Map<String, dynamic>?;
-    if (data == null) return;
-    final isGroup = data['isGroupChat'] == true;
-    final nicknames = (data['participantNicknames'] as Map<String, dynamic>?)
-            ?.map((k, v) => MapEntry(k, v as String? ?? k)) ??
-        {};
-    DebugConfig.log(DebugConfig.uiInteraction,
-        '_onChatDocChanged: chat=${widget.chatId} isGroup=$isGroup '
-        'hasParticipantNicknames=${data.containsKey('participantNicknames')} '
-        'nicknameEntries=${nicknames.length}');
-    if (isGroup != _isGroupChat || _groupName != data['groupName'] ||
-        _participantNicknames != nicknames) {
-      setState(() {
-        _isGroupChat = isGroup;
-        _groupName = data['groupName'] as String?;
-        _participantNicknames = nicknames;
-      });
-      DebugConfig.log(DebugConfig.uiInteraction,
-          'ChatScreen #$_instanceId: isGroup=$isGroup groupName=${data['groupName']}');
-    }
-  }
-
-  void _showE2EInfo() {
+  void _showE2EInfo(bool isGroupChat, String? groupName) {
     final greek = L10n.isGreek(context);
-    final label = _isGroupChat
-        ? (_groupName ?? widget.chatId)
+    final label = isGroupChat
+        ? (groupName ?? widget.chatId)
         : (_nickname ?? widget.chatId);
     AppMessenger.showInfoDialog(
       context,
@@ -120,41 +92,43 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Widget build(BuildContext context) {
     final greek = L10n.isGreek(context);
     final theme = Theme.of(context);
-    final participantUidsAsync = ref.watch(participantUidsProvider(widget.chatId));
+    final chatDocAsync = ref.watch(chatDocProvider(widget.chatId));
+    final chatData = chatDocAsync.asData?.value?.data() as Map<String, dynamic>?;
+    final isGroupChat = chatData?['isGroupChat'] == true;
+    final groupName = chatData?['groupName'] as String?;
+    final participantNicknames = (chatData?['participantNicknames'] as Map<String, dynamic>?)
+            ?.map((k, v) => MapEntry(k, v as String? ?? k)) ??
+        {};
 
-    ref.listen(chatDocProvider(widget.chatId), (prev, next) {
-      if (mounted) _onChatDocChanged(next.asData?.value);
-      if (next.hasError && mounted) {
-        DebugConfig.error('ChatScreen: chatDoc error', data: next.error);
-      }
-    });
-    final participantUids = participantUidsAsync.asData?.value ?? <String>[];
-    final memberCount = _isGroupChat ? participantUids.length : null;
+    final participantUids = ref.watch(participantUidsProvider(widget.chatId));
+    final memberCount = isGroupChat ? participantUids.length : null;
 
     final currentUid = ref.read(authStateProvider).value?.uid ?? '';
     ref.listen(participantUidsProvider(widget.chatId), (prev, next) {
       if (!mounted) return;
-      final uids = next.asData?.value ?? <String>[];
-      if (_isGroupChat && currentUid.isNotEmpty && !uids.contains(currentUid)) {
+      if (isGroupChat && currentUid.isNotEmpty && !next.contains(currentUid)) {
         context.pop();
       }
     });
 
+    DebugConfig.log(DebugConfig.uiInteraction,
+        'ChatScreen #$_instanceId: isGroup=$isGroupChat groupName=$groupName');
+
     return Scaffold(
       appBar: AppBar(
         title: GestureDetector(
-          onTap: _showE2EInfo,
-          child: _isGroupChat
+          onTap: () => _showE2EInfo(isGroupChat, groupName),
+          child: isGroupChat
               ? Column(children: [
                   Row(mainAxisSize: MainAxisSize.min, children: [
                     AvatarStack(
                       uids: participantUids,
-                      nicknames: _participantNicknames,
+                      nicknames: participantNicknames,
                       size: 22,
                     ),
                     const SizedBox(width: 8),
                     Flexible(
-                      child: Text(_groupName ?? widget.chatId, overflow: TextOverflow.ellipsis),
+                      child: Text(groupName ?? widget.chatId, overflow: TextOverflow.ellipsis),
                     ),
                   ]),
                   if (memberCount != null)
@@ -209,13 +183,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               } else if (v == 'group_audit_log') {
                 context.push('/groups/${widget.chatId}/audit-log');
               } else if (v == 'group_call') {
-                context.push('/groups/${widget.chatId}/call', extra: _groupName);
+                context.push('/groups/${widget.chatId}/call', extra: groupName);
               } else if (v == 'leave_group') {
                 await _leaveGroup();
               }
             },
             itemBuilder: (_) => [
-              if (_isGroupChat) ...[
+              if (isGroupChat) ...[
                 PopupMenuItem(
                   value: 'group_info',
                   child: ListTile(
@@ -277,10 +251,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       body: Column(children: [
         Expanded(child: ChatMessagesList(
           chatId: widget.chatId,
-          isGroupChat: _isGroupChat,
-          participantNicknames: _isGroupChat ? _participantNicknames : null,
+          isGroupChat: isGroupChat,
+          participantNicknames: isGroupChat ? participantNicknames : null,
         )),
-        _ChatInputBar(chatId: widget.chatId, isGroupChat: _isGroupChat),
+        _ChatInputBar(chatId: widget.chatId, isGroupChat: isGroupChat),
       ]),
     );
   }

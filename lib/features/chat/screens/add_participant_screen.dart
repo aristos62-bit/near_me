@@ -66,7 +66,7 @@ class _AddParticipantScreenState extends ConsumerState<AddParticipantScreen> {
   Future<void> _ensureDataLoaded() async {
     if (_dataLoaded && _participantUids.isNotEmpty) return;
     try {
-      final uids = await ref.read(participantUidsProvider(widget.chatId).future);
+      final uids = ref.read(participantUidsProvider(widget.chatId));
       final chatSnap = await FirebaseFirestore.instance
           .collection('chats')
           .doc(widget.chatId)

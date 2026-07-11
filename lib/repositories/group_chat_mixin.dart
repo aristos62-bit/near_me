@@ -5,6 +5,7 @@ mixin GroupChatMixin {
   FirebaseAuth get auth;
   AppDatabase get db;
   Future<void> removeChatCache(String chatId);
+  Future<void> updateChatCache(String chatId, {DateTime? lastMessageAt, bool? hasUnread, String? otherNickname, String? otherAvatarUrl, String? lastMessage, String? lastMessageSender, String? lastMessageType, int? unreadCount, String? groupName, String? groupAvatarUrl});
 
   String get _currentUid {
     final user = auth.currentUser;
@@ -145,13 +146,15 @@ mixin GroupChatMixin {
 
     final groupName = data['groupName'] as String?;
     final groupAvatarUrl = data['groupAvatarUrl'] as String?;
+    final groupCreatedBy = data['createdBy'] as String?;
     final participants = List<String>.from(data['participants'] ?? []);
     final nicknamesRaw = data['participantNicknames'] as Map<String, dynamic>?;
     DebugConfig.log(DebugConfig.repositoryResult,
         '_syncGroupChatToCache: chat=$chatId groupName=$groupName '
         'participants=${participants.length} '
         'hasParticipantNicknames=${data.containsKey('participantNicknames')} '
-        'nicknameEntries=${nicknamesRaw?.length ?? 0}');
+        'nicknameEntries=${nicknamesRaw?.length ?? 0} '
+        'createdBy=$groupCreatedBy');
     final lastMessageAt = (data['lastMessageAt'] as Timestamp?)?.toDate();
     final lastMessageBy = data['lastMessageBy'] as String?;
     final lastMessageType = data['lastMessageType'] as String? ?? 'text';
@@ -208,6 +211,7 @@ mixin GroupChatMixin {
             participantCount: Value(participants.length),
             participantUids: participantUidsStr != null ? Value(participantUidsStr) : const Value(null),
             isGroupChat: const Value(true),
+            groupCreatedBy: groupCreatedBy != null ? Value(groupCreatedBy) : Value.absent(),
           ));
     } else {
       await db.into(db.chatCacheTable).insert(
@@ -230,6 +234,7 @@ mixin GroupChatMixin {
           participantCount: Value(participants.length),
           participantUids: participantUidsStr != null ? Value(participantUidsStr) : const Value(null),
           isGroupChat: const Value(true),
+          groupCreatedBy: groupCreatedBy != null ? Value(groupCreatedBy) : const Value(null),
         ),
       );
     }
@@ -439,6 +444,7 @@ mixin GroupChatMixin {
     try {
       await firestore.collection('chats').doc(chatId).update({'groupName': name.trim()});
       await _syncPublicProfileField(chatId, {'groupName': name.trim()});
+      await updateChatCache(chatId, groupName: name.trim());
       DebugConfig.log(DebugConfig.repositoryResult, 'updateGroupName: done $chatId');
     } catch (e, s) {
       DebugConfig.error('updateGroupName failed', data: e, exception: s);
@@ -651,6 +657,7 @@ mixin GroupChatMixin {
       await firestore.collection('chats').doc(chatId).update({'groupAvatarUrl': url});
       await _syncPublicProfileField(chatId, {'groupAvatarUrl': url});
       await _logAudit(chatId, 'avatar_changed', uid);
+      await updateChatCache(chatId, groupAvatarUrl: url);
       DebugConfig.log(DebugConfig.repositoryResult, 'updateGroupAvatar: done $chatId');
     } catch (e, s) {
       DebugConfig.error('updateGroupAvatar failed', data: e, exception: s);
@@ -666,6 +673,7 @@ mixin GroupChatMixin {
           .ref().child('group_avatars').child(chatId).child('avatar.jpg').delete();
       await firestore.collection('chats').doc(chatId).update({'groupAvatarUrl': FieldValue.delete()});
       await _syncPublicProfileField(chatId, {'groupAvatarUrl': FieldValue.delete()});
+      await updateChatCache(chatId, groupAvatarUrl: '');
       DebugConfig.log(DebugConfig.repositoryResult, 'removeGroupAvatar: done $chatId');
     } catch (e) {
       DebugConfig.warn('removeGroupAvatar failed (non-fatal)', data: e);

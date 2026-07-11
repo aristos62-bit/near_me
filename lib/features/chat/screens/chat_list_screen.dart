@@ -146,9 +146,11 @@ class _ChatTile extends ConsumerWidget {
         'title=$title');
     final initial = title.isNotEmpty ? title[0].toUpperCase() : '?';
     final avatarUrl = isGroup ? chat.groupAvatarUrl : chat.otherAvatarUrl;
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
     final hasUnread = chat.hasUnread;
     final lastTime = chat.lastMessageAt;
     final unreadCount = chat.unreadCount;
+    final showDelete = !isGroup || chat.groupCreatedBy == currentUid;
 
     final previewText = _buildPreviewText(greek, title, isGroup);
 
@@ -230,7 +232,8 @@ class _ChatTile extends ConsumerWidget {
                   ),
                 ),
               ),
-            IconButton(
+            if (showDelete)
+              IconButton(
               icon: Icon(Icons.delete_forever, color: theme.colorScheme.error, size: 20),
               onPressed: () async {
                 final confirmed = await AppMessenger.showConfirmDialog(

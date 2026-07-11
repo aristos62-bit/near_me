@@ -359,7 +359,8 @@ class ChatRepositoryImpl with GroupChatMixin implements ChatRepository {
     }
   }
 
-  Future<void> updateChatCache(String chatId, {DateTime? lastMessageAt, bool? hasUnread, String? otherNickname, String? otherAvatarUrl, String? lastMessage, String? lastMessageSender, String? lastMessageType, int? unreadCount}) async {
+  @override
+  Future<void> updateChatCache(String chatId, {DateTime? lastMessageAt, bool? hasUnread, String? otherNickname, String? otherAvatarUrl, String? lastMessage, String? lastMessageSender, String? lastMessageType, int? unreadCount, String? groupName, String? groupAvatarUrl}) async {
     try {
       var rows = await (db.select(db.chatCacheTable)
         ..where((t) => t.chatId.equals(chatId))
@@ -383,6 +384,8 @@ class ChatRepositoryImpl with GroupChatMixin implements ChatRepository {
             lastMessageSender: lastMessageSender != null ? Value(lastMessageSender) : Value.absent(),
             lastMessageType: lastMessageType != null ? Value(lastMessageType) : Value.absent(),
             unreadCount: unreadCount != null ? Value(unreadCount) : Value.absent(),
+            groupName: groupName != null ? Value(groupName) : Value.absent(),
+            groupAvatarUrl: groupAvatarUrl != null ? Value(groupAvatarUrl) : Value.absent(),
           ));
     } catch (e) {
       DebugConfig.warn('updateChatCache failed for $chatId', data: e);
@@ -549,10 +552,14 @@ class ChatRepositoryImpl with GroupChatMixin implements ChatRepository {
                 final data = change.doc.data() as Map<String, dynamic>;
                 final lastMessageAt = (data['lastMessageAt'] as Timestamp?)?.toDate();
                 final lastMessageBy = data['lastMessageBy'] as String?;
-                if (lastMessageAt != null) {
+                final groupAvatarUrl = data['groupAvatarUrl'] as String?;
+                final groupName = data['groupName'] as String?;
+                if (lastMessageAt != null || groupAvatarUrl != null || groupName != null) {
                   await updateChatCache(chatId,
                       lastMessageAt: lastMessageAt,
-                      hasUnread: lastMessageBy != null && lastMessageBy != uid);
+                      hasUnread: lastMessageBy != null && lastMessageBy != uid,
+                      groupAvatarUrl: groupAvatarUrl,
+                      groupName: groupName);
                 }
               } else {
                 await _syncChatFromFirestore(chatId, change.doc.data() as Map<String, dynamic>);
@@ -596,16 +603,27 @@ class ChatRepositoryImpl with GroupChatMixin implements ChatRepository {
 
     DebugConfig.log(DebugConfig.repositoryCall, 'deleteChat: deleting chat=$chatId');
 
+    // Permission check: αν group → delegate στο deleteGroup (creator-only)
+    try {
+      final chatDoc = await firestore.collection('chats').doc(chatId).get();
+      if (chatDoc.data()?['isGroupChat'] == true) {
+        DebugConfig.log(DebugConfig.repositoryCall,
+            'deleteChat: delegating to deleteGroup chat=$chatId');
+        await deleteGroup(chatId);
+        return;
+      }
+    } catch (_) { /* αν το doc δεν υπάρχει, proceed με 1-on-1 delete */ }
+
     try {
       // Cleanup public profile if this is a public group
-      try {
-        final chatDoc = await firestore.collection('chats').doc(chatId).get();
-        if (chatDoc.data()?['isPublic'] == true && chatDoc.data()?['isGroupChat'] == true) {
-          await FirestoreGroupSearchRepository(firestore: firestore).deletePublicProfile(chatId);
-          DebugConfig.log(DebugConfig.firestoreWrite, 'deleteChat: public profile deleted for $chatId');
-        }
-      } catch (_) {}
+      final chatDoc = await firestore.collection('chats').doc(chatId).get();
+      if (chatDoc.data()?['isPublic'] == true && chatDoc.data()?['isGroupChat'] == true) {
+        await FirestoreGroupSearchRepository(firestore: firestore).deletePublicProfile(chatId);
+        DebugConfig.log(DebugConfig.firestoreWrite, 'deleteChat: public profile deleted for $chatId');
+      }
+    } catch (_) {}
 
+    try {
       final messages = await firestore
           .collection('chats').doc(chatId).collection('messages')
           .get();

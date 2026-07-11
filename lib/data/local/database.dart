@@ -31,7 +31,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 11;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -89,6 +89,11 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(chatCacheTable, chatCacheTable.groupAvatarUrl);
         DebugConfig.log(DebugConfig.databaseLocal,
             'Migration v9->v10: added groupAvatarUrl column to ChatCacheTable');
+      }
+      if (from < 11) {
+        await m.addColumn(chatCacheTable, chatCacheTable.groupCreatedBy);
+        DebugConfig.log(DebugConfig.databaseLocal,
+            'Migration v10->v11: added groupCreatedBy column to ChatCacheTable');
       }
     },
   );

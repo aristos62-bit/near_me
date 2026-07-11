@@ -74,20 +74,27 @@ class ChatRepositoryImpl with GroupChatMixin implements ChatRepository {
     final myProfile = await firestore
         .collection('users').doc(uid).collection('public').doc('profile').get();
     final myNickname = myProfile.data()?['nickname'] as String? ?? uid;
+    final myAvatarUrl = myProfile.data()?['avatarUrl'] as String?;
     final otherProfile = await firestore
         .collection('users').doc(otherUid).collection('public').doc('profile').get();
     final otherNickname = otherProfile.data()?['nickname'] as String? ?? otherUid;
+    final otherAvatarUrl = otherProfile.data()?['avatarUrl'] as String?;
     DebugConfig.log(DebugConfig.repositoryResult,
         'createChat: myNickname=$myNickname '
         'otherUid=$otherUid otherProfileExists=${otherProfile.exists} '
         'otherDocHasNickname=${otherProfile.data()?.containsKey('nickname')} '
-        'otherNickname=$otherNickname ');
+        'otherNickname=$otherNickname '
+        'hasMyAvatar=${myAvatarUrl != null} hasOtherAvatar=${otherAvatarUrl != null}');
 
     final chatId = firestore.collection('chats').doc().id;
     final key = EncryptionUtils.deriveKey(chatId);
     await firestore.collection('chats').doc(chatId).set({
       'participants': [uid, otherUid],
       'participantNicknames': {uid: myNickname, otherUid: otherNickname},
+      'participantAvatarUrls': {
+        uid: ?myAvatarUrl,
+        otherUid: ?otherAvatarUrl,
+      },
       'createdAt': FieldValue.serverTimestamp(),
       'isActive': true,
       'maxParticipants': 2,

@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -247,6 +248,8 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                 const SizedBox(height: 4),
                 ...participantUids.map((uid) {
                   final role = rolesMap?[uid] as String? ?? 'member';
+                  final avatarUrl = (chatData?['participantAvatarUrls']
+                      as Map<String, dynamic>?)?[uid] as String?;
                   return Card(
                     margin: const EdgeInsets.symmetric(vertical: 2),
                     child: ListTile(
@@ -256,7 +259,12 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                             : role == 'admin'
                                 ? theme.colorScheme.secondaryContainer
                                 : theme.colorScheme.surfaceContainerHighest,
-                        child: Text(_nicknameFor(uid, chatData?['participantNicknames'] as Map<String, dynamic>?)[0].toUpperCase()),
+                        backgroundImage: avatarUrl != null
+                            ? CachedNetworkImageProvider(avatarUrl)
+                            : null,
+                        child: avatarUrl == null
+                            ? Text(_nicknameFor(uid, chatData?['participantNicknames'] as Map<String, dynamic>?)[0].toUpperCase())
+                            : null,
                       ),
                       title: Text(_nicknameFor(uid, chatData?['participantNicknames'] as Map<String, dynamic>?)),
                       subtitle: Text(_roleLabel(role),

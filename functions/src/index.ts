@@ -753,10 +753,12 @@ export const addGroupParticipant = functions.https.onCall(async (data, context) 
         db.doc(`users/${newUid}/public/profile`),
       );
       const newNickname = (newProfileSnap.data()?.nickname as string) ?? newUid;
+      const newAvatarUrl = newProfileSnap.data()?.avatarUrl as string | undefined;
 
       transaction.update(chatRef, {
         participants: admin.firestore.FieldValue.arrayUnion(newUid),
         [`participantNicknames.${newUid}`]: newNickname,
+        ...(newAvatarUrl ? { [`participantAvatarUrls.${newUid}`]: newAvatarUrl } : {}),
         [`participantRoles.${newUid}`]: 'member',
         [`participantJoinedAt.${newUid}`]: admin.firestore.FieldValue.serverTimestamp(),
         [`participantInvitedBy.${newUid}`]: callerUid,

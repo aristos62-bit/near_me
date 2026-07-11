@@ -291,14 +291,21 @@ mixin GroupChatMixin {
     final myProfile = await firestore
         .collection('users').doc(uid).collection('public').doc('profile').get();
     final myNickname = myProfile.data()?['nickname'] as String? ?? uid;
+    final myAvatarUrl = myProfile.data()?['avatarUrl'] as String?;
 
-    final nicknameFutures = participantUids.map((pUid) async {
+    final profileFutures = participantUids.map((pUid) async {
       final doc = await firestore
           .collection('users').doc(pUid).collection('public').doc('profile').get();
-      return MapEntry(pUid, doc.data()?['nickname'] as String? ?? pUid);
+      final nickname = doc.data()?['nickname'] as String? ?? pUid;
+      final avatarUrl = doc.data()?['avatarUrl'] as String?;
+      return (uid: pUid, nickname: nickname, avatarUrl: avatarUrl);
     });
-    final nicknames = Map.fromEntries(await Future.wait(nicknameFutures));
-    nicknames[uid] = myNickname;
+    final profileResults = await Future.wait(profileFutures);
+    final nicknames = {uid: myNickname, for (final r in profileResults) r.uid: r.nickname};
+    final avatarUrls = <String, String>{
+      uid: ?myAvatarUrl,
+      for (final r in profileResults) if (r.avatarUrl != null) r.uid: r.avatarUrl!,
+    };
 
     final chatId = firestore.collection('chats').doc().id;
     final allUids = [uid, ...participantUids];
@@ -309,6 +316,7 @@ mixin GroupChatMixin {
       await firestore.collection('chats').doc(chatId).set({
         'participants': allUids,
         'participantNicknames': nicknames,
+        'participantAvatarUrls': avatarUrls,
         'participantRoles': {
           uid: 'creator',
           for (final pUid in participantUids) pUid: 'member',

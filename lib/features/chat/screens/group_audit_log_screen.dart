@@ -28,13 +28,17 @@ class AuditLogEntry {
   factory AuditLogEntry.fromDoc(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
     final ts = data['timestamp'];
+    final rawDetails = data['details'];
+    final detailsStr = rawDetails is Map
+        ? rawDetails.entries.map((e) => '${e.key}: ${e.value}').join(', ')
+        : rawDetails as String?;
     return AuditLogEntry(
       id: doc.id,
       action: data['action'] as String? ?? 'unknown',
-      actor: data['actor'] as String? ?? '',
+      actor: data['actorUid'] as String? ?? '',
       actorName: data['actorName'] as String?,
       targetUid: data['targetUid'] as String?,
-      details: data['details'] as String?,
+      details: detailsStr,
       timestamp: ts is Timestamp ? ts.toDate() : null,
     );
   }

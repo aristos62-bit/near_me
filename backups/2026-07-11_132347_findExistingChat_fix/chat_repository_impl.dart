@@ -90,7 +90,6 @@ class ChatRepositoryImpl with GroupChatMixin implements ChatRepository {
       'participantNicknames': {uid: myNickname, otherUid: otherNickname},
       'createdAt': FieldValue.serverTimestamp(),
       'isActive': true,
-      'maxParticipants': 2,
     });
     DebugConfig.log(DebugConfig.repositoryResult, 'createChat: new chat created: $chatId');
 
@@ -109,25 +108,10 @@ class ChatRepositoryImpl with GroupChatMixin implements ChatRepository {
           .get();
 
       for (final doc in snapshot.docs) {
-        final data = doc.data();
-        final participants = List<String>.from(data['participants'] ?? []);
-        if (!participants.contains(uid2)) continue;
-
-        if (data['isGroupChat'] == true) {
-          DebugConfig.log(DebugConfig.repositoryResult,
-              '_findExistingChat: skip group chat=${doc.id} for 1-on-1 lookup');
-          continue;
+        final participants = List<String>.from(doc.data()['participants'] ?? []);
+        if (participants.contains(uid2)) {
+          return doc.id;
         }
-
-        if (participants.length != 2) {
-          DebugConfig.log(DebugConfig.repositoryResult,
-              '_findExistingChat: skip multi-participant chat=${doc.id} (${participants.length} members) for 1-on-1 lookup');
-          continue;
-        }
-
-        DebugConfig.log(DebugConfig.repositoryResult,
-            '_findExistingChat: found existing 1-on-1 chat=${doc.id}');
-        return doc.id;
       }
     } catch (e) {
       DebugConfig.warn('createChat: findExisting failed', data: e);

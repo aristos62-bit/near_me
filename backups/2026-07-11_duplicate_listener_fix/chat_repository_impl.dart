@@ -10,7 +10,6 @@ import '../data/local/database_service.dart';
 import 'auth_repository.dart';
 import 'chat_repository.dart';
 import '../core/debug/debug_config.dart';
-import '../core/notifications/fcm_service.dart';
 import '../core/utils/app_exception.dart';
 import '../core/utils/encryption_utils.dart';
 import '../shared/utils/mention_utils.dart';
@@ -90,7 +89,6 @@ class ChatRepositoryImpl with GroupChatMixin implements ChatRepository {
       'participantNicknames': {uid: myNickname, otherUid: otherNickname},
       'createdAt': FieldValue.serverTimestamp(),
       'isActive': true,
-      'maxParticipants': 2,
     });
     DebugConfig.log(DebugConfig.repositoryResult, 'createChat: new chat created: $chatId');
 
@@ -109,25 +107,10 @@ class ChatRepositoryImpl with GroupChatMixin implements ChatRepository {
           .get();
 
       for (final doc in snapshot.docs) {
-        final data = doc.data();
-        final participants = List<String>.from(data['participants'] ?? []);
-        if (!participants.contains(uid2)) continue;
-
-        if (data['isGroupChat'] == true) {
-          DebugConfig.log(DebugConfig.repositoryResult,
-              '_findExistingChat: skip group chat=${doc.id} for 1-on-1 lookup');
-          continue;
+        final participants = List<String>.from(doc.data()['participants'] ?? []);
+        if (participants.contains(uid2)) {
+          return doc.id;
         }
-
-        if (participants.length != 2) {
-          DebugConfig.log(DebugConfig.repositoryResult,
-              '_findExistingChat: skip multi-participant chat=${doc.id} (${participants.length} members) for 1-on-1 lookup');
-          continue;
-        }
-
-        DebugConfig.log(DebugConfig.repositoryResult,
-            '_findExistingChat: found existing 1-on-1 chat=${doc.id}');
-        return doc.id;
       }
     } catch (e) {
       DebugConfig.warn('createChat: findExisting failed', data: e);
@@ -541,22 +524,7 @@ class ChatRepositoryImpl with GroupChatMixin implements ChatRepository {
           for (final change in snapshot.docChanges) {
             if (change.type == DocumentChangeType.added ||
                 change.type == DocumentChangeType.modified) {
-              final chatId = change.doc.id;
-              final isActive = FcmService.activeChatIds.contains(chatId);
-              if (isActive && change.type == DocumentChangeType.modified) {
-                DebugConfig.log(DebugConfig.chatStream,
-                    'streamChats: lightweight sync for active chat=$chatId');
-                final data = change.doc.data() as Map<String, dynamic>;
-                final lastMessageAt = (data['lastMessageAt'] as Timestamp?)?.toDate();
-                final lastMessageBy = data['lastMessageBy'] as String?;
-                if (lastMessageAt != null) {
-                  await updateChatCache(chatId,
-                      lastMessageAt: lastMessageAt,
-                      hasUnread: lastMessageBy != null && lastMessageBy != uid);
-                }
-              } else {
-                await _syncChatFromFirestore(chatId, change.doc.data() as Map<String, dynamic>);
-              }
+              await _syncChatFromFirestore(change.doc.id, change.doc.data() as Map<String, dynamic>);
               changed = true;
             } else if (change.type == DocumentChangeType.removed) {
               await removeChatCache(change.doc.id);

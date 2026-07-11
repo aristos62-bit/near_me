@@ -148,16 +148,11 @@ service cloud.firestore {
                          .hasOnly(['participantRoles', 'permissionOverrides', 'maxParticipants'])
                        && resource.data.participantRoles[request.auth.uid] == 'creator')
                     );
-      // 1-on-1 chat: κάθε participant μπορεί να διαγράψει
       allow delete: if isAuthenticated()
                      && request.auth.uid in resource.data.participants
-                     && resource.data.get('isGroupChat', false) != true;
-      // Group chat: μόνο creator ή admin
-      allow delete: if isAuthenticated()
-                     && request.auth.uid in resource.data.participants
-                     && resource.data.get('isGroupChat', false) == true
-                     && resource.data.participantRoles != null
-                     && resource.data.participantRoles[request.auth.uid] in ['creator', 'admin'];
+                     && (resource.data.isGroupChat != true
+                         || (resource.data.participantRoles != null
+                             && resource.data.participantRoles[request.auth.uid] in ['creator', 'admin']));
 
       match /messages/{msgId} {
         allow read: if isAuthenticated()

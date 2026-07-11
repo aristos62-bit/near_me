@@ -406,7 +406,10 @@ class _PublicProfileViewScreenState extends ConsumerState<PublicProfileViewScree
             ),
           ),
           ...groupChats.map((chat) => ListTile(
-            leading: const CircleAvatar(child: Icon(Icons.group)),
+            leading: CircleAvatar(
+              backgroundImage: chat.groupAvatarUrl != null ? CachedNetworkImageProvider(chat.groupAvatarUrl!) : null,
+              child: chat.groupAvatarUrl == null ? const Icon(Icons.group) : null,
+            ),
             title: Text(chat.groupName ?? chat.chatId ?? ''),
             subtitle: Text('${chat.participantCount} members'),
             onTap: () => Navigator.of(ctx).pop(chat.chatId),

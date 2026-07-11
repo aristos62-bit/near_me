@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -26,8 +27,6 @@ class PermissionsEditorScreen extends ConsumerStatefulWidget {
 
 class _PermissionsEditorScreenState
     extends ConsumerState<PermissionsEditorScreen> {
-  String? _targetRole;
-  Map<String, dynamic>? _participantNicknames;
   final Set<String> _savingPermissions = {};
 
   static const _basicPermissions = [
@@ -94,9 +93,10 @@ class _PermissionsEditorScreenState
     return greek ? 'Προεπιλογή ρόλου' : 'Role default';
   }
 
-  String _nicknameFor() {
-    if (_participantNicknames?.containsKey(widget.targetUid) == true) {
-      return _participantNicknames![widget.targetUid] as String;
+  String _nicknameFor(Map<String, dynamic>? chatData) {
+    final nicknames = chatData?['participantNicknames'] as Map<String, dynamic>?;
+    if (nicknames?.containsKey(widget.targetUid) == true) {
+      return nicknames![widget.targetUid] as String;
     }
     final uid = widget.targetUid;
     return uid.length > 12 ? '${uid.substring(0, 12)}...' : uid;
@@ -176,6 +176,8 @@ class _PermissionsEditorScreenState
   Future<void> _changeRole(String newRole) async {
     final greek = L10n.isGreek(context);
     final isPromote = newRole == 'admin';
+    final chatData = ref.read(chatDocProvider(widget.chatId)).asData?.value?.data() as Map<String, dynamic>?;
+    final nick = _nicknameFor(chatData);
     final confirmed = await AppMessenger.showConfirmDialog(
       context,
       title: L10n.localizedMessage(
@@ -185,8 +187,8 @@ class _PermissionsEditorScreenState
               : 'Υποβιβασμός σε Μέλος / Demote to Member'),
       message: L10n.localizedMessage(context,
           isPromote
-              ? 'Θα προαχθεί ο/η ${_nicknameFor()} σε Admin. Συνέχεια;'
-              : 'Θα αφαιρεθούν τα δικαιώματα Admin από τον/την ${_nicknameFor()}. Συνέχεια;'),
+              ? 'Θα προαχθεί ο/η $nick σε Admin. Συνέχεια;'
+              : 'Θα αφαιρεθούν τα δικαιώματα Admin από τον/την $nick. Συνέχεια;'),
       confirmLabel: greek ? (isPromote ? 'Προαγωγή' : 'Υποβιβασμός') : (isPromote ? 'Promote' : 'Demote'),
       cancelLabel: greek ? 'Ακύρωση' : 'Cancel',
       isDestructive: !isPromote,
@@ -217,12 +219,14 @@ class _PermissionsEditorScreenState
 
   Future<void> _removeMember() async {
     final greek = L10n.isGreek(context);
+    final chatData = ref.read(chatDocProvider(widget.chatId)).asData?.value?.data() as Map<String, dynamic>?;
+    final nick = _nicknameFor(chatData);
     final confirmed = await AppMessenger.showConfirmDialog(
       context,
       title: L10n.localizedMessage(
           context, 'Αφαίρεση μέλους / Remove member'),
       message: L10n.localizedMessage(context,
-          'Θα αφαιρεθεί ο/η ${_nicknameFor()} από την ομάδα. Συνέχεια;'),
+          'Θα αφαιρεθεί ο/η $nick από την ομάδα. Συνέχεια;'),
       confirmLabel: greek ? 'Αφαίρεση' : 'Remove',
       cancelLabel: greek ? 'Ακύρωση' : 'Cancel',
       isDestructive: true,
@@ -257,41 +261,34 @@ class _PermissionsEditorScreenState
     final theme = Theme.of(context);
     final currentUid = ref.read(authStateProvider).value?.uid ?? '';
     final chatDocAsync = ref.watch(chatDocProvider(widget.chatId));
+    final chatData = chatDocAsync.asData?.value?.data() as Map<String, dynamic>?;
     final permsAsync = ref.watch(groupPermissionsProvider(widget.chatId));
+
+    final roles = chatData?['participantRoles'] as Map<String, dynamic>?;
+    final participantRole = roles?[widget.targetUid] as String?;
+    final isTargetActive = participantRole != null;
+    final isCreator = currentUid == chatData?['createdBy'];
+    final canManage = isCreator;
 
     ref.listen(chatDocProvider(widget.chatId), (prev, next) {
       if (!mounted) return;
-      final data = next.asData?.value?.data() as Map<String, dynamic>?;
-      if (data == null) return;
-      final roles = data['participantRoles'] as Map<String, dynamic>?;
-      final role = roles?[widget.targetUid] as String?;
-      final nicks = data['participantNicknames'] as Map<String, dynamic>?;
-      if (role != _targetRole || nicks != _participantNicknames) {
-        setState(() {
-          _targetRole = role;
-          _participantNicknames = nicks;
-        });
-      }
+      setState(() {});
     });
 
     final isLoading = chatDocAsync.isLoading || permsAsync.isLoading;
     final hasError = chatDocAsync.hasError || permsAsync.hasError;
     final permsInfo = permsAsync.asData?.value;
-    final participantRole = _targetRole;
-    final isTargetActive = participantRole != null;
-    final isCreator = currentUid == (chatDocAsync.asData?.value?.data() as Map<String, dynamic>?)?['createdBy'];
-    final canManage = isCreator;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isTargetActive ? _nicknameFor() : widget.targetUid),
+        title: Text(isTargetActive ? _nicknameFor(chatData) : widget.targetUid),
       ),
       body: isLoading
           ? const LoadingView()
           : hasError || permsInfo == null || !isTargetActive
               ? _buildErrorView(greek)
               : _buildContent(
-                  greek, theme, permsInfo, participantRole, canManage),
+                  greek, theme, permsInfo, participantRole, canManage, chatData),
     );
   }
 
@@ -337,7 +334,7 @@ class _PermissionsEditorScreenState
   }
 
   Widget _buildContent(bool greek, ThemeData theme,
-      GroupPermissionsInfo permsInfo, String role, bool canManage) {
+      GroupPermissionsInfo permsInfo, String role, bool canManage, Map<String, dynamic>? chatData) {
     final targetOverrides = permsInfo.overrides[widget.targetUid] ?? {};
 
     return ListView(
@@ -346,7 +343,7 @@ class _PermissionsEditorScreenState
             ResponsiveUtils.resolveWidth(context, null)),
       ),
       children: [
-        _buildHeader(greek, theme, role),
+        _buildHeader(greek, theme, role, chatData),
         const SizedBox(height: 16),
         _buildSectionHeader(greek, theme, 'Basics',
             greek ? 'Βασικά δικαιώματα' : 'Basic permissions'),
@@ -367,7 +364,9 @@ class _PermissionsEditorScreenState
     );
   }
 
-  Widget _buildHeader(bool greek, ThemeData theme, String role) {
+  Widget _buildHeader(bool greek, ThemeData theme, String role, Map<String, dynamic>? chatData) {
+    final nick = _nicknameFor(chatData);
+    final avatarUrl = (chatData?['participantAvatarUrls'] as Map<String, dynamic>?)?[widget.targetUid] as String?;
     return Card(
       child: ListTile(
         leading: CircleAvatar(
@@ -376,9 +375,12 @@ class _PermissionsEditorScreenState
               : role == 'admin'
                   ? theme.colorScheme.secondaryContainer
                   : theme.colorScheme.surfaceContainerHighest,
-          child: Text(_nicknameFor()[0].toUpperCase()),
+          backgroundImage: avatarUrl != null ? CachedNetworkImageProvider(avatarUrl) : null,
+          child: avatarUrl == null
+              ? Text(nick.isNotEmpty ? nick[0].toUpperCase() : '?')
+              : null,
         ),
-        title: Text(_nicknameFor(),
+        title: Text(nick,
             style: theme.textTheme.titleMedium),
         subtitle: Row(
           children: [

@@ -196,6 +196,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
     });
     final participantUids = ref.watch(participantUidsProvider(widget.chatId));
     final groupName = chatData?['groupName'] as String? ?? _groupName;
+    final groupAvatarUrl = chatData?['groupAvatarUrl'] as String?;
     final createdBy = chatData?['createdBy'] as String? ?? _createdBy;
     final rolesMap = chatData?['participantRoles'] as Map<String, dynamic>? ?? _participantRoles;
     final isCreator = currentUid == createdBy;
@@ -212,7 +213,10 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
               children: [
                 Card(
                   child: ListTile(
-                    leading: const CircleAvatar(child: Icon(Icons.group)),
+                    leading: CircleAvatar(
+                      backgroundImage: groupAvatarUrl != null ? CachedNetworkImageProvider(groupAvatarUrl) : null,
+                      child: groupAvatarUrl == null ? const Icon(Icons.group) : null,
+                    ),
                     title: _isEditingName
                         ? Row(children: [
                             Expanded(child: TextField(

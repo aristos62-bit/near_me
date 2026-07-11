@@ -52,11 +52,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             'nickname=${_nickname ?? "null (will show chatId)"}');
   }
 
-  void _showE2EInfo(bool isGroupChat, String? groupName) {
+  void _showE2EInfo(String label) {
     final greek = L10n.isGreek(context);
-    final label = isGroupChat
-        ? (groupName ?? widget.chatId)
-        : (_nickname ?? widget.chatId);
     AppMessenger.showInfoDialog(
       context,
       icon: Icons.lock,
@@ -104,6 +101,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final memberCount = isGroupChat ? participantUids.length : null;
 
     final currentUid = ref.read(authStateProvider).value?.uid ?? '';
+    final otherUid = isGroupChat ? null : participantUids.where((u) => u != currentUid).firstOrNull;
+    final otherNickname = otherUid != null ? participantNicknames[otherUid] : null;
     ref.listen(participantUidsProvider(widget.chatId), (prev, next) {
       if (!mounted) return;
       if (isGroupChat && currentUid.isNotEmpty && !next.contains(currentUid)) {
@@ -117,7 +116,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     return Scaffold(
       appBar: AppBar(
         title: GestureDetector(
-          onTap: () => _showE2EInfo(isGroupChat, groupName),
+          onTap: () => _showE2EInfo(isGroupChat ? (groupName ?? widget.chatId) : (_nickname ?? otherNickname ?? widget.chatId)),
           child: isGroupChat
               ? Column(children: [
                   Row(mainAxisSize: MainAxisSize.min, children: [
@@ -143,7 +142,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     ]),
                 ])
               : Column(children: [
-                  Text(_nickname ?? widget.chatId),
+                  Text(_nickname ?? otherNickname ?? widget.chatId),
                   Row(mainAxisSize: MainAxisSize.min, children: [
                     Icon(Icons.lock, size: 12, color: theme.colorScheme.onSurfaceVariant),
                     const SizedBox(width: 4),

@@ -24,7 +24,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   final _descriptionCtrl = TextEditingController();
   final _tagsCtrl = TextEditingController();
   final _cityCtrl = TextEditingController();
-  final _selectedUids = <String>{};
+  final _selected = <String, String>{};
   Timer? _debounce;
   List<Map<String, dynamic>> _searchResults = [];
   bool _isSearching = false;
@@ -90,7 +90,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
             };
           })
           .where((u) => u['uid'] != currentUid)
-          .where((u) => !_selectedUids.contains(u['uid']))
+          .where((u) => !_selected.containsKey(u['uid']))
           .where((u) => (u['nickname'] as String).toLowerCase().contains(lowerQuery))
           .toList();
 
@@ -115,23 +115,24 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
 
   void _toggleUser(Map<String, dynamic> user) {
     final uid = user['uid'] as String;
+    final nickname = user['nickname'] as String;
     setState(() {
-      if (_selectedUids.contains(uid)) {
-        _selectedUids.remove(uid);
-      } else if (_selectedUids.length < 9) {
-        _selectedUids.add(uid);
+      if (_selected.containsKey(uid)) {
+        _selected.remove(uid);
+      } else if (_selected.length < 9) {
+        _selected[uid] = nickname;
         _searchResults.removeWhere((u) => u['uid'] == uid);
       }
     });
   }
 
   void _removeSelected(String uid) {
-    setState(() => _selectedUids.remove(uid));
+    setState(() => _selected.remove(uid));
   }
 
   Future<void> _createGroup() async {
     final greek = L10n.isGreek(context);
-    if (_selectedUids.isEmpty) {
+    if (_selected.isEmpty) {
       AppMessenger.showError(context, greek
           ? 'Επίλεξε τουλάχιστον 1 άτομο'
           : 'Select at least 1 person');
@@ -145,10 +146,10 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
         : <String>[];
     final city = _cityCtrl.text.trim();
     DebugConfig.log(DebugConfig.uiInteraction,
-        'CreateGroupScreen: create with ${_selectedUids.length} members, groupName="$groupName", isPublic=$_isPublic');
+        'CreateGroupScreen: create with ${_selected.length} members, groupName="$groupName", isPublic=$_isPublic');
     try {
       final chatId = await ref.read(chatActionsProvider.notifier)
-          .createGroupChat(_selectedUids.toList(), groupName: groupName.isNotEmpty ? groupName : null, isPublic: _isPublic, description: description.isNotEmpty ? description : null, tags: tags.isNotEmpty ? tags : null, city: city.isNotEmpty ? city : null);
+          .createGroupChat(_selected.keys.toList(), groupName: groupName.isNotEmpty ? groupName : null, isPublic: _isPublic, description: description.isNotEmpty ? description : null, tags: tags.isNotEmpty ? tags : null, city: city.isNotEmpty ? city : null);
       if (!mounted) return;
       AppMessenger.showSuccess(context, greek
           ? 'Η ομάδα δημιουργήθηκε'
@@ -233,16 +234,16 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                 ),
               ],
               const SizedBox(height: 16),
-              if (_selectedUids.isNotEmpty)
+              if (_selected.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: Wrap(
                     spacing: 8,
                     runSpacing: 4,
-                    children: _selectedUids.map((uid) => Chip(
-                      label: Text(uid.length > 12 ? '${uid.substring(0, 12)}...' : uid),
+                    children: _selected.entries.map((e) => Chip(
+                      label: Text(e.value),
                       deleteIcon: const Icon(Icons.close, size: 16),
-                      onDeleted: () => _removeSelected(uid),
+                      onDeleted: () => _removeSelected(e.key),
                     )).toList(),
                   ),
                 ),
@@ -310,10 +311,10 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                       ].join(' · ')),
                       trailing: IconButton(
                         icon: Icon(
-                          _selectedUids.contains(uid)
+                          _selected.containsKey(uid)
                               ? Icons.check_circle
                               : Icons.add_circle_outline,
-                          color: _selectedUids.contains(uid)
+                          color: _selected.containsKey(uid)
                               ? theme.colorScheme.primary
                               : theme.colorScheme.onSurfaceVariant,
                         ),
@@ -322,12 +323,12 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                     ),
                   );
                 }),
-              if (_selectedUids.isNotEmpty) ...[
+              if (_selected.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 Text(
                   greek
-                      ? '${_selectedUids.length}/9 άτομα επιλεγμένα'
-                      : '${_selectedUids.length}/9 people selected',
+                      ? '${_selected.length}/9 άτομα επιλεγμένα'
+                      : '${_selected.length}/9 people selected',
                   style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant),
                 ),

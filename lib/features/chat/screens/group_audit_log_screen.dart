@@ -5,9 +5,11 @@ import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../shared/widgets/app_state_widget.dart';
+import '../providers/chat_provider.dart';
 
 class AuditLogEntry {
   final String id;
+  final String chatId;
   final String action;
   final String actor;
   final String? actorName;
@@ -17,6 +19,7 @@ class AuditLogEntry {
 
   const AuditLogEntry({
     required this.id,
+    required this.chatId,
     required this.action,
     required this.actor,
     this.actorName,
@@ -25,7 +28,7 @@ class AuditLogEntry {
     this.timestamp,
   });
 
-  factory AuditLogEntry.fromDoc(DocumentSnapshot doc) {
+  factory AuditLogEntry.fromDoc(String chatId, DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
     final ts = data['timestamp'];
     final rawDetails = data['details'];
@@ -34,6 +37,7 @@ class AuditLogEntry {
         : rawDetails as String?;
     return AuditLogEntry(
       id: doc.id,
+      chatId: chatId,
       action: data['action'] as String? ?? 'unknown',
       actor: data['actorUid'] as String? ?? '',
       actorName: data['actorName'] as String?,
@@ -54,7 +58,7 @@ final auditLogStreamProvider = StreamProvider.autoDispose.family<List<AuditLogEn
       .orderBy('timestamp', descending: true)
       .limit(100)
       .snapshots()
-      .map((snap) => snap.docs.map(AuditLogEntry.fromDoc).toList());
+      .map((snap) => snap.docs.map((doc) => AuditLogEntry.fromDoc(chatId, doc)).toList());
 });
 
 String _actionIcon(String action) {
@@ -167,7 +171,7 @@ class GroupAuditLogScreen extends ConsumerWidget {
   }
 }
 
-class _AuditLogTile extends StatelessWidget {
+class _AuditLogTile extends ConsumerWidget {
   final AuditLogEntry entry;
   final bool greek;
   final ThemeData theme;
@@ -179,7 +183,17 @@ class _AuditLogTile extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final chatData = ref.watch(chatDocProvider(entry.chatId)).asData?.value?.data() as Map<String, dynamic>?;
+    final nicknames = chatData?['participantNicknames'] as Map<String, dynamic>?;
+    final actorNick = entry.actorName ?? nicknames?[entry.actor] as String? ?? entry.actor;
+    final targetNick = entry.targetUid != null ? (nicknames?[entry.targetUid] as String?) : null;
+
+    String displayDetails = entry.details ?? '';
+    if (targetNick != null && entry.details == null) {
+      displayDetails = targetNick;
+    }
+
     return ListTile(
       leading: CircleAvatar(
         backgroundColor: theme.colorScheme.primaryContainer,
@@ -197,13 +211,13 @@ class _AuditLogTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            entry.actorName ?? entry.actor,
+            actorNick,
             style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant),
           ),
-          if (entry.details != null && entry.details!.isNotEmpty)
+          if (displayDetails.isNotEmpty)
             Text(
-              entry.details!,
+              displayDetails,
               style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant.withAlpha(180)),
               maxLines: 2,

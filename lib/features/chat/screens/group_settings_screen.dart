@@ -71,6 +71,7 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
       await ref.read(chatActionsProvider.notifier).removeGroupAvatar(widget.chatId);
       if (!mounted) return;
       setState(() => _isUploadingAvatar = false);
+      DebugConfig.log(DebugConfig.repositoryResult, 'GroupSettings: removeAvatar success ${widget.chatId}');
       AppMessenger.showSuccess(context, greek ? 'Το avatar αφαιρέθηκε' : 'Avatar removed');
     } catch (e, s) {
       DebugConfig.error('GroupSettings: removeAvatar failed', data: e, exception: s);

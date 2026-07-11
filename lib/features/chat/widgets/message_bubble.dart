@@ -38,26 +38,28 @@ class MessageBubble extends StatelessWidget {
     final isRead = message['isRead'] as bool? ?? false;
     final mentions = (message['mentions'] as List?)?.cast<String>() ?? <String>[];
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Column(
-        crossAxisAlignment:
-            isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-        children: [
-          if (isGroupChat && !isMe && senderNickname != null)
-            Padding(
-              padding: const EdgeInsets.only(left: 14, bottom: 2),
-              child: Text(
-                senderNickname!,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w600,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxBubbleWidth = constraints.maxWidth * 0.75;
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Column(
+            crossAxisAlignment:
+                isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            children: [
+              if (isGroupChat && !isMe && senderNickname != null)
+                Padding(
+                  padding: const EdgeInsets.only(left: 14, bottom: 2),
+                  child: Text(
+                    senderNickname!,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-          Container(
-            constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.75),
+              Container(
+                constraints: BoxConstraints(maxWidth: maxBubbleWidth),
             padding: const EdgeInsets.symmetric(
                 horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
@@ -112,6 +114,8 @@ class MessageBubble extends StatelessWidget {
           ),
         ],
       ),
+    );
+      },
     );
   }
 
@@ -168,14 +172,16 @@ class _SystemBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Column(
-        children: [
-          Center(
-            child: Container(
-              constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(context).size.width * 0.65),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxBubbleWidth = constraints.maxWidth * 0.65;
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Column(
+            children: [
+              Center(
+                child: Container(
+                  constraints: BoxConstraints(maxWidth: maxBubbleWidth),
               padding: const EdgeInsets.symmetric(
                   horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
@@ -205,5 +211,8 @@ class _SystemBubble extends StatelessWidget {
         ],
       ),
     );
+    },
+  );
   }
 }
+

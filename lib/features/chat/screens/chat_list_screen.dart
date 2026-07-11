@@ -242,6 +242,7 @@ class _ChatTile extends ConsumerWidget {
                   isDestructive: true,
                 );
                 if (confirmed && context.mounted) {
+                  DebugConfig.log(DebugConfig.uiInteraction, 'ChatListScreen: deleteChat $chatId isGroup=$isGroup');
                   await ref.read(chatActionsProvider.notifier).deleteChat(chatId);
                 }
               },

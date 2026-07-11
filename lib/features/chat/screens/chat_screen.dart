@@ -216,47 +216,47 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             },
             itemBuilder: (_) => [
               if (_isGroupChat) ...[
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'group_info',
                   child: ListTile(
-                    leading: Icon(Icons.info_outline, size: 20),
-                    title: Text('Group info'),
+                    leading: const Icon(Icons.info_outline, size: 20),
+                    title: Text(greek ? 'Πληροφορίες ομάδας' : 'Group info'),
                     dense: true,
                     contentPadding: EdgeInsets.zero,
                   ),
                 ),
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'add_member',
                   child: ListTile(
-                    leading: Icon(Icons.person_add, size: 20),
-                    title: Text('Add member'),
+                    leading: const Icon(Icons.person_add, size: 20),
+                    title: Text(greek ? 'Προσθήκη μέλους' : 'Add member'),
                     dense: true,
                     contentPadding: EdgeInsets.zero,
                   ),
                 ),
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'group_audit_log',
                   child: ListTile(
-                    leading: Icon(Icons.history, size: 20),
-                    title: Text('Audit log'),
+                    leading: const Icon(Icons.history, size: 20),
+                    title: Text(greek ? 'Αρχείο καταγραφής' : 'Audit log'),
                     dense: true,
                     contentPadding: EdgeInsets.zero,
                   ),
                 ),
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'group_call',
                   child: ListTile(
-                    leading: Icon(Icons.videocam, size: 20),
-                    title: Text('Call'),
+                    leading: const Icon(Icons.videocam, size: 20),
+                    title: Text(greek ? 'Κλήση' : 'Call'),
                     dense: true,
                     contentPadding: EdgeInsets.zero,
                   ),
                 ),
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'leave_group',
                   child: ListTile(
-                    leading: Icon(Icons.exit_to_app, size: 20),
-                    title: Text('Leave group'),
+                    leading: const Icon(Icons.exit_to_app, size: 20),
+                    title: Text(greek ? 'Αποχώρηση' : 'Leave group'),
                     dense: true,
                     contentPadding: EdgeInsets.zero,
                   ),

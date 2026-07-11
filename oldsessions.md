@@ -379,6 +379,65 @@ Row με Spacer + chips → overflow 3.5px. Fix: `Row` → `Wrap`.
 
 ---
 
+## Session 160 — CRITICAL BUGS: addParticipant + markAsRead (Cloud Function + Rules Fix)
+
+**Πεδίο:** Δύο critical bugs στο group chat — addParticipant PERMISSION_DENIED (όταν ≥2 μέλη) και markAsRead PERMISSION_DENIED (πάντα).
+
+### 🔴 CRITICAL BUG #1 — addParticipant PERMISSION_DENIED (όταν ≥2 μέλη)
+**Πρόβλημα:** `firestore.rules` γραμμή 87 — `blocked` subcollection readable μόνο από owner ή blocked user. Το loop στο `group_chat_mixin.dart:370-377` διάβαζε `users/${pUid}/blocked/${newUid}` για κάθε υπάρχον μέλος → PERMISSION_DENIED όταν group ≥2 members.
+
+**Λύση:** Νέο `addGroupParticipant` callable Cloud Function (`functions/src/index.ts:702-781`):
+- Admin SDK `runTransaction` — διαβάζει `blocked` subcollections χωρίς rules restrictions
+- Ελέγχει: authentication, participant status, duplicate, max participants, block list, nickname
+- Γράφει `participants`, `participantNicknames`, `participantRoles`, `participantJoinedAt`, `participantInvitedBy`, `participantIsActive`
+- Bilingual error codes: `not-found`, `already-exists`, `failed-precondition`, `resource-exhausted`, `permission-denied`, `unauthenticated`
+
+**Client-side (`group_chat_mixin.dart:361-395`):**
+- `addParticipant()` → αντί για `firestore.runTransaction`, καλεί `FirebaseFunctions.instance.httpsCallable('addGroupParticipant')`
+- Post‑steps (`_sendSystemMessage`, `_logAudit`, `db.logConsent`, `_updatePublicProfileMemberCount`) παραμένουν client‑side
+- Προστέθηκε `_cfErrorToAppException(e)` helper (γραμμές 43-67) — μεταφράζει `HttpsError` codes → `AppException` (el/en)
+
+**Αρχεία:** `functions/src/index.ts` (νέα CF), `group_chat_mixin.dart` (rewrite), `chat_repository_impl.dart` (import)
+
+### 🔴 CRITICAL BUG #2 — markAsRead PERMISSION_DENIED (πάντα)
+**Πρόβλημα (2 issues στο `firestore.rules:119-121`):**
+1. `${request.auth.uid}` — το CEL (Common Expression Language) των Firestore Rules **δεν υποστηρίζει string interpolation**. Το `${...}` έμενε κυριολεκτικό string → ποτέ match.
+2. `affectedKeys()` επιστρέφει **top-level fields μόνο** (π.χ. `['lastReadTimestamps']`), όχι dotted paths (`['lastReadTimestamps.uid']`).
+
+**Λύση (firestore.rules:119-124):**
+```
+hasOnly(['lastReadTimestamps'])
+  && request.resource.data.lastReadTimestamps.diff(
+       resource.data.get('lastReadTimestamps', {})
+     ).affectedKeys().hasOnly([request.auth.uid])
+```
+- Πρώτο check: μόνο το `lastReadTimestamps` top-level field άλλαξε
+- Δεύτερο check (nested diff): μέσα σε αυτό, μόνο το key του authenticated user
+- `resource.data.get('lastReadTimestamps', {})` — fallback για πρώτη φορά που γράφονται read receipts
+
+### 🔶 arrayUnion crash στην CF (δευτερεύον)
+**Πρόβλημα:** `admin.firestore.FieldValue.arrayUnion([newUid])` → Admin SDK Node.js δέχεται **variadic arguments**, όχι array. Error: `Nested arrays are not supported`.
+
+**Λύση:** `arrayUnion([newUid])` → `arrayUnion(newUid)`
+
+**Αρχείο:** `functions/src/index.ts:758`
+
+### Deploy
+- `firebase deploy --only functions:addGroupParticipant` ✅ (2× — initial + arrayUnion fix)
+- `firebase deploy --only firestore:rules` ✅
+- `flutter analyze`: **0 issues**
+
+### Αρχεία
+| Αρχείο | Αλλαγή |
+|--------|--------|
+| `functions/src/index.ts` | Νέα `addGroupParticipant` CF (γραμμές 702-781) + arrayUnion fix |
+| `lib/repositories/group_chat_mixin.dart` | `addParticipant` rewrite (CF call + `_cfErrorToAppException` helper) |
+| `lib/repositories/chat_repository_impl.dart` | `import cloud_functions` |
+| `firestore.rules` | markAsRead rule fix (γραμμές 119-124) |
+| `backups/2026-07-10_231606/firestore.rules` | Backup πριν το rules fix |
+
+---
+
 ## Current State
 
 | Μέτρο | Τιμή |
@@ -388,7 +447,7 @@ Row με Spacer + chips → overflow 3.5px. Fix: `Row` → `Wrap`.
 | Build | `flutter analyze` clean, release APK ~33.4MB |
 | Tests | **30/30 passed** |
 | `.dart` files | ~109 (non-generated) |
-| Cloud Functions | 5 deployed + `fcm-utils.ts` helper |
+| Cloud Functions | **6 deployed** (+1 new: `addGroupParticipant`) + `fcm-utils.ts` helper |
 | Unread tracking requests + FCM deep link | ✅ Session 139 |
 | RenderFlex overflow fixes (discovery + delete + request_card) | ✅ Sessions 140, 148a |
 | Badge count iOS + locale fallback + city-filter crash | ✅ Session 143 |
@@ -414,6 +473,9 @@ Row με Spacer + chips → overflow 3.5px. Fix: `Row` → `Wrap`.
 | Bilingual LoadingView/EmptyView (4 strings) | ✅ Session 159 — audit_log + join_confirmation |
 | Firestore rules + indexes deploy | ✅ Session 159 — `firebase deploy --only firestore` |
 | Cloud Functions deploy | ✅ Session 159 — all 5 functions updated |
+| **🔴 CRITICAL #1 — addParticipant PERMISSION_DENIED (≥2 members)** | ✅ **Session 160** — νέο `addGroupParticipant` callable CF + client rewrite |
+| **🔴 CRITICAL #2 — markAsRead PERMISSION_DENIED (always)** | ✅ **Session 160** — rules fix: nested diff rule, `${}` interpolation → `request.auth.uid` |
+| **arrayUnion crash (CF)** | ✅ **Session 160** — `arrayUnion([uid])` → `arrayUnion(uid)` |
 
 ### Remaining Gaps
 - **Phase 4**: Video (Agora), AI matching, Admin, Web, Premium, Typesense

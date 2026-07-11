@@ -26,7 +26,10 @@ class GroupInviteScreen extends ConsumerWidget {
           message: greek ? 'Αποτυχία φόρτωσης' : 'Failed to load',
           onRetry: () => ref.invalidate(activeInvitesProvider(chatId)),
         ),
-        data: (invites) => _InvitesList(chatId: chatId, invites: invites),
+        data: (invites) {
+          DebugConfig.log(DebugConfig.repositoryResult, 'GroupInviteScreen: ${invites.length} active invites for chatId=$chatId');
+          return _InvitesList(chatId: chatId, invites: invites);
+        },
       ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'create_invite',

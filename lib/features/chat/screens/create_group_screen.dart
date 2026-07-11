@@ -144,6 +144,8 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
         ? _tagsCtrl.text.trim().split(',').map((t) => t.trim()).where((t) => t.isNotEmpty).toList()
         : <String>[];
     final city = _cityCtrl.text.trim();
+    DebugConfig.log(DebugConfig.uiInteraction,
+        'CreateGroupScreen: create with ${_selectedUids.length} members, groupName="$groupName", isPublic=$_isPublic');
     try {
       final chatId = await ref.read(chatActionsProvider.notifier)
           .createGroupChat(_selectedUids.toList(), groupName: groupName.isNotEmpty ? groupName : null, isPublic: _isPublic, description: description.isNotEmpty ? description : null, tags: tags.isNotEmpty ? tags : null, city: city.isNotEmpty ? city : null);

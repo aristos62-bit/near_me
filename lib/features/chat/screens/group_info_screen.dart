@@ -100,6 +100,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
   }
 
   Future<void> _changeRole(String uid, String newRole) async {
+    DebugConfig.log(DebugConfig.uiInteraction, 'GroupInfoScreen: changeRole $uid -> $newRole in ${widget.chatId}');
     try {
       await ref.read(chatActionsProvider.notifier).updateParticipantRole(widget.chatId, uid, newRole);
       if (!mounted) return;
@@ -127,6 +128,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
       isDestructive: true,
     );
     if (confirmed && context.mounted) {
+      DebugConfig.log(DebugConfig.uiInteraction, 'GroupInfoScreen: removeParticipant $uid from ${widget.chatId}');
       await ref.read(chatActionsProvider.notifier).removeParticipant(widget.chatId, uid);
     }
   }
@@ -143,6 +145,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
       isDestructive: true,
     );
     if (!confirmed || !mounted) return;
+    DebugConfig.log(DebugConfig.uiInteraction, 'GroupInfoScreen: deleteGroup ${widget.chatId}');
     try {
       await ref.read(chatActionsProvider.notifier).deleteGroup(widget.chatId);
       if (!mounted) return;
@@ -169,6 +172,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
     );
     if (confirmed && context.mounted) {
       final uid = ref.read(authStateProvider).value?.uid ?? '';
+      DebugConfig.log(DebugConfig.uiInteraction, 'GroupInfoScreen: leaveGroup ${widget.chatId} by $uid');
       await ref.read(chatActionsProvider.notifier).removeParticipant(widget.chatId, uid);
       if (!mounted) return;
       context.pop();

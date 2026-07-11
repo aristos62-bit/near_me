@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
@@ -11,6 +12,9 @@ import '../../auth/providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
 
 final _searchResultsProvider = FutureProvider.autoDispose.family<List<GroupPublicProfile>, _SearchParams>((ref, params) {
+  DebugConfig.log(DebugConfig.providerCreate,
+      '_searchResultsProvider created: query=${params.query} city=${params.city} tags=${params.tags}');
+  ref.onDispose(() => DebugConfig.log(DebugConfig.providerDispose, '_searchResultsProvider disposed'));
   final repo = ref.watch(groupSearchRepositoryProvider);
   return repo.searchGroups(
     query: params.query,
@@ -113,6 +117,7 @@ class _GroupSearchScreenState extends ConsumerState<GroupSearchScreen> {
               onRetry: () => ref.invalidate(_searchResultsProvider),
             ),
             data: (results) {
+              DebugConfig.log(DebugConfig.repositoryResult, 'GroupSearchScreen: ${results.length} results');
               if (results.isEmpty) {
                 return Center(
                   child: Text(
@@ -231,6 +236,7 @@ class _GroupSearchTile extends ConsumerWidget {
 
   Future<void> _joinGroup(BuildContext context, WidgetRef ref) async {
     final greek = L10n.isGreek(context);
+    DebugConfig.log(DebugConfig.uiInteraction, 'GroupSearchScreen: join group ${group.chatId} (${group.groupName})');
     final success = await ref.read(chatActionsProvider.notifier).joinPublicGroup(group.chatId);
     if (success && context.mounted) {
       AppMessenger.showSuccess(context,

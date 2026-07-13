@@ -676,23 +676,22 @@ final isAdmin = permsInfo?.hasPermission(currentUid, GroupPermission.inviteMembe
 | PERMISSION_DENIED after signOut (6× listeners) | ✅ Session 151 |
 | P1.3 Biometric Idle Timer Lifecycle (inactive + sign-out) | ✅ Session 152 |
 | ChatCache duplicate bug (_saveChatCache + final rows) | ✅ Session 153 |
-| P1.1 Duplicate search on refresh — already fixed | ✅ Session 154 — verified στον κώδικα |
-| P2.1 Provider cascade (debounce auth state) — already fixed | ✅ Session 154 — verified στον κώδικα, συμφωνεί με P2_1.md |
-| P2.2 Phone verification (SMS OTP) — already fixed | ✅ Session 154 — verified: sendOtp→verifyOtp→isPhoneVerified→canUserCommunicate |
-| P3.1 Online Status Flicker (null-coalescing fallback) | ✅ Session 155 — logs: zero flicker |
-| P3.2 Haversine Memoization (_distanceCache, clearDistanceCache) | ✅ Session 156 — ~96% fewer Haversine calls |
-| P4.1 ConsentLog Pagination (LIMIT 50, loadMore button) | ✅ Session 157 — paginated NotifierProvider |
-| **MultiChat Phase 9 — Build & Deploy** (31/31 steps 100%) | ✅ **Session 159** — all fixes + deploy + APK |
-| P0 removeParticipant deleteKey (isSelf only) | ✅ Session 159 — `group_chat_mixin.dart` |
-| P0 joinPublicGroup memberCount | ✅ Session 159 — `group_chat_mixin.dart` |
-| P1 sendMessage block check for groups | ✅ Session 159 — `chat_repository_impl.dart` |
-| P0 FCM group notification body improvement | ✅ Session 159 — `functions/src/index.ts` |
-| Bilingual LoadingView/EmptyView (4 strings) | ✅ Session 159 — audit_log + join_confirmation |
-| Firestore rules + indexes deploy | ✅ Session 159 — `firebase deploy --only firestore` |
-| Cloud Functions deploy | ✅ Session 159 — all 5 functions updated |
-| **🔴 CRITICAL #1 — addParticipant PERMISSION_DENIED (≥2 members)** | ✅ **Session 160** — νέο `addGroupParticipant` callable CF + client rewrite |
-| **🔴 CRITICAL #2 — markAsRead PERMISSION_DENIED (always)** | ✅ **Session 160** — rules fix: nested diff rule, `${}` interpolation → `request.auth.uid` |
-| **arrayUnion crash (CF)** | ✅ **Session 160** — `arrayUnion([uid])` → `arrayUnion(uid)` |
+| P1.1 Duplicate search on refresh — already fixed | ✅ Session 154 |
+| P2.1 Provider cascade (debounce auth state) — already fixed | ✅ Session 154 |
+| P2.2 Phone verification (SMS OTP) — already fixed | ✅ Session 154 |
+| P3.1 Online Status Flicker (null-coalescing fallback) | ✅ Session 155 |
+| P3.2 Haversine Memoization (_distanceCache, clearDistanceCache) | ✅ Session 156 |
+| P4.1 ConsentLog Pagination (LIMIT 50, loadMore button) | ✅ Session 157 |
+| **MultiChat Phase 9** (31/31 steps 100%) | ✅ **Session 159** |
+| **CRITICAL #1 — addParticipant PERMISSION_DENIED** | ✅ **Session 160** — callable CF |
+| **CRITICAL #2 — markAsRead PERMISSION_DENIED** | ✅ **Session 160** — rules fix |
+| UID→Nickname fixes + avatar εμφάνιση (4 screens) | ✅ Session 161 |
+| Role-based visibility (Invites gate + groupPermissionsProvider) | ✅ Session 162 |
+| Bilingual system messages SPoT + 5 νέες actions + FCM group add | ✅ Session 163 |
+| Split photo privacy (showAvatar + showPhotos ξεχωριστά) | ✅ Session 164 |
+| **Delete chat 1-to-1 flow** (9 διορθώσεις) | ✅ **Session 165 + 166** — verified working |
+| **maxParticipants display bug** (cache snapshot override) | ✅ **Session 166** |
+| `flutter analyze` | ✅ Clean |
 
 ### ✅ Ολοκληρωμένο — Role-based visibility σε group chat screens
 **Session:** 161 (αρχική υλοποίηση) + 162 (διορθώσεις)
@@ -710,6 +709,48 @@ final isAdmin = permsInfo?.hasPermission(currentUid, GroupPermission.inviteMembe
 3. Προσθήκη import `chat_repository.dart` για `GroupPermission` enum
 
 **Αρχεία:** `chat_screen.dart`, `chat_repository_impl.dart`, `group_info_screen.dart`, `group_settings_screen.dart`
+
+---
+
+## Session 166 — Delete chat 1-to-1 flow fixes + maxParticipants display bug
+
+### Delete chat 1-to-1 flow (verified working ✅)
+
+**Πεδίο:** 9 διορθώσεις στο νέο σύστημα διαγραφής 1-to-1 chat.
+
+| # | Fix | Αρχείο |
+|---|---|---|
+| 1 | Messages reversed: `ListView.builder` με `reverse: true` — latest message στο bottom κατά την είσοδο | `chat_messages_list.dart` |
+| 2 | `_onRejectDelete` simplified — direct `rejectDeleteChat` χωρίς dialog/pop για τον rejecter | `chat_messages_list.dart` |
+| 3 | `_onDeleteForMe` — requester διαγράφει μόνο για τον εαυτό του | `chat_messages_list.dart` |
+| 4 | `delete_local` μήνυμα fix: `"αποχώρησες"` → `"$actorNickname αποχώρησε"` | `system_message_formatter.dart` |
+| 5 | `delete_cancelled` action — όταν requester πατά [Όχι, παράμεινε] | `system_message_formatter.dart` |
+| 6 | `_SystemBubble` extended για `delete_rejected` — inline buttons [Ναι, μόνο για εμένα]/[Όχι, παράμεινε] | `message_bubble.dart` |
+| 7 | `participantUidsProvider` listener extended σε 1-to-1 chats (pop back λειτουργεί) | `chat_screen.dart` |
+| 8 | FCM notification για system messages: uses `message.content` αντί generic "Νέο μήνυμα" | `functions/src/index.ts` |
+| 9 | `activeDeleteRequest` field removed from Firestore writes (permission-denied) | `chat_repository_delete.dart` |
+
+### maxParticipants display bug (2-tier fix)
+
+**Πρόβλημα:** Η αποθήκευση του `maxParticipants` στο Firestore πετύχαινε (logs: `updateMaxParticipants: done`, `AppMessenger: Ενημερώθηκε`), αλλά κατά την επαναφορά στην οθόνη, η τιμή έδειχνε 10 αντί 30.
+
+**Root cause:** Όχι αποτυχία εγγραφής — το Firestore είχε 30, αλλά το UI διάβαζε από το local cache snapshot (10) και αγνοούσε το server snapshot (30) λόγω guards:
+
+1. **`GroupInfoScreen._onDocChanged`** (group_info_screen.dart:50):
+   - Guard: `if (name != _groupName || roles != _participantRoles)` — `_maxParticipants` ενημερωνόταν ΜΟΝΟ όταν άλλαζε name ή roles
+   - Fix: `|| maxP != _maxParticipants` στο guard
+
+2. **`GroupSettingsScreen.build`** (group_settings_screen.dart:123):
+   - Guard: `if (_currentMax == null && maxP > 0)` — το cache snapshot (10) έκανε `_currentMax = 10`, οπότε το server snapshot (30) αγνοούνταν
+   - Fix: `if (maxP != _currentMax && maxP > 0)` — επιτρέπει update όταν η server τιμή διαφέρει από την cached
+
+**Firestore rules:** Επίσης διορθώθηκαν (session 165) ώστε `maxParticipants` να επιτρέπεται και για `admin`, όχι μόνο `creator` — αλλά το πραγματικό bug ήταν το display.
+
+**Verified:** `flutter analyze` clean ✅
+
+**Αρχεία:** `group_info_screen.dart`, `group_settings_screen.dart`, `chat_messages_list.dart`, `message_bubble.dart`, `chat_screen.dart`, `chat_repository_delete.dart`, `system_message_formatter.dart`, `functions/src/index.ts`
+
+---
 
 ### Remaining Gaps
 - **Phase 4**: Video (Agora), AI matching, Admin, Web, Premium, Typesense

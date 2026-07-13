@@ -143,10 +143,11 @@ service cloud.firestore {
                           && !(request.auth.uid in request.resource.data.participants))
                        ))
                       ||
-                      // Roles, permissions, limits (only creator)
+                       // Roles, permissions, limits (creator or admin)
                       (request.resource.data.diff(resource.data).affectedKeys()
                          .hasOnly(['participantRoles', 'permissionOverrides', 'maxParticipants'])
-                       && resource.data.participantRoles[request.auth.uid] == 'creator')
+                       && (resource.data.participantRoles[request.auth.uid] == 'creator'
+                        || resource.data.participantRoles[request.auth.uid] == 'admin'))
                     );
       // 1-on-1 chat: κάθε participant μπορεί να διαγράψει
       allow delete: if isAuthenticated()

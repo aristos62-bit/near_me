@@ -47,7 +47,8 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
     if (data == null) return;
     final name = data['groupName'] as String?;
     final roles = data['participantRoles'] as Map<String, dynamic>?;
-    if (name != _groupName || roles != _participantRoles) {
+    final maxP = data['maxParticipants'] as int? ?? 10;
+    if (name != _groupName || roles != _participantRoles || maxP != _maxParticipants) {
       setState(() {
         _groupName = name;
         _participantRoles = roles;

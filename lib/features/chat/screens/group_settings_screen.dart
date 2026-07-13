@@ -120,7 +120,7 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
     final chatData = chatDoc.asData?.value?.data() as Map<String, dynamic>?;
     final avatarUrl = chatData?['groupAvatarUrl'] as String?;
     final maxP = chatData?['maxParticipants'] as int? ?? 10;
-    if (_currentMax == null && maxP > 0) {
+    if (maxP != _currentMax && maxP > 0) {
       _currentMax = maxP;
       _maxPController.text = maxP.toString();
     }

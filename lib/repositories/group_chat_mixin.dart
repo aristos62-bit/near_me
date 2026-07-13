@@ -578,7 +578,15 @@ mixin GroupChatMixin {
 
   Future<void> updateMaxParticipants(String chatId, int newMax) async {
     DebugConfig.log(DebugConfig.repositoryCall, 'updateMaxParticipants: $chatId -> $newMax');
-    await _requirePermission(chatId, GroupPermission.manageAdmins);
+
+    final uid = _currentUid;
+    final chatSnap = await firestore.collection('chats').doc(chatId).get();
+    final roles = Map<String, String>.from(chatSnap.data()?['participantRoles'] as Map? ?? {});
+    final role = roles[uid];
+    if (role != 'creator' && role != 'admin') {
+      throw AppException.auth('permission_denied',
+          'Μόνο ο δημιουργός ή ο διαχειριστής μπορεί να αλλάξει το όριο / Only creator or admin can change the limit');
+    }
 
     if (newMax < 2 || newMax > 100) {
       throw AppException.auth('max_participants',
@@ -586,9 +594,8 @@ mixin GroupChatMixin {
     }
 
     try {
-      final chatDoc = await firestore.collection('chats').doc(chatId).get();
-      final currentCount = (chatDoc.data()?['participants'] as List?)?.length ?? 0;
-      final oldMax = chatDoc.data()?['maxParticipants'] as int? ?? 10;
+      final currentCount = (chatSnap.data()?['participants'] as List?)?.length ?? 0;
+      final oldMax = chatSnap.data()?['maxParticipants'] as int? ?? 10;
       if (newMax < currentCount) {
         throw AppException.auth('max_participants',
             'Το όριο δεν μπορεί να είναι μικρότερο από τα τρέχοντα μέλη / Cannot be less than current members');

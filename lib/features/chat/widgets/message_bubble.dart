@@ -10,6 +10,11 @@ class MessageBubble extends StatelessWidget {
   final String? senderNickname;
   final Map<String, String>? participantNicknames;
   final List<String> seenBy;
+  final String? chatId;
+  final Future<void> Function(String chatId)? onApproveDelete;
+  final Future<void> Function(String chatId)? onRejectDelete;
+  final Future<void> Function(String chatId)? onDeleteForMe;
+  final Future<void> Function(String chatId)? onKeepChat;
 
   const MessageBubble({
     super.key,
@@ -19,6 +24,11 @@ class MessageBubble extends StatelessWidget {
     this.senderNickname,
     this.participantNicknames,
     this.seenBy = const [],
+    this.chatId,
+    this.onApproveDelete,
+    this.onRejectDelete,
+    this.onDeleteForMe,
+    this.onKeepChat,
   });
 
   @override
@@ -34,7 +44,20 @@ class MessageBubble extends StatelessWidget {
 
     if (type == 'system') {
       final contentEn = message['contentEn'] as String?;
-      return _SystemBubble(content: content, contentEn: contentEn, timeStr: timeStr);
+      final action = message['action'] as String?;
+      final senderId = message['senderId'] as String? ?? '';
+      return _SystemBubble(
+        content: content,
+        contentEn: contentEn,
+        timeStr: timeStr,
+        action: action,
+        isRequester: senderId == currentUid,
+        chatId: chatId,
+        onApproveDelete: onApproveDelete,
+        onRejectDelete: onRejectDelete,
+        onDeleteForMe: onDeleteForMe,
+        onKeepChat: onKeepChat,
+      );
     }
 
     final isMe = senderId == currentUid;
@@ -172,25 +195,46 @@ class _SystemBubble extends StatelessWidget {
   final String content;
   final String? contentEn;
   final String timeStr;
-  const _SystemBubble({required this.content, this.contentEn, required this.timeStr});
+  final String? action;
+  final bool isRequester;
+  final String? chatId;
+  final Future<void> Function(String chatId)? onApproveDelete;
+  final Future<void> Function(String chatId)? onRejectDelete;
+  final Future<void> Function(String chatId)? onDeleteForMe;
+  final Future<void> Function(String chatId)? onKeepChat;
+
+  const _SystemBubble({
+    required this.content,
+    this.contentEn,
+    required this.timeStr,
+    this.action,
+    this.isRequester = false,
+    this.chatId,
+    this.onApproveDelete,
+    this.onRejectDelete,
+    this.onDeleteForMe,
+    this.onKeepChat,
+  });
 
   @override
   Widget build(BuildContext context) {
     final isGreek = L10n.isGreek(context);
     final displayContent = isGreek ? content : (contentEn ?? content);
-    DebugConfig.log(DebugConfig.uiInteraction,
-        '_SystemBubble: len=${content.length} hasEn=${contentEn != null} isGreek=$isGreek');
+    final showActions = chatId != null && !isRequester && (
+        action == 'delete_request' || action == 'delete_rejected'
+    );
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final maxBubbleWidth = constraints.maxWidth * 0.65;
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Column(
-            children: [
-              Center(
-                child: Container(
-                  constraints: BoxConstraints(maxWidth: maxBubbleWidth),
+    DebugConfig.log(DebugConfig.uiInteraction,
+        '_SystemBubble: action=$action isRequester=$isRequester showActions=$showActions hasEn=${contentEn != null}');
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        children: [
+          Center(
+            child: Container(
+              constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width * 0.65),
               padding: const EdgeInsets.symmetric(
                   horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
@@ -210,6 +254,58 @@ class _SystemBubble extends StatelessWidget {
               ),
             ),
           ),
+          if (showActions && action == 'delete_request')
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  FilledButton.tonal(
+                    onPressed: () => onApproveDelete?.call(chatId!),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 8),
+                    ),
+                    child: Text(isGreek ? 'Ναι' : 'Yes'),
+                  ),
+                  const SizedBox(width: 12),
+                  OutlinedButton(
+                    onPressed: () => onRejectDelete?.call(chatId!),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 8),
+                    ),
+                    child: Text(isGreek ? 'Όχι' : 'No'),
+                  ),
+                ],
+              ),
+            ),
+          if (showActions && action == 'delete_rejected')
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  FilledButton.tonal(
+                    onPressed: () => onDeleteForMe?.call(chatId!),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 8),
+                    ),
+                    child: Text(isGreek ? 'Ναι, μόνο για εμένα' : 'Yes, for me'),
+                  ),
+                  const SizedBox(width: 12),
+                  OutlinedButton(
+                    onPressed: () async => onKeepChat?.call(chatId!),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 8),
+                    ),
+                    child: Text(isGreek ? 'Όχι, παράμεινε' : 'No, keep it'),
+                  ),
+                ],
+              ),
+            ),
           if (timeStr.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 2),
@@ -220,8 +316,6 @@ class _SystemBubble extends StatelessWidget {
         ],
       ),
     );
-    },
-    );
   }
-  }
+}
 

@@ -120,11 +120,12 @@ export const sendChatNotification = functions.firestore
         `Group chat ${chatId}: sender=${message.senderId}, ${recipientUids.length} recipients, ${allTokens.length} tokens`,
       );
 
+      const systemBody = message.type === 'system' ? (message.content as string) : null;
       const payload: admin.messaging.MulticastMessage = {
         tokens: allTokens,
         notification: {
           title: groupName ?? senderName,
-          body: groupName ? senderName : strings.new_group_message,
+          body: systemBody ?? (groupName ? senderName : strings.new_group_message),
         },
         data: {
           chatId,
@@ -176,9 +177,10 @@ export const sendChatNotification = functions.firestore
         `Chat ${chatId}: sender=${message.senderId}, lang=${lang}, body=${strings.new_chat_message}`,
       );
 
+      const systemBody = message.type === 'system' ? (message.content as string) : null;
       const payload: admin.messaging.MulticastMessage = {
         tokens,
-        notification: { title: senderName, body: strings.new_chat_message },
+        notification: { title: senderName, body: systemBody ?? strings.new_chat_message },
         data: { chatId, type: 'chat_message' },
         android: { priority: 'high' },
         apns: { payload: { aps: { sound: 'default' } } },

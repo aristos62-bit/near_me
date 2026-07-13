@@ -236,10 +236,13 @@ class _ChatTile extends ConsumerWidget {
               IconButton(
               icon: Icon(Icons.delete_forever, color: theme.colorScheme.error, size: 20),
               onPressed: () async {
+                final message = isGroup
+                    ? L10n.localizedMessage(context, 'Θα διαγραφεί ολόκληρη η ομάδα "$title". Συνέχεια; / This will delete the entire group "$title". Continue?')
+                    : L10n.localizedMessage(context, 'Θα σταλεί αίτημα διαγραφής στον άλλο χρήστη. Συνέχεια; / A delete request will be sent to the other user. Continue?');
                 final confirmed = await AppMessenger.showConfirmDialog(
                   context,
                   title: L10n.localizedMessage(context, 'Διαγραφή συνομιλίας / Delete conversation'),
-                  message: L10n.localizedMessage(context, 'Θα διαγραφεί ολόκληρη η συνομιλία "$title". Συνέχεια; / This will delete the entire conversation "$title". Continue?'),
+                  message: message,
                   confirmLabel: greek ? 'Διαγραφή' : 'Delete',
                   cancelLabel: greek ? 'Ακύρωση' : 'Cancel',
                   isDestructive: true,

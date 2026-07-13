@@ -1536,6 +1536,21 @@ class $PrivacySettingsTableTable extends PrivacySettingsTable
     ),
     defaultValue: const Constant(true),
   );
+  static const VerificationMeta _showAvatarMeta = const VerificationMeta(
+    'showAvatar',
+  );
+  @override
+  late final GeneratedColumn<bool> showAvatar = GeneratedColumn<bool>(
+    'show_avatar',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("show_avatar" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   static const VerificationMeta _showPhotosMeta = const VerificationMeta(
     'showPhotos',
   );
@@ -1624,6 +1639,7 @@ class $PrivacySettingsTableTable extends PrivacySettingsTable
     showOccupation,
     showBio,
     showLookingFor,
+    showAvatar,
     showPhotos,
     showCountry,
     allowVideoCall,
@@ -1741,6 +1757,12 @@ class $PrivacySettingsTableTable extends PrivacySettingsTable
         ),
       );
     }
+    if (data.containsKey('show_avatar')) {
+      context.handle(
+        _showAvatarMeta,
+        showAvatar.isAcceptableOrUnknown(data['show_avatar']!, _showAvatarMeta),
+      );
+    }
     if (data.containsKey('show_photos')) {
       context.handle(
         _showPhotosMeta,
@@ -1851,6 +1873,10 @@ class $PrivacySettingsTableTable extends PrivacySettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}show_looking_for'],
       )!,
+      showAvatar: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}show_avatar'],
+      )!,
       showPhotos: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}show_photos'],
@@ -1896,6 +1922,7 @@ class PrivacySettingsTableData extends DataClass
   final bool showOccupation;
   final bool showBio;
   final bool showLookingFor;
+  final bool showAvatar;
   final bool showPhotos;
   final bool showCountry;
   final bool allowVideoCall;
@@ -1916,6 +1943,7 @@ class PrivacySettingsTableData extends DataClass
     required this.showOccupation,
     required this.showBio,
     required this.showLookingFor,
+    required this.showAvatar,
     required this.showPhotos,
     required this.showCountry,
     required this.allowVideoCall,
@@ -1941,6 +1969,7 @@ class PrivacySettingsTableData extends DataClass
     map['show_occupation'] = Variable<bool>(showOccupation);
     map['show_bio'] = Variable<bool>(showBio);
     map['show_looking_for'] = Variable<bool>(showLookingFor);
+    map['show_avatar'] = Variable<bool>(showAvatar);
     map['show_photos'] = Variable<bool>(showPhotos);
     map['show_country'] = Variable<bool>(showCountry);
     map['allow_video_call'] = Variable<bool>(allowVideoCall);
@@ -1965,6 +1994,7 @@ class PrivacySettingsTableData extends DataClass
       showOccupation: Value(showOccupation),
       showBio: Value(showBio),
       showLookingFor: Value(showLookingFor),
+      showAvatar: Value(showAvatar),
       showPhotos: Value(showPhotos),
       showCountry: Value(showCountry),
       allowVideoCall: Value(allowVideoCall),
@@ -1993,6 +2023,7 @@ class PrivacySettingsTableData extends DataClass
       showOccupation: serializer.fromJson<bool>(json['showOccupation']),
       showBio: serializer.fromJson<bool>(json['showBio']),
       showLookingFor: serializer.fromJson<bool>(json['showLookingFor']),
+      showAvatar: serializer.fromJson<bool>(json['showAvatar']),
       showPhotos: serializer.fromJson<bool>(json['showPhotos']),
       showCountry: serializer.fromJson<bool>(json['showCountry']),
       allowVideoCall: serializer.fromJson<bool>(json['allowVideoCall']),
@@ -2018,6 +2049,7 @@ class PrivacySettingsTableData extends DataClass
       'showOccupation': serializer.toJson<bool>(showOccupation),
       'showBio': serializer.toJson<bool>(showBio),
       'showLookingFor': serializer.toJson<bool>(showLookingFor),
+      'showAvatar': serializer.toJson<bool>(showAvatar),
       'showPhotos': serializer.toJson<bool>(showPhotos),
       'showCountry': serializer.toJson<bool>(showCountry),
       'allowVideoCall': serializer.toJson<bool>(allowVideoCall),
@@ -2041,6 +2073,7 @@ class PrivacySettingsTableData extends DataClass
     bool? showOccupation,
     bool? showBio,
     bool? showLookingFor,
+    bool? showAvatar,
     bool? showPhotos,
     bool? showCountry,
     bool? allowVideoCall,
@@ -2061,6 +2094,7 @@ class PrivacySettingsTableData extends DataClass
     showOccupation: showOccupation ?? this.showOccupation,
     showBio: showBio ?? this.showBio,
     showLookingFor: showLookingFor ?? this.showLookingFor,
+    showAvatar: showAvatar ?? this.showAvatar,
     showPhotos: showPhotos ?? this.showPhotos,
     showCountry: showCountry ?? this.showCountry,
     allowVideoCall: allowVideoCall ?? this.allowVideoCall,
@@ -2099,6 +2133,9 @@ class PrivacySettingsTableData extends DataClass
       showLookingFor: data.showLookingFor.present
           ? data.showLookingFor.value
           : this.showLookingFor,
+      showAvatar: data.showAvatar.present
+          ? data.showAvatar.value
+          : this.showAvatar,
       showPhotos: data.showPhotos.present
           ? data.showPhotos.value
           : this.showPhotos,
@@ -2134,6 +2171,7 @@ class PrivacySettingsTableData extends DataClass
           ..write('showOccupation: $showOccupation, ')
           ..write('showBio: $showBio, ')
           ..write('showLookingFor: $showLookingFor, ')
+          ..write('showAvatar: $showAvatar, ')
           ..write('showPhotos: $showPhotos, ')
           ..write('showCountry: $showCountry, ')
           ..write('allowVideoCall: $allowVideoCall, ')
@@ -2159,6 +2197,7 @@ class PrivacySettingsTableData extends DataClass
     showOccupation,
     showBio,
     showLookingFor,
+    showAvatar,
     showPhotos,
     showCountry,
     allowVideoCall,
@@ -2183,6 +2222,7 @@ class PrivacySettingsTableData extends DataClass
           other.showOccupation == this.showOccupation &&
           other.showBio == this.showBio &&
           other.showLookingFor == this.showLookingFor &&
+          other.showAvatar == this.showAvatar &&
           other.showPhotos == this.showPhotos &&
           other.showCountry == this.showCountry &&
           other.allowVideoCall == this.allowVideoCall &&
@@ -2206,6 +2246,7 @@ class PrivacySettingsTableCompanion
   final Value<bool> showOccupation;
   final Value<bool> showBio;
   final Value<bool> showLookingFor;
+  final Value<bool> showAvatar;
   final Value<bool> showPhotos;
   final Value<bool> showCountry;
   final Value<bool> allowVideoCall;
@@ -2226,6 +2267,7 @@ class PrivacySettingsTableCompanion
     this.showOccupation = const Value.absent(),
     this.showBio = const Value.absent(),
     this.showLookingFor = const Value.absent(),
+    this.showAvatar = const Value.absent(),
     this.showPhotos = const Value.absent(),
     this.showCountry = const Value.absent(),
     this.allowVideoCall = const Value.absent(),
@@ -2247,6 +2289,7 @@ class PrivacySettingsTableCompanion
     this.showOccupation = const Value.absent(),
     this.showBio = const Value.absent(),
     this.showLookingFor = const Value.absent(),
+    this.showAvatar = const Value.absent(),
     this.showPhotos = const Value.absent(),
     this.showCountry = const Value.absent(),
     this.allowVideoCall = const Value.absent(),
@@ -2268,6 +2311,7 @@ class PrivacySettingsTableCompanion
     Expression<bool>? showOccupation,
     Expression<bool>? showBio,
     Expression<bool>? showLookingFor,
+    Expression<bool>? showAvatar,
     Expression<bool>? showPhotos,
     Expression<bool>? showCountry,
     Expression<bool>? allowVideoCall,
@@ -2289,6 +2333,7 @@ class PrivacySettingsTableCompanion
       if (showOccupation != null) 'show_occupation': showOccupation,
       if (showBio != null) 'show_bio': showBio,
       if (showLookingFor != null) 'show_looking_for': showLookingFor,
+      if (showAvatar != null) 'show_avatar': showAvatar,
       if (showPhotos != null) 'show_photos': showPhotos,
       if (showCountry != null) 'show_country': showCountry,
       if (allowVideoCall != null) 'allow_video_call': allowVideoCall,
@@ -2312,6 +2357,7 @@ class PrivacySettingsTableCompanion
     Value<bool>? showOccupation,
     Value<bool>? showBio,
     Value<bool>? showLookingFor,
+    Value<bool>? showAvatar,
     Value<bool>? showPhotos,
     Value<bool>? showCountry,
     Value<bool>? allowVideoCall,
@@ -2333,6 +2379,7 @@ class PrivacySettingsTableCompanion
       showOccupation: showOccupation ?? this.showOccupation,
       showBio: showBio ?? this.showBio,
       showLookingFor: showLookingFor ?? this.showLookingFor,
+      showAvatar: showAvatar ?? this.showAvatar,
       showPhotos: showPhotos ?? this.showPhotos,
       showCountry: showCountry ?? this.showCountry,
       allowVideoCall: allowVideoCall ?? this.allowVideoCall,
@@ -2386,6 +2433,9 @@ class PrivacySettingsTableCompanion
     if (showLookingFor.present) {
       map['show_looking_for'] = Variable<bool>(showLookingFor.value);
     }
+    if (showAvatar.present) {
+      map['show_avatar'] = Variable<bool>(showAvatar.value);
+    }
     if (showPhotos.present) {
       map['show_photos'] = Variable<bool>(showPhotos.value);
     }
@@ -2421,6 +2471,7 @@ class PrivacySettingsTableCompanion
           ..write('showOccupation: $showOccupation, ')
           ..write('showBio: $showBio, ')
           ..write('showLookingFor: $showLookingFor, ')
+          ..write('showAvatar: $showAvatar, ')
           ..write('showPhotos: $showPhotos, ')
           ..write('showCountry: $showCountry, ')
           ..write('allowVideoCall: $allowVideoCall, ')
@@ -6304,6 +6355,7 @@ typedef $$PrivacySettingsTableTableCreateCompanionBuilder =
       Value<bool> showOccupation,
       Value<bool> showBio,
       Value<bool> showLookingFor,
+      Value<bool> showAvatar,
       Value<bool> showPhotos,
       Value<bool> showCountry,
       Value<bool> allowVideoCall,
@@ -6326,6 +6378,7 @@ typedef $$PrivacySettingsTableTableUpdateCompanionBuilder =
       Value<bool> showOccupation,
       Value<bool> showBio,
       Value<bool> showLookingFor,
+      Value<bool> showAvatar,
       Value<bool> showPhotos,
       Value<bool> showCountry,
       Value<bool> allowVideoCall,
@@ -6409,6 +6462,11 @@ class $$PrivacySettingsTableTableFilterComposer
 
   ColumnFilters<bool> get showLookingFor => $composableBuilder(
     column: $table.showLookingFor,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get showAvatar => $composableBuilder(
+    column: $table.showAvatar,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6517,6 +6575,11 @@ class $$PrivacySettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get showAvatar => $composableBuilder(
+    column: $table.showAvatar,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get showPhotos => $composableBuilder(
     column: $table.showPhotos,
     builder: (column) => ColumnOrderings(column),
@@ -6608,6 +6671,11 @@ class $$PrivacySettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get showAvatar => $composableBuilder(
+    column: $table.showAvatar,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get showPhotos => $composableBuilder(
     column: $table.showPhotos,
     builder: (column) => column,
@@ -6691,6 +6759,7 @@ class $$PrivacySettingsTableTableTableManager
                 Value<bool> showOccupation = const Value.absent(),
                 Value<bool> showBio = const Value.absent(),
                 Value<bool> showLookingFor = const Value.absent(),
+                Value<bool> showAvatar = const Value.absent(),
                 Value<bool> showPhotos = const Value.absent(),
                 Value<bool> showCountry = const Value.absent(),
                 Value<bool> allowVideoCall = const Value.absent(),
@@ -6711,6 +6780,7 @@ class $$PrivacySettingsTableTableTableManager
                 showOccupation: showOccupation,
                 showBio: showBio,
                 showLookingFor: showLookingFor,
+                showAvatar: showAvatar,
                 showPhotos: showPhotos,
                 showCountry: showCountry,
                 allowVideoCall: allowVideoCall,
@@ -6733,6 +6803,7 @@ class $$PrivacySettingsTableTableTableManager
                 Value<bool> showOccupation = const Value.absent(),
                 Value<bool> showBio = const Value.absent(),
                 Value<bool> showLookingFor = const Value.absent(),
+                Value<bool> showAvatar = const Value.absent(),
                 Value<bool> showPhotos = const Value.absent(),
                 Value<bool> showCountry = const Value.absent(),
                 Value<bool> allowVideoCall = const Value.absent(),
@@ -6753,6 +6824,7 @@ class $$PrivacySettingsTableTableTableManager
                 showOccupation: showOccupation,
                 showBio: showBio,
                 showLookingFor: showLookingFor,
+                showAvatar: showAvatar,
                 showPhotos: showPhotos,
                 showCountry: showCountry,
                 allowVideoCall: allowVideoCall,

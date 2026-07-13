@@ -18,8 +18,9 @@ import '../features/chat/utils/system_message_formatter.dart';
 import 'group_search_repository.dart';
 
 part 'group_chat_mixin.dart';
+part 'chat_repository_delete.dart';
 
-class ChatRepositoryImpl with GroupChatMixin implements ChatRepository {
+class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin implements ChatRepository {
   @override
   final FirebaseFirestore firestore;
   @override
@@ -30,6 +31,11 @@ class ChatRepositoryImpl with GroupChatMixin implements ChatRepository {
   // Cache αποκρυπτογραφημένων messages — αποφυγή re-decrypt σε κάθε Firestore snapshot
   final Map<String, Map<String, String>> _messageEncryptCache = {};
   final Map<String, Map<String, String>> _messageDecryptCache = {};
+
+  @override
+  Map<String, Map<String, String>> get messageEncryptCache => _messageEncryptCache;
+  @override
+  Map<String, Map<String, String>> get messageDecryptCache => _messageDecryptCache;
 
   ChatRepositoryImpl({
     FirebaseFirestore? firestore,
@@ -311,6 +317,8 @@ class ChatRepositoryImpl with GroupChatMixin implements ChatRepository {
               'isRead': data['isRead'] ?? false,
               'seenBy': (data['seenBy'] as List?)?.cast<String>() ?? <String>[],
               'mentions': (data['mentions'] as List?)?.cast<String>() ?? <String>[],
+              'action': data['action'] as String?,
+              'contentEn': data['contentEn'] as String?,
             };
           }).toList();
         });
@@ -606,110 +614,8 @@ class ChatRepositoryImpl with GroupChatMixin implements ChatRepository {
 
   @override
   Future<void> deleteChat(String chatId) async {
-    final user = auth.currentUser;
-    if (user == null) throw AppException.auth('delete_chat', 'Δεν υπάρχει συνδεδεμένος χρήστης / No authenticated user');
-
-      final uid = user.uid;
-    DebugConfig.log(DebugConfig.repositoryCall, 'deleteChat: deleting chat=$chatId uid=$uid');
-
-    // DEBUG: Read chat doc and log full data
-    Map<String, dynamic>? chatData;
-    try {
-      final chatDoc = await firestore.collection('chats').doc(chatId).get();
-      chatData = chatDoc.data();
-      if (chatDoc.exists && chatData != null) {
-        final participants = List<String>.from(chatData['participants'] ?? []);
-        final isGroup = chatData['isGroupChat'] == true;
-        final participantRoles = chatData['participantRoles'] as Map<String, dynamic>?;
-        final myRole = participantRoles?[uid];
-        DebugConfig.log(DebugConfig.firestoreRead, 'deleteChat: CHAT DOC DATA chatId=$chatId exists=true isGroupChat=$isGroup participants=$participants uidInParticipants=${participants.contains(uid)} participantRoles=$participantRoles myRole=$myRole keys=${chatData.keys.toList()}');
-      } else {
-        DebugConfig.log(DebugConfig.firestoreRead, 'deleteChat: CHAT DOC NOT FOUND OR NULL DATA chatId=$chatId');
-      }
-    } catch (e) {
-      DebugConfig.log(DebugConfig.firestoreRead, 'deleteChat: ERROR reading chat doc chatId=$chatId err=$e');
-    }
-
-    // Permission check: αν group → delegate στο deleteGroup (creator-only)
-    try {
-      if (chatData != null && chatData['isGroupChat'] == true) {
-        DebugConfig.log(DebugConfig.repositoryCall,
-            'deleteChat: delegating to deleteGroup chat=$chatId');
-        await deleteGroup(chatId);
-        return;
-      }
-    } catch (_) { /* αν το doc δεν υπάρχει, proceed με 1-on-1 delete */ }
-
-    try {
-      // Cleanup public profile if this is a public group
-      final checkDoc = await firestore.collection('chats').doc(chatId).get();
-      if (checkDoc.data()?['isPublic'] == true && checkDoc.data()?['isGroupChat'] == true) {
-        await FirestoreGroupSearchRepository(firestore: firestore).deletePublicProfile(chatId);
-        DebugConfig.log(DebugConfig.firestoreWrite, 'deleteChat: public profile deleted for $chatId');
-      }
-    } catch (_) {}
-
-    try {
-      DebugConfig.log(DebugConfig.repositoryCall, 'deleteChat: reading messages for chat=$chatId');
-      final messages = await firestore
-          .collection('chats').doc(chatId).collection('messages')
-          .get();
-      DebugConfig.log(DebugConfig.repositoryCall, 'deleteChat: messages count=${messages.docs.length} chat=$chatId');
-
-      // ΔΙΑΓΝΩΣΤΙΚΟ: Σπάμε το batch σε ξεχωριστές κλήσεις
-      // Βήμα 1: Διαγραφή κάθε message ξεχωριστά
-      int deletedMsgCount = 0;
-      int failedMsgCount = 0;
-      for (final doc in messages.docs) {
-        try {
-          DebugConfig.log(DebugConfig.firestoreWrite, 'deleteChat: deleting message doc=$doc chat=$chatId');
-          await firestore.collection('chats').doc(chatId).collection('messages').doc(doc.id).delete();
-          deletedMsgCount++;
-          DebugConfig.log(DebugConfig.firestoreWrite, 'deleteChat: message deleted OK doc=$doc chat=$chatId');
-        } catch (e) {
-          failedMsgCount++;
-          DebugConfig.log(DebugConfig.firestoreWrite, 'deleteChat: MESSAGE DELETE FAILED doc=${doc.id} chat=$chatId errType=${e.runtimeType} errMsg=$e');
-          if (e is FirebaseException) {
-            DebugConfig.log(DebugConfig.firestoreWrite, 'deleteChat: MSG FirebaseException code=${e.code} message=${e.message}');
-          }
-        }
-      }
-      DebugConfig.log(DebugConfig.firestoreWrite, 'deleteChat: messages phase done chat=$chatId success=$deletedMsgCount failed=$failedMsgCount');
-
-      // Βήμα 2: Διαγραφή του ίδιου του chat document
-      try {
-        DebugConfig.log(DebugConfig.firestoreWrite, 'deleteChat: deleting chat document chat=$chatId');
-        await firestore.collection('chats').doc(chatId).delete();
-        DebugConfig.log(DebugConfig.firestoreWrite, 'deleteChat: chat document deleted OK chat=$chatId');
-      } catch (e) {
-        DebugConfig.log(DebugConfig.firestoreWrite, 'deleteChat: CHAT DOC DELETE FAILED chat=$chatId errType=${e.runtimeType} errMsg=$e');
-        if (e is FirebaseException) {
-          DebugConfig.log(DebugConfig.firestoreWrite, 'deleteChat: CHAT FirebaseException code=${e.code} message=${e.message}');
-        }
-        rethrow;
-      }
-
-      // Αν φτάσαμε εδώ, όλα πέτυχαν
-      await (db.delete(db.chatCacheTable)..where((t) => t.chatId.equals(chatId))).go();
-      await EncryptionUtils.deleteKey(chatId);
-      _messageEncryptCache.remove(chatId);
-      _messageDecryptCache.remove(chatId);
-
-      DebugConfig.log(DebugConfig.repositoryResult, 'deleteChat: done chat=$chatId');
-    } catch (e) {
-      if (e is FirebaseException) {
-        DebugConfig.log(DebugConfig.firestoreWrite, 'deleteChat: FAILED chat=$chatId errType=${e.runtimeType} errMsg=$e');
-        DebugConfig.log(DebugConfig.firestoreWrite, 'deleteChat: FirebaseException code=${e.code} message=${e.message} plugin=${e.plugin}');
-      } else {
-        DebugConfig.log(DebugConfig.firestoreWrite, 'deleteChat: FAILED chat=$chatId errType=${e.runtimeType} errMsg=$e');
-      }
-      DebugConfig.warn('deleteChat failed, cleaning local cache', data: e);
-      await (db.delete(db.chatCacheTable)..where((t) => t.chatId.equals(chatId))).go();
-      await EncryptionUtils.deleteKey(chatId);
-      _messageEncryptCache.remove(chatId);
-      _messageDecryptCache.remove(chatId);
-      throw AppException.firestore('delete_chat', 'Αποτυχία διαγραφής συνομιλίας / Failed to delete chat');
-    }
+    DebugConfig.log(DebugConfig.repositoryCall, 'deleteChat: delegating to requestDeleteChat chat=$chatId');
+    await requestDeleteChat(chatId);
   }
 
   @override

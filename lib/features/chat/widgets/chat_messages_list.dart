@@ -47,6 +47,26 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     super.dispose();
   }
 
+  Future<void> _onApproveDelete(String chatId) async {
+    DebugConfig.log(DebugConfig.uiInteraction, 'ChatMessagesList: approveDelete chat=$chatId');
+    await ref.read(chatActionsProvider.notifier).approveDeleteChat(chatId);
+  }
+
+  Future<void> _onRejectDelete(String chatId) async {
+    DebugConfig.log(DebugConfig.uiInteraction, 'ChatMessagesList: rejectDelete chat=$chatId');
+    await ref.read(chatActionsProvider.notifier).rejectDeleteChat(chatId);
+  }
+
+  Future<void> _onDeleteForMe(String chatId) async {
+    DebugConfig.log(DebugConfig.uiInteraction, 'ChatMessagesList: deleteForMe chat=$chatId');
+    await ref.read(chatActionsProvider.notifier).deleteChatForMe(chatId);
+  }
+
+  Future<void> _onKeepChat(String chatId) async {
+    DebugConfig.log(DebugConfig.uiInteraction, 'ChatMessagesList: keepChat chat=$chatId');
+    await ref.read(chatActionsProvider.notifier).cancelDeleteRequest(chatId);
+  }
+
   Future<void> _markAsReadOnce() async {
     if (_hasMarkedRead) return;
     _hasMarkedRead = true;
@@ -61,21 +81,20 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     _lastMessageCount = messages.length;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scrollCtrl.hasClients) return;
-      final maxScroll = _scrollCtrl.position.maxScrollExtent;
       if (_isFirstLoad) {
         _isFirstLoad = false;
-        _scrollCtrl.jumpTo(maxScroll);
+        _scrollCtrl.jumpTo(0);
         return;
       }
       if (!isNewMessage) return;
       final currentScroll = _scrollCtrl.position.pixels;
-      if ((maxScroll - currentScroll) > 50.0) {
+      if (currentScroll > 50.0) {
         DebugConfig.log(DebugConfig.uiInteraction,
-            'auto-scroll: suppressed (user ${(maxScroll - currentScroll).toInt()}px from bottom)');
+            'auto-scroll: suppressed (user ${currentScroll.toInt()}px from bottom)');
         return;
       }
       _scrollCtrl.animateTo(
-        maxScroll,
+        0,
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeOut,
       );
@@ -125,13 +144,14 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
             final w = ResponsiveUtils.resolveWidth(context, constraints);
             return ListView.builder(
               controller: _scrollCtrl,
+              reverse: true,
               padding: EdgeInsets.symmetric(
                 horizontal: ResponsiveUtils.paddingValueFromWidth(w),
                 vertical: 8,
               ),
               itemCount: messages.length,
               itemBuilder: (_, i) {
-                final msg = messages[i];
+                final msg = messages[messages.length - 1 - i];
                 final senderId = msg['senderId'] as String? ?? '';
                 final nicknameMap = widget.participantNicknames;
                 final senderNickname = widget.isGroupChat && nicknameMap != null
@@ -161,6 +181,11 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
                   senderNickname: senderNickname,
                   participantNicknames: widget.participantNicknames,
                   seenBy: seenBy,
+                  chatId: widget.chatId,
+                  onApproveDelete: _onApproveDelete,
+                  onRejectDelete: _onRejectDelete,
+                  onDeleteForMe: _onDeleteForMe,
+                  onKeepChat: _onKeepChat,
                 );
               },
             );

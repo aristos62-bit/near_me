@@ -74,6 +74,10 @@ abstract class ChatRepository {
   Stream<List<Map<String, dynamic>>> messagesStream(String chatId);
   Future<void> markAsRead(String chatId);
   Future<void> deleteChat(String chatId);
+  Future<void> approveDeleteChat(String chatId);
+  Future<void> rejectDeleteChat(String chatId);
+  Future<void> cancelDeleteRequest(String chatId);
+  Future<void> deleteChatForMe(String chatId);
   Future<void> deleteGroup(String chatId);
   Future<void> clearMessages(String chatId);
 

@@ -143,6 +143,56 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
     }
   }
 
+  Future<void> approveDeleteChat(String chatId) async {
+    DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: approveDeleteChat chat=$chatId');
+    state = const ChatActionState(status: ChatActionStatus.loading);
+    try {
+      await _chatRepo.approveDeleteChat(chatId);
+      state = const ChatActionState(status: ChatActionStatus.success);
+      ref.invalidate(chatsProvider);
+    } catch (e, s) {
+      DebugConfig.error('ChatActions: approveDeleteChat failed', data: e, exception: s);
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+    }
+  }
+
+  Future<void> rejectDeleteChat(String chatId) async {
+    DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: rejectDeleteChat chat=$chatId');
+    state = const ChatActionState(status: ChatActionStatus.loading);
+    try {
+      await _chatRepo.rejectDeleteChat(chatId);
+      state = const ChatActionState(status: ChatActionStatus.success);
+    } catch (e, s) {
+      DebugConfig.error('ChatActions: rejectDeleteChat failed', data: e, exception: s);
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+    }
+  }
+
+  Future<void> cancelDeleteRequest(String chatId) async {
+    DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: cancelDeleteRequest chat=$chatId');
+    state = const ChatActionState(status: ChatActionStatus.loading);
+    try {
+      await _chatRepo.cancelDeleteRequest(chatId);
+      state = const ChatActionState(status: ChatActionStatus.success);
+    } catch (e, s) {
+      DebugConfig.error('ChatActions: cancelDeleteRequest failed', data: e, exception: s);
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+    }
+  }
+
+  Future<void> deleteChatForMe(String chatId) async {
+    DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: deleteChatForMe chat=$chatId');
+    state = const ChatActionState(status: ChatActionStatus.loading);
+    try {
+      await _chatRepo.deleteChatForMe(chatId);
+      state = const ChatActionState(status: ChatActionStatus.success);
+      ref.invalidate(chatsProvider);
+    } catch (e, s) {
+      DebugConfig.error('ChatActions: deleteChatForMe failed', data: e, exception: s);
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+    }
+  }
+
   Future<void> deleteGroup(String chatId) async {
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: deleteGroup chat=$chatId');
     state = const ChatActionState(status: ChatActionStatus.loading);

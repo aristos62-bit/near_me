@@ -97,6 +97,31 @@ class SystemMessageFormatter {
         en = '$actorNickname reset permissions for $resetTarget';
         break;
 
+      case 'delete_request':
+        el = '$actorNickname θέλει να διαγράψει την συνομιλία σας';
+        en = '$actorNickname wants to delete this chat';
+        break;
+
+      case 'delete_approved':
+        el = '$actorNickname αποδέχθηκε την διαγραφή — η συνομιλία διαγράφηκε';
+        en = '$actorNickname approved — chat deleted';
+        break;
+
+      case 'delete_rejected':
+        el = '$actorNickname δεν δέχεται την διαγραφή';
+        en = '$actorNickname declined the deletion';
+        break;
+
+      case 'delete_local':
+        el = '$actorNickname αποχώρησε';
+        en = '$actorNickname left the chat';
+        break;
+
+      case 'delete_cancelled':
+        el = '$actorNickname ακύρωσε την διαγραφή';
+        en = '$actorNickname cancelled the deletion';
+        break;
+
       default:
         el = action;
         en = action;

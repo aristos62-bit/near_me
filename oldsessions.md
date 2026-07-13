@@ -593,6 +593,68 @@ final isAdmin = permsInfo?.hasPermission(currentUid, GroupPermission.inviteMembe
 
 ---
 
+## Session 165 — Νέο σύστημα διαγραφής chat 1-to-1 (request + approve/reject)
+
+**Πεδίο:** Αντικατάσταση της μονομερούς ολικής διαγραφής chat 1-to-1 με σύστημα αιτήματος διαγραφής (όπως Telegram).
+
+### Ροή
+1. Χρήστης πατά "Διαγραφή" → `requestDeleteChat` → γράφεται system message `delete_request` με buttons
+2. Άλλος χρήστης βλέπει "Ο Άρης θέλει να διαγράψει την συνομιλία. Συμφωνείς;" + [Ναι] [Όχι]
+3. **Ναι** → `approveDeleteChat` → ολική διαγραφή (messages + chat doc + cache)
+4. **Όχι** → dialog "Διαγραφή μόνο για εσένα;" → `deleteChatForMe` (remove από participants) ή `rejectDeleteChat` (ακύρωση)
+5. Αν ο άλλος δεν είναι ενεργός → διαγραφή αμέσως
+
+### Αρχεία
+- **NEW** `lib/repositories/chat_repository_delete.dart` — Mixin `ChatDeleteMixin` (requestDeleteChat, approveDeleteChat, rejectDeleteChat, deleteChatForMe, _deleteChatForEveryone)
+- `lib/repositories/chat_repository.dart` — +3 abstract methods
+- `lib/repositories/chat_repository_impl.dart` — `with ChatDeleteMixin`, `deleteChat()` delegates to `requestDeleteChat()`
+- `lib/features/chat/providers/chat_provider.dart` — +3 provider methods
+- `lib/features/chat/utils/system_message_formatter.dart` — +4 actions (delete_request/approved/rejected/local)
+- `lib/features/chat/widgets/message_bubble.dart` — `_SystemBubble` με action buttons για delete_request
+- `lib/features/chat/widgets/chat_messages_list.dart` — action callbacks στο chat list
+- `lib/features/chat/screens/chat_list_screen.dart` — dialog για 1-to-1 (αίτημα) vs group (ολική)
+
+### Key Decisions
+- `delete_request` system messages έχουν `senderId: actorUid` (not 'system') → FCM ειδοποιεί τον άλλο χρήστη
+- "Μόνο για εσένα" → remove από `participants` στο Firestore (όχι delete doc) + local cache clean
+- Group chats: `requestDeleteChat` κάνει delegate στο `deleteGroup` (αμετάβλητο)
+- Edge: `activeDeleteRequest` flag στο chat doc, μόνο ένα pending request τη φορά
+
+**Verified:** `flutter analyze` clean ✅
+
+---
+
+### Firebase Audit — Βελτιστοποίηση χρήσης Firestore
+
+**Έλεγχος:** Κάθε αρχείο Dart/TypeScript για wasteful reads/writes/listeners.
+
+#### 🔴 Υψηλή Προτεραιότητα
+
+| # | Πρόβλημα | Αρχείο:Γραμμή | Κόστος |
+|---|---|---|---|
+| 1 | `publish()` κάνει verify read μετά από set() — **debug-only, άχρηστη** | `profile_repository_impl.dart:362-380` | 1 read/publish |
+| 2 | `_findExistingChat` χωρίς `.limit()` — φορτώνει ΟΛΑ τα chats | `chat_repository_impl.dart:120-123` | Unbounded reads |
+| 3 | `markAsRead` χωρίς `.limit()` — διαβάζει ΟΛΑ τα unread | `chat_repository_impl.dart:349-352` | Unbounded reads |
+| 4 | Δύο ίδιοι StreamProvider για `chatDocProvider` (duplicate listener) | `chat_provider.dart:10` + `group_settings_screen.dart:14` | Διπλός listener |
+| 5 | `_deleteChatForEveryone` ένα-ένα delete (όχι batch) | `chat_repository_delete.dart:111-119` | 500 writes → 1 |
+
+#### 🟡 Μεσαία Προτεραιότητα
+
+| # | Πρόβλημα | Αρχείο:Γραμμή |
+|---|---|---|
+| 6 | Cloud Function `sendChatNotification` reads sender profile 2× | `functions/index.ts:102,116` |
+| 7 | `clearMessages` χωρίς `.limit()` | `chat_repository_impl.dart:633-635` |
+| 8 | N+1 listeners `_AuditLogTile` → `chatDocProvider` | `group_audit_log_screen.dart:187` |
+| 9 | `sendRequest` 3 sequential reads, 1 debug-only | `request_repository_impl.dart:42-91` |
+
+#### 🟢 Χαμηλή Προτεραιότητα
+
+| # | Πρόβλημα | Αρχείο:Γραμμή |
+|---|---|---|
+| 10 | `createChat` 2 profile reads sequential (αντί parallel) | `chat_repository_impl.dart:74-82` |
+
+---
+
 ## Current State
 
 | Μέτρο | Τιμή |

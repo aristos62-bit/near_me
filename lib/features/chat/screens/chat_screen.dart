@@ -112,7 +112,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final otherNickname = otherUid != null ? participantNicknames[otherUid] : null;
     ref.listen(participantUidsProvider(widget.chatId), (prev, next) {
       if (!mounted) return;
-      if (isGroupChat && currentUid.isNotEmpty && !next.contains(currentUid)) {
+      if (currentUid.isNotEmpty && !next.contains(currentUid)) {
         context.pop();
       }
     });

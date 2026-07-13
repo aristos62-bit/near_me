@@ -7,6 +7,7 @@ import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
+import '../../../repositories/chat_repository.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
@@ -160,26 +161,6 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
     }
   }
 
-  Future<void> _leaveGroup() async {
-    final greek = L10n.isGreek(context);
-    final confirmed = await AppMessenger.showConfirmDialog(
-      context,
-      title: L10n.localizedMessage(context, 'Αποχώρηση / Leave group'),
-      message: L10n.localizedMessage(context,
-          'Θα αποχωρήσεις από την ομάδα. Συνέχεια; / You will leave the group. Continue?'),
-      confirmLabel: greek ? 'Αποχώρηση' : 'Leave',
-      cancelLabel: greek ? 'Ακύρωση' : 'Cancel',
-      isDestructive: true,
-    );
-    if (confirmed && context.mounted) {
-      final uid = ref.read(authStateProvider).value?.uid ?? '';
-      DebugConfig.log(DebugConfig.uiInteraction, 'GroupInfoScreen: leaveGroup ${widget.chatId} by $uid');
-      await ref.read(chatActionsProvider.notifier).removeParticipant(widget.chatId, uid);
-      if (!mounted) return;
-      context.pop();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final greek = L10n.isGreek(context);
@@ -201,7 +182,11 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
     final rolesMap = chatData?['participantRoles'] as Map<String, dynamic>? ?? _participantRoles;
     final isCreator = currentUid == createdBy;
     final myRole = rolesMap?[currentUid] as String?;
-    final isAdmin = isCreator || (myRole == 'admin');
+    final permsAsync = ref.watch(groupPermissionsProvider(widget.chatId));
+    final permsInfo = permsAsync.asData?.value;
+    final isAdmin = permsInfo?.hasPermission(currentUid, GroupPermission.inviteMembers) ?? false;
+    DebugConfig.log(DebugConfig.authGuard,
+        'GroupInfoScreen: isCreator=$isCreator myRole=$myRole permsLoaded=${permsAsync.hasValue} isAdmin=$isAdmin');
 
     return Scaffold(
       appBar: AppBar(title: Text(groupName ?? widget.chatId)),
@@ -316,29 +301,27 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                     label: Text(greek ? 'Προσθήκη Μέλους' : 'Add Member'),
                   ),
                 ],
-                const SizedBox(height: 16),
-                FilledButton.icon(
-                  onPressed: () => context.push('/groups/${widget.chatId}/invite'),
-                  icon: const Icon(Icons.link),
-                  label: Text(greek ? 'Διαχείριση Invites' : 'Manage Invites'),
-                ),
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: () => context.push('/groups/${widget.chatId}/settings'),
-                  icon: const Icon(Icons.settings),
-                  label: Text(greek ? 'Ρυθμίσεις' : 'Settings'),
-                ),
+                if (isAdmin) ...[
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: () => context.push('/groups/${widget.chatId}/invite'),
+                    icon: const Icon(Icons.link),
+                    label: Text(greek ? 'Διαχείριση Invites' : 'Manage Invites'),
+                  ),
+                ],
+                if (isAdmin) ...[
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => context.push('/groups/${widget.chatId}/settings'),
+                    icon: const Icon(Icons.settings),
+                    label: Text(greek ? 'Ρυθμίσεις' : 'Settings'),
+                  ),
+                ],
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
                   onPressed: () => context.push('/groups/${widget.chatId}/audit-log'),
                   icon: const Icon(Icons.history),
                   label: Text(greek ? 'Αρχείο Καταγραφής' : 'Audit Log'),
-                ),
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: _leaveGroup,
-                  icon: const Icon(Icons.exit_to_app),
-                  label: Text(greek ? 'Αποχώρηση από ομάδα' : 'Leave group'),
                 ),
                 if (isCreator) ...[
                   const SizedBox(height: 16),

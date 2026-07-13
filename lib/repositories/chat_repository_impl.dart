@@ -14,6 +14,7 @@ import '../core/notifications/fcm_service.dart';
 import '../core/utils/app_exception.dart';
 import '../core/utils/encryption_utils.dart';
 import '../shared/utils/mention_utils.dart';
+import '../features/chat/utils/system_message_formatter.dart';
 import 'group_search_repository.dart';
 
 part 'group_chat_mixin.dart';
@@ -715,6 +716,12 @@ class ChatRepositoryImpl with GroupChatMixin implements ChatRepository {
   Future<void> clearMessages(String chatId) async {
     final user = auth.currentUser;
     if (user == null) throw AppException.auth('clear_messages', 'Δεν υπάρχει συνδεδεμένος χρήστης / No authenticated user');
+
+    final chatDoc = await firestore.collection('chats').doc(chatId).get();
+    if (chatDoc.data()?['isGroupChat'] == true) {
+      await _requirePermission(chatId, GroupPermission.deleteMessages);
+      DebugConfig.log(DebugConfig.authGuard, 'clearMessages: group permission OK chat=$chatId');
+    }
 
     DebugConfig.log(DebugConfig.repositoryCall, 'clearMessages: clearing messages chat=$chatId');
 

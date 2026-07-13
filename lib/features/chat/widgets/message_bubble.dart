@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../../../core/debug/debug_config.dart';
+import '../../../core/l10n/l10n.dart';
 
 class MessageBubble extends StatelessWidget {
   final Map<String, dynamic> message;
@@ -31,7 +33,8 @@ class MessageBubble extends StatelessWidget {
         : '';
 
     if (type == 'system') {
-      return _SystemBubble(content: content, timeStr: timeStr);
+      final contentEn = message['contentEn'] as String?;
+      return _SystemBubble(content: content, contentEn: contentEn, timeStr: timeStr);
     }
 
     final isMe = senderId == currentUid;
@@ -167,11 +170,17 @@ class MessageBubble extends StatelessWidget {
 
 class _SystemBubble extends StatelessWidget {
   final String content;
+  final String? contentEn;
   final String timeStr;
-  const _SystemBubble({required this.content, required this.timeStr});
+  const _SystemBubble({required this.content, this.contentEn, required this.timeStr});
 
   @override
   Widget build(BuildContext context) {
+    final isGreek = L10n.isGreek(context);
+    final displayContent = isGreek ? content : (contentEn ?? content);
+    DebugConfig.log(DebugConfig.uiInteraction,
+        '_SystemBubble: len=${content.length} hasEn=${contentEn != null} isGreek=$isGreek');
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxBubbleWidth = constraints.maxWidth * 0.65;
@@ -192,7 +201,7 @@ class _SystemBubble extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
-                content,
+                displayContent,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -212,7 +221,7 @@ class _SystemBubble extends StatelessWidget {
       ),
     );
     },
-  );
+    );
   }
-}
+  }
 

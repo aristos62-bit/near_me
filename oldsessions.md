@@ -438,6 +438,161 @@ hasOnly(['lastReadTimestamps'])
 
 ---
 
+## Session 161 — UID→Nickname fixes + avatar εμφάνιση (4 screens)
+
+**Πεδίο:** Διορθώσεις εμφάνισης UID αντί nickname και avatar σε group chat screens.
+
+### 1. CreateGroupScreen — UID στα chips επιλεγμένων μελών
+**Πρόβλημα:** Τα `Chip` των επιλεγμένων μελών (γραμμή 243) έδειχναν το raw UID αντί για nickname. Το `_selectedUids` ήταν `Set<String>` — αποθήκευε μόνο UID.
+
+**Λύση:** `Set<String> _selectedUids` → `Map<String, String> _selected` (UID→nickname). Chips δείχνουν `e.value` (nickname). `createGroupChat` περνάει `_selected.keys.toList()`.
+
+**Αρχεία:** `create_group_screen.dart`
+
+### 2. GroupInfoScreen — avatar ομάδας hardcoded
+**Πρόβλημα:** Το group avatar (γραμμή 215) ήταν `CircleAvatar(child: Icon(Icons.group))` — πάντα εικονίδιο, ποτέ φωτογραφία.
+
+**Λύση:** Προσθήκη `groupAvatarUrl` από `chatData?['groupAvatarUrl']`. Αν υπάρχει, `CachedNetworkImageProvider` — αλλιώς `const Icon(Icons.group)`.
+
+**Αρχεία:** `group_info_screen.dart`
+
+### 3. PublicProfileView — group picker bottom sheet avatar
+**Πρόβλημα:** Στην επιλογή ομάδας για πρόσκληση από προφίλ, το avatar ήταν hardcoded `CircleAvatar(child: Icon(Icons.group))`.
+
+**Λύση:** `chat.groupAvatarUrl` από `ChatCacheTableData` — `CachedNetworkImageProvider` αν υπάρχει, αλλιώς εικονίδιο.
+
+**Αρχεία:** `public_profile_view_screen.dart`
+
+### 4. GroupAuditLog — UID αντί nickname (actor + target)
+**Πρόβλημα:** Το `_AuditLogTile` έδειχνε `entry.actorName ?? entry.actor` — το `actorName` ΔΕΝ αποθηκευόταν από το `_logAudit` (μόνο `actorUid`), οπότε πάντα έπεφτε στο UID.
+
+**Λύση (χωρίς extra Firestore reads):**
+- `_AuditLogTile`: `StatelessWidget` → `ConsumerWidget`
+- Διαβάζει `participantNicknames` από `chatDocProvider` (ήδη cached)
+- `actorNick = entry.actorName ?? nicknames?[entry.actor] ?? entry.actor`
+- `targetNick = nicknames?[entry.targetUid]` (αν υπάρχει target)
+- Προστέθηκε `chatId` στο `AuditLogEntry`
+- Αρχική προσέγγιση με extra `get()` στο `_logAudit` → **αφαιρέθηκε** για αποφυγή επιπλέον Firestore χρεώσεων
+
+**Αρχεία:** `group_audit_log_screen.dart`, `group_chat_mixin.dart` (revert)
+
+### 5. PermissionsEditorScreen — UID + crash + avatar
+**Προβλήματα (3 σε 1):**
+1. **UID αντί nickname:** `_participantNicknames` και `_targetRole` γέμιζαν από `ref.listen` που ΔΕΝ πυροδοτείται για το αρχικό data
+2. **Crash:** `_nicknameFor()[0].toUpperCase()` → `RangeError` αν UID κενή
+3. **Avatar:** `CircleAvatar` έδειχνε μόνο το πρώτο γράμμα, όχι φωτογραφία
+
+**Λύση:**
+- Αφαίρεση `_participantNicknames`/`_targetRole` state — ανάγνωση απευθείας από `chatDocAsync.asData`
+- `nick.isNotEmpty ? nick[0].toUpperCase() : '?'`
+- `participantAvatarUrls[targetUid]` + `CachedNetworkImageProvider`
+
+**Αρχεία:** `permissions_editor_screen.dart`
+
+### flutter analyze
+`flutter analyze`: **0 issues** ✅
+
+---
+
+## Session 162 — Role-based visibility: Invites gate + groupPermissionsProvider εναρμόνιση
+
+**Πεδίο:** Διόρθωση 2 αποκλίσεων από την πρόταση role-based visibility στο `group_info_screen.dart`.
+
+### Διόρθωση 1 — "Διαχείριση Invites" admin-only
+**Πρόβλημα:** Το κουμπί "Διαχείριση Invites" ήταν ορατό σε όλα τα μέλη, αλλά η πρόταση το ήθελε μόνο για admin/creator.
+
+**Λύση:** Μεταφορά του `FilledButton.icon` για invites μέσα σε `if (isAdmin) ...` block.
+
+### Διόρθωση 2 — isAdmin από groupPermissionsProvider
+**Πρόβλημα:** Το `isAdmin` υπολογιζόταν χειροκίνητα: `isCreator || myRole == 'admin'`. Αυτό αγνοούσε τα overrides (π.χ. member με `inviteMembers=true` δεν έβλεπε admin UI).
+
+**Λύση:** 
+```dart
+final permsInfo = ref.watch(groupPermissionsProvider(chatId)).asData?.value;
+final isAdmin = permsInfo?.hasPermission(currentUid, GroupPermission.inviteMembers) ?? false;
+```
+- Προστέθηκε import `chat_repository.dart` για το `GroupPermission` enum
+- Debug log updated: `permsLoaded=${permsAsync.hasValue}` αντί παλιού `isAdmin`
+
+**Αρχείο:** `group_info_screen.dart`
+
+**Verified:** `flutter analyze` clean ✅
+
+---
+
+## Session 163 — Centralized bilingual system messages (SPoT) + 5 νέες actions
+
+**Πεδίο:** Δημιουργία κεντρικού `SystemMessageFormatter` (bilingual el/en) για όλα τα group system events και προσθήκη 5 νέων actions.
+
+### Τι έγινε
+
+1. **`system_message_formatter.dart` (NEW)** — SPoT με 12 bilingual templates:
+   - Υπάρχοντα (7): `group_created`, `participant_added/removed/left`, `name_changed`, `role_changed`, `group_deleted`
+   - Νέα (5): `avatar_changed`, `avatar_removed`, `max_participants_changed`, `permission_changed`, `permission_overrides_reset`
+   - Auto-detection self-join, prepend `groupName:`
+
+2. **`_sendSystemMessage` rewrite** (group_chat_mixin.dart) — Διαβάζει chat doc, resolve nicknames, καλεί formatter, γράφει `content` (el) + `contentEn` (en)
+
+3. **5 νέα callers** — `updateGroupAvatar()` → `avatar_changed`, `removeGroupAvatar()` → `avatar_removed`, `updateMaxParticipants()` → `max_participants_changed` (με newMax), `updatePermissionOverride()` → `permission_changed` (targetUid, permissionName, granted/revoked), `deletePermissionOverrides()` → `permission_overrides_reset` (targetUid)
+
+4. **`_SystemBubble` bilingual** — Διαβάζει `contentEn`, χρησιμοποιεί `L10n.isGreek(context)` για επιλογή γλώσσας, backward compatible (παλιά `content`-only μηνύματα fallback στα ελληνικά)
+
+### Αρχεία
+- `lib/features/chat/utils/system_message_formatter.dart` — NEW
+- `lib/repositories/group_chat_mixin.dart` — rewrite `_sendSystemMessage` + 5 new callers
+- `lib/repositories/chat_repository_impl.dart` — import formatter
+- `lib/features/chat/widgets/message_bubble.dart` — `_SystemBubble` bilingual
+
+### Key Decisions
+- Νicknames resolved at send time (όχι render) — historically accurate, avoids extra Firestore reads
+- Format: `GroupName: ActorNickname added TargetNickname` — group name first, self-join detected
+- `content` (el) + `contentEn` (en) σε Firestore message doc; `_SystemBubble` επιλέγει via `L10n.isGreek`
+- Extra Map omitted from `_sendSystemMessage` — all data via `targets` positional list
+
+### 5 (bis) — FCM notification when added to group
+Προστέθηκε FCM push στην `addGroupParticipant` Cloud Function:
+- **Title:** `groupName` (ή "Ομάδα"/"Group" αν δεν έχει όνομα)
+- **Body (el):** `"Ο/Η [callerName] σε προσκάλεσε στην ομάδα"`
+- **Body (en):** `"[callerName] added you to the group"`
+- **Data:** `{chatId, type: 'group_invite', addedBy: callerUid}`
+- **Παραλήπτης:** μόνο ο νέος χρήστης
+- Locale-aware: διαβάζει `lang` από το profile του παραλήπτη
+
+**Αρχείο:** `functions/src/index.ts` — `addGroupParticipant` function
+
+**Verified:** `npx tsc --noEmit` clean ✅
+
+**Verified:** `flutter analyze` clean ✅
+
+---
+
+## Session 164 — Split photo privacy: showAvatar + showPhotos ξεχωριστά
+
+**Πεδίο:** Διαχωρισμός του υπάρχοντος `showPhotos` σε δύο ξεχωριστές ρυθμίσεις απορρήτου — μία για την φωτογραφία προφίλ (avatar) και μία για τις υπόλοιπες φωτογραφίες.
+
+### Τι έγινε
+
+1. **`privacy_settings_table.dart`** — Προσθήκη `showAvatar` BoolColumn με default `true`
+2. **`database.dart`** — Bump schemaVersion `11→12`, νέο migration v11→v12
+3. **`build_runner`** — Regenerate `database.g.dart`
+4. **`profile_repository_impl.dart`** — `avatarUrl:` τώρα ελέγχεται από `privacy?.showAvatar` (όχι `showPhotos`)
+5. **`privacy_editor_screen.dart`** — Νέο toggle "Φωτογραφία Προφίλ" / "Profile Photo" πάνω από το υπάρχον "Φωτογραφίες"
+
+### Αποτέλεσμα
+- Χρήστης μπορεί να κρύψει τις φωτογραφίες gallery (showPhotos=false) αλλά να κρατήσει ορατή την avatar (showAvatar=true)
+- Και οι δύο ρυθμίσεις είναι default `true` (backward compatible)
+- Οι παλιές τιμές showPhotos παραμένουν ανεπηρέαστες
+
+### Αρχεία
+- `lib/data/local/tables/privacy_settings_table.dart` — new column
+- `lib/data/local/database.dart` — schema version + migration
+- `lib/repositories/profile_repository_impl.dart` — split check
+- `lib/features/profile/screens/privacy_editor_screen.dart` — new toggle
+
+**Verified:** `flutter analyze` clean ✅
+
+---
+
 ## Current State
 
 | Μέτρο | Τιμή |
@@ -476,6 +631,23 @@ hasOnly(['lastReadTimestamps'])
 | **🔴 CRITICAL #1 — addParticipant PERMISSION_DENIED (≥2 members)** | ✅ **Session 160** — νέο `addGroupParticipant` callable CF + client rewrite |
 | **🔴 CRITICAL #2 — markAsRead PERMISSION_DENIED (always)** | ✅ **Session 160** — rules fix: nested diff rule, `${}` interpolation → `request.auth.uid` |
 | **arrayUnion crash (CF)** | ✅ **Session 160** — `arrayUnion([uid])` → `arrayUnion(uid)` |
+
+### ✅ Ολοκληρωμένο — Role-based visibility σε group chat screens
+**Session:** 161 (αρχική υλοποίηση) + 162 (διορθώσεις)
+**Περιγραφή:** Εφαρμογή role-based απόκρυψη/εμφάνιση επιλογών βάσει Creator/Admin/Member.
+
+**Αρχική υλοποίηση (Session 161):**
+- `chat_repository_impl.dart`: `_requirePermission(chatId, GroupPermission.deleteMessages)` στο `clearMessages()` (defense-in-depth)
+- `chat_screen.dart`: PopupMenu gating — `add_member` πίσω από `canInvite` (`hasPermission(inviteMembers)`), `clear` πίσω από `canDeleteMsgs` (`hasPermission(deleteMessages)`), άλλα items ορατά σε όλους
+- `group_info_screen.dart`: Gate "Προσθήκη Μέλους" + "Ρυθμίσεις" με `isAdmin`, αφαίρεση "Αποχώρηση" (υπάρχει στο three-dot chat_screen), αφαίρεση `_leaveGroup()` μεθόδου
+- `group_settings_screen.dart`: `canChangeAvatar` μέσω `GroupPermissionsInfo.hasPermission(changeGroupAvatar)` αντί χειροκίνητου `isCreator || role == 'admin'`
+
+**Διορθώσεις Session 162:**
+1. "Διαχείριση Invites" → gated behind `isAdmin` (ήταν ορατό σε όλα τα μέλη)
+2. `isAdmin` calculation → από manual `isCreator || myRole == 'admin'` σε `permsInfo?.hasPermission(uid, GroupPermission.inviteMembers)` μέσω `groupPermissionsProvider` (σέβεται overrides)
+3. Προσθήκη import `chat_repository.dart` για `GroupPermission` enum
+
+**Αρχεία:** `chat_screen.dart`, `chat_repository_impl.dart`, `group_info_screen.dart`, `group_settings_screen.dart`
 
 ### Remaining Gaps
 - **Phase 4**: Video (Agora), AI matching, Admin, Web, Premium, Typesense

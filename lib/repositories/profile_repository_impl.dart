@@ -304,7 +304,7 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
         occupations: privacy?.showOccupation == true ? profile.occupations : null,
         lookingFor: privacy?.showLookingFor == true ? profile.lookingFor : null,
         bio: privacy?.showBio == true ? profile.bio : null,
-        avatarUrl: privacy?.showPhotos == true ? profile.avatarUrl : null,
+        avatarUrl: privacy?.showAvatar == true ? profile.avatarUrl : null,
         photoUrls: privacy?.showPhotos == true ? profile.photoUrls : null,
         email: privacy?.showEmail == true ? profile.email : null,
         phone: privacy?.showPhone == true ? profile.phone : null,

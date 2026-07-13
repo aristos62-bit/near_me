@@ -74,40 +74,39 @@ mixin GroupChatMixin {
   }
 
   Future<void> _sendSystemMessage(String chatId, String action, String actorUid, [List<String>? targets]) async {
-    String message;
-    switch (action) {
-      case 'group_created':
-        message = 'Δημιουργήθηκε η ομάδα';
-        break;
-      case 'participant_added':
-        message = 'Προστέθηκε νέο μέλος';
-        break;
-      case 'participant_removed':
-        message = 'Αφαιρέθηκε μέλος';
-        break;
-      case 'participant_left':
-        message = 'Αποχώρησε μέλος';
-        break;
-      case 'name_changed':
-        message = 'Το όνομα άλλαξε';
-        break;
-      case 'role_changed':
-        message = 'Ο ρόλος άλλαξε';
-        break;
-      case 'group_deleted':
-        message = 'Η ομάδα διαγράφηκε';
-        break;
-      default:
-        message = action;
-    }
+    if (actorUid.isEmpty) return;
     try {
+      final chatDoc = await firestore.collection('chats').doc(chatId).get();
+      if (!chatDoc.exists) {
+        DebugConfig.warn('_sendSystemMessage: chat doc not found $chatId');
+        return;
+      }
+      final data = chatDoc.data()!;
+      final groupName = data['groupName'] as String?;
+      final nicknames = (data['participantNicknames'] as Map<String, dynamic>?)
+              ?.map((k, v) => MapEntry(k, v as String? ?? k)) ??
+          <String, String>{};
+
+      final actorNickname = nicknames[actorUid] ?? actorUid;
+      final targetNicknames =
+          targets?.map((t) => nicknames[t] ?? t).toList() ?? [];
+
+      final formatted = SystemMessageFormatter.format(
+        action: action,
+        actorNickname: actorNickname,
+        targetNicknames: targetNicknames,
+        groupName: groupName,
+      );
+
       await firestore.collection('chats').doc(chatId).collection('messages').add({
         'senderId': actorUid,
-        'content': message,
+        'content': formatted.el,
+        'contentEn': formatted.en,
         'type': 'system',
         'timestamp': FieldValue.serverTimestamp(),
       });
-      DebugConfig.log(DebugConfig.chatStream, '_sendSystemMessage: $action in $chatId');
+      DebugConfig.log(DebugConfig.chatStream,
+          '_sendSystemMessage: action=$action actor=$actorNickname chat=$chatId');
     } catch (e) {
       DebugConfig.warn('_sendSystemMessage failed', data: e);
     }
@@ -453,6 +452,7 @@ mixin GroupChatMixin {
       await firestore.collection('chats').doc(chatId).update({'groupName': name.trim()});
       await _syncPublicProfileField(chatId, {'groupName': name.trim()});
       await updateChatCache(chatId, groupName: name.trim());
+      await _sendSystemMessage(chatId, 'name_changed', _currentUid, [name.trim()]);
       DebugConfig.log(DebugConfig.repositoryResult, 'updateGroupName: done $chatId');
     } catch (e, s) {
       DebugConfig.error('updateGroupName failed', data: e, exception: s);
@@ -508,6 +508,8 @@ mixin GroupChatMixin {
       });
       await _logAudit(chatId, 'permission_changed', _currentUid,
           targetUid: targetUid, details: {'permission': permission.name, 'newValue': value});
+      await _sendSystemMessage(chatId, 'permission_changed', _currentUid,
+          [targetUid, permission.name, value ? 'granted' : 'revoked']);
       DebugConfig.log(DebugConfig.repositoryResult, 'updatePermissionOverride: done $chatId');
     } catch (e, s) {
       DebugConfig.error('updatePermissionOverride failed', data: e, exception: s);
@@ -525,6 +527,7 @@ mixin GroupChatMixin {
       });
       await _logAudit(chatId, 'permission_overrides_reset', _currentUid,
           targetUid: targetUid);
+      await _sendSystemMessage(chatId, 'permission_overrides_reset', _currentUid, [targetUid]);
       DebugConfig.log(DebugConfig.repositoryResult, 'deletePermissionOverrides: done $chatId');
     } catch (e, s) {
       DebugConfig.error('deletePermissionOverrides failed', data: e, exception: s);
@@ -594,6 +597,7 @@ mixin GroupChatMixin {
       await firestore.collection('chats').doc(chatId).update({'maxParticipants': newMax});
       await _logAudit(chatId, 'max_participants_changed', _currentUid,
           details: {'oldMax': oldMax, 'newMax': newMax});
+      await _sendSystemMessage(chatId, 'max_participants_changed', _currentUid, [newMax.toString()]);
       DebugConfig.log(DebugConfig.repositoryResult, 'updateMaxParticipants: done $chatId');
     } catch (e, s) {
       if (e is AppException) rethrow;
@@ -665,6 +669,7 @@ mixin GroupChatMixin {
       await firestore.collection('chats').doc(chatId).update({'groupAvatarUrl': url});
       await _syncPublicProfileField(chatId, {'groupAvatarUrl': url});
       await _logAudit(chatId, 'avatar_changed', uid);
+      await _sendSystemMessage(chatId, 'avatar_changed', uid);
       await updateChatCache(chatId, groupAvatarUrl: url);
       DebugConfig.log(DebugConfig.repositoryResult, 'updateGroupAvatar: done $chatId');
     } catch (e, s) {
@@ -681,6 +686,7 @@ mixin GroupChatMixin {
           .ref().child('group_avatars').child(chatId).child('avatar.jpg').delete();
       await firestore.collection('chats').doc(chatId).update({'groupAvatarUrl': FieldValue.delete()});
       await _syncPublicProfileField(chatId, {'groupAvatarUrl': FieldValue.delete()});
+      await _sendSystemMessage(chatId, 'avatar_removed', _currentUid);
       await updateChatCache(chatId, groupAvatarUrl: '');
       DebugConfig.log(DebugConfig.repositoryResult, 'removeGroupAvatar: done $chatId');
     } catch (e) {

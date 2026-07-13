@@ -25,6 +25,8 @@ class PrivacySettingsTable extends Table {
   BoolColumn get showBio => boolean().withDefault(const Constant(true))();
   BoolColumn get showLookingFor =>
       boolean().withDefault(const Constant(true))();
+  BoolColumn get showAvatar =>
+      boolean().withDefault(const Constant(true))();
   BoolColumn get showPhotos =>
       boolean().withDefault(const Constant(true))();
   BoolColumn get showCountry =>

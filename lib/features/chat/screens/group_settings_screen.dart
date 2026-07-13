@@ -6,6 +6,7 @@ import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
+import '../../../repositories/chat_repository.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
@@ -125,7 +126,10 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
     }
 
     final isCreator = chatData?['createdBy'] == currentUid;
-    final canChangeAvatar = chatData != null && (isCreator || (chatData['participantRoles'] as Map?)?[currentUid] == 'admin');
+    final permsInfo = permissionsAsync.asData?.value;
+    final canChangeAvatar = permsInfo?.hasPermission(currentUid, GroupPermission.changeGroupAvatar) ?? false;
+    DebugConfig.log(DebugConfig.authGuard,
+        'GroupSettingsScreen: isCreator=$isCreator canChangeAvatar=$canChangeAvatar');
 
     return Scaffold(
       appBar: AppBar(title: Text(greek ? 'Ρυθμίσεις Ομάδας' : 'Group Settings')),

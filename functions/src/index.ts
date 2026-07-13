@@ -765,12 +765,53 @@ export const addGroupParticipant = functions.https.onCall(async (data, context) 
         [`participantIsActive.${newUid}`]: true,
       });
 
-      return { newNickname };
+      return { newNickname, groupName: chatData.groupName };
     });
 
     functions.logger.info(
       `addGroupParticipant: ${newUid} added to ${chatId} by ${callerUid}`,
     );
+
+    // ── FCM: notify the new participant ──
+    const callerSnap = await db.doc(`users/${callerUid}/public/profile`).get();
+    const callerName = callerSnap.data()?.nickname ?? 'Someone';
+
+    const newUserLangSnap = await db.doc(`users/${newUid}/public/profile`).get();
+    const lang = newUserLangSnap.data()?.lang ?? 'en';
+    const isGreek = lang === 'el';
+
+    const title = cache.groupName ?? (isGreek ? 'Ομάδα' : 'Group');
+    const body = isGreek
+      ? `Ο/Η ${callerName} σε προσκάλεσε στην ομάδα`
+      : `${callerName} added you to the group`;
+
+    const { allTokens, tokenRefMap } = await fetchTokensForUids([newUid]);
+
+    if (allTokens.length > 0) {
+      const payload: admin.messaging.MulticastMessage = {
+        tokens: allTokens,
+        notification: { title, body },
+        data: {
+          chatId,
+          type: 'group_invite',
+          addedBy: callerUid,
+        },
+        android: { priority: 'high' },
+        apns: { payload: { aps: { sound: 'default' } } },
+      };
+
+      try {
+        const response = await sendWithRetry(payload);
+        if (response.failureCount > 0) {
+          cleanupInvalidTokens(response.responses, allTokens, tokenRefMap, db);
+        }
+        functions.logger.info(
+          `addGroupParticipant FCM: ${response.successCount} sent, ${response.failureCount} failed to ${newUid}`,
+        );
+      } catch (error) {
+        functions.logger.error(`addGroupParticipant FCM failed for ${newUid}`, error);
+      }
+    }
 
     return { success: true, chatId, newNickname: cache.newNickname };
   } catch (e) {

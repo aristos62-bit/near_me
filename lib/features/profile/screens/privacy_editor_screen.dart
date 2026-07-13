@@ -43,6 +43,7 @@ class _PrivacyEditorScreenState extends ConsumerState<PrivacyEditorScreen> {
     if (_settings.showOccupation != o.showOccupation) return true;
     if (_settings.showBio != o.showBio) return true;
     if (_settings.showLookingFor != o.showLookingFor) return true;
+    if (_settings.showAvatar != o.showAvatar) return true;
     if (_settings.showPhotos != o.showPhotos) return true;
     if (_settings.showCountry != o.showCountry) return true;
     if (_settings.allowVideoCall != o.allowVideoCall) return true;
@@ -59,7 +60,7 @@ class _PrivacyEditorScreenState extends ConsumerState<PrivacyEditorScreen> {
       id: 0, showNickname: true, showFullName: true, showAge: true,
       showGender: true, showCity: true, showExactLocation: false,
       showPhone: false, showEmail: false, showInterests: true,
-      showOccupation: true, showBio: true, showLookingFor: true, showPhotos: true, showCountry: true,
+      showOccupation: true, showBio: true, showLookingFor: true, showAvatar: true, showPhotos: true, showCountry: true,
       allowVideoCall: true, allowDirectChat: true, geoPrecision: 'neighborhood',
     );
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadSettings());
@@ -195,7 +196,8 @@ class _PrivacyEditorScreenState extends ConsumerState<PrivacyEditorScreen> {
                 FormToggle(title: greek ? 'Ενδιαφέροντα' : 'Interests', subtitle: greek ? 'Να εμφανίζονται τα ενδιαφέροντά σου' : 'Show your interests', value: _settings.showInterests, onChanged: (v) => setState(() => _settings = _settings.copyWith(showInterests: v))),
                 FormToggle(title: greek ? 'Απασχόληση' : 'Occupation', subtitle: greek ? 'Να εμφανίζεται η απασχόλησή σου' : 'Show your occupation', value: _settings.showOccupation, onChanged: (v) => setState(() => _settings = _settings.copyWith(showOccupation: v))),
                 FormToggle(title: greek ? 'Αναζητώ' : 'Looking For', subtitle: greek ? 'Να εμφανίζεται ο λόγος αναζήτησης' : 'Show what you are looking for', value: _settings.showLookingFor, onChanged: (v) => setState(() => _settings = _settings.copyWith(showLookingFor: v))),
-                FormToggle(title: greek ? 'Φωτογραφίες' : 'Photos', subtitle: greek ? 'Να εμφανίζονται οι φωτογραφίες σου' : 'Show your photos', value: _settings.showPhotos, onChanged: (v) => setState(() => _settings = _settings.copyWith(showPhotos: v))),
+                FormToggle(title: greek ? 'Φωτογραφία Προφίλ' : 'Profile Photo', subtitle: greek ? 'Να εμφανίζεται η φωτογραφία προφίλ σου' : 'Show your profile photo', value: _settings.showAvatar, onChanged: (v) => setState(() => _settings = _settings.copyWith(showAvatar: v))),
+                FormToggle(title: greek ? 'Φωτογραφίες' : 'Photos', subtitle: greek ? 'Να εμφανίζονται οι υπόλοιπες φωτογραφίες σου' : 'Show your other photos', value: _settings.showPhotos, onChanged: (v) => setState(() => _settings = _settings.copyWith(showPhotos: v))),
               ]),
 
               Padding(

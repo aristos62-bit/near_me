@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../repositories/auth_repository.dart';
+import '../../../repositories/chat_repository.dart';
 import '../../../core/utils/error_messages.dart';
 import '../../../core/notifications/fcm_service.dart';
 import '../../../core/theme/responsive_utils.dart';
@@ -101,6 +102,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final memberCount = isGroupChat ? participantUids.length : null;
 
     final currentUid = ref.read(authStateProvider).value?.uid ?? '';
+    final permsAsync = isGroupChat ? ref.watch(groupPermissionsProvider(widget.chatId)) : null;
+    final permsInfo = permsAsync?.asData?.value;
+    final canInvite = permsInfo?.hasPermission(currentUid, GroupPermission.inviteMembers) ?? false;
+    final canDeleteMsgs = permsInfo?.hasPermission(currentUid, GroupPermission.deleteMessages) ?? false;
+    DebugConfig.log(DebugConfig.authGuard,
+        'ChatScreen #$_instanceId: isGroup=$isGroupChat canInvite=$canInvite canDeleteMsgs=$canDeleteMsgs');
     final otherUid = isGroupChat ? null : participantUids.where((u) => u != currentUid).firstOrNull;
     final otherNickname = otherUid != null ? participantNicknames[otherUid] : null;
     ref.listen(participantUidsProvider(widget.chatId), (prev, next) {
@@ -198,15 +205,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     contentPadding: EdgeInsets.zero,
                   ),
                 ),
-                PopupMenuItem(
-                  value: 'add_member',
-                  child: ListTile(
-                    leading: const Icon(Icons.person_add, size: 20),
-                    title: Text(greek ? 'Προσθήκη μέλους' : 'Add member'),
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
+                if (canInvite)
+                  PopupMenuItem(
+                    value: 'add_member',
+                    child: ListTile(
+                      leading: const Icon(Icons.person_add, size: 20),
+                      title: Text(greek ? 'Προσθήκη μέλους' : 'Add member'),
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                    ),
                   ),
-                ),
                 PopupMenuItem(
                   value: 'group_audit_log',
                   child: ListTile(
@@ -235,14 +243,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   ),
                 ),
               ],
-              PopupMenuItem(
-                value: 'clear',
-                child: Row(children: [
-                  Icon(Icons.delete_sweep, color: theme.colorScheme.error, size: 20),
-                  const SizedBox(width: 8),
-                  Text(greek ? 'Διαγραφή μηνυμάτων' : 'Clear messages'),
-                ]),
-              ),
+              if (!isGroupChat || canDeleteMsgs)
+                PopupMenuItem(
+                  value: 'clear',
+                  child: Row(children: [
+                    Icon(Icons.delete_sweep, color: theme.colorScheme.error, size: 20),
+                    const SizedBox(width: 8),
+                    Text(greek ? 'Διαγραφή μηνυμάτων' : 'Clear messages'),
+                  ]),
+                ),
             ],
           ),
         ],

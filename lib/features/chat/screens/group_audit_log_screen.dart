@@ -6,6 +6,7 @@ import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../providers/chat_provider.dart';
+import '../utils/audit_detail_formatter.dart';
 
 class AuditLogEntry {
   final String id;
@@ -14,7 +15,7 @@ class AuditLogEntry {
   final String actor;
   final String? actorName;
   final String? targetUid;
-  final String? details;
+  final Map<String, dynamic>? details;
   final DateTime? timestamp;
 
   const AuditLogEntry({
@@ -32,9 +33,6 @@ class AuditLogEntry {
     final data = doc.data() as Map<String, dynamic>? ?? {};
     final ts = data['timestamp'];
     final rawDetails = data['details'];
-    final detailsStr = rawDetails is Map
-        ? rawDetails.entries.map((e) => '${e.key}: ${e.value}').join(', ')
-        : rawDetails as String?;
     return AuditLogEntry(
       id: doc.id,
       chatId: chatId,
@@ -42,7 +40,7 @@ class AuditLogEntry {
       actor: data['actorUid'] as String? ?? '',
       actorName: data['actorName'] as String?,
       targetUid: data['targetUid'] as String?,
-      details: detailsStr,
+      details: rawDetails is Map ? Map<String, dynamic>.from(rawDetails) : null,
       timestamp: ts is Timestamp ? ts.toDate() : null,
     );
   }
@@ -64,19 +62,16 @@ final auditLogStreamProvider = StreamProvider.autoDispose.family<List<AuditLogEn
 String _actionIcon(String action) {
   switch (action) {
     case 'group_created': return 'add_circle';
-    case 'member_added': return 'person_add';
-    case 'member_removed': return 'person_remove';
-    case 'member_left': return 'exit_to_app';
-    case 'group_name_changed': return 'edit';
-    case 'group_avatar_changed': return 'photo_camera';
-    case 'group_avatar_removed': return 'photo_off';
-    case 'max_participants_changed': return 'group';
+    case 'participant_added': return 'person_add';
+    case 'participant_removed': return 'person_remove';
+    case 'participant_left': return 'exit_to_app';
     case 'role_changed': return 'manage_accounts';
-    case 'permission_override_added': return 'security';
-    case 'permission_override_removed': return 'security_off';
-    case 'invite_created': return 'link';
-    case 'invite_revoked': return 'link_off';
-    case 'settings_updated': return 'settings';
+    case 'permission_changed': return 'security';
+    case 'permission_overrides_reset': return 'security_off';
+    case 'group_deleted': return 'delete';
+    case 'max_participants_changed': return 'group';
+    case 'avatar_changed': return 'photo_camera';
+    case 'public_join': return 'person_add';
     default: return 'info';
   }
 }
@@ -87,37 +82,13 @@ IconData _actionIconData(String action) {
     case 'person_add': return Icons.person_add_alt;
     case 'person_remove': return Icons.person_remove_outlined;
     case 'exit_to_app': return Icons.exit_to_app;
-    case 'edit': return Icons.edit_outlined;
-    case 'photo_camera': return Icons.photo_camera_outlined;
-    case 'photo_off': return Icons.broken_image_outlined;
-    case 'group': return Icons.group_outlined;
     case 'manage_accounts': return Icons.manage_accounts_outlined;
     case 'security': return Icons.security_outlined;
     case 'security_off': return Icons.enhanced_encryption_outlined;
-    case 'link': return Icons.link;
-    case 'link_off': return Icons.link_off;
-    case 'settings': return Icons.settings_outlined;
+    case 'delete': return Icons.delete_outline;
+    case 'group': return Icons.group_outlined;
+    case 'photo_camera': return Icons.photo_camera_outlined;
     default: return Icons.info_outline;
-  }
-}
-
-String _actionLabel(String action, bool greek) {
-  switch (action) {
-    case 'group_created': return greek ? 'Δημιουργία ομάδας' : 'Group created';
-    case 'member_added': return greek ? 'Προσθήκη μέλους' : 'Member added';
-    case 'member_removed': return greek ? 'Αφαίρεση μέλους' : 'Member removed';
-    case 'member_left': return greek ? 'Αποχώρηση μέλους' : 'Member left';
-    case 'group_name_changed': return greek ? 'Αλλαγή ονόματος' : 'Name changed';
-    case 'group_avatar_changed': return greek ? 'Αλλαγή φωτογραφίας' : 'Avatar changed';
-    case 'group_avatar_removed': return greek ? 'Αφαίρεση φωτογραφίας' : 'Avatar removed';
-    case 'max_participants_changed': return greek ? 'Αλλαγή ορίου μελών' : 'Member limit changed';
-    case 'role_changed': return greek ? 'Αλλαγή ρόλου' : 'Role changed';
-    case 'permission_override_added': return greek ? 'Προσθήκη δικαιώματος' : 'Permission added';
-    case 'permission_override_removed': return greek ? 'Αφαίρεση δικαιώματος' : 'Permission removed';
-    case 'invite_created': return greek ? 'Δημιουργία πρόσκλησης' : 'Invite created';
-    case 'invite_revoked': return greek ? 'Ανάκληση πρόσκλησης' : 'Invite revoked';
-    case 'settings_updated': return greek ? 'Ενημέρωση ρυθμίσεων' : 'Settings updated';
-    default: return action;
   }
 }
 
@@ -189,9 +160,19 @@ class _AuditLogTile extends ConsumerWidget {
     final actorNick = entry.actorName ?? nicknames?[entry.actor] as String? ?? entry.actor;
     final targetNick = entry.targetUid != null ? (nicknames?[entry.targetUid] as String?) : null;
 
-    String displayDetails = entry.details ?? '';
-    if (targetNick != null && entry.details == null) {
+    String displayDetails;
+    if (entry.details != null && entry.details!.isNotEmpty) {
+      displayDetails = AuditDetailFormatter.format(
+        action: entry.action,
+        details: entry.details,
+        greek: greek,
+      );
+      DebugConfig.log(DebugConfig.uiDetail,
+          'AuditLogTile: action=${entry.action} details=$displayDetails');
+    } else if (targetNick != null) {
       displayDetails = targetNick;
+    } else {
+      displayDetails = '';
     }
 
     return ListTile(
@@ -204,7 +185,7 @@ class _AuditLogTile extends ConsumerWidget {
         ),
       ),
       title: Text(
-        _actionLabel(entry.action, greek),
+        AuditDetailFormatter.auditActionLabel(entry.action, greek),
         style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
       ),
       subtitle: Column(

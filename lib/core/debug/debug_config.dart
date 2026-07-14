@@ -97,6 +97,7 @@ class DebugConfig {
   /// ─────────────────────────────────────────────────────────────
   static const bool uiRebuild = true;           // widget rebuilds
   static const bool uiInteraction = true;       // button taps, form submits
+  static const bool uiDetail = true;             // formatted display strings (audit logs, bilingual)
 
   /// ─────────────────────────────────────────────────────────────
   /// CONSENT & GDPR — ConsentLog operations

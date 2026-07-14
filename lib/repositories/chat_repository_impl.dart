@@ -94,9 +94,13 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin implements ChatRep
         'hasMyAvatar=${myAvatarUrl != null} hasOtherAvatar=${otherAvatarUrl != null}');
 
     final chatId = firestore.collection('chats').doc().id;
+    final sortedPair = [uid, otherUid]..sort();
+    final pairKey = '${sortedPair[0]}_${sortedPair[1]}';
     final key = EncryptionUtils.deriveKey(chatId);
     await firestore.collection('chats').doc(chatId).set({
       'participants': [uid, otherUid],
+      'participantPair': pairKey,
+      'isGroupChat': false,
       'participantNicknames': {uid: myNickname, otherUid: otherNickname},
       'participantAvatarUrls': {
         uid: ?myAvatarUrl,
@@ -106,6 +110,7 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin implements ChatRep
       'isActive': true,
       'maxParticipants': 2,
     });
+    DebugConfig.log(DebugConfig.repositoryResult, 'createChat: new chat created: $chatId pair=$pairKey');
     DebugConfig.log(DebugConfig.repositoryResult, 'createChat: new chat created: $chatId');
 
     await EncryptionUtils.storeKey(chatId, key);
@@ -117,34 +122,66 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin implements ChatRep
 
   Future<String?> _findExistingChat(String uid1, String uid2) async {
     try {
-      final snapshot = await firestore
+      final pairKey = [uid1, uid2]..sort();
+      final pairStr = '${pairKey[0]}_${pairKey[1]}';
+
+      // Tier 2 — participantPair direct hit
+      DebugConfig.log(DebugConfig.repositoryCall,
+          '_findExistingChat: Tier 2 lookup pair=$pairStr');
+      final pairSnapshot = await firestore
           .collection('chats')
-          .where('participants', arrayContains: uid1)
+          .where('participantPair', isEqualTo: pairStr)
+          .where('isGroupChat', isEqualTo: false)
+          .limit(1)
           .get();
 
-      for (final doc in snapshot.docs) {
-        final data = doc.data();
-        final participants = List<String>.from(data['participants'] ?? []);
-        if (!participants.contains(uid2)) continue;
+      if (pairSnapshot.docs.isNotEmpty) {
+        final doc = pairSnapshot.docs.first;
+        final participants = List<String>.from(doc.data()['participants'] ?? []);
+        if (participants.contains(uid1) && participants.contains(uid2)) {
+          DebugConfig.log(DebugConfig.repositoryResult,
+              '_findExistingChat: Tier 2 hit chat=${doc.id}');
+          return doc.id;
+        }
+        DebugConfig.log(DebugConfig.repositoryResult,
+            '_findExistingChat: Tier 2 hit but inactive, fall through');
+      }
 
+      // Tier 3 — legacy fallback (old chats without participantPair)
+      DebugConfig.log(DebugConfig.repositoryCall,
+          '_findExistingChat: Tier 3 legacy fallback uid1=$uid1');
+      final legacySnapshot = await firestore
+          .collection('chats')
+          .where('participants', arrayContains: uid1)
+          .limit(10)
+          .get();
+
+      for (final doc in legacySnapshot.docs) {
+        final data = doc.data();
         if (data['isGroupChat'] == true) {
           DebugConfig.log(DebugConfig.repositoryResult,
               '_findExistingChat: skip group chat=${doc.id} for 1-on-1 lookup');
           continue;
         }
-
+        final participants = List<String>.from(data['participants'] ?? []);
+        if (!participants.contains(uid2)) continue;
         if (participants.length != 2) {
           DebugConfig.log(DebugConfig.repositoryResult,
-              '_findExistingChat: skip multi-participant chat=${doc.id} (${participants.length} members) for 1-on-1 lookup');
+              '_findExistingChat: skip multi-participant chat=${doc.id} (${participants.length} members)');
           continue;
         }
 
+        // Self-healing lazy backfill
+        await firestore.collection('chats').doc(doc.id).update({
+          'participantPair': pairStr,
+          'isGroupChat': false,
+        }).catchError((_) {});
         DebugConfig.log(DebugConfig.repositoryResult,
-            '_findExistingChat: found existing 1-on-1 chat=${doc.id}');
+            '_findExistingChat: Tier 3 hit + backfill chat=${doc.id}');
         return doc.id;
       }
     } catch (e) {
-      DebugConfig.warn('createChat: findExisting failed', data: e);
+      DebugConfig.warn('_findExistingChat failed', data: e);
     }
     return null;
   }

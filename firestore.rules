@@ -146,9 +146,13 @@ service cloud.firestore {
                        // Roles, permissions, limits (creator or admin)
                       (request.resource.data.diff(resource.data).affectedKeys()
                          .hasOnly(['participantRoles', 'permissionOverrides', 'maxParticipants'])
-                       && (resource.data.participantRoles[request.auth.uid] == 'creator'
-                        || resource.data.participantRoles[request.auth.uid] == 'admin'))
-                    );
+                        && (resource.data.participantRoles[request.auth.uid] == 'creator'
+                         || resource.data.participantRoles[request.auth.uid] == 'admin'))
+                      ||
+                      // Legacy chat participantPair backfill (self-healing, any participant, one-time)
+                      request.resource.data.diff(resource.data).affectedKeys()
+                        .hasOnly(['participantPair', 'isGroupChat'])
+                     );
       // 1-on-1 chat: κάθε participant μπορεί να διαγράψει
       allow delete: if isAuthenticated()
                      && request.auth.uid in resource.data.participants

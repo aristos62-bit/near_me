@@ -430,7 +430,9 @@ mixin GroupChatMixin {
         await db.logConsent(uid, 'group_left', 'group');
       }
       await _updatePublicProfileMemberCount(chatId);
-      await removeChatCache(chatId);
+      if (isSelf) {
+        await removeChatCache(chatId);
+      }
 
       DebugConfig.log(DebugConfig.repositoryResult, 'removeParticipant: done $chatId');
     } catch (e, s) {
@@ -752,7 +754,6 @@ mixin GroupChatMixin {
       await _sendSystemMessage(chatId, 'participant_added', uid, [uid]);
       await _logAudit(chatId, 'public_join', uid);
       await db.logConsent(uid, 'group_joined', 'group');
-      await removeChatCache(chatId);
       await _updatePublicProfileMemberCount(chatId);
 
       DebugConfig.log(DebugConfig.repositoryResult, 'joinPublicGroup: done $chatId');

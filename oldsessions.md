@@ -752,12 +752,47 @@ final isAdmin = permsInfo?.hasPermission(currentUid, GroupPermission.inviteMembe
 
 ---
 
-### Remaining Gaps
-- **Phase 4**: Video (Agora), AI matching, Admin, Web, Premium, Typesense
-- Mock location detection (Pending)
+## Session 167 — chatsProvider dispose/recreate στο startup (fix)
 
-### Tech Debt
-- Riverpod scheduler race (debug-only) — `Only one task can be scheduled at a time` σε respondToRequest. Deferred.
+**Πρόβλημα:** Σε κάθε startup, το `chatsProvider` δημιουργούνταν 2 φορές:
+```
+chatsProvider created (StreamProvider)    ← από unreadBadgeProvider cascade
+streamChats: started                      ← stream ξεκινά
+userChanges: uid=...                      ← authStateProvider πρώτο emit
+chatsProvider disposed                    ← από ref.invalidate στο main
+main: invalidated chatsProvider (auth change)
+streamChats: cancelled
+chatsProvider created (StreamProvider)    ← ξαναδημιουργείται
+streamChats: started                      ← δεύτερο stream
+```
+
+**Root cause:** `main.dart:352-359` — `ref.listen(authStateProvider, ...)` είχε:
+```dart
+if (uidChanged || emailVerifiedChanged) {
+  ref.invalidate(chatsProvider);
+  // ...
+}
+```
+Στο πρώτο emit, `prev = AsyncLoading` (όχι null), `prev?.value` = null, οπότε `uidChanged = true` και το invalidate εκτελούνταν πάντα.
+
+**Λάθος fix:** `&& prev != null` — το `prev` είναι πάντα `AsyncValue` (ποτέ null).
+
+**Σωστό fix:** `&& prev is AsyncData` — μπαίνει στο block μόνο αν το `prev` ήταν `AsyncData` (δηλ. υπάρχει προηγούμενο έγκυρο state). Στο πρώτο emit (AsyncLoading → AsyncData), το `prev is AsyncData` = false → skip.
+
+**Επαλήθευση:**
+- Startup: `chatsProvider created` 1 φορά, `streamChats: started` 1 φορά, **κανένα** `chatsProvider disposed` ✅
+- Sign-out: `prev = AsyncData(user)` → invalidate ✅
+- Sign-in: `prev = AsyncData(null)` → invalidate ✅
+
+**Αρχείο:** `lib/main.dart:359`
+
+**Παρενέργειες που εξαλείφθηκαν:**
+- Extra Firestore read στο startup (1 επιπλέον streamChats query)
+- Extra decrypt cache miss (όλα τα μηνύματα ξανααποκρυπτογραφούνταν)
+- Extra _syncChatFromFirestore + _syncGroupChatToCache
+- ~1-2ms περιττή latency στο startup
+
+---
 
 ---
 

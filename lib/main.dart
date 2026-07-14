@@ -356,7 +356,7 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
         final uidChanged = prevUser?.uid != nextUser?.uid;
         final emailVerifiedChanged =
             prevUser?.emailVerified != nextUser?.emailVerified;
-        if (uidChanged || emailVerifiedChanged) {
+        if ((uidChanged || emailVerifiedChanged) && prev is AsyncData) {
           ref.invalidate(chatsProvider);
           if (uidChanged) {
             DebugConfig.log(DebugConfig.authFlow,

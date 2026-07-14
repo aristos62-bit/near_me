@@ -93,34 +93,24 @@ mixin ChatDeleteMixin {
     DebugConfig.log(DebugConfig.repositoryCall, '_deleteChatForEveryone: deleting chat=$chatId uid=$uid');
 
     try {
-      DebugConfig.log(DebugConfig.repositoryCall, '_deleteChatForEveryone: deleting messages for chat=$chatId');
+      DebugConfig.log(DebugConfig.repositoryCall, '_deleteChatForEveryone: reading messages for chat=$chatId');
+      final messages = await firestore
+          .collection('chats').doc(chatId).collection('messages')
+          .get();
+      DebugConfig.log(DebugConfig.repositoryCall, '_deleteChatForEveryone: messages count=${messages.docs.length} chat=$chatId');
 
-      const batchSize = 500;
-      int totalDeleted = 0;
-      bool hasMore = true;
-
-      while (hasMore) {
-        final messages = await firestore
-            .collection('chats').doc(chatId).collection('messages')
-            .limit(batchSize)
-            .get();
-
-        if (messages.docs.isEmpty) break;
-
-        final batch = firestore.batch();
-        for (final doc in messages.docs) {
-          batch.delete(doc.reference);
+      int deletedMsgCount = 0;
+      int failedMsgCount = 0;
+      for (final doc in messages.docs) {
+        try {
+          await firestore.collection('chats').doc(chatId).collection('messages').doc(doc.id).delete();
+          deletedMsgCount++;
+        } catch (e) {
+          failedMsgCount++;
+          DebugConfig.warn('_deleteChatForEveryone: msg delete failed doc=${doc.id}', data: e);
         }
-        await batch.commit();
-
-        totalDeleted += messages.docs.length;
-        DebugConfig.log(DebugConfig.firestoreWrite,
-            '_deleteChatForEveryone: batch deleted ${messages.docs.length} '
-            '(total=$totalDeleted) chat=$chatId');
-
-        if (messages.docs.length < batchSize) hasMore = false;
       }
-      DebugConfig.log(DebugConfig.firestoreWrite, '_deleteChatForEveryone: messages phase done chat=$chatId totalDeleted=$totalDeleted');
+      DebugConfig.log(DebugConfig.firestoreWrite, '_deleteChatForEveryone: messages phase done chat=$chatId success=$deletedMsgCount failed=$failedMsgCount');
 
       try {
         await firestore.collection('chats').doc(chatId).delete();

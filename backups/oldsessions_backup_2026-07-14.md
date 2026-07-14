@@ -919,13 +919,10 @@ streamChats: started
 
 **Κρισιμότητα:** P0 — Λειτουργικό bug (chat εξαφανίζεται, audit log μισό-αγγλικό, route σπασμένο)
 
-### ✅ P0.3 — markAsRead unbounded reads — **FIXED (Session 166)**
+### ✅ P0.3 — Audit Detail Bilingual + markAsRead proposal — **PROPOSED (Session 158)**
 
-**Περιγραφή:** Το `markAsRead` είχε unbounded reads στο query unread messages. Διορθώθηκε:
-- `firestore.rules:119-124`: CEL nested `diff()` αντί `${}` interpolation (PERMISSION_DENIED fix)
-- `chat_repository_impl.dart:383`: `.limit(50)` στο unread messages query — αποτροπή unbounded reads ✅
-
-**Εκκρεμεί ακόμα (από αρχική P0.3 πρόταση):**
+**Περιγραφή:** Προτάθηκε αλλά δεν υλοποιήθηκε ακόμα:
+- `markAsRead` unbounded reads → lastReadTimestamp source of truth + `.limit(50)` + count query
 - `clearMessages` pagination
 - Duplicate `chatDocProvider` listeners
 
@@ -947,9 +944,7 @@ streamChats: started
 | 8 | **✅ P3.2** | Haversine memoization για ίδιο geoHash | Performance | `firestore_search_repository.dart` | ✅ Fixed |
 | 9 | **✅ P4.1** | ConsentLog pagination | Scalability | `consent_log_screen.dart` | ✅ Fixed |
 | 10 | **✅ P0.2** | `removeParticipant` chat disappears + audit bilingual + route ordering | Bug | `group_chat_mixin.dart` + `group_audit_log_screen.dart` + `app_router.dart` | ✅ Fixed |
-| 11 | **✅ P0.3** | `markAsRead` unbounded reads + rules fix | Cost | `chat_repository_impl.dart` + `firestore.rules` | ✅ Fixed (Session 166) |
-| 12 | **⬜ —** | `clearMessages` pagination | Cost | `chat_repository_impl.dart` | 📋 Proposed |
-| 13 | **⬜ —** | Duplicate `chatDocProvider` listeners | Cost | `chat_provider.dart` + `group_settings_screen.dart` | 📋 Proposed |
+| 11 | **⬜ P0.3** | `markAsRead` unbounded reads + `clearMessages` pagination | Cost | `chat_repository_impl.dart` | 📋 Proposed |
 
 ---
 
@@ -964,9 +959,8 @@ streamChats: started
 7. **✅ P3.2** — Haversine memoization για ίδιο geoHash — **Fixed Session 156**
 8. **✅ P4.1** — ConsentLog pagination — **Fixed Session 157**
 9. **✅ P0.2** — Firebase Audit: `_findExistingChat` reads + `removeParticipant` race (chat disappearing) + bilingual audit log + GoRouter route ordering — **Fixed Session 158**
-10. **✅ P0.3 (μερικό)** — Firebase Audit: `markAsRead` unbounded reads + rules PERMISSION_DENIED — **Fixed Session 166**
-11. **⬜ P0.3b** — `clearMessages` pagination — **Proposed**
-12. **⬜ P0.3c** — Duplicate `chatDocProvider` listeners — **Proposed**
+10. **⬜ P0.3** — Firebase Audit: `markAsRead` unbounded reads + `clearMessages` pagination — **Proposed Session 158**
+11. **⬜ P1.1** — Duplicate `chatDocProvider` listeners — **Proposed Session 158**
 
 > Εκτελούμε **μία βελτίωση τη φορά**. Μετά από κάθε αλλαγή: backup → edit → `flutter analyze` → έλεγχος από τον χρήστη → "επόμενο".
 

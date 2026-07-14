@@ -19,9 +19,8 @@ import 'group_search_repository.dart';
 
 part 'group_chat_mixin.dart';
 part 'chat_repository_delete.dart';
-part 'chat_repository_clear.dart';
 
-class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin implements ChatRepository {
+class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin implements ChatRepository {
   @override
   final FirebaseFirestore firestore;
   @override
@@ -648,6 +647,39 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin im
   Future<void> deleteChat(String chatId) async {
     DebugConfig.log(DebugConfig.repositoryCall, 'deleteChat: delegating to requestDeleteChat chat=$chatId');
     await requestDeleteChat(chatId);
+  }
+
+  @override
+  Future<void> clearMessages(String chatId) async {
+    final user = auth.currentUser;
+    if (user == null) throw AppException.auth('clear_messages', 'Δεν υπάρχει συνδεδεμένος χρήστης / No authenticated user');
+
+    final chatDoc = await firestore.collection('chats').doc(chatId).get();
+    if (chatDoc.data()?['isGroupChat'] == true) {
+      await _requirePermission(chatId, GroupPermission.deleteMessages);
+      DebugConfig.log(DebugConfig.authGuard, 'clearMessages: group permission OK chat=$chatId');
+    }
+
+    DebugConfig.log(DebugConfig.repositoryCall, 'clearMessages: clearing messages chat=$chatId');
+
+    try {
+      final messages = await firestore
+          .collection('chats').doc(chatId).collection('messages')
+          .get();
+
+      final batch = firestore.batch();
+      for (final doc in messages.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+      _messageEncryptCache.remove(chatId);
+      _messageDecryptCache.remove(chatId);
+
+      DebugConfig.log(DebugConfig.repositoryResult, 'clearMessages: done chat=$chatId');
+    } catch (e) {
+      DebugConfig.error('clearMessages failed', data: e);
+      throw AppException.firestore('clear_messages', 'Αποτυχία διαγραφής μηνυμάτων / Failed to clear messages');
+    }
   }
 
   @override

@@ -205,6 +205,11 @@ class AppRouter {
         )),
       ),
       GoRoute(
+        path: '/groups/search',
+        pageBuilder: (context, state) =>
+            _slideUp(const GroupSearchScreen()),
+      ),
+      GoRoute(
         path: '/groups/:chatId',
         pageBuilder: (context, state) => _slideUp(Scaffold(
           body: Center(child: Text('GroupChatScreen: ${state.pathParameters['chatId']}')),
@@ -241,11 +246,6 @@ class AppRouter {
           final token = state.uri.queryParameters['token'] ?? '';
           return _slideUp(JoinConfirmationScreen(token: token));
         },
-      ),
-      GoRoute(
-        path: '/groups/search',
-        pageBuilder: (context, state) =>
-            _slideUp(const GroupSearchScreen()),
       ),
     ],
   );

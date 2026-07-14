@@ -82,7 +82,7 @@ class FirestoreGroupSearchRepository implements GroupSearchRepository {
 
     try {
       Query queryRef = firestore
-          .collectionGroup('groups')
+          .collection('groups')
           .where('isPublic', isEqualTo: true);
 
       final hasCity = city != null && city.isNotEmpty;

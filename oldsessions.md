@@ -897,6 +897,37 @@ streamChats: started
 
 ---
 
+### ✅ P0.2 — Firebase Audit Cost: `_findExistingChat` unbounded reads + related — **FIXED (Session 158)**
+
+**Αρχεία:** `lib/repositories/chat_repository_impl.dart` (49-116), `lib/repositories/group_chat_mixin.dart` (405-441, 730-764, 115-130), `lib/features/chat/screens/group_audit_log_screen.dart`, `lib/features/chat/utils/audit_detail_formatter.dart` (νέο), `lib/core/router/app_router.dart`, `lib/core/debug/debug_config.dart`
+
+**Περιγραφή:** Τέσσερα ξεχωριστά issues διορθώθηκαν:
+
+**1. `_findExistingChat` unbounded reads** — `participantPair` direct query `.limit(1)` + legacy fallback `.limit(10)` + self-healing backfill. `firestore.rules` updated.
+
+**2. `removeParticipant` race condition (chat disappears)** — `removeChatCache(chatId)` καλούνταν χωρίς συνθήκη. Όταν admin αφαιρεί άλλο μέλος, η local cache διαγραφόταν παρόλο που ο admin είναι ακόμα participant. Λύση: `if (isSelf)` guard. Επίσης `joinPublicGroup` είχε ίδιο μοτίβο — αφαιρέθηκε.
+
+**3. Bilingual audit log** — Νέο `AuditDetailFormatter` SPoT για bilingual field labels/values στα audit log details. `AuditLogEntry.details` άλλαξε από `String?` σε `Map<String, dynamic>?`. Προστέθηκε `DebugConfig.uiDetail` flag.
+
+**4. Action labels mismatch** — `_actionLabel()` στο `group_audit_log_screen.dart` είχε switch cases που δεν ταίριαζαν με τα πραγματικά actions της `_logAudit()`. 8/11 actions έπεφταν σε `default` → εμφάνιζαν raw αγγλικό key. Λύση: `auditActionLabel()` στο `AuditDetailFormatter` + διόρθωση `_actionIcon()` keys.
+
+**5. GoRouter route ordering bug** — `/groups/search` ήταν μετά από `/groups/:chatId`, οπότε το `search` μπαινε ως `chatId` και εμφανιζόταν placeholder "GroupChatScreen: search". Λύση: μετακίνηση route πριν από το `:chatId`.
+
+**6. Audit icon mapping** — `_actionIcon()`/`_actionIconData()` διορθώθηκαν να ταιριάζουν με πραγματικές `_logAudit` actions (11 actions, 0 dead cases).
+
+**Verified:** 14/7/2026 — `flutter analyze`: 0 issues. ✅
+
+**Κρισιμότητα:** P0 — Λειτουργικό bug (chat εξαφανίζεται, audit log μισό-αγγλικό, route σπασμένο)
+
+### ✅ P0.3 — Audit Detail Bilingual + markAsRead proposal — **PROPOSED (Session 158)**
+
+**Περιγραφή:** Προτάθηκε αλλά δεν υλοποιήθηκε ακόμα:
+- `markAsRead` unbounded reads → lastReadTimestamp source of truth + `.limit(50)` + count query
+- `clearMessages` pagination
+- Duplicate `chatDocProvider` listeners
+
+---
+
 ## Πίνακας Προτεραιοτήτων
 
 | # | Priority | Θέμα | Τύπος | Αρχείο |
@@ -912,6 +943,8 @@ streamChats: started
 | 7 | **✅ P3.1** | Online status flicker στα ProfileCards | UX polish | `profile_card.dart` | ✅ Fixed |
 | 8 | **✅ P3.2** | Haversine memoization για ίδιο geoHash | Performance | `firestore_search_repository.dart` | ✅ Fixed |
 | 9 | **✅ P4.1** | ConsentLog pagination | Scalability | `consent_log_screen.dart` | ✅ Fixed |
+| 10 | **✅ P0.2** | `removeParticipant` chat disappears + audit bilingual + route ordering | Bug | `group_chat_mixin.dart` + `group_audit_log_screen.dart` + `app_router.dart` | ✅ Fixed |
+| 11 | **⬜ P0.3** | `markAsRead` unbounded reads + `clearMessages` pagination | Cost | `chat_repository_impl.dart` | 📋 Proposed |
 
 ---
 
@@ -925,6 +958,9 @@ streamChats: started
 6. **✅ P3.1** — Fix online status flicker (null-coalescing `streamOnline ?? profile.isOnline`) — **Fixed Session 155**
 7. **✅ P3.2** — Haversine memoization για ίδιο geoHash — **Fixed Session 156**
 8. **✅ P4.1** — ConsentLog pagination — **Fixed Session 157**
+9. **✅ P0.2** — Firebase Audit: `_findExistingChat` reads + `removeParticipant` race (chat disappearing) + bilingual audit log + GoRouter route ordering — **Fixed Session 158**
+10. **⬜ P0.3** — Firebase Audit: `markAsRead` unbounded reads + `clearMessages` pagination — **Proposed Session 158**
+11. **⬜ P1.1** — Duplicate `chatDocProvider` listeners — **Proposed Session 158**
 
 > Εκτελούμε **μία βελτίωση τη φορά**. Μετά από κάθε αλλαγή: backup → edit → `flutter analyze` → έλεγχος από τον χρήστη → "επόμενο".
 

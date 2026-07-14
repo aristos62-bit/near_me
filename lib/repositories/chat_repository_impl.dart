@@ -365,43 +365,37 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin implements ChatRep
   }
 
   @override
-  Future<void> markAsRead(String chatId) async {
+  Future<void> markAsRead(String chatId, {bool isGroupChat = false}) async {
     final user = auth.currentUser;
     if (user == null) return;
 
-    DebugConfig.log(DebugConfig.repositoryCall, 'markAsRead: chat=$chatId');
+    DebugConfig.log(DebugConfig.repositoryCall, 'markAsRead: chat=$chatId isGroup=$isGroupChat');
 
     try {
-      final chatDoc = await firestore.collection('chats').doc(chatId).get();
-      if (!chatDoc.exists) return;
-      final isGroup = chatDoc.data()?['isGroupChat'] == true;
+      await firestore.collection('chats').doc(chatId).update({
+        'lastReadTimestamps.${user.uid}': FieldValue.serverTimestamp(),
+      });
 
-      if (isGroup) {
-        await firestore.collection('chats').doc(chatId).update({
-          'lastReadTimestamps.${user.uid}': FieldValue.serverTimestamp(),
-        });
-        await (db.update(db.chatCacheTable)..where((t) => t.chatId.equals(chatId)))
-            .write(const ChatCacheTableCompanion(hasUnread: Value(false), unreadCount: Value(0)));
-        return;
+      if (!isGroupChat) {
+        final unread = await firestore
+            .collection('chats').doc(chatId).collection('messages')
+            .where('isRead', isEqualTo: false)
+            .limit(50)
+            .get();
+
+        final docs = unread.docs.where((d) => d.data()['senderId'] != user.uid).toList();
+
+        if (docs.isNotEmpty) {
+          final batch = firestore.batch();
+          for (final doc in docs) {
+            batch.update(doc.reference, {'isRead': true});
+          }
+          await batch.commit();
+          DebugConfig.log(DebugConfig.repositoryResult, 'markAsRead: marked ${docs.length} messages chat=$chatId');
+        } else {
+          DebugConfig.log(DebugConfig.repositoryResult, 'markAsRead: no unread messages chat=$chatId');
+        }
       }
-
-      final unread = await firestore
-          .collection('chats').doc(chatId).collection('messages')
-          .where('isRead', isEqualTo: false)
-          .get();
-
-      final docs = unread.docs.where((d) => d.data()['senderId'] != user.uid).toList();
-
-      if (docs.isEmpty) {
-        DebugConfig.log(DebugConfig.repositoryResult, 'markAsRead: no unread messages chat=$chatId');
-        return;
-      }
-      final batch = firestore.batch();
-      for (final doc in docs) {
-        batch.update(doc.reference, {'isRead': true});
-      }
-      await batch.commit();
-      DebugConfig.log(DebugConfig.repositoryResult, 'markAsRead: marked ${docs.length} messages chat=$chatId');
 
       await (db.update(db.chatCacheTable)..where((t) => t.chatId.equals(chatId)))
           .write(const ChatCacheTableCompanion(hasUnread: Value(false), unreadCount: Value(0)));

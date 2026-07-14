@@ -261,6 +261,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           chatId: widget.chatId,
           isGroupChat: isGroupChat,
           participantNicknames: isGroupChat ? participantNicknames : null,
+          otherUid: otherUid,
         )),
         _ChatInputBar(chatId: widget.chatId, isGroupChat: isGroupChat),
       ]),

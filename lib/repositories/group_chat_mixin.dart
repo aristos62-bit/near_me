@@ -162,6 +162,9 @@ mixin GroupChatMixin {
 
     int unreadCount = 0;
     if (lastMessageBy != null && lastMessageBy != uid) {
+      DebugConfig.log(DebugConfig.repositoryCall,
+          '_syncGroupChatToCache: counting unread chat=$chatId '
+          'lastRead=$lastRead lastMessageBy=$lastMessageBy');
       try {
         final allCount = await firestore
             .collection('chats').doc(chatId).collection('messages')
@@ -173,7 +176,11 @@ mixin GroupChatMixin {
             .where('timestamp', isGreaterThan: Timestamp.fromDate(lastRead))
             .count().get();
         unreadCount = (allCount.count ?? 0) - (ownCount.count ?? 0);
-      } catch (_) {
+        DebugConfig.log(DebugConfig.repositoryResult,
+            '_syncGroupChatToCache: unread count=$unreadCount '
+            '(all=${allCount.count} own=${ownCount.count}) chat=$chatId');
+      } catch (e) {
+        DebugConfig.warn('_syncGroupChatToCache: count query failed chat=$chatId', data: e);
         unreadCount = rows.isNotEmpty ? rows.first.unreadCount + 1 : 1;
       }
     }

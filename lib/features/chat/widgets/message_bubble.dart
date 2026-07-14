@@ -7,6 +7,7 @@ class MessageBubble extends StatelessWidget {
   final Map<String, dynamic> message;
   final String currentUid;
   final bool isGroupChat;
+  final bool isRead;
   final String? senderNickname;
   final Map<String, String>? participantNicknames;
   final List<String> seenBy;
@@ -21,6 +22,7 @@ class MessageBubble extends StatelessWidget {
     required this.message,
     required this.currentUid,
     this.isGroupChat = false,
+    this.isRead = false,
     this.senderNickname,
     this.participantNicknames,
     this.seenBy = const [],
@@ -61,7 +63,6 @@ class MessageBubble extends StatelessWidget {
     }
 
     final isMe = senderId == currentUid;
-    final isRead = message['isRead'] as bool? ?? false;
     final mentions = (message['mentions'] as List?)?.cast<String>() ?? <String>[];
 
     return LayoutBuilder(

@@ -122,9 +122,9 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
     }
   }
 
-  Future<void> markAsRead(String chatId) async {
+  Future<void> markAsRead(String chatId, {bool isGroupChat = false}) async {
     try {
-      await _chatRepo.markAsRead(chatId);
+      await _chatRepo.markAsRead(chatId, isGroupChat: isGroupChat);
     } catch (e) {
       DebugConfig.warn('ChatActions: markAsRead failed', data: e);
     }

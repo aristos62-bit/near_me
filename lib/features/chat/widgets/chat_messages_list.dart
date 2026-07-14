@@ -13,12 +13,14 @@ class ChatMessagesList extends ConsumerStatefulWidget {
   final String chatId;
   final bool isGroupChat;
   final Map<String, String>? participantNicknames;
+  final String? otherUid;
 
   const ChatMessagesList({
     super.key,
     required this.chatId,
     this.isGroupChat = false,
     this.participantNicknames,
+    this.otherUid,
   });
 
   @override
@@ -36,7 +38,6 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     super.initState();
     DebugConfig.log(DebugConfig.uiInteraction,
         'ChatMessagesList init: ${widget.chatId}');
-    Future.microtask(_markAsReadOnce);
   }
 
   @override
@@ -67,14 +68,16 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     await ref.read(chatActionsProvider.notifier).cancelDeleteRequest(chatId);
   }
 
-  Future<void> _markAsReadOnce() async {
-    if (_hasMarkedRead) return;
-    _hasMarkedRead = true;
-    await ref.read(chatActionsProvider.notifier)
-        .markAsRead(widget.chatId);
-  }
-
   void _onMessagesChanged(List<Map<String, dynamic>> messages) {
+    if (!_hasMarkedRead) {
+      _hasMarkedRead = true;
+      Future.microtask(() {
+        if (mounted) {
+          ref.read(chatActionsProvider.notifier)
+              .markAsRead(widget.chatId, isGroupChat: widget.isGroupChat);
+        }
+      });
+    }
     if (messages.isEmpty || !mounted) return;
     if (messages.length == _lastMessageCount && !_isFirstLoad) return;
     final isNewMessage = messages.length > _lastMessageCount;
@@ -109,15 +112,13 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     final greek = L10n.isGreek(context);
 
     Map<String, DateTime> lastReadTimestamps = {};
-    if (widget.isGroupChat) {
-      final chatData = chatDocAsync.asData?.value?.data() as Map<String, dynamic>?;
-      final raw = chatData?['lastReadTimestamps'] as Map<String, dynamic>?;
-      if (raw != null) {
-        lastReadTimestamps = raw.map((k, v) {
-          final ts = (v as Timestamp?)?.toDate();
-          return MapEntry(k, ts ?? DateTime(2020));
-        });
-      }
+    final chatData = chatDocAsync.asData?.value?.data() as Map<String, dynamic>?;
+    final raw = chatData?['lastReadTimestamps'] as Map<String, dynamic>?;
+    if (raw != null) {
+      lastReadTimestamps = raw.map((k, v) {
+        final ts = (v as Timestamp?)?.toDate();
+        return MapEntry(k, ts ?? DateTime(2020));
+      });
     }
 
     return messagesAsync.when(
@@ -153,6 +154,7 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
               itemBuilder: (_, i) {
                 final msg = messages[messages.length - 1 - i];
                 final senderId = msg['senderId'] as String? ?? '';
+                final msgTimestamp = (msg['timestamp'] as Timestamp?)?.toDate();
                 final nicknameMap = widget.participantNicknames;
                 final senderNickname = widget.isGroupChat && nicknameMap != null
                     ? nicknameMap[senderId]
@@ -164,20 +166,27 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
                 }
 
                 List<String> seenBy = [];
+                if (widget.isGroupChat && msgTimestamp != null) {
+                  seenBy = lastReadTimestamps.entries
+                      .where((e) => e.key != senderId && e.value.compareTo(msgTimestamp) >= 0)
+                      .map((e) => e.key)
+                      .toList();
+                }
+
+                final bool effectiveIsRead;
                 if (widget.isGroupChat) {
-                  final msgTimestamp = (msg['timestamp'] as Timestamp?)?.toDate();
-                  if (msgTimestamp != null) {
-                    seenBy = lastReadTimestamps.entries
-                        .where((e) => e.key != senderId && e.value.compareTo(msgTimestamp) >= 0)
-                        .map((e) => e.key)
-                        .toList();
-                  }
+                  effectiveIsRead = false;
+                } else {
+                  final msgIsRead = msg['isRead'] as bool? ?? false;
+                  final otherLastRead = widget.otherUid != null ? lastReadTimestamps[widget.otherUid] : null;
+                  effectiveIsRead = msgIsRead || (otherLastRead != null && msgTimestamp != null && otherLastRead.compareTo(msgTimestamp) >= 0);
                 }
 
                 return MessageBubble(
                   message: msg,
                   currentUid: currentUid,
                   isGroupChat: widget.isGroupChat,
+                  isRead: effectiveIsRead,
                   senderNickname: senderNickname,
                   participantNicknames: widget.participantNicknames,
                   seenBy: seenBy,

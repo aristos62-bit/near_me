@@ -72,7 +72,7 @@ abstract class ChatRepository {
   Future<List<ChatCacheTableData>> getChats();
   Stream<List<ChatCacheTableData>> streamChats();
   Stream<List<Map<String, dynamic>>> messagesStream(String chatId);
-  Future<void> markAsRead(String chatId);
+  Future<void> markAsRead(String chatId, {bool isGroupChat = false});
   Future<void> deleteChat(String chatId);
   Future<void> approveDeleteChat(String chatId);
   Future<void> rejectDeleteChat(String chatId);

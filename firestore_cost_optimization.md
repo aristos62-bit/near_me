@@ -1,6 +1,6 @@
 # NearMe — Firestore Cost Optimization Strategy
 
-> **Ημερομηνία:** 14 Ιουλίου 2026
+> **Ημερομηνία:** 15 Ιουλίου 2026
 > **Βάση:** Ανάλυση 107+ .dart αρχείων, 6 Cloud Functions, firestore.rules (308 γραμμές)
 > **Στόχος:** Ελάχιστο δυνατό κόστος Firestore χωρίς απώλεια λειτουργικότητας
 
@@ -304,21 +304,15 @@ while (hasMore) {
 
 ---
 
-### P1.2 — Sequential reads in `createChat()` (2 sequential profile reads)
+### ✅ P1.2 — Sequential reads in `createChat()` — **FIXED (Session 168)**
 
-| Αρχείο | Γραμμές | Κόστος τώρα |
-|--------|---------|-------------|
-| `chat_repository_impl.dart` | 81-88 | 2 reads sequential |
+| Αρχείο | Γραμμές | Κόστος τώρα | Κατάσταση |
+|--------|---------|-------------|:---------:|
+| `chat_repository_impl.dart` | 81-88 | 2 reads sequential | **✅ Fixed** |
+
+**Λύση που υλοποιήθηκε:** `Future.wait` για παράλληλες reads αντί sequential `await`:
 
 ```dart
-// ΤΩΡΑ (chat_repository_impl.dart:81-88):
-final myProfile = await firestore
-    .collection('users').doc(uid).collection('public').doc('profile').get();
-// ...
-final otherProfile = await firestore
-    .collection('users').doc(otherUid).collection('public').doc('profile').get();
-
-// ΠΡΕΠΕΙ:
 final results = await Future.wait([
   firestore.collection('users').doc(uid).collection('public').doc('profile').get(),
   firestore.collection('users').doc(otherUid).collection('public').doc('profile').get(),
@@ -327,25 +321,27 @@ final myProfile = results[0];
 final otherProfile = results[1];
 ```
 
-**Εξοικονόμηση:** ~50% latency reduction (αλλά ίδιο read cost). Βελτίωση UX + μικρότερη πιθανότητα race conditions.
+**Εξοικονόμηση:** ~50% latency reduction (ίδιο read cost). Βελτίωση UX.
+**Verified:** `flutter analyze` — **0 issues** ✅
 
 ---
 
-### P1.3 — `sendRequest()`: 3 sequential reads, 1 debug-only
+### ✅ P1.3 — `sendRequest()`: 3 sequential reads, 1 debug-only — **FIXED (Session 168)**
 
-| Αρχείο | Γραμμές | Issues |
-|--------|---------|--------|
-| `request_repository_impl.dart` | 42-91 | 3 sequential reads |
+| Αρχείο | Γραμμές | Κόστος τώρα | Κατάσταση |
+|--------|---------|-------------|:---------:|
+| `request_repository_impl.dart` | 42-91 | 3 sequential reads | **✅ Fixed** |
 
 **Πρόβλημα:** 3 ξεχωριστά `await` reads πριν την `add()`:
-1. `users/$toUid/blocked/$uid` (γραμμή 42-44)
-2. `users/$toUid/public/profile` (γραμμή 58-59)
-3. `banned/$uid` (γραμμή 85) — **debug-only, completely unnecessary in production**
+1. `users/$toUid/blocked/$uid`
+2. `users/$toUid/public/profile`
+3. `banned/$uid` — **debug-only, unnecessary in production**
+
+**Λύση που υλοποιήθηκε (2 αλλαγές):**
+1. **Αφαίρεση banned check** — τα Firestore rules ήδη το ελέγχουν
+2. **Parallel reads** με `Future.wait` για block check + target profile
 
 ```dart
-// Λύση:
-// 1. Αφαίρεση banned check (γραμμές 83-90) — είναι debug-only, τα rules ήδη το ελέγχουν
-// 2. Parallel reads για block check + target profile:
 final results = await Future.wait([
   _firestore.doc('users/$toUid/blocked/$uid').get(),
   _firestore.collection('users').doc(toUid).collection('public').doc('profile').get(),
@@ -353,70 +349,77 @@ final results = await Future.wait([
 ```
 
 **Εξοικονόμηση:** 1 read saved πάντα (banned check) + 1 read latency βελτίωση.
+**Verified:** `flutter analyze` — **0 issues** ✅
 
 ---
 
-### P1.4 — `publish()`: Debug verify read after `set()` (1 read per publish)
+### ✅ P1.4 — `publish()`: Debug verify read after `set()` — **FIXED (Session 168)**
 
-| Αρχείο | Γραμμές | Issue |
-|--------|---------|-------|
-| `profile_repository_impl.dart` | 362-380 | Verify read μετά από set() |
+| Αρχείο | Γραμμές | Κόστος τώρα | Κατάσταση |
+|--------|---------|-------------|:---------:|
+| `profile_repository_impl.dart` | 362-380 | Verify read μετά από set() | **✅ Fixed** |
 
-```dart
-// ΤΩΡΑ (profile_repository_impl.dart:362-380):
-await _firestore.collection('users').doc(uid).collection('public').doc('profile').set(json);
-// ↑ set() πέτυχε
-try {
-  final verifyDoc = await _firestore
-      .collection('users').doc(uid).collection('public').doc('profile').get();  // ← άχρηστο!
-  // κάνει log τα δεδομένα
-} catch (e) { /* non-fatal */ }
-```
+**Πρόβλημα:** `set()` ακολουθούσε verify read για debug logging — 1 άχρηστο read ανά publish.
 
-**Λύση:** Το `set()` επιστρέφει success → το verify read είναι **debug-only**. Αφαίρεση ή wrap σε `DebugConfig` flag.
+**Λύση που υλοποιήθηκε:** Wrap verify read σε `if (DebugConfig.debugMode)`:
 
 ```dart
 await _firestore.collection('users').doc(uid).collection('public').doc('profile').set(json);
 if (DebugConfig.debugMode) {
-  // μόνο σε debug mode κάνουμε verify
   try { /* verify read */ } catch (e) { /* ignore */ }
 }
 ```
 
 **Εξοικονόμηση:** 1 read saved ανά publish. Με 100 publishes/ημέρα → 3.000 reads/μήνα saved.
+**Verified:** `flutter analyze` — **0 issues** ✅
 
 ---
 
-### P1.5 — `ChatCacheTable._syncChatFromFirestore`: 2 count queries per chat update
+### ✅ P1.5 — Unread count queries: server-side `unreadCount` map — **FIXED (Session 168)**
 
-| Αρχείο | Γραμμές | Issue |
-|--------|---------|-------|
-| `group_chat_mixin.dart` | 166-174 | 2 sequential `.count().get()` calls |
+| Αρχείο | Γραμμές | Κόστος τώρα | Κατάσταση |
+|--------|---------|-------------|:---------:|
+| `chat_repository_impl.dart` | `sendMessage()` + `markAsRead()` | 2 count queries/update | **✅ Fixed** |
+| `group_chat_mixin.dart` | `_syncGroupChatToCache` | 2 count queries/update | **✅ Fixed** |
+| `firestore.rules` | 2 branches | Rules allow update | **✅ Fixed** |
 
-**Πρόβλημα:** Κάθε φορά που το chat listener βλέπει αλλαγή, κάνει 2 ξεχωριστά count queries:
-1. `messages.where(timestamp > lastRead).count().get()`
-2. `messages.where(senderId == uid AND timestamp > lastRead).count().get()`
+**Πρόβλημα:** 2 count queries per chat update (σε `_syncChatFromFirestore` + `_syncGroupChatToCache`). Unbounded cost per listener change.
 
-Αυτό συμβαίνει για **κάθε chat που ενημερώνεται** στο `streamChats`.
+**Λύση που υλοποιήθηκε — Server-side `unreadCount` map:**
+Νέο field `chats/{chatId}/unreadCount` ως `Map<String, int>` (key=UID, value=unread count). Λειτουργεί ως SPoT, **μηδενίζοντας τα count queries**.
 
+**Αλλαγές (4 αρχεία):**
+
+1. **`sendMessage()`** — `FieldValue.increment(1)` per other participant (0 extra reads):
 ```dart
-// Λύση:
-// 1. Αποθήκευση unreadCount στο chat doc (Firestore) — γράφεται από sendMessage
-// 2. Αντί για 2 count queries, απλή ανάγνωση chatDoc['unreadCount']
-
-// Ή εναλλακτικά, 1 parallel query αντί 2 sequential:
-final results = await Future.wait([
-  firestore.collection('chats').doc(chatId).collection('messages')
-      .where('timestamp', isGreaterThan: Timestamp.fromDate(lastRead))
-      .count().get(),
-  firestore.collection('chats').doc(chatId).collection('messages')
-      .where('senderId', isEqualTo: uid)
-      .where('timestamp', isGreaterThan: Timestamp.fromDate(lastRead))
-      .count().get(),
-]);
+for (final pUid in participantUids) {
+  if (pUid != uid) updates['unreadCount.$pUid'] = FieldValue.increment(1);
+}
 ```
 
-**Εξοικονόμηση:** 2 count queries ανά chat update × 5 updates/ημέρα/chat × 100 chats = **1.000 count queries/μήνα saved.**
+2. **`markAsRead()`** — `unreadCount.${uid} = 0` στο ίδιο write με `lastReadTimestamps`:
+```dart
+await _firestore.collection('chats').doc(chatId).update({
+  'lastReadTimestamps.${user.uid}': FieldValue.serverTimestamp(),
+  'unreadCount.${user.uid}': 0,
+});
+```
+
+3. **`_syncChatFromFirestore()` / `_syncGroupChatToCache()`** — map read αντί count queries:
+```dart
+final unreadCount = (chatData['unreadCount'] as Map<String, dynamic>?) ?? {};
+final hasUnread = (unreadCount[uid] as int?) ?? 0 > 0;
+```
+
+4. **`createChat()` / `createGroupChat()`** — init map με όλα 0
+
+5. **`firestore.rules`** — `'unreadCount'` added to 2 `allow update` branches + deploy ✅
+
+**Self-healing:** Legacy chats χωρίς `unreadCount` → `FieldValue.increment` δημιουργεί αυτόματα το πεδίο.
+
+**Verified:** `flutter analyze` — **0 issues** ✅. User-tested (2 devices): increment ✅, reset ✅, group ✅, self-healing ✅, zero errors ✅.
+
+**Εξοικονόμηση:** ~30.000 reads/μήνα για 1k users (€0.24/μήνα). **Μηδενικά count queries.**
 
 ---
 
@@ -702,14 +705,16 @@ const lang = (await db.doc(`path`).get()).data()?.lang;  // ← 2nd read!
 | P0.3 | markAsRead lastReadTimestamp + .limit(50) | ~30.000 | ~30.000 | ~€0.48 | **✅** |
 | P0.4 | `clearMessages` pagination loop | ~3.000 | 0 | ~€0.02 | **✅** |
 | P1.1 | Remove duplicate listener | ~15.000 | 0 | ~€0.12 | **✅ (Session 167)** |
-| P1.2 | Parallel createChat reads | (latency) | 0 | — | ⏳ |
-| P1.3 | Remove debug banned check | ~3.000 | 0 | ~€0.02 | ⏳ |
-| P1.4 | Remove verify read in publish | ~3.000 | 0 | ~€0.02 | ⏳ |
-| P1.5 | Unread count optimization | ~30.000 | 0 | ~€0.24 | ⏳ |
+| P1.2 | Parallel createChat reads | (latency) | 0 | — | **✅ (Session 168)** |
+| P1.3 | Remove debug banned check + parallel | ~3.000 | 0 | ~€0.02 | **✅ (Session 168)** |
+| P1.4 | Conditional verify read in publish | ~3.000 | 0 | ~€0.02 | **✅ (Session 168)** |
+| P1.5 | Server-side unreadCount map (zero count queries) | ~30.000 | 0 | ~€0.24 | **✅ (Session 168)** |
 | P2.1 | CF senderSnap reuse | ~30.000 | 0 | ~€0.24 | ⏳ |
-| **Σύνολο** | | **~218.700** | **~79.500** | **~€2.87/μήνα** | |
+| **Σύνολο (✅ completed)** | | **~188.700** | **~79.500** | **~€2.51/μήνα** | |
+| P2.1 | CF senderSnap reuse (⏳ pending) | ~30.000 | 0 | ~€0.24 | ⏳ |
+| **Σύνολο (all)** | | **~218.700** | **~79.500** | **~€2.87/μήνα** | |
 
-> **Σημείωση:** Το Firestore χρεώνει ~$0.06/100k reads, ~$0.18/100k writes (Blaze plan). Η εξοικονόμηση για 1k χρήστες είναι ~€2.53/μήνα. Για 10k χρήστες → ~€25/μήνα. Για 100k χρήστες → ~€250/μήνα.
+> **Σημείωση:** Το Firestore χρεώνει ~$0.06/100k reads, ~$0.18/100k writes (Blaze plan). Η εξοικονόμηση για 1k χρήστες είναι ~€2.51/μήνα (9 από 10 optimizations ✅). Για 10k χρήστες → ~€25/μήνα. Για 100k χρήστες → ~€250/μήνα.
 
 ### Εξοικονόμηση σε κλίμακα
 
@@ -738,14 +743,14 @@ const lang = (await db.doc(`path`).get()).data()?.lang;  // ← 2nd read!
 
 ### Φάση Α — Κρίσιμα (P0) — **ΟΛΑ ΟΛΟΚΛΗΡΩΜΕΝΑ** ✅
 
-### Φάση Β — Υψηλή Προτεραιότητα (P1 — 5 items, 1 ✅)
-| Σειρά | Θέμα | Impact | Εκτίμηση |
-|:-----:|------|:------:|:--------:|
-| **✅** | **P1.1** — Remove duplicate `_chatDocForSettingsProvider` | Κόστος | **✅ Fixed (Session 167)** |
-| 5 | **P1.2** — Parallel reads in `createChat()` | Latency | 15 λεπτά |
-| 6 | **P1.3** — Remove debug banned check + parallel reads in `sendRequest()` | Κόστος + Latency | 20 λεπτά |
-| 7 | **P1.4** — Conditional verify read in `publish()` | Κόστος | 10 λεπτά |
-| 8 | **P1.5** — Optimize unread count queries in `_syncChatFromFirestore` | Κόστος | 30 λεπτά |
+### Φάση Β — Υψηλή Προτεραιότητα (P1 — 5 items, **5 ✅ ΟΛΑ ΟΛΟΚΛΗΡΩΜΕΝΑ**)
+| Σειρά | Θέμα | Impact | Εκτίμηση | Κατάσταση |
+|:-----:|------|:------:|:--------:|:---------:|
+| **✅** | **P1.1** — Remove duplicate `_chatDocForSettingsProvider` | Κόστος | 15 λεπτά | **✅ (Session 167)** |
+| **✅** | **P1.2** — Parallel reads in `createChat()` | Latency | 15 λεπτά | **✅ (Session 168)** |
+| **✅** | **P1.3** — Remove debug banned check + parallel reads σε `sendRequest()` | Κόστος + Latency | 20 λεπτά | **✅ (Session 168)** |
+| **✅** | **P1.4** — Conditional verify read σε `publish()` | Κόστος | 10 λεπτά | **✅ (Session 168)** |
+| **✅** | **P1.5** — Server-side `unreadCount` map (zero count queries) | Κόστος | 30 λεπτά | **✅ (Session 168)** |
 
 ### Φάση Γ — Μεσαία Προτεραιότητα (P2 — 3 items)
 | Σειρά | Θέμα | Impact | Εκτίμηση |

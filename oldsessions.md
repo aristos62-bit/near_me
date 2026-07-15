@@ -691,6 +691,12 @@ final isAdmin = permsInfo?.hasPermission(currentUid, GroupPermission.inviteMembe
 | Split photo privacy (showAvatar + showPhotos ξεχωριστά) | ✅ Session 164 |
 | **Delete chat 1-to-1 flow** (9 διορθώσεις) | ✅ **Session 165 + 166** — verified working |
 | **maxParticipants display bug** (cache snapshot override) | ✅ **Session 166** |
+| **P1.4** — Conditional verify read σε `publish()` | ✅ **Session 168** |
+| **P1.3** — Remove debug banned check + parallel reads σε `sendRequest()` | ✅ **Session 168** |
+| **P1.2** — Parallel profile reads σε `createChat()` | ✅ **Session 168** |
+| **P1.5** — Server-side `unreadCount` map (zero count queries) | ✅ **Session 168** |
+| **P0 — joinPublicGroup crash** (rules read/update fix + nickname refactor) | ✅ **Session 169** |
+| **Member status UI** ("Είσαι Μέλος"/"Member" στην αναζήτηση group) | ✅ **Session 169** |
 | `flutter analyze` | ✅ Clean |
 
 ### ✅ Ολοκληρωμένο — Role-based visibility σε group chat screens
@@ -749,6 +755,126 @@ final isAdmin = permsInfo?.hasPermission(currentUid, GroupPermission.inviteMembe
 **Verified:** `flutter analyze` clean ✅
 
 **Αρχεία:** `group_info_screen.dart`, `group_settings_screen.dart`, `chat_messages_list.dart`, `message_bubble.dart`, `chat_screen.dart`, `chat_repository_delete.dart`, `system_message_formatter.dart`, `functions/src/index.ts`
+
+---
+
+## Session 168 — Firestore Cost Phase B (P1): unreadCount map + parallel reads + conditional verify
+
+**Πεδίο:** Ολοκλήρωση Φάσης Β του Firestore Cost Optimization — 4 εναπομείναντα P1 items (P1.2-P1.5).
+
+---
+
+### P1.5 — Server-side `unreadCount` map (real fix: zero count queries)
+
+**Πρόβλημα:** 2 count queries per chat update σε `_syncChatFromFirestore()` + `_syncGroupChatToCache()`. Unbounded Firestore read cost.
+
+**Λύση:** Server-side `unreadCount` map (`chats/{chatId}/unreadCount` ως `Map<String, int>`):
+
+| Αλλαγή | Αρχείο | Περιγραφή |
+|--------|--------|-----------|
+| `sendMessage()` | `chat_repository_impl.dart` | `FieldValue.increment(1)` per other participant — 1 write, 0 reads |
+| `markAsRead()` | `chat_repository_impl.dart` | `unreadCount.${uid} = 0` στο ίδιο write με `lastReadTimestamps` |
+| `_syncChatFromFirestore()` | `chat_repository_impl.dart` | map read αντί count query: `(unreadCount[uid] as int?) ?? 0 > 0` |
+| `_syncGroupChatToCache()` | `group_chat_mixin.dart` | same pattern — replaces 2 count queries |
+| `createChat()` / `createGroupChat()` | both files | init map with all `0` |
+| `firestore.rules` | `firestore.rules` | `'unreadCount'` added to 2 `allow update` branches |
+
+**Self-healing:** `FieldValue.increment` auto-creates field on legacy chats. `?? {}` fallback.
+
+**Deploy:** `firebase deploy --only firestore:rules` (project `nearme-gr`) ✅
+
+**Verified:** User-tested on 2 devices — increment ✅, reset ✅, group ✅, self-healing ✅, zero errors ✅
+
+**Εξοικονόμηση:** ~30.000 reads/μήνα για 1k users (€0.24/μήνα) — **μηδενικά count queries**
+
+---
+
+### P1.2 — Parallel profile reads σε `createChat()
+
+**Πρόβλημα:** 2 sequential `await` reads (myProfile + otherProfile) — περιττή latency.
+
+**Λύση:** `Future.wait` για παράλληλες reads:
+
+```dart
+final results = await Future.wait([
+  firestore.collection('users').doc(uid).collection('public').doc('profile').get(),
+  firestore.collection('users').doc(otherUid).collection('public').doc('profile').get(),
+]);
+```
+
+**Αρχείο:** `chat_repository_impl.dart`  
+**Verified:** `flutter analyze` clean ✅
+
+---
+
+### P1.3 — Remove debug-only banned check + parallel reads σε `sendRequest()`
+
+**Πρόβλημα (2 issues):**
+1. `banned/$uid` read was debug-only — unnecessary in production (rules already check)
+2. 3 sequential reads for block + profile + banned
+
+**Λύση (2 αλλαγές):**
+1. **Αφαίρεση banned check** — Firestore rules το ελέγχουν ήδη
+2. **`Future.wait`** για block check + target profile
+
+```dart
+final results = await Future.wait([
+  _firestore.doc('users/$toUid/blocked/$uid').get(),
+  _firestore.collection('users').doc(toUid).collection('public').doc('profile').get(),
+]);
+```
+
+**Αρχείο:** `request_repository_impl.dart`  
+**Verified:** `flutter analyze` clean ✅
+
+**Εξοικονόμηση:** 1 read saved πάντα + latency βελτίωση
+
+---
+
+### P1.4 — Conditional verify read σε `publish()`
+
+**Πρόβλημα:** `set()` ακολουθούσε verify read (debug-only) — 1 άχρηστο read ανά publish.
+
+**Λύση:** Wrap σε `if (DebugConfig.debugMode)`:
+
+```dart
+await _firestore.collection('users').doc(uid).collection('public').doc('profile').set(json);
+if (DebugConfig.debugMode) {
+  try { /* verify read */ } catch (e) { /* ignore */ }
+}
+```
+
+**Αρχείο:** `profile_repository_impl.dart`  
+**Verified:** `flutter analyze` clean ✅
+
+**Εξοικονόμηση:** ~3.000 reads/μήνα (1k users, 100 publishes/day)
+
+---
+
+### Αποτελέσματα Επαλήθευσης
+
+| # | Έλεγχος | Αποτέλεσμα |
+|:-:|---------|:-----------:|
+| 1 | No count queries | ✅ `_syncChatFromFirestore` / `_syncGroupChatToCache` logs ΧΩΡΙΣ count queries |
+| 2 | sendMessage increment | ✅ Receiver βλέπει `unread count=Ν` ακριβές |
+| 3 | markAsRead reset | ✅ `unread count=0` μετά το άνοιγμα chat |
+| 4 | Group increment | ✅ 2 receivers βλέπουν `unread count=2` |
+| 5 | Self-healing (legacy) | ✅ `unread count=1` σε παλιό chat χωρίς `unreadCount` |
+| 6 | No errors | ✅ Κανένα `[ERROR]`, καμία crash |
+
+### Φάση Β — Σύνοψη
+
+| # | Αλλαγή | Τύπος | Αρχεία | Status |
+|:-:|--------|:-----:|--------|:------:|
+| P1.4 | Conditional verify read σε `publish()` | **Cost** ✅ | `profile_repository_impl.dart` | ✅ |
+| P1.3a | Remove debug-only banned check | **Cost** ✅ | `request_repository_impl.dart` | ✅ |
+| P1.3b | Parallel block+target reads με `Future.wait` | Latency | `request_repository_impl.dart` | ✅ |
+| P1.2 | Parallel profile reads σε `createChat()` | Latency | `chat_repository_impl.dart` | ✅ |
+| P1.5 | Server-side `unreadCount` map — remove ALL count queries | **Cost** ✅ | `chat_repository_impl.dart`, `group_chat_mixin.dart`, `firestore.rules` | ✅ |
+
+**Συνολική εξοικονόμηση Φάσης Β:** ~35.000 reads/μήνα για 1k users (~€0.28/μήνα)
+
+**Συνολική εξοικονόμηση Φάσης Α+Β:** ~188.700 reads/μήνα + ~79.500 writes/μήνα (~€2.51/μήνα)
 
 ---
 
@@ -1034,3 +1160,41 @@ streamChats: started
 - Bilingual (el/en): L10n
 - Repository pattern: abstract + impl, ποτέ raw Firestore στο UI
 - Privacy-first: πλήρες profile στο Drift, minimal public snapshot στο Firestore
+
+## Session 169 — P0 joinPublicGroup crash fix (read rule + update rule + nickname refactor + member UI)
+
+**Πρόβλημα:** `joinPublicGroup()` crash με `permission-denied` όταν χρήστης πατά "Συμμετοχή" σε δημόσιο chat από την οθόνη αναζήτησης group.
+
+**Root cause:** `group_chat_mixin.dart:701` — `transaction.get(chatRef)` διάβαζε `chats/{chatId}` αλλά τα Firestore rules απαιτούν `isParticipant(resource.data)` για read σε chat docs. Ο χρήστης ΔΕΝ είναι ακόμα μέλος → `permission-denied`.
+
+**Διόρθωση (3 αρχεία):**
+
+### 1. `firestore.rules` (2 αλλαγές)
+- **Read rule** (γραμμή 101-102): `isParticipant(resource.data)` → `(isParticipant(resource.data) || resource.data.isPublic == true)`
+- **Νέο `allow update`** (γραμμές 171-178): Ξεχωριστό update rule OR για public group self-join — επιτρέπει σε μη-μέλος να κάνει join μόνο τα 5 πεδία (`participants`, `participantNicknames`, `participantRoles`, `participantJoinedAt`, `participantIsActive`) σε public group. Το υπάρχον update rule έμεινε ανέπαφο.
+
+### 2. `group_chat_mixin.dart` — Non-transactional read fix
+- Μεταφορά `firestore.collection('users')...get()` (nickname read) από ΜΕΣΑ στο `runTransaction` σε ΠΡΙΝ από αυτό
+- Προσθήκη `DebugConfig.log` για resolved nickname
+- Το transaction χρησιμοποιεί πλέον local variable `newNickname`
+
+### 3. `group_search_screen.dart` — Member status UI
+- Νέα μέθοδος `_isMember(ref)`: ελέγχει `chatsProvider` (Drift cache) αν υπάρχει chat με αυτό το `chatId`
+- Αν `isMember == true`: `OutlinedButton.icon` με τικ + "Είσαι Μέλος" / "Member" + navigation `/chats/{chatId}`
+- Αν `isMember == false`: "Συμμετοχή" / "Join" (υπάρχον)
+- Μηδέν extra Firestore reads — χρήση cached `ChatCacheTable`
+
+**Edge cases covered:**
+- Group deleted → transaction `!exists` → `group not found` ✅
+- Concurrent joins → transaction atomicity → maxParticipants enforced ✅
+- User already a member (UI πριν πατήσει) → hidden join button ✅
+- Network failure → transaction retry → `AppException` ✅
+- `_updatePublicProfileMemberCount`: pre-existing bug (silent fail, not creator)
+
+**Αρχεία:**
+- `firestore.rules` — read + new update rule
+- `lib/repositories/group_chat_mixin.dart` — nickname read refactor
+- `lib/features/chat/screens/group_search_screen.dart` — member UI
+
+**Backup:** `backups/2026-07-15_joinPublicGroup_fix/`
+**Verified:** `flutter analyze` clean ✅

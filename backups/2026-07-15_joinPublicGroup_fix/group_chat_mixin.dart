@@ -696,11 +696,6 @@ mixin GroupChatMixin {
     DebugConfig.log(DebugConfig.repositoryCall, 'joinPublicGroup: $chatId by $uid');
 
     try {
-      final newDoc = await firestore
-          .collection('users').doc(uid).collection('public').doc('profile').get();
-      final newNickname = newDoc.data()?['nickname'] as String? ?? uid;
-      DebugConfig.log(DebugConfig.repositoryResult, 'joinPublicGroup: resolved nickname=$newNickname');
-
       await firestore.runTransaction((transaction) async {
         final chatRef = firestore.collection('chats').doc(chatId);
         final snap = await transaction.get(chatRef);
@@ -728,6 +723,10 @@ mixin GroupChatMixin {
         }
 
         _enforceParticipantLimit(participants.length + 1, maxP);
+
+        final newDoc = await firestore
+            .collection('users').doc(uid).collection('public').doc('profile').get();
+        final newNickname = newDoc.data()?['nickname'] as String? ?? uid;
 
         transaction.update(chatRef, {
           'participants': FieldValue.arrayUnion([uid]),

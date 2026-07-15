@@ -151,6 +151,7 @@ class _GroupSearchTile extends ConsumerWidget {
     final theme = Theme.of(context);
     final currentUid = ref.read(authStateProvider).value?.uid ?? '';
     final isCreator = group.createdBy == currentUid;
+    final member = _isMember(ref);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -222,11 +223,17 @@ class _GroupSearchTile extends ConsumerWidget {
                       onPressed: () => context.push('/groups/${group.chatId}/info'),
                       child: Text(greek ? 'Διαχείριση' : 'Manage'),
                     )
-                  : FilledButton.icon(
-                      onPressed: () => _joinGroup(context, ref),
-                      icon: const Icon(Icons.group_add, size: 18),
-                      label: Text(greek ? 'Συμμετοχή' : 'Join'),
-                    ),
+                  : member
+                      ? OutlinedButton.icon(
+                          onPressed: () => context.push('/chat/${group.chatId}'),
+                          icon: const Icon(Icons.check, size: 18),
+                          label: Text(greek ? 'Είσαι Μέλος' : 'Member'),
+                        )
+                      : FilledButton.icon(
+                          onPressed: () => _joinGroup(context, ref),
+                          icon: const Icon(Icons.group_add, size: 18),
+                          label: Text(greek ? 'Συμμετοχή' : 'Join'),
+                        ),
             ),
           ],
         ),
@@ -247,5 +254,10 @@ class _GroupSearchTile extends ConsumerWidget {
       AppMessenger.showError(context, state.errorMessage ??
           (greek ? 'Αποτυχία συμμετοχής' : 'Failed to join'));
     }
+  }
+
+  bool _isMember(WidgetRef ref) {
+    final chatsAsync = ref.watch(chatsProvider);
+    return chatsAsync.asData?.value.any((c) => c.chatId == group.chatId) ?? false;
   }
 }

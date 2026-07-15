@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../debug/debug_config.dart';
-import '../l10n/l10n.dart';
 
 class AppMessenger {
   AppMessenger._();
@@ -11,11 +10,8 @@ class AppMessenger {
   }
 
   static void showError(BuildContext context, String message) {
-    final displayMsg = message.contains(' / ')
-        ? L10n.localizedMessage(context, message)
-        : message;
-    DebugConfig.log(DebugConfig.uiInteraction, 'AppMessenger showError: $displayMsg');
-    _showSnackBar(context, displayMsg, _SnackBarType.error);
+    DebugConfig.log(DebugConfig.uiInteraction, 'AppMessenger showError: $message');
+    _showSnackBar(context, message, _SnackBarType.error);
   }
 
   static void showInfo(BuildContext context, String message) {

@@ -14,9 +14,8 @@ abstract class ProfileRepository {
 
   /// Αποθηκεύει νέες συντεταγμένες + πόλη/χώρα στο Drift.
   /// Πάντα αποθηκεύει lat/lng. Αποθηκεύει city/country μόνο αν δοθούν.
-  /// Επιστρέφει το αποθηκευμένο profile για αποφυγή redundant getProfile().
   /// ΔΕΝ κάνει publish — ο caller αποφασίζει το πότε με βάση policy.
-  Future<UserProfileTableData?> syncLocation(double lat, double lng, {String? city, String? country});
+  Future<void> syncLocation(double lat, double lng, {String? city, String? country});
   Stream<PublicProfile?> publicProfileStream();
   Future<PublicProfile?> getPublicProfile(String uid);
   Stream<PublicProfile?> streamPublicProfile(String uid);

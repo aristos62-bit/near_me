@@ -415,15 +415,14 @@ mixin GroupChatMixin {
         return;
       } on FirebaseFunctionsException catch (e) {
         DebugConfig.error('removeParticipant: leaveGroup CF failed', data: e);
-        final code = e.code.replaceFirst('functions/', '');
-        switch (code) {
-          case 'failed-precondition':
+        switch (e.code) {
+          case 'functions/failed-precondition':
             throw AppException.auth('leave_group',
                 'Δεν είσαι μέλος της ομάδας / Not a group member');
-          case 'not-found':
+          case 'functions/not-found':
             throw AppException.firestore('leave_group',
                 'Η συνομιλία δεν βρέθηκε / Chat not found');
-          case 'unauthenticated':
+          case 'functions/unauthenticated':
             throw AppException.auth('leave_group',
                 'Απαιτείται σύνδεση / Authentication required');
           default:

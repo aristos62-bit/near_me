@@ -703,6 +703,9 @@ final isAdmin = permsInfo?.hasPermission(currentUid, GroupPermission.inviteMembe
 | **notBanned()** σε 17 chat/request rules + isGroupMember helper | ✅ **Session 170** |
 | **memberCount fix** — groups update rules restructured | ✅ **Session 170** |
 | **Dual-device production testing** — all flows verified | ✅ **Session 170** |
+| **Blocked user→add bilingual error** (CF code prefix) | ✅ **Session 173** |
+| **Existing members UI** (label "Μέλος/Member" disabled Chip) | ✅ **Session 173** |
+| **Auto-localize bilingual errors** (AppMessenger showError) | ✅ **Session 173** |
 | `flutter analyze` | ✅ Clean |
 
 ### ✅ Ολοκληρωμένο — Role-based visibility σε group chat screens
@@ -1311,3 +1314,98 @@ streamChats: started
 
 **Εκκρεμεί:** Test 5 (double-tap guard) — δεν ήταν δυνατό να δοκιμαστεί λόγω GoError.
 **GoError fix:** εφαρμόστηκε, όχι ακόμα δοκιμασμένο σε device.
+
+---
+
+## Session 172 — GroupInfo Add Member search bug (stale participantRoles keys)
+
+**Πρόβλημα:** Στην ομάδα My Team, η αναζήτηση για προσθήκη νέου μέλους από GroupInfo → "Προσθήκη Μέλους" δεν έφερνε αποτελέσματα, ενώ από τα τρία τελείες (ChatScreen overflow menu) δούλευε σωστά.
+
+**Root cause:** Δύο διαδρομές, διαφορετικά δεδομένα:
+
+| Διαδρομή | Αρχείο | Extra data | currentParticipantUids |
+|----------|--------|:----------:|:----------------------:|
+| 3-dots menu | `chat_screen.dart:188` | κανένα | `[]` → σωστό (από provider) |
+| GroupInfo button | `group_info_screen.dart:294-300` | `rolesMap?.keys.toList()` | stale UIDs |
+
+Το `removeParticipant()` (`group_chat_mixin.dart:436-439`) κάνει `arrayRemove` από `participants` και θέτει `participantIsActive=false`, αλλά **ΠΟΤΕ δεν καθαρίζει το `participantRoles`**. Έτσι, UIDs πρώην μελών παραμένουν σαν keys στο map.
+
+Στο `add_participant_screen.dart:77-79`:
+```dart
+// ΠΡΙΝ (λάθος προτεραιότητα):
+_participantUids = widget.currentParticipantUids.isNotEmpty
+    ? widget.currentParticipantUids   // ← stale rolesMap keys
+    : uids;                            // ← σωστό participants array
+```
+
+Το `currentUids` φιλτράρει (γραμμή 127: `.where((u) => !currentUids.contains(u['uid']))`) περισσότερους χρήστες απ' όσους θα έπρεπε.
+
+**Fix:** Αντιστροφή προτεραιότητας — `participantUidsProvider` (από `participants` array + `participantIsActive`) πρώτα, `widget.currentParticipantUids` μόνο ως fallback:
+```dart
+// ΜΕΤΑ (σωστή προτεραιότητα):
+_participantUids = uids.isNotEmpty ? uids : widget.currentParticipantUids;
+```
+
+**Αρχείο:** `lib/features/chat/screens/add_participant_screen.dart:77`
+**Backup:** `backups/add_participant_screen.dart.backup_20260715_*`
+**Verified:** `flutter analyze` clean ✅
+
+### Note
+Παραμένει το pre-existing issue: το `removeParticipant` δεν καθαρίζει το `participantRoles` — εκτός από αυτό το bug, επηρεάζει και το `GroupInfoScreen` member list (αν εμφανίζονταν πρώην μέλη, αλλά χρησιμοποιεί `participantUidsProvider` που είναι σωστό) και το `GroupSettingsScreen` (χρησιμοποιεί `chatDocProvider` απευθείας). Το αν αξίζει να καθαρίζεται το `participantRoles` είναι ξεχωριστό ερώτημα.
+
+---
+
+## Session 173 — Blocked user error fix + existing members UI + bilingual AppMessenger
+
+**Πεδίο:** 3 διορθώσεις/βελτιώσεις: (1) blocked user→add group bilingual error, (2) εμφάνιση υπαρχόντων μελών με label, (3) auto-localization σε AppMessenger.
+
+### Fix 1 — `_cfErrorToAppException` code prefix mismatch
+**Πρόβλημα:** `FirebaseFunctionsException.code` επιστρέφει code **χωρίς** πρόθεμα `functions/` (π.χ. `failed-precondition`), αλλά τα switch cases στο `group_chat_mixin.dart` χρησιμοποιούσαν `'functions/failed-precondition'` → fallback στο `default` → generic `AppException.firestore()` αντί για το σωστό bilingual μήνυμα.
+
+**Λύση:** `e.code.replaceFirst('functions/', '')` πριν το switch — σε 2 σημεία:
+- `_cfErrorToAppException` (γραμμή 44)
+- `removeParticipant` inline switch (γραμμή 416)
+
+**Αποτέλεσμα (logs):**
+```
+ΠΡΙΝ: AppException(firestore_error): Firestore error during add_participant
+ΜΕΤΑ: AppException(auth_error): Το άτομο έχει αποκλειστεί από συμμετέχοντα / Blocked by a participant
+```
+
+**Verified:** User-tested σε device ✅, `flutter analyze` clean ✅
+
+### Fix 2 — Existing members search visibility
+**Πρόβλημα:** Στην αναζήτηση προσθήκης μέλους, τα υπάρχοντα μέλη κρύβονταν εντελώς (`.where((u) => !currentUids.contains(u['uid']))` στη γραμμή 125). Ο χρήστης δεν ήξερε αν ο άλλος είναι ήδη μέλος ή δεν υπάρχει.
+
+**Λύση (2 αλλαγές στο `add_participant_screen.dart`):**
+1. **Αφαίρεση φίλτρου** (γραμμή 125) — τα υπάρχοντα μέλη εμφανίζονται πλέον στα αποτελέσματα
+2. **Προσθήκη `isMember` flag** στο map κάθε αποτελέσματος + `DebugConfig.log(DebugConfig.repositoryFilter, ...)`
+3. **UI conditional trailing:** Αν `isMember == true` → `Chip` με εικονίδιο ✅ + label "Μέλος" / "Member", disabled χωρίς κουμπί. Αλλιώς κανονικό "Προσθήκη" / "Add".
+
+**Αρχείο:** `add_participant_screen.dart` (~333→~353 lines)
+**Backup:** `backups/add_participant_screen.dart.backup_2026-07-15_183659`
+**Verified:** `flutter analyze` clean ✅
+
+### Fix 3 — Bilingual error messages σε AppMessenger
+**Πρόβλημα:** Τα `AppException` αποθηκεύουν bilingual strings (π.χ. `"Το άτομο έχει αποκλειστεί / Blocked by a participant"`), αλλά το `AppMessenger.showError()` τα εμφάνιζε αυτούσια — και οι 2 γλώσσες ταυτόχρονα.
+
+**Λύση:** Στο `app_messenger.dart:13-15`, αν το μήνυμα περιέχει `' / '`, χρησιμοποιεί `L10n.localizedMessage(context, message)` για να κρατήσει μόνο την κατάλληλη γλώσσα.
+
+```dart
+final displayMsg = message.contains(' / ')
+    ? L10n.localizedMessage(context, message)
+    : message;
+```
+
+**Αρχείο:** `app_messenger.dart` (1 import + ~4 γραμμές)
+**Backup:** `backups/app_messenger.dart.backup_2026-07-15_185023`
+**Verified:** `flutter analyze` clean ✅
+
+### Σύνοψη
+| # | Αλλαγή | Αρχείο | Backup |
+|:-:|--------|--------|:------:|
+| 1 | blocked→add bilingual CF error | `group_chat_mixin.dart` | υπήρχε από session 159 |
+| 2 | existing members UI (label/disabled) | `add_participant_screen.dart` | `backup_2026-07-15_183659` |
+| 3 | auto-localize bilingual σε AppMessenger | `app_messenger.dart` | `backup_2026-07-15_185023` |
+
+**`flutter analyze`:** 0 issues ✅

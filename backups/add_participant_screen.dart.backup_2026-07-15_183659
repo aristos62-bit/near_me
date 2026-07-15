@@ -113,19 +113,16 @@ class _AddParticipantScreenState extends ConsumerState<AddParticipantScreen> {
             final data = doc.data();
             final uid = data['uid'] as String? ?? doc.id;
             final nickname = data['nickname'] as String? ?? uid;
-            final isMember = currentUids.contains(uid);
-            DebugConfig.log(DebugConfig.repositoryFilter,
-                'AddParticipant: uid=$uid isMember=$isMember');
             return <String, dynamic>{
               'uid': uid,
               'nickname': nickname,
               'avatarUrl': data['avatarUrl'] as String?,
               'age': data['age'] as int?,
               'city': data['city'] as String?,
-              'isMember': isMember,
             };
           })
           .where((u) => u['uid'] != currentUid)
+          .where((u) => !currentUids.contains(u['uid']))
           .where((u) => (u['nickname'] as String).toLowerCase().contains(lowerQuery))
           .toList();
 
@@ -316,22 +313,14 @@ class _AddParticipantScreenState extends ConsumerState<AddParticipantScreen> {
                         if (age != null) '$age',
                         ?city,
                       ].join(' · ')),
-                      trailing: user['isMember'] == true
-                          ? Chip(
-                              avatar: Icon(Icons.check_circle, size: 16,
-                                  color: theme.colorScheme.primary),
-                              label: Text(greek ? 'Μέλος' : 'Member',
-                                  style: theme.textTheme.labelSmall),
-                              visualDensity: VisualDensity.compact,
-                            )
-                          : _isAdding
-                              ? const SizedBox(
-                                  width: 20, height: 20,
-                                  child: CircularProgressIndicator(strokeWidth: 2))
-                              : FilledButton.tonal(
-                                  onPressed: () => _addUser(user),
-                                  child: Text(greek ? 'Προσθήκη' : 'Add'),
-                                ),
+                      trailing: _isAdding
+                          ? const SizedBox(
+                              width: 20, height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2))
+                          : FilledButton.tonal(
+                              onPressed: () => _addUser(user),
+                              child: Text(greek ? 'Προσθήκη' : 'Add'),
+                            ),
                     ),
                   );
                 }),

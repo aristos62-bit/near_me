@@ -11,7 +11,6 @@ import '../router/app_router.dart';
 class FcmService {
   static bool isLocked = false;
   static String? _pendingFcmPath;
-  static String? _lastSavedToken;
   static StreamSubscription<User?>? _authSub;
   static StreamSubscription<String>? _tokenSub;
   static StreamSubscription<RemoteMessage>? _msgSub;
@@ -112,13 +111,6 @@ class FcmService {
 
     final token = await messaging.getToken();
     if (token == null) return;
-
-    if (token == _lastSavedToken) {
-      DebugConfig.log(DebugConfig.chatFcm,
-          'Save token for ${user.uid}: skipped (already saved)');
-      return;
-    }
-    _lastSavedToken = token;
 
     DebugConfig.log(DebugConfig.chatFcm, 'Save token for ${user.uid}');
 
@@ -226,7 +218,6 @@ class FcmService {
   }
 
   static Future<void> clearTokens() async {
-    _lastSavedToken = null;
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 

@@ -9,7 +9,6 @@ class PresenceService {
   static DocumentReference? _ref;
   static DocumentReference? _publicRef;
   static bool _isShuttingDown = false;
-  static bool _offlineInProgress = false;
 
   static void init() {
     DebugConfig.log(DebugConfig.serviceInit, 'PresenceService.init');
@@ -24,7 +23,6 @@ class PresenceService {
 
   static Future<void> _start(String uid) async {
     _isShuttingDown = false;
-    _offlineInProgress = false;
     _ref = FirebaseFirestore.instance.doc('users/$uid/status/status');
     _publicRef = FirebaseFirestore.instance.doc('users/$uid/public/profile');
     await _touch();
@@ -81,17 +79,8 @@ class PresenceService {
   }
 
   static Future<void> setOffline() async {
-    if (_offlineInProgress) {
-      DebugConfig.log(DebugConfig.presence,
-          'Presence setOffline: skipped (already in progress)');
-      return;
-    }
-    _offlineInProgress = true;
     _timer?.cancel();
-    if (_ref == null) {
-      _offlineInProgress = false;
-      return;
-    }
+    if (_ref == null) return;
     try {
       await Future.wait<void>([
         _ref!.set({
@@ -104,15 +93,12 @@ class PresenceService {
       DebugConfig.log(DebugConfig.presence, 'Presence setOffline');
     } catch (e) {
       DebugConfig.warn('PresenceService setOffline failed', data: e);
-    } finally {
-      _offlineInProgress = false;
     }
   }
 
   static void reset() {
     _isShuttingDown = true;
     _timer?.cancel();
-    _offlineInProgress = false;
     _ref = null;
     _publicRef = null;
     DebugConfig.log(DebugConfig.serviceInit, 'PresenceService reset');

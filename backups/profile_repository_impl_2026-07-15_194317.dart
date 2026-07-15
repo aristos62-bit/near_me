@@ -436,19 +436,19 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
   }
 
   @override
-  Future<UserProfileTableData?> syncLocation(double lat, double lng, {String? city, String? country}) async {
+  Future<void> syncLocation(double lat, double lng, {String? city, String? country}) async {
     DebugConfig.log(DebugConfig.repositoryCall,
         'syncLocation: lat=$lat, lng=$lng${city != null ? ', city=$city' : ''}${country != null ? ', country=$country' : ''}');
     final uid = _user?.uid;
     if (uid == null || uid.isEmpty) {
       DebugConfig.warn('syncLocation: no authenticated user');
-      return null;
+      return;
     }
     try {
       final profile = await getProfile();
       if (profile == null) {
         DebugConfig.warn('syncLocation: no profile found');
-        return null;
+        return;
       }
       var update = profile.copyWith(
         latitudeExact: Value(lat),
@@ -463,7 +463,6 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
       await saveProfile(update);
       DebugConfig.log(DebugConfig.databaseLocal,
           'syncLocation: saved lat=$lat, lng=$lng${city != null ? ', city=$city' : ''}${country != null ? ', country=$country' : ''}');
-      return profile;
     } catch (e, s) {
       DebugConfig.error('syncLocation failed', data: e, exception: s);
       throw AppException.database('syncLocation', e, s);

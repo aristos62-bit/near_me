@@ -133,11 +133,13 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
       final name = await LocationService.reverseGeocode(lat, lng);
       if (!mounted) return;
 
-      final profile = await ref.read(profileRepositoryProvider).syncLocation(
+      await ref.read(profileRepositoryProvider).syncLocation(
         lat, lng,
         city: name?.city,
         country: name?.country,
       );
+
+      final profile = await ref.read(profileRepositoryProvider).getProfile();
       if (!mounted) return;
 
       if (profile?.isPublished == true) {

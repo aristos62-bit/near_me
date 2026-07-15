@@ -158,10 +158,34 @@ mixin GroupChatMixin {
     final lastMessageBy = data['lastMessageBy'] as String?;
     final lastMessageType = data['lastMessageType'] as String? ?? 'text';
     final encryptedLastMessage = data['lastMessage'] as String?;
-    final unreadMap = (data['unreadCount'] as Map<String, dynamic>?) ?? {};
-    final unreadCount = (unreadMap[uid] as int?) ?? 0;
-    DebugConfig.log(DebugConfig.repositoryResult,
-        '_syncGroupChatToCache: unread count=$unreadCount chat=$chatId');
+    final lastRead = data['lastReadTimestamps']?[uid]?.toDate() ?? DateTime(2020);
+
+    int unreadCount = 0;
+    if (lastMessageBy != null && lastMessageBy != uid) {
+      DebugConfig.log(DebugConfig.repositoryCall,
+          '_syncGroupChatToCache: counting unread chat=$chatId '
+          'lastRead=$lastRead lastMessageBy=$lastMessageBy');
+      try {
+        DebugConfig.log(DebugConfig.repositoryCall,
+            '_syncGroupChatToCache: parallel count queries chat=$chatId');
+        final counts = await Future.wait([
+          firestore.collection('chats').doc(chatId).collection('messages')
+              .where('timestamp', isGreaterThan: Timestamp.fromDate(lastRead))
+              .count().get(),
+          firestore.collection('chats').doc(chatId).collection('messages')
+              .where('senderId', isEqualTo: uid)
+              .where('timestamp', isGreaterThan: Timestamp.fromDate(lastRead))
+              .count().get(),
+        ]);
+        unreadCount = (counts[0].count ?? 0) - (counts[1].count ?? 0);
+        DebugConfig.log(DebugConfig.repositoryResult,
+            '_syncGroupChatToCache: unread count=$unreadCount '
+            '(all=${counts[0].count} own=${counts[1].count}) chat=$chatId');
+      } catch (e) {
+        DebugConfig.warn('_syncGroupChatToCache: count query failed chat=$chatId', data: e);
+        unreadCount = rows.isNotEmpty ? rows.first.unreadCount + 1 : 1;
+      }
+    }
 
     final isUnread = unreadCount > 0;
     final lastMessageSender = lastMessageBy != null
@@ -315,7 +339,6 @@ mixin GroupChatMixin {
         'createdAt': FieldValue.serverTimestamp(),
         'isActive': true,
         'createdBy': uid,
-        'unreadCount': {for (final p in allUids) p: 0},
         if (isPublic) 'isPublic': true,
       });
 

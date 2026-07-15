@@ -114,7 +114,6 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin im
       'createdAt': FieldValue.serverTimestamp(),
       'isActive': true,
       'maxParticipants': 2,
-      'unreadCount': {uid: 0, otherUid: 0},
     });
     DebugConfig.log(DebugConfig.repositoryResult, 'createChat: new chat created: $chatId pair=$pairKey');
     DebugConfig.log(DebugConfig.repositoryResult, 'createChat: new chat created: $chatId');
@@ -204,16 +203,14 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin im
     DebugConfig.log(DebugConfig.repositoryCall, 'sendMessage: chat=$chatId');
 
     List<String>? validMentions;
-    List<String> participants = [];
-    bool isGroupChat = false;
     try {
       final chatDoc = await firestore.collection('chats').doc(chatId).get();
       if (!chatDoc.exists) {
         throw AppException.firestore('send_message', 'Η συνομιλία δεν βρέθηκε / Chat not found');
       }
       final data = chatDoc.data()!;
-      participants = List<String>.from(data['participants'] ?? []);
-      isGroupChat = data['isGroupChat'] == true;
+      final participants = List<String>.from(data['participants'] ?? []);
+      final isGroupChat = data['isGroupChat'] == true;
 
       if (isGroupChat) {
         final nicknames = Map<String, String>.from(data['participantNicknames'] ?? {});
@@ -264,18 +261,12 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin im
         msgData['mentions'] = validMentions;
       }
       batch.set(msgRef, msgData);
-      final updateData = <String, dynamic>{
+      batch.update(chatRef, {
         'lastMessageAt': FieldValue.serverTimestamp(),
         'lastMessageBy': user.uid,
         'lastMessage': encrypted,
         'lastMessageType': 'text',
-      };
-      for (final p in participants) {
-        if (p != user.uid) {
-          updateData['unreadCount.$p'] = FieldValue.increment(1);
-        }
-      }
-      batch.update(chatRef, updateData);
+      });
       await batch.commit();
 
       DebugConfig.log(DebugConfig.repositoryResult, 'sendMessage: success chat=$chatId');
@@ -388,7 +379,6 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin im
     try {
       await firestore.collection('chats').doc(chatId).update({
         'lastReadTimestamps.${user.uid}': FieldValue.serverTimestamp(),
-        'unreadCount.${user.uid}': 0,
       });
 
       if (!isGroupChat) {
@@ -498,6 +488,7 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin im
         }
       }
 
+      final isUnread = lastMessageBy != null && lastMessageBy != uid;
       final lastMessageSender = lastMessageBy != null
           ? (lastMessageBy == uid ? 'me' : 'other')
           : null;
@@ -512,10 +503,28 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin im
         rows = [];
       }
 
-      final unreadMap = (data['unreadCount'] as Map<String, dynamic>?) ?? {};
-      final unreadCount = (unreadMap[uid] as int?) ?? 0;
-      final isUnread = unreadCount > 0;
-      DebugConfig.log(DebugConfig.repositoryResult, '_syncChatFromFirestore: unread count=$unreadCount chat=$chatId');
+      int unreadCount = rows.isNotEmpty ? rows.first.unreadCount : 0;
+      if (isUnread) {
+        final isNewMessage = rows.isEmpty ||
+            (lastMessageAt != null && rows.first.lastMessageAt != null &&
+                lastMessageAt.isAfter(rows.first.lastMessageAt!));
+        if (isNewMessage) {
+          try {
+            final count = await firestore
+                .collection('chats').doc(chatId).collection('messages')
+                .where('senderId', isNotEqualTo: uid)
+                .where('isRead', isEqualTo: false)
+                .count().get();
+            unreadCount = count.count ?? 0;
+            DebugConfig.log(DebugConfig.repositoryResult, '_syncChatFromFirestore: unread count=$unreadCount chat=$chatId');
+          } catch (_) {
+            unreadCount = rows.isNotEmpty ? rows.first.unreadCount + 1 : 1;
+            DebugConfig.warn('_syncChatFromFirestore: count query failed, heuristic fallback chat=$chatId');
+          }
+        }
+      } else {
+        unreadCount = 0;
+      }
 
       if (rows.isNotEmpty) {
         final existing = rows.first;

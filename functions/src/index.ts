@@ -825,6 +825,107 @@ export const addGroupParticipant = functions.https.onCall(async (data, context) 
   }
 });
 
+export const leaveGroup = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+  }
+
+  const { chatId } = data;
+  const uid = context.auth.uid;
+
+  if (!chatId || typeof chatId !== 'string') {
+    throw new functions.https.HttpsError('invalid-argument', 'chatId must be a string');
+  }
+
+  const chatRef = db.doc(`chats/${chatId}`);
+
+  try {
+    const result = await db.runTransaction(async (transaction) => {
+      const snap = await transaction.get(chatRef);
+      if (!snap.exists) {
+        throw new functions.https.HttpsError('not-found', 'Chat not found');
+      }
+
+      const chatData = snap.data()!;
+      const participants: string[] = chatData.participants ?? [];
+
+      if (!participants.includes(uid)) {
+        throw new functions.https.HttpsError(
+          'failed-precondition', 'Not a participant',
+        );
+      }
+
+      const nicknames = chatData.participantNicknames ?? {};
+      const actorNickname = nicknames[uid] ?? uid;
+      const groupName = chatData.groupName as string | undefined;
+      const now = admin.firestore.FieldValue.serverTimestamp();
+
+      const msgRef = chatRef.collection('messages').doc();
+      const auditRef = chatRef.collection('audit_log').doc();
+
+      const elMsg = groupName
+        ? `${groupName}: ${actorNickname} αποχώρησε`
+        : `${actorNickname} αποχώρησε`;
+      const enMsg = groupName
+        ? `${groupName}: ${actorNickname} left`
+        : `${actorNickname} left`;
+
+      transaction.set(msgRef, {
+        senderId: uid,
+        content: elMsg,
+        contentEn: enMsg,
+        type: 'system',
+        timestamp: now,
+      });
+
+      transaction.set(auditRef, {
+        action: 'participant_left',
+        actorUid: uid,
+        actorName: actorNickname,
+        timestamp: now,
+      });
+
+      transaction.update(chatRef, {
+        participants: admin.firestore.FieldValue.arrayRemove(uid),
+        [`participantIsActive.${uid}`]: false,
+      });
+
+      const roles: Record<string, string> = chatData.participantRoles ?? {};
+      if (roles[uid] === 'creator') {
+        const activeParticipants = participants.filter((p: string) => p !== uid);
+        if (activeParticipants.length > 0) {
+          let newCreator = activeParticipants[0];
+          for (const p of activeParticipants) {
+            if (roles[p] === 'admin') { newCreator = p; break; }
+          }
+          transaction.update(chatRef, {
+            [`participantRoles.${newCreator}`]: 'creator',
+            [`participantRoles.${uid}`]: admin.firestore.FieldValue.delete(),
+          });
+        }
+      }
+
+      if (chatData.isPublic === true) {
+        const remainingCount = participants.length - 1;
+        transaction.set(
+          db.collection('groups').doc(chatId),
+          { memberCount: remainingCount },
+          { merge: true },
+        );
+      }
+
+      return { groupName: groupName ?? '' };
+    });
+
+    functions.logger.info(`leaveGroup: ${uid} left ${chatId} (group=${result.groupName})`);
+    return { success: true };
+  } catch (e) {
+    if (e instanceof functions.https.HttpsError) throw e;
+    functions.logger.error(`leaveGroup failed for ${chatId}/${uid}`, e);
+    throw new functions.https.HttpsError('internal', 'Internal error');
+  }
+});
+
 function getNotificationStrings(lang: string) {
   const isGreek = lang === 'el';
   return {

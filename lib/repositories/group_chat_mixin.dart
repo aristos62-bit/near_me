@@ -397,30 +397,53 @@ mixin GroupChatMixin {
       await _requirePermission(chatId, GroupPermission.removeMembers);
     }
 
+    if (isSelf) {
+      // ── Self-removal via Cloud Function (bypasses Firestore rules) ──
+      try {
+        await FirebaseFunctions.instance
+            .httpsCallable('leaveGroup')
+            .call({'chatId': chatId});
+
+        // Non-fatal local cleanup (CF already handled server-side)
+        try { await EncryptionUtils.deleteKey(chatId); } catch (_) {}
+        try { await db.logConsent(uid, 'group_left', 'group'); } catch (_) {}
+        try { await removeChatCache(chatId); } catch (_) {}
+
+        DebugConfig.log(DebugConfig.repositoryResult,
+            'removeParticipant: self-removal done $chatId via CF');
+        return;
+      } on FirebaseFunctionsException catch (e) {
+        DebugConfig.error('removeParticipant: leaveGroup CF failed', data: e);
+        switch (e.code) {
+          case 'functions/failed-precondition':
+            throw AppException.auth('leave_group',
+                'Δεν είσαι μέλος της ομάδας / Not a group member');
+          case 'functions/not-found':
+            throw AppException.firestore('leave_group',
+                'Η συνομιλία δεν βρέθηκε / Chat not found');
+          case 'functions/unauthenticated':
+            throw AppException.auth('leave_group',
+                'Απαιτείται σύνδεση / Authentication required');
+          default:
+            throw AppException.firestore('leave_group',
+                'Αποτυχία αποχώρησης / Failed to leave group');
+        }
+      }
+    }
+
+    // ── Admin-removes-member (unchanged) ──
     try {
       await firestore.collection('chats').doc(chatId).update({
         'participants': FieldValue.arrayRemove([targetUid]),
         'participantIsActive.$targetUid': false,
       });
 
-      if (isSelf) {
-        await _maybeTransferCreatorOnLeave(chatId, uid);
-      } else {
-        await _maybeTransferCreatorOnLeave(chatId, targetUid);
-      }
-
-      await _sendSystemMessage(chatId, isSelf ? 'participant_left' : 'participant_removed', uid, [targetUid]);
-      await _logAudit(chatId, isSelf ? 'participant_left' : 'participant_removed', uid, targetUid: targetUid);
-      if (isSelf) {
-        await EncryptionUtils.deleteKey(chatId);
-        await db.logConsent(uid, 'group_left', 'group');
-      }
+      await _maybeTransferCreatorOnLeave(chatId, targetUid);
+      await _sendSystemMessage(chatId, 'participant_removed', uid, [targetUid]);
+      await _logAudit(chatId, 'participant_removed', uid, targetUid: targetUid);
       await _updatePublicProfileMemberCount(chatId);
-      if (isSelf) {
-        await removeChatCache(chatId);
-      }
 
-      DebugConfig.log(DebugConfig.repositoryResult, 'removeParticipant: done $chatId');
+      DebugConfig.log(DebugConfig.repositoryResult, 'removeParticipant: admin removal done $chatId');
     } catch (e, s) {
       if (e is AppException) rethrow;
       DebugConfig.error('removeParticipant failed', data: e, exception: s);

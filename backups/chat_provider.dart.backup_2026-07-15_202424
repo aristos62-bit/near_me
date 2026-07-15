@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/utils/app_exception.dart';
@@ -11,24 +10,7 @@ import '../../../repositories/group_search_repository.dart';
 final chatDocProvider = StreamProvider.autoDispose.family<DocumentSnapshot?, String>((ref, chatId) {
   DebugConfig.log(DebugConfig.providerCreate, 'chatDocProvider created for chat: $chatId');
   ref.onDispose(() => DebugConfig.log(DebugConfig.providerDispose, 'chatDocProvider disposed for chat: $chatId'));
-  DocumentSnapshot? previous;
-  return FirebaseFirestore.instance
-      .collection('chats')
-      .doc(chatId)
-      .snapshots()
-      .map((snap) {
-        DebugConfig.log(DebugConfig.firestoreStream,
-            'chatDocProvider emit: $chatId exists=${snap.exists} pending=${snap.metadata.hasPendingWrites}');
-        if (previous != null && snap.exists && previous!.exists) {
-          final prevData = previous!.data();
-          final currData = snap.data();
-          if (const DeepCollectionEquality().equals(prevData, currData)) {
-            return previous!;
-          }
-        }
-        previous = snap;
-        return snap;
-      });
+  return FirebaseFirestore.instance.collection('chats').doc(chatId).snapshots();
 });
 
 final chatRepositoryProvider = Provider<ChatRepository>((ref) {

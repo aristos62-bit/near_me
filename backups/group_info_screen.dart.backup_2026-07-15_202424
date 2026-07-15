@@ -1,6 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -49,11 +48,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
     final name = data['groupName'] as String?;
     final roles = data['participantRoles'] as Map<String, dynamic>?;
     final maxP = data['maxParticipants'] as int? ?? 10;
-    if (name != _groupName ||
-        !const MapEquality().equals(roles, _participantRoles) ||
-        maxP != _maxParticipants) {
-      DebugConfig.log(DebugConfig.uiInteraction,
-          'GroupInfoScreen._onDocChanged: name=$name maxP=$maxP rolesChanged=${!const MapEquality().equals(roles, _participantRoles)}');
+    if (name != _groupName || roles != _participantRoles || maxP != _maxParticipants) {
       setState(() {
         _groupName = name;
         _participantRoles = roles;

@@ -1271,3 +1271,43 @@ streamChats: started
 **Deploy:** `firebase deploy --only firestore:rules` → `nearme-gr` ✅
 **flutter analyze:** 0 issues ✅
 **Side effects:** Κανένα — μόνο rules changes, zero Dart modifications
+
+---
+
+## Session 171 — Self-removal CF (leaveGroup) + GoError navigation race fix
+
+**Πρόβλημα:** Self-removal (leave group) edge case — μετά από `arrayRemove([uid])` στο `participants`, τα Firestore rules (`isParticipant`) blockάρουν επόμενα reads/writes (system message, audit log, memberCount update) με PERMISSION_DENIED.
+
+**Λύση:** Νέο `leaveGroup` callable Cloud Function (`functions/src/index.ts:828-927`):
+- Admin SDK `runTransaction` — bypasses rules
+- Αφαιρεί participant, δημιουργεί bilingual system message (`content`/`contentEn`), audit log entry, transfer creator αν αποχωρεί ο creator, update `memberCount` για public groups
+- Client-side: `removeParticipant` self-removal branch → `FirebaseFunctions.instance.httpsCallable('leaveGroup')`, local cleanup (deleteKey, removeChatCache) σε silent try-catch
+
+**Αρχεία:**
+- `functions/src/index.ts` — Νέα `leaveGroup` CF (γραμμές 828-927)
+- `lib/repositories/group_chat_mixin.dart` — `removeParticipant` self-removal branch → CF call (lines 391-452)
+- `lib/features/chat/screens/chat_screen.dart` — `canPop()` guard σε `_leaveGroup` + build watcher
+
+**Deploy:** `firebase deploy --only functions:leaveGroup` ✅
+
+### Dual-device test results
+
+| Test | Περιγραφή | Αποτέλεσμα |
+|:----:|-----------|:-----------:|
+| 1 | Self-removal private group (My Team, ΟΛΕ, τεστ ×3) | ✅ `self-removal done XXXX via CF` |
+| 2 | Self-removal public group + memberCount update | ✅ |
+| 3 | Creator transfer on creator leave (Yahooman→Aris62) | ✅ `— όρισε τον/την Aris62 ως Διαχειριστή` |
+| 4 | Admin removes member (non-self branch) | ✅ `admin removal done` — local path, no CF |
+| 6 | 1-to-1 chat unaffected after self-removal | ✅ messages both directions |
+
+### Known bug found during testing
+
+**GoError: There is nothing to pop** — navigation race condition:
+1. CF removes user → Firestore stream emits `participantUids` χωρίς τον χρήστη
+2. Build watcher (line 116) καλεί `context.pop()` → redirect to `/chats`
+3. `_leaveGroup()` (line 85) καλεί δεύτερο `context.pop()` → GoError
+
+**Fix:** `context.canPop()` guard και στα 2 σημεία (lines 85 & 116) — αν το navigation έχει ήδη γίνει, το δεύτερο pop απλά δεν εκτελείται.
+
+**Εκκρεμεί:** Test 5 (double-tap guard) — δεν ήταν δυνατό να δοκιμαστεί λόγω GoError.
+**GoError fix:** εφαρμόστηκε, όχι ακόμα δοκιμασμένο σε device.

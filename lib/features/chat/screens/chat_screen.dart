@@ -82,7 +82,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (confirmed && mounted) {
       final uid = ref.read(authStateProvider).value?.uid ?? '';
       final ok = await ref.read(chatActionsProvider.notifier).removeParticipant(widget.chatId, uid);
-      if (ok && mounted) context.pop();
+      if (ok && mounted && context.canPop()) context.pop();
     }
   }
 
@@ -112,7 +112,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final otherNickname = otherUid != null ? participantNicknames[otherUid] : null;
     ref.listen(participantUidsProvider(widget.chatId), (prev, next) {
       if (!mounted) return;
-      if (currentUid.isNotEmpty && !next.contains(currentUid)) {
+      if (currentUid.isNotEmpty && !next.contains(currentUid) && context.canPop()) {
         context.pop();
       }
     });

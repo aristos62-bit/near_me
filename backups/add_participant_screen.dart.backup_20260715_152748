@@ -74,7 +74,9 @@ class _AddParticipantScreenState extends ConsumerState<AddParticipantScreen> {
       final maxPart = chatSnap.data()?['maxParticipants'] as int? ?? 8;
       if (!mounted) return;
       setState(() {
-        _participantUids = uids.isNotEmpty ? uids : widget.currentParticipantUids;
+        _participantUids = widget.currentParticipantUids.isNotEmpty
+            ? widget.currentParticipantUids
+            : uids;
         _maxParticipants = maxPart;
         _dataLoaded = true;
       });

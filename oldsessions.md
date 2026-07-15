@@ -1198,3 +1198,70 @@ streamChats: started
 
 **Backup:** `backups/2026-07-15_joinPublicGroup_fix/`
 **Verified:** `flutter analyze` clean ✅
+
+---
+
+## Session 170 — notBanned() σε όλα τα chat rules + memberCount fix (2 pre-existing edge cases)
+
+**Πεδίο:** Διόρθωση 2 συστημικών gaps στο `firestore.rules` — (1) `notBanned()` λείπει από 17 rules στο chat/request layer, (2) `_updatePublicProfileMemberCount` silent failure (groups update rule απαιτεί `isGroupCreator` ακόμα και για `memberCount`).
+
+### Issue 1: notBanned() — 17 rules που το είχαν παραβλεφθεί
+
+**Πρόβλημα:** Το `notBanned()` υπήρχε μόνο σε `users/public`, `/{path=**}/public`, `/{path=**}/groups`, `groups/{doc}`, `requests/{reqId}` create. Έλειπε από ΟΛΟ το chat layer — banned user μπορούσε να συνεχίσει να στέλνει μηνύματα, να διαβάζει invites, να αποδέχεται requests.
+
+**Διόρθωση:** Προσθήκη `notBanned()` μετά από κάθε `isAuthenticated()` σε 17 rules:
+
+| # | Rule | Αρχείο:Γραμμή |
+|---|------|:-------------:|
+| 1 | `chats/{chatId}` read | `firestore.rules:104` |
+| 2 | `chats/{chatId}` update (υπάρχον) | `firestore.rules:116` |
+| 3 | `chats/{chatId}` update (self-join) | `firestore.rules:180` |
+| 4 | `chats/{chatId}` delete (1-on-1) | `firestore.rules:168` |
+| 5 | `chats/{chatId}` delete (group) | `firestore.rules:173` |
+| 6 | `chats/{chatId}/messages` read | `firestore.rules:191` |
+| 7 | `chats/{chatId}/messages` create | `firestore.rules:195` |
+| 8 | `chats/{chatId}/messages` update | `firestore.rules:203` |
+| 9 | `chats/{chatId}/messages` delete | `firestore.rules:207` |
+| 10 | `chats/{chatId}/audit_log` read | `firestore.rules:247` |
+| 11 | `chats/{chatId}/audit_log` create | `firestore.rules:252` |
+| 12 | `chats/{chatId}/invites` read | `firestore.rules:266` |
+| 13 | `chats/{chatId}/invites` create | `firestore.rules:271` |
+| 14 | `chats/{chatId}/invites` update | `firestore.rules:277` |
+| 15 | `/{path=**}/invites` read | `firestore.rules:310` |
+| 16 | `requests/{reqId}` read | `firestore.rules:222` |
+| 17 | `requests/{reqId}` update | `firestore.rules:232` |
+
+### Issue 2: _updatePublicProfileMemberCount silent failure
+
+**Πρόβλημα:** Το `groups/{doc}` update rule απαιτούσε `isGroupCreator(doc)` — μόνο ο δημιουργός μπορούσε να αλλάξει το public profile. Το `_updatePublicProfileMemberCount()` (καλούμενο από `addParticipant`, `removeParticipant`, `joinPublicGroup`) αποτύγχανε ΠΑΝΤΑ σιωπηλά (ο καλών δεν είναι creator).
+
+**Διόρθωση:** 
+- `groups/{doc}` update (γραμμές 332-340): `isGroupCreator(doc)` OR `hasOnly(['memberCount']) && isGroupMember(doc)`
+- **Νέο helper** `isGroupMember(groupChatId)` (γραμμές 52-55): server-side `get()` στο `chats/{groupChatId}` → ελέγχει `participants` map
+- Προσθήκη `notBanned()` και στα groups update + delete rules
+
+### Edge cases
+
+**notBanned():**
+- Banned user σε chat → Firestore listener `onError` → Drift cache stale ✅
+- Banned + joinPublicGroup → transaction `get()` blocked → `AppException` ✅
+- Banned + accept request → requests update rule blocked ✅
+- Self-join public group (non-banned) → `notBanned()` + transaction atomicity → join επιτυχές ✅
+
+**memberCount:**
+- Admin adds/removes member → `isGroupMember` pass (admin is still participant) → memberCount ενημερώνεται ✅
+- Self-removal (leave) → `isGroupMember` FAILS (no longer participant) → stale memberCount ⚠️
+- Member tries to change `groupName` → `hasOnly(['memberCount'])` blocks → PERMISSION_DENIED ✅
+- Banned member tries update → `notBanned()` blocks ✅
+- Creator changes avatar → `isGroupCreator` → OK (unchanged) ✅
+
+### Αλλαγές
+
+| Αρχείο | Αλλαγή |
+|--------|--------|
+| `firestore.rules` | +1 helper (`isGroupMember`), +17 × `notBanned()`, groups update restructured, groups delete + `notBanned()` |
+| `backups/2026-07-15_notBanned_memberCount/firestore.rules` | Backup πριν τα edits |
+
+**Deploy:** `firebase deploy --only firestore:rules` → `nearme-gr` ✅
+**flutter analyze:** 0 issues ✅
+**Side effects:** Κανένα — μόνο rules changes, zero Dart modifications

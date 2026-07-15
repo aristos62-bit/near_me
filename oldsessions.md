@@ -1409,3 +1409,34 @@ final displayMsg = message.contains(' / ')
 | 3 | auto-localize bilingual σε AppMessenger | `app_messenger.dart` | `backup_2026-07-15_185023` |
 
 **`flutter analyze`:** 0 issues ✅
+
+---
+
+## Session 174 — Rebuild Loop Fix: chatDocProvider cache + DeepCollectionEquality
+
+**Πεδίο:** Διόρθωση cascade rebuild loop που προκαλούσαν false-positive emits από Firestore `.snapshots()` (metadata changes, pending writes, reconnections) → κάθε emit κατέρρεε σε rebuild των downstream widgets (`participantUidsProvider` → `ChatScreen` + `GroupInfoScreen` + `ChatMessagesList` + `_SystemBubble`).
+
+### Fix #1 — chatDocProvider: Cache & Structural Equality (source fix)
+**Αιτία:** Το Firestore `.snapshots()` εκπέμπει ακόμα και όταν τα δεδομένα δεν άλλαξαν πραγματικά.
+
+**Λύση:** `.map()` με cache + `DeepCollectionEquality`. Όταν η δομή είναι ίδια, επιστρέφεται το ίδιο `DocumentSnapshot` instance → `identical(prev, next)` → no notification.
+
+**Αρχείο:** `chat_provider.dart:14-31` — `DocumentSnapshot? previous`, `DeepCollectionEquality().equals(prevData, currData)`, return `previous!`
+
+### Fix #2 — _onDocChanged: Deep Map Equality (belt-and-suspenders)
+**Αιτία:** `roles != _participantRoles` σύγκρινε Map references.
+
+**Λύση:** `!const MapEquality().equals(roles, _participantRoles)` αντί `!=`.
+
+**Αρχείο:** `group_info_screen.dart:52-54`
+
+### Pre-requisites
+- `pubspec.yaml` — `collection: ^1.19.0` **(ήδη transitive, explicit dep)**
+
+### Αποτέλεσμα
+- Firestore reconnection emit → cache → 0 rebuilds
+- Metadata change (hasPendingWrites toggle) → cache → 0 rebuilds
+- Real data change → cache miss → 1 rebuild (correct)
+- Provider dispose/recreate → fresh cache → 1 rebuild
+
+**Verified:** `flutter analyze` clean ✅

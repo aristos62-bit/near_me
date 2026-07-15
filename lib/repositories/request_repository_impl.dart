@@ -38,25 +38,21 @@ class RequestRepositoryImpl implements RequestRepository {
     final uid = user.uid;
     DebugConfig.log(DebugConfig.repositoryCall, 'sendRequest: from=$uid to=$toUid type=$type');
 
+    DebugConfig.log(DebugConfig.repositoryCall,
+        'sendRequest: parallel pre-checks from=$uid to=$toUid type=$type');
     try {
-      final blockDoc = await _firestore
-          .doc('users/$toUid/blocked/$uid')
-          .get();
+      final results = await Future.wait([
+        _firestore.doc('users/$toUid/blocked/$uid').get(),
+        _firestore.collection('users').doc(toUid).collection('public').doc('profile').get(),
+      ]);
+      final blockDoc = results[0];
+      final targetDoc = results[1];
       if (blockDoc.exists) {
         DebugConfig.log(DebugConfig.repositoryCall, 'sendRequest: blocked by $toUid');
         throw AppException.auth('send_request',
             'Αυτός ο χρήστης σε έχει αποκλείσει / This user has blocked you');
       }
       DebugConfig.log(DebugConfig.firestoreRead, 'sendRequest: not blocked by $toUid');
-    } catch (e) {
-      if (e is AppException) rethrow;
-      DebugConfig.warn('sendRequest: block check failed (rules will enforce): $e');
-    }
-
-    // Validate target's communication settings
-    try {
-      final targetDoc = await _firestore
-          .collection('users').doc(toUid).collection('public').doc('profile').get();
       if (!targetDoc.exists) {
         DebugConfig.log(DebugConfig.repositoryCall, 'sendRequest: target public profile not found');
         throw AppException.auth('send_request',
@@ -78,15 +74,6 @@ class RequestRepositoryImpl implements RequestRepository {
     } catch (e) {
       if (e is AppException) rethrow;
       DebugConfig.warn('sendRequest pre-check: target profile read failed: $e');
-    }
-
-    // debug: check own banned status before sending
-    try {
-      final bannedDoc = await _firestore.collection('banned').doc(uid).get();
-      DebugConfig.log(DebugConfig.firestoreRead,
-          'sendRequest pre-check: banned exists=${bannedDoc.exists}');
-    } catch (e) {
-      DebugConfig.warn('sendRequest pre-check: banned doc read failed: $e');
     }
 
     final now = DateTime.now();

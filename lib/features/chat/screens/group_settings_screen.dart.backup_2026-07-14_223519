@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -9,6 +10,12 @@ import '../../../repositories/chat_repository.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
+
+final _chatDocForSettingsProvider = StreamProvider.autoDispose.family<DocumentSnapshot?, String>((ref, chatId) {
+  DebugConfig.log(DebugConfig.providerCreate, '_chatDocForSettingsProvider created for chat: $chatId');
+  ref.onDispose(() => DebugConfig.log(DebugConfig.providerDispose, '_chatDocForSettingsProvider disposed for chat: $chatId'));
+  return FirebaseFirestore.instance.collection('chats').doc(chatId).snapshots();
+});
 
 class GroupSettingsScreen extends ConsumerStatefulWidget {
   final String chatId;
@@ -107,7 +114,7 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
     final greek = L10n.isGreek(context);
     final theme = Theme.of(context);
     final currentUid = ref.read(authStateProvider).value?.uid ?? '';
-    final chatDoc = ref.watch(chatDocProvider(widget.chatId));
+    final chatDoc = ref.watch(_chatDocForSettingsProvider(widget.chatId));
     final permissionsAsync = ref.watch(groupPermissionsProvider(widget.chatId));
 
     final chatData = chatDoc.asData?.value?.data() as Map<String, dynamic>?;

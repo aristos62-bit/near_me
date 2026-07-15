@@ -79,12 +79,16 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin im
       return existing;
     }
 
-    final myProfile = await firestore
-        .collection('users').doc(uid).collection('public').doc('profile').get();
+    DebugConfig.log(DebugConfig.repositoryCall,
+        'createChat: fetching profiles in parallel uid=$uid with=$otherUid');
+    final results = await Future.wait([
+      firestore.collection('users').doc(uid).collection('public').doc('profile').get(),
+      firestore.collection('users').doc(otherUid).collection('public').doc('profile').get(),
+    ]);
+    final myProfile = results[0];
     final myNickname = myProfile.data()?['nickname'] as String? ?? uid;
     final myAvatarUrl = myProfile.data()?['avatarUrl'] as String?;
-    final otherProfile = await firestore
-        .collection('users').doc(otherUid).collection('public').doc('profile').get();
+    final otherProfile = results[1];
     final otherNickname = otherProfile.data()?['nickname'] as String? ?? otherUid;
     final otherAvatarUrl = otherProfile.data()?['avatarUrl'] as String?;
     DebugConfig.log(DebugConfig.repositoryResult,

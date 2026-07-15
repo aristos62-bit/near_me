@@ -792,6 +792,25 @@ if (uidChanged || emailVerifiedChanged) {
 - Extra _syncChatFromFirestore + _syncGroupChatToCache
 - ~1-2ms περιττή latency στο startup
 
+### P1.1 — Remove duplicate `_chatDocForSettingsProvider` listener
+
+**Πρόβλημα:** Δύο ξεχωριστοί StreamProvider ακούνε στο ίδιο `chats/{chatId}` doc:
+- `chatDocProvider` (chat_provider.dart:10) — StreamProvider.autoDispose.family
+- `_chatDocForSettingsProvider` (group_settings_screen.dart:14) — private duplicate
+
+Κάθε φορά που ανοίγει GroupSettings → **2 listeners στο ίδιο doc**.
+
+**Λύση:** Αντικατάσταση `_chatDocForSettingsProvider` με `chatDocProvider` reuse.
+
+**Αλλαγές σε 1 αρχείο** (`group_settings_screen.dart`):
+1. Αφαίρεση `import 'package:cloud_firestore/cloud_firestore.dart';` (unused)
+2. Αφαίρεση `_chatDocForSettingsProvider` definition (lines 14-18)
+3. `ref.watch(_chatDocForSettingsProvider(...))` → `ref.watch(chatDocProvider(...))`
+
+**Επαλήθευση:** `flutter analyze` — 0 issues ✅
+
+**Εξοικονόμηση:** ~15.000 reads/μήνα (€0.12 για 1k users)
+
 ---
 
 ---
@@ -976,15 +995,16 @@ streamChats: started
 | 2 | **✅ P1** | `_checkConnectivity` — skip αν offline | Bug | `search_provider.dart` | ✅ Fixed |
 | 3 | **✅ P1.2** | Requested delete UI race — wait for stream propagation | Bug | `requests_dashboard_screen.dart` | ✅ Fixed |
 | 4 | **✅ P1.3** | Biometric idle timer lifecycle gap (inbox + sign-out) | Bug | `main.dart` | ✅ Fixed |
-| 5 | **✅ P2** | Provider cascade (διπλό create/dispose σε auth change) | Optimization | `chat_provider.dart` | ✅ Fixed |
+| 5 | **✅ P2** | Provider cascade (διπλό create/dispose σε auth change + startup) | Optimization | `main.dart` | ✅ Fixed (Session 167) |
 | 6 | **✅ P2** | Ολοκλήρωση phone verification (SMS OTP) | Feature gap | `phone_verify_provider.dart` | ✅ Fixed |
 | 7 | **✅ P3.1** | Online status flicker στα ProfileCards | UX polish | `profile_card.dart` | ✅ Fixed |
 | 8 | **✅ P3.2** | Haversine memoization για ίδιο geoHash | Performance | `firestore_search_repository.dart` | ✅ Fixed |
 | 9 | **✅ P4.1** | ConsentLog pagination | Scalability | `consent_log_screen.dart` | ✅ Fixed |
 | 10 | **✅ P0.2** | `removeParticipant` chat disappears + audit bilingual + route ordering | Bug | `group_chat_mixin.dart` + `group_audit_log_screen.dart` + `app_router.dart` | ✅ Fixed |
 | 11 | **✅ P0.3** | `markAsRead` unbounded reads + rules fix | Cost | `chat_repository_impl.dart` + `firestore.rules` | ✅ Fixed (Session 166) |
-| 12 | **⬜ —** | `clearMessages` pagination | Cost | `chat_repository_impl.dart` | 📋 Proposed |
-| 13 | **⬜ —** | Duplicate `chatDocProvider` listeners | Cost | `chat_provider.dart` + `group_settings_screen.dart` | 📋 Proposed |
+| 12 | **✅ P0.4** | `clearMessages` pagination | Cost/Crash | `chat_repository_impl.dart` + `chat_repository_clear.dart` | ✅ Fixed (Session 166) |
+| 13 | **✅ P0.1** | `_deleteChatForEveryone` pagination | Cost/Crash | `chat_repository_delete.dart` | ✅ Fixed (Session 166) |
+| 14 | **✅ P1.1** | Duplicate `_chatDocForSettingsProvider` listener | Cost | `group_settings_screen.dart` | ✅ Fixed (Session 167) |
 
 ---
 
@@ -993,15 +1013,16 @@ streamChats: started
 1. **✅ P1.1** — `_checkConnectivity` bypass + duplicate `_performSearch` — verified fixed
 2. **✅ P1.2** — Request delete UI race — fixed
 3. **✅ P1.3** — Biometric idle timer lifecycle — fixed (Session 152)
-4. **✅ P2.1** — Provider cascade (debounce auth state) — verified fixed
+4. **✅ P2.1** — Provider cascade (debounce auth state) — fixed Session 167 (prev is AsyncData στο main.dart)
 5. **✅ P2.2** — Phone verification (SMS OTP) — verified fixed
 6. **✅ P3.1** — Fix online status flicker (null-coalescing `streamOnline ?? profile.isOnline`) — **Fixed Session 155**
 7. **✅ P3.2** — Haversine memoization για ίδιο geoHash — **Fixed Session 156**
 8. **✅ P4.1** — ConsentLog pagination — **Fixed Session 157**
 9. **✅ P0.2** — Firebase Audit: `_findExistingChat` reads + `removeParticipant` race (chat disappearing) + bilingual audit log + GoRouter route ordering — **Fixed Session 158**
 10. **✅ P0.3 (μερικό)** — Firebase Audit: `markAsRead` unbounded reads + rules PERMISSION_DENIED — **Fixed Session 166**
-11. **⬜ P0.3b** — `clearMessages` pagination — **Proposed**
-12. **⬜ P0.3c** — Duplicate `chatDocProvider` listeners — **Proposed**
+11. **✅ P0.4** — `clearMessages` pagination — **Fixed Session 166**
+12. **✅ P0.1** — `_deleteChatForEveryone` pagination — **Fixed Session 166**
+13. **✅ P1.1** — Duplicate `_chatDocForSettingsProvider` listener — **Fixed Session 167**
 
 > Εκτελούμε **μία βελτίωση τη φορά**. Μετά από κάθε αλλαγή: backup → edit → `flutter analyze` → έλεγχος από τον χρήστη → "επόμενο".
 

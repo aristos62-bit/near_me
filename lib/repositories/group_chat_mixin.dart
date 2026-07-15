@@ -166,19 +166,21 @@ mixin GroupChatMixin {
           '_syncGroupChatToCache: counting unread chat=$chatId '
           'lastRead=$lastRead lastMessageBy=$lastMessageBy');
       try {
-        final allCount = await firestore
-            .collection('chats').doc(chatId).collection('messages')
-            .where('timestamp', isGreaterThan: Timestamp.fromDate(lastRead))
-            .count().get();
-        final ownCount = await firestore
-            .collection('chats').doc(chatId).collection('messages')
-            .where('senderId', isEqualTo: uid)
-            .where('timestamp', isGreaterThan: Timestamp.fromDate(lastRead))
-            .count().get();
-        unreadCount = (allCount.count ?? 0) - (ownCount.count ?? 0);
+        DebugConfig.log(DebugConfig.repositoryCall,
+            '_syncGroupChatToCache: parallel count queries chat=$chatId');
+        final counts = await Future.wait([
+          firestore.collection('chats').doc(chatId).collection('messages')
+              .where('timestamp', isGreaterThan: Timestamp.fromDate(lastRead))
+              .count().get(),
+          firestore.collection('chats').doc(chatId).collection('messages')
+              .where('senderId', isEqualTo: uid)
+              .where('timestamp', isGreaterThan: Timestamp.fromDate(lastRead))
+              .count().get(),
+        ]);
+        unreadCount = (counts[0].count ?? 0) - (counts[1].count ?? 0);
         DebugConfig.log(DebugConfig.repositoryResult,
             '_syncGroupChatToCache: unread count=$unreadCount '
-            '(all=${allCount.count} own=${ownCount.count}) chat=$chatId');
+            '(all=${counts[0].count} own=${counts[1].count}) chat=$chatId');
       } catch (e) {
         DebugConfig.warn('_syncGroupChatToCache: count query failed chat=$chatId', data: e);
         unreadCount = rows.isNotEmpty ? rows.first.unreadCount + 1 : 1;

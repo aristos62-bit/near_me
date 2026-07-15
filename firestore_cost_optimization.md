@@ -281,26 +281,24 @@ while (hasMore) {
 
 ## 4. 🔴 P1 — Υψηλή Προτεραιότητα
 
-### P1.1 — Duplicate listener: `chatDocProvider` + `_chatDocForSettingsProvider`
+### ✅ P1.1 — Duplicate listener: `chatDocProvider` + `_chatDocForSettingsProvider` — **FIXED (Session 167)**
 
 | Αρχείο | Γραμμές | Τύπος |
 |--------|---------|-------|
-| `chat_provider.dart:10` | `chatDocProvider` | StreamProvider.autoDispose.family |
-| `group_settings_screen.dart:14` | `_chatDocForSettingsProvider` | StreamProvider.autoDispose.family |
+| ~~`group_settings_screen.dart`~~ | ~~14-18~~ | ~~Private StreamProvider~~ **REMOVED** |
+| `chat_provider.dart:10` | `chatDocProvider` | StreamProvider.autoDispose.family (reused) |
 
 **Πρόβλημα:** Δύο ξεχωριστοί StreamProvider ακούνε και οι δύο στο ίδιο `chats/{chatId}` document. Κάθε φορά που κάποιος ανοίγει GroupSettings, δημιουργείται **δεύτερος listener** στο ίδιο ακριβώς doc.
 
 **Λύση:** Αντικατάσταση `_chatDocForSettingsProvider` με `chatDocProvider(chatId)` reuse.
 
-```dart
-// group_settings_screen.dart — ΑΝΤΙ για:
-final _chatDocForSettingsProvider = StreamProvider.autoDispose.family<DocumentSnapshot?, String>((ref, chatId) {
-  return FirebaseFirestore.instance.collection('chats').doc(chatId).snapshots();
-});
+**Αλλαγές σε 1 αρχείο:**
+- `group_settings_screen.dart`:
+  1. Αφαίρεση `import 'package:cloud_firestore/cloud_firestore.dart';` (unused)
+  2. Αφαίρεση `_chatDocForSettingsProvider` definition (lines 14-18)
+  3. `ref.watch(_chatDocForSettingsProvider(...))` → `ref.watch(chatDocProvider(...))`
 
-// ΧΡΗΣΙΜΟΠΟΙΟΥΜΕ:
-// ref.watch(chatDocProvider(chatId)) — από chat_provider.dart
-```
+**Verified:** `flutter analyze` — **0 issues** ✅
 
 **Εξοικονόμηση:** 1 duplicate listener ανά group settings open. Με 100 opens/ημέρα → **50% reduction στο listener cost για αυτό το doc.**
 
@@ -483,6 +481,20 @@ const tokensSnap = await db.collection(`users/${recipientUid}/fcm_tokens`).get()
 
 ---
 
+### ✅ P2.6 — Provider cascade on startup (chatsProvider dispose/recreate) — **FIXED (Session 167)**
+
+| Αρχείο | Γραμμή | Issue |
+|--------|--------|-------|
+| `main.dart` | 359 | `prev is AsyncData` |
+
+**Πρόβλημα:** Σε κάθε startup, το `chatsProvider` δημιουργούνταν 2 φορές — μία από το `unreadBadgeProvider` cascade και μία από το `ref.invalidate(chatsProvider)` στο main's auth listener (το πρώτο emit του `authStateProvider` έκανε `prev?.value = null` → `uidChanged = true` → invalidate).
+
+**Λύση:** `if ((uidChanged \|\| emailVerifiedChanged) && prev is AsyncData)` — το `prev is AsyncData` αποκλείει το πρώτο emit (`AsyncLoading` → `AsyncData`), επιτρέποντας μόνο real changes.
+
+**Εξοικονόμηση:** 1 επιπλέον `streamChats()` query + decrypt cycle στο startup. Αμελητέο κόστος αλλά διορθώνει περιττό pattern.
+
+---
+
 ### P2.5 — `sendChatNotification`: sender profile read also in non-group branch
 
 | Αρχείο | Γραμμές | Issue |
@@ -627,7 +639,7 @@ final verify = await docRef.get();  // ← unnecessary
 | Auth state changes | Already handled (Session 151: `isSigningOut` flag) |
 | Search input changes | Already handled (Nominatim 800ms debounce) |
 | Firestore snapshot changes | N/A — real-time requirements |
-| Provider cascade on auth | Already mitigated (Session 151-154) |
+| Provider cascade on auth | Already mitigated (Session 151-154 + 167: `prev is AsyncData`) |
 
 ---
 
@@ -689,13 +701,13 @@ const lang = (await db.doc(`path`).get()).data()?.lang;  // ← 2nd read!
 | **P0.2** | **participantPair 3-tier lookup** | **~89.700** | **0** | **~€0.72** | **✅** |
 | P0.3 | markAsRead lastReadTimestamp + .limit(50) | ~30.000 | ~30.000 | ~€0.48 | **✅** |
 | P0.4 | `clearMessages` pagination loop | ~3.000 | 0 | ~€0.02 | **✅** |
-| P1.1 | Remove duplicate listener | ~15.000 | 0 | ~€0.12 | ⏳ |
+| P1.1 | Remove duplicate listener | ~15.000 | 0 | ~€0.12 | **✅ (Session 167)** |
 | P1.2 | Parallel createChat reads | (latency) | 0 | — | ⏳ |
 | P1.3 | Remove debug banned check | ~3.000 | 0 | ~€0.02 | ⏳ |
 | P1.4 | Remove verify read in publish | ~3.000 | 0 | ~€0.02 | ⏳ |
 | P1.5 | Unread count optimization | ~30.000 | 0 | ~€0.24 | ⏳ |
 | P2.1 | CF senderSnap reuse | ~30.000 | 0 | ~€0.24 | ⏳ |
-| **Σύνολο** | | **~203.700** | **~79.500** | **~€2.75/μήνα** | |
+| **Σύνολο** | | **~218.700** | **~79.500** | **~€2.87/μήνα** | |
 
 > **Σημείωση:** Το Firestore χρεώνει ~$0.06/100k reads, ~$0.18/100k writes (Blaze plan). Η εξοικονόμηση για 1k χρήστες είναι ~€2.53/μήνα. Για 10k χρήστες → ~€25/μήνα. Για 100k χρήστες → ~€250/μήνα.
 
@@ -721,13 +733,15 @@ const lang = (await db.doc(`path`).get()).data()?.lang;  // ← 2nd read!
 | **✅** | **P0.3** — `markAsRead`: lastReadTimestamp + .limit(50) + rules fix | **Κόστος + Rules PERMISSION_DENIED** | **Session 166** ✅ |
 | **✅** | **P0.4** — `clearMessages`: pagination loop + `.limit(500)` | **Crash fix** + Κόστος | **Session 166** ✅ |
 | **✅** | **P0.1** — `_deleteChatForEveryone`: pagination loop + batch | **Crash fix** + Κόστος | **Session 166** ✅ |
+| **✅** | **P1.1** — Remove duplicate `_chatDocForSettingsProvider` | **Κόστος (duplicate listener)** | **Session 167** ✅ |
+| **✅** | **P2.6** — Provider cascade on startup: `prev is AsyncData` | Περιττό pattern | **Session 167** ✅ |
 
 ### Φάση Α — Κρίσιμα (P0) — **ΟΛΑ ΟΛΟΚΛΗΡΩΜΕΝΑ** ✅
 
-### Φάση Β — Υψηλή Προτεραιότητα (P1 — 5 items)
+### Φάση Β — Υψηλή Προτεραιότητα (P1 — 5 items, 1 ✅)
 | Σειρά | Θέμα | Impact | Εκτίμηση |
 |:-----:|------|:------:|:--------:|
-| 4 | **P1.1** — Remove duplicate `_chatDocForSettingsProvider` | Κόστος | 20 λεπτά |
+| **✅** | **P1.1** — Remove duplicate `_chatDocForSettingsProvider` | Κόστος | **✅ Fixed (Session 167)** |
 | 5 | **P1.2** — Parallel reads in `createChat()` | Latency | 15 λεπτά |
 | 6 | **P1.3** — Remove debug banned check + parallel reads in `sendRequest()` | Κόστος + Latency | 20 λεπτά |
 | 7 | **P1.4** — Conditional verify read in `publish()` | Κόστος | 10 λεπτά |

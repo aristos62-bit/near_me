@@ -359,25 +359,27 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
           .collection('public')
           .doc('profile')
           .set(json);
-      try {
-        final verifyDoc = await _firestore
-            .collection('users')
-            .doc(uid)
-            .collection('public')
-            .doc('profile')
-            .get();
-        if (verifyDoc.exists) {
-          final rawData = verifyDoc.data()!;
-          DebugConfig.log(DebugConfig.firestoreWrite,
-              'publish VERIFY doc after set: isVisible=${rawData['isVisible']}, '
-              'city="${rawData['city']}", country="${rawData['country']}", '
-              'geoHash="${rawData['geoHash']}", isManualLocation=${rawData['isManualLocation']}, '
-              'isOnline=${rawData['isOnline']}, keys=${rawData.keys.join(", ")}');
-        } else {
-          DebugConfig.warn('publish VERIFY: doc not found after set');
+      if (DebugConfig.debugMode) {
+        try {
+          final verifyDoc = await _firestore
+              .collection('users')
+              .doc(uid)
+              .collection('public')
+              .doc('profile')
+              .get();
+          if (verifyDoc.exists) {
+            final rawData = verifyDoc.data()!;
+            DebugConfig.log(DebugConfig.firestoreWrite,
+                'publish VERIFY doc after set: isVisible=${rawData['isVisible']}, '
+                'city="${rawData['city']}", country="${rawData['country']}", '
+                'geoHash="${rawData['geoHash']}", isManualLocation=${rawData['isManualLocation']}, '
+                'isOnline=${rawData['isOnline']}, keys=${rawData.keys.join(", ")}');
+          } else {
+            DebugConfig.warn('publish VERIFY: doc not found after set');
+          }
+        } catch (e) {
+          DebugConfig.warn('publish VERIFY: failed to read back', data: e);
         }
-      } catch (e) {
-        DebugConfig.warn('publish VERIFY: failed to read back', data: e);
       }
       await saveProfile(profile.copyWith(isPublished: true));
       await _db.logConsent(uid, 'publish', 'profile');

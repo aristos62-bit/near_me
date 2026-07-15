@@ -82,6 +82,9 @@ Typesense, Video (Agora), AI matching, Groups, Verified badge, Premium, Web, Adm
 | 24 | **Biometric idle timer runs on `inactive`** — notification shade, phone call | Handle `AppLifecycleState.inactive` alongside `paused` — stop timer |
 | 25 | **Idle timer active after sign-out** — LockScreen over welcome screen | `ref.listen(authStateProvider)` — stop timer + reset `_isLocked=false` |
 | 26 | **Chat disappears from list after create** — `_saveChatCache` duplicate → cleanup UPDATE 0 rows | Remove `_saveChatCache` root cause + `var rows`/`rows=[]` defense-in-depth |
+| 27 | **joinPublicGroup crash** — transaction `get()` blocked by rules (not participant yet) | Public read rule + self-join update rule + nickname read refactor |
+| 28 | **notBanned() gaps** — 17 rules missing ban check in chat/request layer | Add `notBanned()` to all 17 rules |
+| 29 | **memberCount silent failure** — groups update required `isGroupCreator` even for `memberCount` | `isGroupMember()` helper + `hasOnly(['memberCount'])` OR rule |
 
 ## Session Progression
 
@@ -697,6 +700,9 @@ final isAdmin = permsInfo?.hasPermission(currentUid, GroupPermission.inviteMembe
 | **P1.5** — Server-side `unreadCount` map (zero count queries) | ✅ **Session 168** |
 | **P0 — joinPublicGroup crash** (rules read/update fix + nickname refactor) | ✅ **Session 169** |
 | **Member status UI** ("Είσαι Μέλος"/"Member" στην αναζήτηση group) | ✅ **Session 169** |
+| **notBanned()** σε 17 chat/request rules + isGroupMember helper | ✅ **Session 170** |
+| **memberCount fix** — groups update rules restructured | ✅ **Session 170** |
+| **Dual-device production testing** — all flows verified | ✅ **Session 170** |
 | `flutter analyze` | ✅ Clean |
 
 ### ✅ Ολοκληρωμένο — Role-based visibility σε group chat screens

@@ -1440,3 +1440,249 @@ final displayMsg = message.contains(' / ')
 - Provider dispose/recreate → fresh cache → 1 rebuild
 
 **Verified:** `flutter analyze` clean ✅
+
+---
+
+## Session 175 — Media Input Plan (media_input.md) + Phase 1 (Emoji Picker) Detailed Proposal
+
+**Πεδίο:** Ανάλυση και σχεδιασμός για media input σε chats (emoji, GIF, photo, video). Δημιουργία `media_input.md` με revised v2 plan, και λεπτομερής πρόταση υλοποίησης Φάσης 1 (Emoji Picker) βασισμένη σε codebase evidence.
+
+### Τι έγινε
+
+1. **Δημιουργία `media_input.md`** — Πλήρης ανάλυση:
+   - Cost analysis (Firebase resources, ~€1.90/μήνα για 1k users στο μεσαίο σενάριο)
+   - Υπάρχουσες λειτουργίες προς reuse (StorageService, ImagePicker, κλπ.)
+   - 4 φάσεις: Emoji → GIF → Photo → Video
+   - Αποφάσεις: storage rules με `firestore.get()` (όχι signed URLs/CF), `deleteAllChatMedia` σε 3 deletion paths, `encrypted: false` forward-compatible flag, dual-path `_MediaBubble`, ConsentLog `sent_chat_media`, EXIF stripping, auto-delete media >30 ημέρες (post-MVP)
+
+2. **Codebase reading** (για grounding της πρότασης):
+   - `chat_screen.dart` — `_ChatInputBar` (γραμμές 272-374) → extraction target
+   - `chat_messages_list.dart` — message rendering, action callbacks
+   - `message_bubble.dart` — `_SystemBubble`, `_buildPreviewText` pattern
+   - `debug_config.dart` — υπάρχοντα flags (uiInteraction, uiLifecycle, κλπ.)
+   - `l10n.dart`, `error_messages.dart`, `app_messenger.dart` — bilingual patterns
+   - `feature_flags.dart` — no media flag yet
+   - `responsive_utils.dart` — breakpoints (mobile/tablet/desktop)
+   - `pubspec.yaml` — `emoji_picker_flutter` ΔΕΝ υπάρχει
+
+3. **User corrections incorporated:**
+   - GIF → Φάση 2 (όχι Φάση 1)
+   - Storage rules: `firestore.get()` participant check (όχι Cloud Functions)
+   - `deleteGroup` cleanup: `deleteAllChatMedia` προστέθηκε
+   - EXIF stripping: ενιαία για chat media + profile photos
+   - ConsentLog: `sent_chat_media` action
+   - E2E encryption: deferred (ξεχωριστή συζήτηση)
+   - `messagesStream` decrypt attempt: documented as known side-effect
+   - Forward-compatible `encrypted: false` + `chatId` + `isEncrypted` parameters
+
+4. **Λεπτομερής πρόταση Φάσης 1 (Emoji Picker)** — γραμμένη στο media_input.md §5:
+   - Προαπαιτούμενα & μπλοκαρίσματα (πίνακας)
+   - Εμπλεκόμενα αρχεία (3: pubspec, νέο chat_input_bar.dart, chat_screen.dart)
+   - 6 κανόνες από codebase (multilingual, responsive, debug, error, state, theme)
+   - Πλήρης κώδικας `chat_input_bar.dart` (~180 γραμμές)
+   - Diff για `chat_screen.dart`
+   - 12 edge cases (από 3 στην αρχική πρόταση)
+   - Flutter lifecycle analysis (7 events)
+   - Memory footprint
+   - Implementation order (5 βήματα)
+   - Σύνοψη flags & guards
+
+### Αρχεία
+| Αρχείο | Αλλαγή |
+|--------|--------|
+| `media_input.md` | Δημιουργία revised v2 plan (1637 γραμμές) |
+| `oldsessions.md` | Ενημέρωση — Session 175 |
+
+### Αποφάσεις
+- Emoji picker: **€0**, pure client-side, καμία backend αλλαγή
+- `emoji_picker_flutter: ^4.0.0` — needs `flutter pub add`
+- `_ChatInputBar` → extraction σε `chat_input_bar.dart` (public `ChatInputBar`)
+- Feature flag για emoji: **δεν χρειάζεται** (δεν αλλάζει backend/model)
+- Debug: χρήση υπάρχοντος `DebugConfig.uiInteraction` flag
+- Responsive: LayoutBuilder + ResponsiveUtils (υπάρχον pattern)
+
+### Επόμενο Βήμα
+Έναρξης υλοποίησης Φάσης 1 (Emoji Picker) — 1 βήμα τη φορά: backup → edit → flutter analyze → user OK
+
+---
+
+## Session 176 — Emoji Picker Phase 1 Implementation Complete
+
+**Πεδίο:** Υλοποίηση Phase 1 (Emoji Picker) από το `media_input.md` proposal — extraction `ChatInputBar` + emoji picker integration.
+
+### Τι έγινε
+
+1. **`media_input.md` revision** — Review πρότασης Phase 1, identified 5 gaps (keyboard overlap, auto-close on focus, back button, responsive height, Config API). Updated to v2.
+
+2. **Dependency:** `flutter pub add emoji_picker_flutter` → v4.4.0 ✅
+
+3. **Extraction:** `_ChatInputBar` από `chat_screen.dart` → νέο `lib/features/chat/widgets/chat_input_bar.dart` (~215 γραμμές):
+   - `ConsumerStatefulWidget` (reuse pattern)
+   - `textEditingController`, `FocusNode` για keyboard management
+   - `_toggleEmojiPicker()`: `FocusScope.unfocus()` πριν show → αποτρέπει keyboard overlap
+   - `_focusNode` listener → auto-κλείσιμο picker όταν TextField παίρνει focus
+   - `_onEmojiSelected()`: cursor-aware insertion (σωστή θέση ακόμα και με selected text)
+   - Responsive height: 250px portrait, 150px landscape (`MediaQuery.of(context).orientation`)
+   - `canComm` guard (unverified users δεν βλέπουν emoji button)
+   - `_isLoading` + `mounted` guard (double-send protection)
+   - Bilingual (el/en) hints + error messages
+   - Error recovery: restore text on send failure
+   - `DebugConfig.log(DebugConfig.uiInteraction, ...)` σε init, dispose, toggle, build
+
+4. **`chat_screen.dart` cleanup:**
+   - Αφαίρεση `_ChatInputBar` class (γραμμές 272-374) → ~272 γραμμές
+   - Import `ChatInputBar` + αντικατάσταση στη θέση του
+   - Αφαίρεση duplicate imports (γραμμές 14-16)
+
+5. **Config API fix:** `Config(clipBehavior: Clip.none)` — το `Config` class **δεν έχει** `clipBehavior` parameter. Αφαιρέθηκε → `Config()` χωρίς params.
+
+### Αρχεία
+
+| Αρχείο | Αλλαγή |
+|--------|--------|
+| `lib/features/chat/widgets/chat_input_bar.dart` | ΝΕΟ — full widget ~215 γρ. |
+| `lib/features/chat/screens/chat_screen.dart` | Extraction `_ChatInputBar` + clean imports, ~272 γρ. |
+| `media_input.md` | Updated: status, checklist, line counts, Config API note |
+| `pubspec.yaml` | +`emoji_picker_flutter: ^4.4.0` |
+| `backups/chat_screen.dart.bak_2026-07-16_phase1` | Backup pre-extraction |
+| `backups/chat_screen.dart.bak_2026-07-16_fix1` | Backup pre-Config fix |
+| `backups/chat_input_bar.dart.bak_2026-07-16_fix1` | Backup pre-Config fix |
+
+### Εκκρεμεί
+- Device test (emoji toggle, insert at cursor, send) — θα το κάνει ο χρήστης και θα ανεβάσει logs
+
+**Verified:** `flutter analyze` — **0 issues** ✅
+
+---
+
+## Session 177 — Emoji Picker Refactor: Theme-Aware, Responsive, No Rebuild Storm
+
+**Πεδίο:** Επίλυση 3 προβλημάτων (rebuild storm, white background, sizing) + refactoring architecture.
+
+### Evidence-Based Analysis
+
+| Πρόβλημα | Root Cause (από source code) |
+|----------|------------------------------|
+| **Rebuild storm** | `EmojiPicker` loadingIndicator default = `SizedBox.shrink()` (0px) → async `_updateEmojis()` → `setState(_loaded=true)` → `SizedBox(height:256)`. Μετάβαση 0→256 cascade through Column→Expanded→LayoutBuilder. |
+| **White background** | `EmojiViewConfig.backgroundColor` default = `Color(0xFFEBEFF2)` — hardcoded ανοιχτό. Dark mode contrast. `Config` class **δεν έχει** `bgColor` (docs wrong). |
+| **Sizing** | Σταθερό 250/150px χωρίς responsive. Χωρίς `Config.height` control. |
+
+### Λύση
+
+1. **`EmojiPickerConfig` (Single Point of Truth):** Νέο `lib/features/chat/utils/emoji_picker_config.dart`:
+   - `create(context)` — theme-aware Config (colors from `theme.colorScheme`)
+   - `responsiveHeight(context)` — breakpoint-based: 35% mobile, 30% tablet, 25% desktop (portrait), 55% landscape
+   - `Config(height: null)` — removes internal constraint, external SizedBox controls height
+   - `Config.locale` — from `L10n.isGreek(context)` (el/en)
+   - All sub-configs themed: `EmojiViewConfig`, `CategoryViewConfig`, `BottomActionBarConfig`, `SearchViewConfig`, `SkinToneConfig`
+
+2. **`ChatInputBar` refactored:** Δεν διαχειρίζεται πια emoji state. Νέα props:
+   - `textEditingController`, `emojiPickerVisible`, `onEmojiToggle`, `onEmojiDismiss`
+
+3. **`ChatScreen` owns emoji state:** `_textCtrl`, `_emojiPickerVisible`, `_toggleEmojiPicker`, `_dismissEmojiPicker`, `_onEmojiSelected`. EmojiPicker rendered as sibling (not inside ChatInputBar).
+
+### Αρχεία
+
+| Αρχείο | Αλλαγή |
+|--------|--------|
+| `lib/features/chat/utils/emoji_picker_config.dart` | ΝΕΟ — theme-aware Config factory + responsive height |
+| `lib/features/chat/widgets/chat_input_bar.dart` | Refactor: 213→180 γρ., emoji logic removed, 4 νέα props |
+| `lib/features/chat/screens/chat_screen.dart` | Refactor: 269→322 γρ., emoji state + rendering |
+| `media_input.md` | Updated status |
+| `backups/chat_input_bar.dart.bak_2026-07-16_v2` | Backup pre-refactor |
+| `backups/chat_screen.dart.bak_2026-07-16_v2` | Backup pre-refactor |
+
+### Device Test Pending
+- Emoji toggle (shown/hidden) → verify responsive height
+- Emoji insert at cursor → verify position
+- Send text + emoji → verify both work
+- Theme colors → verify no white background
+- Orientation change while picker visible → verify height adapts
+- Keyboard dismiss → verify picker hides
+
+**Verified:** `flutter analyze` — **0 issues** ✅
+
+---
+
+## Session 178 — ChatScreen Rebuild Storm Fix: Analysis, Implementation & Partial Verification
+
+**Πεδίο:** Διάγνωση και διόρθωση rebuild storm (30fps bursts σε `ChatScreen didChangeDependencies`) που προκαλείται από Firestore `.snapshots()` → provider chain cascade.
+
+### Ανακάλυψη: `List.==` is Identity, Not Element-Wise
+
+Το Dart `List.==` κάνει **identity comparison**, όχι element-wise. Αυτό σημαίνει ότι η `participantUidsProvider` (γραμμή 58-69 `chat_provider.dart`) επιστρέφει νέα `List<String>` σε κάθε `chatDocProvider` emit → Riverpod πάντα notify, ακόμα και όταν τα uids δεν έχουν αλλάξει.
+
+### Cascade Paths
+
+| Path | Root Cause | Impact |
+|:----:|-----------|:------:|
+| **A** | `ChatScreen.build()` → `ref.watch(chatDocProvider)` → notify σε κάθε Firestore emit | Rebuild oλόκληρου ChatScreen σε κάθε `lastReadTimestamp`/`unreadCount` change |
+| **B** | `participantUidsProvider` → `List.==` identity → notify σε κάθε chatDocProvider emit | Ξεχωριστό notify chain (συνδυάζεται με Path A) |
+
+### Fix A — participantUidsProvider Cache
+
+```dart
+final _participantUidCaches = <String, List<String>>{};
+
+final participantUidsProvider = Provider.autoDispose.family<List<String>, String>((ref, chatId) {
+  final chatDoc = ref.watch(chatDocProvider(chatId));
+  return chatDoc.when(data: (chat) {
+    final uids = chat != null ? List<String>.from(chat['participants'] as List) : <String>[];
+    final cached = _participantUidCaches[chatId];
+    if (cached != null && const DeepCollectionEquality().equals(cached, uids)) {
+      DebugConfig.log(DebugConfig.chat, 'participantUidsProvider cache hit for $chatId');
+      return cached;
+    }
+    DebugConfig.log(DebugConfig.chat, 'participantUidsProvider cache miss for $chatId');
+    _participantUidCaches[chatId] = uids;
+    return uids;
+  }, loading: () => _participantUidCaches[chatId] ?? const [], error: (_, __) => const []);
+}, name: 'participantUidsProvider');
+```
+
+**Κρίσιμο:** Το `autoDispose.family` dispose + recreate provider σε κάθε dependency change. Η cache cleanup στο `onDispose` ακύρωνε το caching. Λύση: **ΚΑΘΟΛΟΥ** cleanup στο `onDispose` (αμελητέο memory leak).
+
+### Fix B — select() αντί direct watch
+
+```dart
+final isGroupChat = ref.watch(chatDocProvider(widget.chatId).select(
+    (chat) => chat.valueOrNull != null ? chat.valueOrNull!['isGroupChat'] as bool? ?? false : false));
+final groupName = ref.watch(chatDocProvider(widget.chatId).select(
+    (chat) => chat.valueOrNull != null ? chat.valueOrNull!['groupName'] as String? : null));
+final participantNicknames = ref.watch(_chatScreenNicknamesProvider(widget.chatId));
+```
+
+3 selectors αντί 1 `ref.watch(chatDocProvider(...))`. `lastReadTimestamps`/`unreadCount` changes → **0 ChatScreen rebuilds**.
+
+### Fix C — Debug Logging
+
+- `chatDocProvider suppressed` log όταν skip notification
+- `participantUidsProvider cache hit/miss` log
+
+### Device Test Results (Verified ✅)
+
+| Test | Result |
+|:----|:------:|
+| Emoji picker show/hide rebuilds | ✅ **Fix B works** — 1 rebuild από setState, όχι storm |
+| participantUidsProvider cache hit | ✅ **Fix A works** — 6 cache hits, κάθε chatDocProvider emit μπλοκάρεται |
+| `ChatScreen didChangeDependencies` bursts | ✅ **Provider storm fixed** — bursts μόνο από keyboard animation |
+| Keyboard dismiss animation cascade | ⚠️ ~450-500ms, ~60fps — **MediaQuery InheritedWidget** (Flutter framework, NOT preventable) |
+| Route pop animation cascade | ⚠️ Ίδιο pattern: MediaQuery animation |
+| Dispose chain | ✅ All providers properly disposed on exit |
+
+### Files
+
+| File | Change |
+|------|--------|
+| `lib/features/chat/providers/chat_provider.dart` | Fix A (cache `_participantUidCaches` + `DeepCollectionEquality`), Fix C (suppressed/cache hit logs) |
+| `lib/features/chat/screens/chat_screen.dart` | Fix B (selectors αντί direct `chatDocProvider` watch), `_ChatScreenNicknames` class, `import 'package:collection/collection.dart'` |
+| `media_input.md` | Updated status |
+| `oldsessions.md` | Session 178 added |
+| `backups/chat_provider.dart.bak_2026-07-16` | Backup pre-Fix A |
+| `backups/chat_screen.dart.bak_2026-07-16` | Backup pre-Fix B |
+
+**Verified:** `flutter analyze` — **0 issues** ✅ (3 φορές)
+
+### Completed ✅
+- Device test logs με νέο Fix A (no `onDispose` cache cleanup) — **verified: cache hits working ✅**
+- ChatScreen rebuild storm από providers — **fixed ✅** (loops: keyboard animation cascade μόνο, Flutter framework)

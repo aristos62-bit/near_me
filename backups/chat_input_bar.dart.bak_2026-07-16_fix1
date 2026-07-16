@@ -1,0 +1,215 @@
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/debug/debug_config.dart';
+import '../../../core/l10n/l10n.dart';
+import '../../../core/theme/responsive_utils.dart';
+import '../../../core/utils/app_messenger.dart';
+import '../../../core/utils/error_messages.dart';
+import '../../../repositories/auth_repository.dart';
+import '../../auth/providers/auth_provider.dart';
+import '../providers/chat_provider.dart';
+
+class ChatInputBar extends ConsumerStatefulWidget {
+  final String chatId;
+  final bool isGroupChat;
+
+  const ChatInputBar({
+    super.key,
+    required this.chatId,
+    this.isGroupChat = false,
+  });
+
+  @override
+  ConsumerState<ChatInputBar> createState() => _ChatInputBarState();
+}
+
+class _ChatInputBarState extends ConsumerState<ChatInputBar> {
+  final _textCtrl = TextEditingController();
+  final _focusNode = FocusNode();
+  bool _isLoading = false;
+  bool _emojiPickerVisible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(_onFocusChange);
+    DebugConfig.log(DebugConfig.uiInteraction,
+        'ChatInputBar init: ${widget.chatId}');
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
+    _textCtrl.dispose();
+    DebugConfig.log(DebugConfig.uiInteraction,
+        'ChatInputBar dispose: ${widget.chatId}');
+    super.dispose();
+  }
+
+  void _onFocusChange() {
+    if (_focusNode.hasFocus && _emojiPickerVisible) {
+      setState(() => _emojiPickerVisible = false);
+    }
+  }
+
+  Future<void> _send() async {
+    final text = _textCtrl.text.trim();
+    if (text.isEmpty || _isLoading) return;
+    _textCtrl.clear();
+    setState(() => _isLoading = true);
+    final ok = await ref
+        .read(chatActionsProvider.notifier)
+        .sendMessage(widget.chatId, text);
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+    if (!ok) {
+      _textCtrl.text = text;
+      final chatState = ref.read(chatActionsProvider);
+      AppMessenger.showError(
+        context,
+        ErrorMessages.get(
+            chatState.errorMessage ?? 'chat/send-failed',
+            L10n.isGreek(context)),
+      );
+    }
+  }
+
+  void _toggleEmojiPicker() {
+    if (!_emojiPickerVisible) {
+      FocusScope.of(context).unfocus();
+    }
+    setState(() => _emojiPickerVisible = !_emojiPickerVisible);
+    DebugConfig.log(DebugConfig.uiInteraction,
+        'ChatInputBar: emoji picker '
+        '${_emojiPickerVisible ? "shown" : "hidden"}');
+  }
+
+  void _onEmojiSelected(Emoji emoji) {
+    final pos = _textCtrl.selection.baseOffset;
+    final text = _textCtrl.text;
+    if (pos < 0 || pos > text.length) {
+      _textCtrl.text = '$text${emoji.emoji}';
+      _textCtrl.selection =
+          TextSelection.collapsed(offset: _textCtrl.text.length);
+    } else {
+      _textCtrl.text =
+          '${text.substring(0, pos)}${emoji.emoji}${text.substring(pos)}';
+      _textCtrl.selection =
+          TextSelection.collapsed(offset: pos + emoji.emoji.length);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final greek = L10n.isGreek(context);
+    final theme = Theme.of(context);
+    final currentUser =
+        ref.watch(authStateProvider).value ?? FirebaseAuth.instance.currentUser;
+    final canComm = AuthRepository.canUserCommunicate(currentUser);
+    DebugConfig.log(DebugConfig.uiInteraction,
+        'ChatInputBar build: canComm=$canComm '
+        'emojiVisible=$_emojiPickerVisible');
+
+    final hintText = widget.isGroupChat
+        ? (greek ? 'Γράψε στην ομάδα...' : 'Type to group...')
+        : (greek ? 'Γράψε ένα μήνυμα...' : 'Type a message...');
+
+    final emojiPickerHeight =
+        MediaQuery.of(context).orientation == Orientation.landscape
+            ? 150.0
+            : 250.0;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = ResponsiveUtils.resolveWidth(context, constraints);
+        return Container(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            border: Border(
+                top: BorderSide(color: theme.dividerColor)),
+          ),
+          padding: EdgeInsets.only(
+            left: ResponsiveUtils.paddingValueFromWidth(w),
+            right: ResponsiveUtils.paddingValueFromWidth(w),
+            top: 8,
+            bottom: MediaQuery.of(context).padding.bottom + 8,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (!canComm)
+                Row(children: [
+                  const SizedBox(width: 12),
+                  Icon(Icons.info_outline,
+                      size: 18, color: theme.colorScheme.primary),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(
+                    greek
+                        ? 'Πρέπει να επαληθεύσεις τον λογαριασμό σου '
+                          'για να στείλεις μηνύματα'
+                        : 'You must verify your account '
+                          'to send messages',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  )),
+                ])
+              else
+                Row(children: [
+                  if (!_isLoading)
+                    IconButton(
+                      icon: Icon(
+                        _emojiPickerVisible
+                            ? Icons.keyboard
+                            : Icons.emoji_emotions_outlined,
+                      ),
+                      onPressed: _toggleEmojiPicker,
+                      tooltip: 'Emoji',
+                    ),
+                  Expanded(child: TextField(
+                    controller: _textCtrl,
+                    focusNode: _focusNode,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => _send(),
+                    decoration: InputDecoration(
+                      hintText: hintText,
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(24)),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 10),
+                      filled: true,
+                      fillColor: theme
+                          .colorScheme.surfaceContainerHighest
+                          .withAlpha(80),
+                    ),
+                  )),
+                  const SizedBox(width: 8),
+                  IconButton.filled(
+                    onPressed: _isLoading ? null : _send,
+                    icon: _isLoading
+                        ? const SizedBox(
+                            width: 20, height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.send_rounded),
+                  ),
+                ]),
+              if (_emojiPickerVisible && canComm)
+                SizedBox(
+                  height: emojiPickerHeight,
+                  child: EmojiPicker(
+                    onEmojiSelected: (_, emoji) =>
+                        _onEmojiSelected(emoji),
+                    config: const Config(
+                      clipBehavior: Clip.none,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}

@@ -23,8 +23,6 @@ final chatDocProvider = StreamProvider.autoDispose.family<DocumentSnapshot?, Str
           final prevData = previous!.data();
           final currData = snap.data();
           if (const DeepCollectionEquality().equals(prevData, currData)) {
-            DebugConfig.log(DebugConfig.firestoreStream,
-                'chatDocProvider suppressed: $chatId data unchanged');
             return previous!;
           }
         }
@@ -57,13 +55,9 @@ final messagesProvider = StreamProvider.autoDispose.family<List<Map<String, dyna
   return stream;
 });
 
-final _participantUidCaches = <String, List<String>>{};
-
 final participantUidsProvider = Provider.autoDispose.family<List<String>, String>((ref, chatId) {
   DebugConfig.log(DebugConfig.providerCreate, 'participantUidsProvider created (derived) for chat: $chatId');
-  ref.onDispose(() {
-    DebugConfig.log(DebugConfig.providerDispose, 'participantUidsProvider disposed (derived) for chat: $chatId');
-  });
+  ref.onDispose(() => DebugConfig.log(DebugConfig.providerDispose, 'participantUidsProvider disposed (derived) for chat: $chatId'));
   final chatDocAsync = ref.watch(chatDocProvider(chatId));
   final snap = chatDocAsync.asData?.value;
   if (snap == null || !snap.exists) return [];
@@ -71,15 +65,7 @@ final participantUidsProvider = Provider.autoDispose.family<List<String>, String
   if (data == null) return [];
   final participants = List<String>.from(data['participants'] ?? []);
   final activeMap = (data['participantIsActive'] as Map?) ?? {};
-  final result = participants.where((p) => activeMap[p] != false).toList();
-  final cached = _participantUidCaches[chatId];
-  if (cached != null && const DeepCollectionEquality().equals(cached, result)) {
-    DebugConfig.log(DebugConfig.providerCreate,
-        'participantUidsProvider cache hit: $chatId');
-    return cached;
-  }
-  _participantUidCaches[chatId] = result;
-  return result;
+  return participants.where((p) => activeMap[p] != false).toList();
 });
 
 final groupPermissionsProvider = FutureProvider.autoDispose.family<GroupPermissionsInfo, String>((ref, chatId) {

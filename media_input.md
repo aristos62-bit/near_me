@@ -1,7 +1,7 @@
 # NearMe — Media Input for Chats: Revised Analysis & Implementation Plan v2
 
 > **Ημερομηνία:** 16 Ιουλίου 2026
-> **Κατάσταση:** Phase 1 ✅ — Emoji Picker refactored + rebuild storm fixes verified
+> **Κατάσταση:** Phase 1 ✅ — Emoji Picker refactored + rebuild storm fixes verified + EmojiPickerPanel isolated
 
 ---
 
@@ -171,7 +171,7 @@ Future<void> sendMediaMessage(
 
 ---
 
-## 5. Φάση 1 — Emoji Picker ✅ (v2 — implementation complete 16/7/2026)
+## 5. Φάση 1 — Emoji Picker ✅ (v3 — 16/7/2026: EmojiPickerPanel extraction + rebuild isolation)
 
 **Κόστος:** €0. Entirely client-side. Καμία επιβάρυνση σε Firestore, Storage, Cloud Functions, ή Tenor. Μόνο dependency: `emoji_picker_flutter` (free, MIT).
 
@@ -180,32 +180,47 @@ Future<void> sendMediaMessage(
 | Έλεγχος | Κατάσταση | Αν χρειάζεται ενέργεια |
 |---------|:---------:|-----------------------|
 | `emoji_picker_flutter` στο pubspec.yaml | ✅ v4.4.0 | `flutter pub add emoji_picker_flutter` |
-| `_ChatInputBar` (private) → extraction σε νέο widget | ✅ `chat_input_bar.dart` (215γρ) | Δημιουργήθηκε νέο widget + FocusNode/emoji logic |
-| `chat_screen.dart` — αντικατάσταση `_ChatInputBar` | ✅ `ChatInputBar(chatId:...)` | Import + αντικατάσταση, 272γρ |
-| `flutter analyze` | ✅ Clean | 0 issues (Config API fix applied) |
+| `ChatInputBar` extraction | ✅ `chat_input_bar.dart` (~180γρ, v2 refactor) | Props-based: emoji state από ChatScreen |
+| `EmojiPickerConfig` SPoT | ✅ `emoji_picker_config.dart` | Theme-aware Config factory + responsive height |
+| `EmojiPickerPanel` isolation | ✅ `emoji_picker_panel.dart` (27γρ) | Leaf widget, MediaQuery/Theme isolation |
+| `chat_screen.dart` — emoji state owner | ✅ Owns `_emojiPickerVisible`, `_textCtrl`, `_onEmojiSelected` | 3 selectors αντί 1 direct watch (Session 178) |
+| `flutter analyze` | ✅ Clean | 0 issues |
 | Feature flag για emoji | **Δεν χρειάζεται** | Client-side UI μόνο |
 | Firestore / Storage / Cloud Functions | **Καμία αλλαγή** | Pure client-side |
-| Device test (emoji toggle, insert at cursor, send) | ✅ **Verified** | Fix A (cache) + Fix B (select) working. Keyboard animation cascade ~450ms (Flutter framework, όχι provider storm) |
+| Device test (emoji toggle, insert at cursor, send) | ✅ **Verified** | 3 ανοίγματα verified. Zero ChatScreen rebuild storm. Μόνο EmojiPickerPanel rebuilds (internal package loading ~400ms) |
 
 ### 5.2 Εμπλεκόμενα Αρχεία
 
 | Αρχείο | Αλλαγή | Γραμμές |
 |--------|--------|:-------:|
 | `pubspec.yaml` | +`emoji_picker_flutter: ^4.4.0` | +1 |
-| `lib/features/chat/widgets/chat_input_bar.dart` | `ChatInputBar` (ConsumerStatefulWidget) — emoji picker, FocusNode, cursor-aware insertion, responsive height | ~215 |
-| `lib/features/chat/screens/chat_screen.dart` | Αφαίρεση `_ChatInputBar` class, import `ChatInputBar`, διόρθωση duplicate imports | ~272 (από 374) |
-| `backups/chat_screen.dart.bak_2026-07-16_phase1` | Backup pre-extraction | — |
-| `backups/chat_screen.dart.bak_2026-07-16_fix1` | Backup pre-Config fix | — |
+| `lib/features/chat/utils/emoji_picker_config.dart` | **ΝΕΟ (v2)** — Theme-aware Config factory + responsive height SPoT | 83 |
+| `lib/features/chat/widgets/emoji_picker_panel.dart` | **ΝΕΟ (v3)** — Leaf widget, MediaQuery/Theme isolation, debug log, error boundary | 27 |
+| `lib/features/chat/widgets/chat_input_bar.dart` | `ChatInputBar` (v2 refactor) — props-based, emoji logic removed, 4 props | ~180 |
+| `lib/features/chat/screens/chat_screen.dart` | (v1) Extraction `_ChatInputBar`; (v2) emoji state owner + 3 selectors; (v3) `EmojiPickerPanel` αντί SizedBox/EmojiPicker | ~322 |
+| `backups/chat_screen.dart.bak_2026-07-16_phase1` | Backup pre-extraction v1 | — |
+| `backups/chat_screen.dart.bak_2026-07-16_v2` | Backup pre-refactor v2 | — |
+| `backups/chat_screen.dart.bak_2026-07-16_emojiPanel` | Backup pre-EmojiPickerPanel v3 | — |
 | `backups/chat_input_bar.dart.bak_2026-07-16_fix1` | Backup pre-Config fix | — |
+| `backups/chat_input_bar.dart.bak_2026-07-16_v2` | Backup pre-refactor v2 | — |
 
-### 5.3 Αλλαγές v2 (από audit)
+### 5.3 Αλλαγές v2 (από audit — Sessions 177-178)
 
 | # | Αλλαγή | Περιγραφή |
 |:-:|--------|-----------|
-| 1 | `FocusScope.of(context).unfocus()` πριν show emoji | Αποτρέπει keyboard + picker overlap |
-| 2 | `FocusNode` listener → auto-κλείσιμο picker όταν TextField παίρνει focus | Αποτρέπει overlap όταν ο χρήστης πατάει το TextField |
-| 3 | Responsive emoji height: 250px portrait, 150px landscape | Καλύτερη εμπειρία σε landscape |
-| 4 | `emoji_picker_flutter: ^4.4.0` Config API verification | `Config` class **δεν έχει** `clipBehavior` — αφαιρέθηκε. Config χωρίς params. |
+| 1 | `EmojiPickerConfig` SPoT | Theme-aware Config factory, responsive height, locale-aware (`lib/features/chat/utils/emoji_picker_config.dart`) |
+| 2 | `ChatInputBar` refactor | 213→180 γρ., emoji logic removed, 4 νέα props (`textEditingController`, `emojiPickerVisible`, `onEmojiToggle`, `onEmojiDismiss`) |
+| 3 | `ChatScreen` emoji state owner | `_textCtrl`, `_emojiPickerVisible`, `_toggleEmojiPicker`, `_dismissEmojiPicker`, `_onEmojiSelected` |
+| 4 | Rebuild storm fix (Session 178) | `participantUidsProvider` cache + `DeepCollectionEquality` + `select()` αντί direct `chatDocProvider` watch |
+
+### 5.3β Αλλαγές v3 (Session 179 — EmojiPickerPanel extraction)
+
+| # | Αλλαγή | Περιγραφή |
+|:-:|--------|-----------|
+| 1 | `EmojiPickerPanel` leaf widget | Απομονώνει `MediaQuery.of(context)`/`Theme.of(context)` — keyboard animation cascade rebuilds ΜΟΝΟ το panel, όχι ChatScreen |
+| 2 | Debug log | `DebugConfig.log(DebugConfig.uiInteraction, 'EmojiPickerPanel build')` |
+| 3 | Error boundary | `_onEmojiSelected()` wrapper με try-catch + `DebugConfig.error()` |
+| 4 | Convention alignment | Responsive ✅, bilingual ✅, SPoT ✅, debug ✅, edge cases ✅ |
 
 ### 5.4 Υπάρχοντες Κανόνες προς Reuse (από codebase)
 
@@ -222,245 +237,106 @@ Future<void> sendMediaMessage(
 | 9 | `theme.colorScheme.surface` / `theme.dividerColor` | Container styling |
 | 10 | `theme.colorScheme.surfaceContainerHighest.withAlpha(80)` | TextField fill |
 
-### 5.5 Υλοποίηση — chat_input_bar.dart (~195 γραμμές)
+### 5.5 Τρέχουσα Αρχιτεκτονική (v3)
+
+```
+ChatScreen (emoji state owner)
+├── selectors: isGroupChat, groupName, participantNicknames (όχι direct chatDocProvider watch)
+├── _textCtrl, _emojiPickerVisible, _toggleEmojiPicker, _dismissEmojiPicker, _onEmojiSelected
+├── ChatMessagesList
+├── EmojiPickerPanel (LEAF — MediaQuery/Theme isolation)
+│   └── EmojiPicker(
+│         config: EmojiPickerConfig.create(context),   // SPoT
+│         onEmojiSelected: _onEmojiSelected,
+│       )
+└── ChatInputBar (props-based)
+      ├── textController: _textCtrl
+      ├── emojiPickerVisible: _emojiPickerVisible
+      ├── onEmojiToggle: _toggleEmojiPicker
+      └── onEmojiDismiss: _dismissEmojiPicker
+```
+
+#### emoji_picker_panel.dart (v3 — leaf isolation)
 
 ```dart
-import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/debug/debug_config.dart';
-import '../../../core/l10n/l10n.dart';
-import '../../../core/theme/responsive_utils.dart';
-import '../../../core/utils/app_messenger.dart';
-import '../../../core/utils/error_messages.dart';
-import '../../../repositories/auth_repository.dart';
-import '../../auth/providers/auth_provider.dart';
-import '../providers/chat_provider.dart';
+class EmojiPickerPanel extends StatelessWidget {
+  final void Function(Category? category, Emoji emoji) onEmojiSelected;
 
-class ChatInputBar extends ConsumerStatefulWidget {
-  final String chatId;
-  final bool isGroupChat;
+  const EmojiPickerPanel({super.key, required this.onEmojiSelected});
 
-  const ChatInputBar({
-    super.key,
-    required this.chatId,
-    this.isGroupChat = false,
-  });
-
-  @override
-  ConsumerState<ChatInputBar> createState() => _ChatInputBarState();
-}
-
-class _ChatInputBarState extends ConsumerState<ChatInputBar> {
-  final _textCtrl = TextEditingController();
-  final _focusNode = FocusNode();
-  bool _isLoading = false;
-  bool _emojiPickerVisible = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _focusNode.addListener(_onFocusChange);
-    DebugConfig.log(DebugConfig.uiInteraction,
-        'ChatInputBar init: ${widget.chatId}');
-  }
-
-  @override
-  void dispose() {
-    _focusNode.removeListener(_onFocusChange);
-    _focusNode.dispose();
-    _textCtrl.dispose();
-    DebugConfig.log(DebugConfig.uiInteraction,
-        'ChatInputBar dispose: ${widget.chatId}');
-    super.dispose();
-  }
-
-  void _onFocusChange() {
-    if (_focusNode.hasFocus && _emojiPickerVisible) {
-      setState(() => _emojiPickerVisible = false);
-    }
-  }
-
-  Future<void> _send() async {
-    final text = _textCtrl.text.trim();
-    if (text.isEmpty || _isLoading) return;
-    _textCtrl.clear();
-    setState(() => _isLoading = true);
-    final ok = await ref
-        .read(chatActionsProvider.notifier)
-        .sendMessage(widget.chatId, text);
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-    if (!ok) {
-      _textCtrl.text = text;
-      final chatState = ref.read(chatActionsProvider);
-      AppMessenger.showError(
-        context,
-        ErrorMessages.get(
-            chatState.errorMessage ?? 'chat/send-failed',
-            L10n.isGreek(context)),
-      );
-    }
-  }
-
-  void _toggleEmojiPicker() {
-    if (!_emojiPickerVisible) {
-      FocusScope.of(context).unfocus();
-    }
-    setState(() => _emojiPickerVisible = !_emojiPickerVisible);
-    DebugConfig.log(DebugConfig.uiInteraction,
-        'ChatInputBar: emoji picker '
-        '${_emojiPickerVisible ? "shown" : "hidden"}');
-  }
-
-  void _onEmojiSelected(Emoji emoji) {
-    final pos = _textCtrl.selection.baseOffset;
-    final text = _textCtrl.text;
-    if (pos < 0 || pos > text.length) {
-      _textCtrl.text = '$text${emoji.emoji}';
-      _textCtrl.selection =
-          TextSelection.collapsed(offset: _textCtrl.text.length);
-    } else {
-      _textCtrl.text =
-          '${text.substring(0, pos)}${emoji.emoji}${text.substring(pos)}';
-      _textCtrl.selection =
-          TextSelection.collapsed(offset: pos + emoji.emoji.length);
+  void _onEmojiSelected(Category? category, Emoji emoji) {
+    try {
+      onEmojiSelected(category, emoji);
+    } catch (e) {
+      DebugConfig.error('EmojiPickerPanel: onEmojiSelected error: $e');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final greek = L10n.isGreek(context);
-    final theme = Theme.of(context);
-    final currentUser =
-        ref.watch(authStateProvider).value ?? FirebaseAuth.instance.currentUser;
-    final canComm = AuthRepository.canUserCommunicate(currentUser);
-    DebugConfig.log(DebugConfig.uiInteraction,
-        'ChatInputBar build: canComm=$canComm '
-        'emojiVisible=$_emojiPickerVisible');
-
-    final hintText = widget.isGroupChat
-        ? (greek ? 'Γράψε στην ομάδα...' : 'Type to group...')
-        : (greek ? 'Γράψε ένα μήνυμα...' : 'Type a message...');
-
-    final emojiPickerHeight =
-        MediaQuery.of(context).orientation == Orientation.landscape
-            ? 150.0
-            : 250.0;
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final w = ResponsiveUtils.resolveWidth(context, constraints);
-        return Container(
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
-            border: Border(
-                top: BorderSide(color: theme.dividerColor)),
-          ),
-          padding: EdgeInsets.only(
-            left: ResponsiveUtils.paddingValueFromWidth(w),
-            right: ResponsiveUtils.paddingValueFromWidth(w),
-            top: 8,
-            bottom: MediaQuery.of(context).padding.bottom + 8,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (!canComm)
-                Row(children: [
-                  const SizedBox(width: 12),
-                  Icon(Icons.info_outline,
-                      size: 18, color: theme.colorScheme.primary),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(
-                    greek
-                        ? 'Πρέπει να επαληθεύσεις τον λογαριασμό σου '
-                          'για να στείλεις μηνύματα'
-                        : 'You must verify your account '
-                          'to send messages',
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                  )),
-                ])
-              else
-                Row(children: [
-                  if (!_isLoading)
-                    IconButton(
-                      icon: Icon(
-                        _emojiPickerVisible
-                            ? Icons.keyboard
-                            : Icons.emoji_emotions_outlined,
-                      ),
-                      onPressed: _toggleEmojiPicker,
-                      tooltip: 'Emoji',
-                    ),
-                  Expanded(child: TextField(
-                    controller: _textCtrl,
-                    focusNode: _focusNode,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _send(),
-                    decoration: InputDecoration(
-                      hintText: hintText,
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24)),
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 10),
-                      filled: true,
-                      fillColor: theme
-                          .colorScheme.surfaceContainerHighest
-                          .withAlpha(80),
-                    ),
-                  )),
-                  const SizedBox(width: 8),
-                  IconButton.filled(
-                    onPressed: _isLoading ? null : _send,
-                    icon: _isLoading
-                        ? const SizedBox(
-                            width: 20, height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(Icons.send_rounded),
-                  ),
-                ]),
-              if (_emojiPickerVisible && canComm)
-                SizedBox(
-                  height: emojiPickerHeight,
-                  child: EmojiPicker(
-                    onEmojiSelected: (_, emoji) =>
-                        _onEmojiSelected(emoji),
-                    config: const Config(
-                      clipBehavior: Clip.none,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        );
-      },
+    DebugConfig.log(DebugConfig.uiInteraction, 'EmojiPickerPanel build');
+    return SizedBox(
+      height: EmojiPickerConfig.responsiveHeight(context),
+      child: EmojiPicker(
+        onEmojiSelected: _onEmojiSelected,
+        config: EmojiPickerConfig.create(context),
+      ),
     );
   }
 }
 ```
 
+#### emoji_picker_config.dart (v2 — SPoT factory)
+
+```dart
+class EmojiPickerConfig {
+  EmojiPickerConfig._();
+
+  static Config create(BuildContext context) {
+    // Theme-aware: backgroundColor, indicatorColor, iconColor, etc.
+    // Locale-aware: L10n.isGreek(context) → el/en
+    // 6 sub-configs: EmojiViewConfig, CategoryViewConfig, κλπ.
+  }
+
+  static double responsiveHeight(BuildContext context) {
+    // 35% mobile, 30% tablet, 25% desktop (portrait)
+    // 55% landscape
+  }
+}
+```
+
+#### ChatInputBar (v2 — props-based, emoji logic removed)
+
+Το `ChatInputBar` είναι πλέον pure input bar — λαμβάνει `textEditingController`, `emojiPickerVisible`, `onEmojiToggle`, `onEmojiDismiss` ως props. Δεν διαχειρίζεται emoji state.
+
 ### 5.6 Τροποποίηση — chat_screen.dart
 
 ```diff
+- import '../utils/emoji_picker_config.dart';
+- import '../widgets/chat_input_bar.dart';
 + import '../widgets/chat_input_bar.dart';
++ import '../widgets/emoji_picker_panel.dart';
 
-  // Στο build(), γραμμή 266:
-- _ChatInputBar(chatId: widget.chatId, isGroupChat: isGroupChat),
-+ ChatInputBar(chatId: widget.chatId, isGroupChat: isGroupChat),
-
-  // Αφαίρεση ολόκληρης της κλάσης _ChatInputBar (γραμμές 272-374)
+  // Στο body: Column, αντικατάσταση SizedBox/EmojiPicker:
+- if (_emojiPickerVisible)
+-   SizedBox(
+-     height: EmojiPickerConfig.responsiveHeight(context),
+-     child: EmojiPicker(
+-       onEmojiSelected: _onEmojiSelected,
+-       config: EmojiPickerConfig.create(context),
+-     ),
+-   ),
++ if (_emojiPickerVisible)
++   EmojiPickerPanel(onEmojiSelected: _onEmojiSelected),
 ```
 
-### 5.7 Edge Cases & Θωράκιση (αναθεωρημένο)
+### 5.7 Edge Cases & Θωράκιση (αναθεωρημένο v3)
 
 | # | Σενάριο | Προστασία |
 |:-:|---------|-----------|
 | 1 | **Keyboard + emoji picker overlap** | `FocusScope.of(context).unfocus()` πριν show — picker αντικαθιστά το πληκτρολόγιο |
 | 2 | **Picker ανοιχτό + πατάει TextField** | `_focusNode.listener` → `setState(() => _emojiPickerVisible = false)` |
-| 3 | **Landscape mode** | Height 150px αντί 250px (`MediaQuery.of(context).orientation`) |
+| 3 | **Landscape mode** | `EmojiPickerConfig.responsiveHeight`: 55% landscape |
 | 4 | **Insert emoji at cursor (όχι append)** | `_onEmojiSelected()`: `text.substring(0, pos)` + emoji + `text.substring(pos)` |
 | 5 | **Rapid emoji taps** | Cursor position επαναϋπολογίζεται κάθε φορά — thread-safe |
 | 6 | **Cursor not visible (no focus)** | `baseOffset` < 0 → emoji appended στο τέλος |
@@ -468,10 +344,14 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
 | 8 | **_isLoading = true** | Δεν εμφανίζεται emoji button |
 | 9 | **Hot reload** | `_emojiPickerVisible` reset → picker εξαφανίζεται (αποδεκτό) |
 | 10 | **App background → resume** | Emoji picker κλείνει αυτόματα από platform |
-| 11 | **Route pop** | autoDispose → `_focusNode.dispose()` + `_textCtrl.dispose()` |
+| 11 | **Route pop** | autoDispose → dispose chain: panel → providers → controller |
 | 12 | **TextField με πολύ κείμενο** | Cursor-aware substring insertion |
 | 13 | **iOS/Android keyboard** | `emoji_picker_flutter` handles natively |
 | 14 | **Double-tap send** | `_isLoading` guard + `mounted` check |
+| 15 | **EmojiPickerPanel callback throws** | Error boundary: try-catch + `DebugConfig.error()` |
+| 16 | **Keyboard animation cascade rebuilds** | EmojiPickerPanel isolation — rebuilds μόνο panel, όχι ChatScreen |
+| 17 | **Theme change while picker open** | `EmojiPickerConfig.create(context)` — theme-aware Config σε κάθε build |
+| 18 | **Locale change while picker open** | `EmojiPickerConfig.create(context)` — locale-aware Config |
 
 ### 5.8 Flutter Lifecycle Analysis
 
@@ -509,12 +389,15 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
 
 | Flag/Guard | Τύπος | Τιμή | Πού ορίζεται |
 |------------|:-----:|:----:|:------------:|
-| `emoji_picker_flutter: ^4.0.0` | dependency | — | pubspec.yaml |
-| `_emojiPickerVisible` | local state | false | chat_input_bar.dart |
-| `_isLoading` | local state | false | chat_input_bar.dart |
+| `emoji_picker_flutter: ^4.4.0` | dependency | — | pubspec.yaml |
+| `_emojiPickerVisible` | local state | false | chat_screen.dart |
+| `_textCtrl` | TextEditingController | new | chat_screen.dart |
 | `_focusNode` | FocusNode | new | chat_input_bar.dart |
-| `canComm` | computed | AuthRepository.canUserCommunicate() | chat_input_bar.dart |
+| `_isLoading` | local state | false | chat_input_bar.dart |
+| `canComm` | computed | AuthRepository.canUserCommunicate() | chat_screen.dart |
 | `mounted` | lifecycle | State.mounted | chat_input_bar.dart |
+| `EmojiPickerPanel` | leaf widget | — | emoji_picker_panel.dart |
+| `EmojiPickerConfig` | SPoT | — | emoji_picker_config.dart |
 | Feature flag | **Δεν χρειάζεται** | — | — |
 
 ### 5.12 Δεν χρειάζονται αλλαγές

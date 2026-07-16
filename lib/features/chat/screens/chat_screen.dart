@@ -12,8 +12,8 @@ import '../../auth/providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
 import '../widgets/chat_messages_list.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
-import '../utils/emoji_picker_config.dart';
 import '../widgets/chat_input_bar.dart';
+import '../widgets/emoji_picker_panel.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String chatId;
@@ -328,13 +328,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           otherUid: otherUid,
         )),
         if (_emojiPickerVisible)
-          SizedBox(
-            height: EmojiPickerConfig.responsiveHeight(context),
-            child: EmojiPicker(
-              onEmojiSelected: _onEmojiSelected,
-              config: EmojiPickerConfig.create(context),
-            ),
-          ),
+          EmojiPickerPanel(onEmojiSelected: _onEmojiSelected),
         ChatInputBar(
           chatId: widget.chatId,
           isGroupChat: isGroupChat,

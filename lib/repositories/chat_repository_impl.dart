@@ -325,7 +325,9 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin im
           final key = await EncryptionUtils.getKeyOrDerive(chatId);
           final encCache = _messageEncryptCache.putIfAbsent(chatId, () => {});
           final decCache = _messageDecryptCache.putIfAbsent(chatId, () => {});
-          return snapshot.docs.map((doc) {
+          int hitCount = 0;
+          int missCount = 0;
+          final messages = snapshot.docs.map((doc) {
             final data = doc.data();
             final encrypted = data['content'] as String? ?? '';
             final docId = doc.id;
@@ -337,13 +339,13 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin im
               DebugConfig.log(DebugConfig.chatStream, 'system message: $docId content=$encrypted');
             } else if (encCache[docId] == encrypted && decCache.containsKey(docId)) {
               decrypted = decCache[docId]!;
-              DebugConfig.log(DebugConfig.chatEncrypt, 'decrypt cache hit: msg=$docId');
+              hitCount++;
             } else {
               try {
                 decrypted = EncryptionUtils.decryptMessage(key, encrypted);
                 encCache[docId] = encrypted;
                 decCache[docId] = decrypted;
-                DebugConfig.log(DebugConfig.chatEncrypt, 'decrypt cache miss: msg=$docId');
+                missCount++;
               } catch (e) {
                 encCache.remove(docId);
                 decCache.remove(docId);
@@ -372,6 +374,12 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin im
               'contentEn': data['contentEn'] as String?,
             };
           }).toList();
+
+          if (hitCount + missCount > 0) {
+            DebugConfig.log(DebugConfig.chatEncrypt,
+                'messagesStream: decrypt cache $hitCount hits, $missCount misses for chat=$chatId');
+          }
+          return messages;
         });
 
     DebugConfig.log(DebugConfig.chatStream, 'messagesStream: listener active chat=$chatId');

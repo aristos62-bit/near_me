@@ -1686,3 +1686,48 @@ final participantNicknames = ref.watch(_chatScreenNicknamesProvider(widget.chatI
 ### Completed ✅
 - Device test logs με νέο Fix A (no `onDispose` cache cleanup) — **verified: cache hits working ✅**
 - ChatScreen rebuild storm από providers — **fixed ✅** (loops: keyboard animation cascade μόνο, Flutter framework)
+
+---
+
+## Session 179 — EmojiPickerPanel extraction + rebuild storm isolation + convention alignment
+
+**Πεδίο:** Διόρθωση rebuild storm όταν ανοίγει emoji picker — ~20-30× `ChatScreen didChangeDependencies` σε ~2.1s (όχι το γνωστό keyboard cascade ~450ms).
+
+### Root Cause
+`MediaQuery.of(context)` / `Theme.of(context)` στο `chat_screen.dart` build — η εξάρτηση εγγραφόταν στο Element ολόκληρης της `ChatScreen`. Keyboard animation cascade μετά από `FocusScope.unfocus()` (για να κλείσει το πληκτρολόγιο πριν το emoji picker) αναγκαζε rebuild ολόκληρου του ChatScreen σε κάθε frame για ~2.1s.
+
+### Fix #1 — EmojiPickerPanel extraction (ΝΕΟ αρχείο)
+- `lib/features/chat/widgets/emoji_picker_panel.dart` — `EmojiPickerPanel` StatelessWidget
+- Απομονώνει `MediaQuery.of(context)` / `Theme.of(context)` στο δικό του Element
+- Keyboard animation cascade ξαναχτίζει ΜΟΝΟ το panel, όχι ChatScreen/AppBar/messages/ChatInputBar
+
+**Αρχεία:**
+- `lib/features/chat/widgets/emoji_picker_panel.dart` — **ΝΕΟ** (27 γραμμές)
+- `lib/features/chat/screens/chat_screen.dart` — Remove `import emoji_picker_config`, add `import emoji_picker_panel`, αντικατάσταση SizedBox/EmojiPicker με `EmojiPickerPanel`
+
+### Fix #2 — Convention alignment
+- **Debug log**: `DebugConfig.log(DebugConfig.uiInteraction, 'EmojiPickerPanel build')`
+- **Error boundary**: `_onEmojiSelected()` wrapper με try-catch + `DebugConfig.error()`
+- Τα υπόλοιπα (responsive, bilingual, SPoT) ήταν ήδη compliant via `EmojiPickerConfig`
+
+### Device Test Results
+| Άνοιγμα | `ChatScreen didChangeDependencies` | `EmojiPickerConfig` calls | Διάρκεια |
+|:-------:|:----------------------------------:|:-------------------------:|:--------:|
+| 1ο (18:29:16) | **1×** | **1×** | ~0ms |
+| 2ο (18:29:32) | **1×** | **18×** (cold cache, internal package loading) | ~400ms |
+| 3ο (18:29:47, back) | **1×** | **0×** | ~0ms |
+
+### Επαλήθευση
+- `flutter analyze` — **0 issues** ✅
+- Zero rebuild storm στο ChatScreen ✅
+- participantUidsProvider cache hits λειτουργούν ✅
+- Emoji insert at cursor ✅, send ✅, encrypt ✅
+
+### Αρχεία
+| Αρχείο | Αλλαγή |
+|--------|--------|
+| `lib/features/chat/widgets/emoji_picker_panel.dart` | **ΝΕΟ** — leaf widget, debug log, error boundary |
+| `lib/features/chat/screens/chat_screen.dart` | Remove `emoji_picker_config` import, add `emoji_picker_panel` import, SizedBox/EmojiPicker → `EmojiPickerPanel` |
+| `backups/chat_screen.dart.bak_2026-07-16_emojiPanel` | Backup pre-extraction |
+| `media_input.md` | Updated Phase 1 status |
+| `oldsessions.md` | Session 179 added |

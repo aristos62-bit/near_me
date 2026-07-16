@@ -1,7 +1,8 @@
 # NearMe — Media Input for Chats: Revised Analysis & Implementation Plan v2
 
 > **Ημερομηνία:** 16 Ιουλίου 2026
-> **Κατάσταση:** Phase 1 ✅ — Emoji Picker refactored + rebuild storm fixes verified + EmojiPickerPanel isolated
+> **Κατάσταση:** Phase 1 ✅ v4 — Emoji picker complete (cache, SPoT, decrypt log summary)
+> **Κατάσταση:** Phase 2 ✅ — GIF Support complete (GIPHY API, picker sheet, media branch)
 
 ---
 
@@ -159,8 +160,8 @@ Future<void> sendMediaMessage(
 
 | Φάση | Τύπος | Νέα Αρχεία | Cost Impact (1k users) | Εκτίμηση |
 |:----:|:-----:|:-----------|:----------------------:|:--------:|
-| **1** | Emoji picker | 1 (chat_input_bar.dart) | €0 | 30-45 λεπτά |
-| **2** | GIF support | 2 (TenorService + GifPickerSheet) | €0 (Tenor free tier) | 2-3 ώρες |
+| **1** | Emoji picker | 1 (chat_input_bar.dart) | €0 | ✅ v4 |
+| **2** | GIF support | 2 (GiphyService + GifPickerSheet) | €0 (GIPHY free tier) | ✅ v1 |
 | **3** | Photo sharing | 1 (chat_repository_media.dart — part file) | ~€0.04-0.18/μήνα | 2 ώρες |
 | **4** | Video sharing | 0 (inline) | ~€0.30-1.56/μήνα | 3-4 ώρες |
 
@@ -171,7 +172,7 @@ Future<void> sendMediaMessage(
 
 ---
 
-## 5. Φάση 1 — Emoji Picker ✅ (v3 — 16/7/2026: EmojiPickerPanel extraction + rebuild isolation)
+## 5. Φάση 1 — Emoji Picker ✅ (v4 — 16/7/2026: Instance-level cache + SPoT alignment + decrypt log summary)
 
 **Κόστος:** €0. Entirely client-side. Καμία επιβάρυνση σε Firestore, Storage, Cloud Functions, ή Tenor. Μόνο dependency: `emoji_picker_flutter` (free, MIT).
 
@@ -195,7 +196,7 @@ Future<void> sendMediaMessage(
 |--------|--------|:-------:|
 | `pubspec.yaml` | +`emoji_picker_flutter: ^4.4.0` | +1 |
 | `lib/features/chat/utils/emoji_picker_config.dart` | **ΝΕΟ (v2)** — Theme-aware Config factory + responsive height SPoT | 83 |
-| `lib/features/chat/widgets/emoji_picker_panel.dart` | **ΝΕΟ (v3)** — Leaf widget, MediaQuery/Theme isolation, debug log, error boundary | 27 |
+| `lib/features/chat/widgets/emoji_picker_panel.dart` | **ΝΕΟ (v4)** — StatefulWidget, instance cache, SPoT delegation, dispose log | 65 |
 | `lib/features/chat/widgets/chat_input_bar.dart` | `ChatInputBar` (v2 refactor) — props-based, emoji logic removed, 4 props | ~180 |
 | `lib/features/chat/screens/chat_screen.dart` | (v1) Extraction `_ChatInputBar`; (v2) emoji state owner + 3 selectors; (v3) `EmojiPickerPanel` αντί SizedBox/EmojiPicker | ~322 |
 | `backups/chat_screen.dart.bak_2026-07-16_phase1` | Backup pre-extraction v1 | — |
@@ -222,6 +223,17 @@ Future<void> sendMediaMessage(
 | 3 | Error boundary | `_onEmojiSelected()` wrapper με try-catch + `DebugConfig.error()` |
 | 4 | Convention alignment | Responsive ✅, bilingual ✅, SPoT ✅, debug ✅, edge cases ✅ |
 
+### 5.3γ Αλλαγές v4 (Session 180 — Cache, SPoT fix, decrypt log summary)
+
+| # | Αλλαγή | Περιγραφή |
+|:-:|--------|-----------|
+| 1 | `EmojiPickerPanel` → StatefulWidget + instance cache | Instance-level `_cachedConfig`, `_cachedIsDark`, `_cachedIsGreek` — auto-dispose, zero memory leak |
+| 2 | SPoT restoration | `_getConfig()` καλεί `EmojiPickerConfig.create()` αντί να ξαναγράφει factory — Config creation σε ένα σημείο |
+| 3 | `dispose()` με debug log | `DebugConfig.log(DebugConfig.uiInteraction, 'EmojiPickerPanelState dispose')` + cache null |
+| 4 | Static cache removed | `EmojiPickerConfig.create()` ξανά pure factory |
+| 5 | `messagesStream` decrypt log summary | `decrypt cache N hits, M misses` αντί 30+ γραμμές `decrypt cache hit: msg=...` |
+| 6 | Device test v4 | 4 ανοίγματα: `ChatScreen didChangeDependencies` 0-1×, Config creation **1×/open** (cache miss), μηδενικό rebuild storm |
+
 ### 5.4 Υπάρχοντες Κανόνες προς Reuse (από codebase)
 
 | # | Pattern | Χρήση στο ChatInputBar |
@@ -237,18 +249,15 @@ Future<void> sendMediaMessage(
 | 9 | `theme.colorScheme.surface` / `theme.dividerColor` | Container styling |
 | 10 | `theme.colorScheme.surfaceContainerHighest.withAlpha(80)` | TextField fill |
 
-### 5.5 Τρέχουσα Αρχιτεκτονική (v3)
+### 5.5 Τρέχουσα Αρχιτεκτονική (v4)
 
 ```
 ChatScreen (emoji state owner)
 ├── selectors: isGroupChat, groupName, participantNicknames (όχι direct chatDocProvider watch)
 ├── _textCtrl, _emojiPickerVisible, _toggleEmojiPicker, _dismissEmojiPicker, _onEmojiSelected
 ├── ChatMessagesList
-├── EmojiPickerPanel (LEAF — MediaQuery/Theme isolation)
-│   └── EmojiPicker(
-│         config: EmojiPickerConfig.create(context),   // SPoT
-│         onEmojiSelected: _onEmojiSelected,
-│       )
+├── EmojiPickerPanel (LEAF — StatefulWidget + instance cache)
+│   └── _getConfig() → EmojiPickerConfig.create(context)   // SPoT + cache
 └── ChatInputBar (props-based)
       ├── textController: _textCtrl
       ├── emojiPickerVisible: _emojiPickerVisible
@@ -256,33 +265,36 @@ ChatScreen (emoji state owner)
       └── onEmojiDismiss: _dismissEmojiPicker
 ```
 
-#### emoji_picker_panel.dart (v3 — leaf isolation)
+#### emoji_picker_panel.dart (v4 — StatefulWidget + instance cache)
 
 ```dart
-class EmojiPickerPanel extends StatelessWidget {
+class EmojiPickerPanel extends StatefulWidget {
   final void Function(Category? category, Emoji emoji) onEmojiSelected;
 
   const EmojiPickerPanel({super.key, required this.onEmojiSelected});
 
-  void _onEmojiSelected(Category? category, Emoji emoji) {
-    try {
-      onEmojiSelected(category, emoji);
-    } catch (e) {
-      DebugConfig.error('EmojiPickerPanel: onEmojiSelected error: $e');
+  @override
+  State<EmojiPickerPanel> createState() => _EmojiPickerPanelState();
+}
+
+class _EmojiPickerPanelState extends State<EmojiPickerPanel> {
+  Config? _cachedConfig;
+  bool? _cachedIsDark;
+  bool? _cachedIsGreek;
+
+  Config _getConfig(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final greek = L10n.isGreek(context);
+    if (_cachedConfig != null && _cachedIsDark == isDark && _cachedIsGreek == greek) {
+      return _cachedConfig!;
     }
+    _cachedConfig = EmojiPickerConfig.create(context);   // SPoT
+    _cachedIsDark = isDark;
+    _cachedIsGreek = greek;
+    return _cachedConfig!;
   }
 
-  @override
-  Widget build(BuildContext context) {
-    DebugConfig.log(DebugConfig.uiInteraction, 'EmojiPickerPanel build');
-    return SizedBox(
-      height: EmojiPickerConfig.responsiveHeight(context),
-      child: EmojiPicker(
-        onEmojiSelected: _onEmojiSelected,
-        config: EmojiPickerConfig.create(context),
-      ),
-    );
-  }
+  // ... dispose + build + error boundary
 }
 ```
 
@@ -398,6 +410,7 @@ class EmojiPickerConfig {
 | `mounted` | lifecycle | State.mounted | chat_input_bar.dart |
 | `EmojiPickerPanel` | leaf widget | — | emoji_picker_panel.dart |
 | `EmojiPickerConfig` | SPoT | — | emoji_picker_config.dart |
+| `_cachedConfig` / `_cachedIsDark` / `_cachedIsGreek` | instance cache | null | emoji_picker_panel.dart |
 | Feature flag | **Δεν χρειάζεται** | — | — |
 
 ### 5.12 Δεν χρειάζονται αλλαγές
@@ -409,69 +422,145 @@ Backend, encryption, message type, database schema, chat list, Firestore rules, 
 ---
 
 
-## 6. Φάση 2 — GIF Support
+## 6. Φάση 2 — GIF Support ✅ (Ολοκληρωμένη — 16/7/2026)
 
-### 6.1 TenorService (lib/shared/utils/tenor_service.dart)
+**Κόστος:** €0. GIFs από GIPHY CDN — κανένα upload στο δικό μας Storage. GIPHY free tier 10k requests/hour.
 
+> **Σημείωση:** Η αρχική πρόταση χρησιμοποιούσε Tenor API, αλλά το Tenor API διακόπηκε στις 30 Ιουνίου 2026. Αντικαταστάθηκε με **GIPHY API** (`api.giphy.com/v1/gifs`).
+
+### 6.0 Προαπαιτούμενα & Μπλοκαρίσματα ✅ (Όλα επιλύθηκαν)
+
+| # | Προαπαιτούμενο | Τύπος | Κατάσταση |
+|:-:|---------------|:-----:|:---------:|
+| 1 | **`messagesStream` media branch** | **BLOCKING** | ✅ media branch προστέθηκε (`type == 'gif' \|\| type == 'image' \|\| type == 'video'` skip decrypt) |
+| 2 | **GIPHY API key** | **Config** | ✅ `--dart-define=GIPHY_API_KEY` |
+| 3 | **Feature flag** | Config | ✅ `gifSupportEnabled = true` (ενεργοποιήθηκε μετά από testing) |
+
+### 6.1 Επαναχρησιμοποίηση Υπαρχόντων
+
+| Ανάγκη | Υπάρχον Αρχείο | Τρόπος Reuse |
+|--------|----------------|:------------:|
+| HTTP client | `location_autocomplete_service.dart:39` — `dart:io` `HttpClient()` | **Ίδιο pattern** — connectionTimeout, headers, getUrl |
+| API key config | `debug_config.dart:25` — `--dart-define=ENABLE_RELEASE_DEBUG` | **Ίδιο pattern** — `--dart-define=GIPHY_API_KEY` + `String.fromEnvironment()` |
+| Image loading | `CachedNetworkImage` (ήδη στο pubspec.yaml) | **Ίδιο package** για GIF bubble |
+| Error mapping | `chat_provider.dart:253` `_friendlyError()` + `error_messages.dart` | **Αλυσίδα** — `AppException` → error code → `ErrorMessages.get()` |
+| Feature flag check | `group_call_screen.dart:19` — `FeatureFlags.videoCallEnabled` | **Ίδιο pattern** — `if (FeatureFlags.gifSupportEnabled)` |
+| Message rendering | `message_bubble.dart` — timeStr, isMe, seenBy, group nickname | **Ίδια δομή** για `_GifBubble` |
+| Chat list preview | `chat_list_screen.dart:272-274` — `_buildPreviewText` | **Επέκταση** — `'gif'` → `'🎞️ GIF'` |
+
+**Κανένα νέο dependency.** `dart:io` `HttpClient` όπως το `location_autocomplete_service.dart`.
+
+### 6.2 Νέα Αρχεία (2 υλοποιήθηκαν)
+
+#### 6.2.1 `lib/shared/utils/giphy_service.dart` — SPoT GIPHY API (~100 γραμμές)
+
+```
+class GiphyService
+  - static const _apiKey = String.fromEnvironment('GIPHY_API_KEY')
+  - _baseUrl = 'https://api.giphy.com/v1/gifs'
+  - HttpClient με connectionTimeout 6s
+
+  Future<List<GiphyGif>> search(String query, {int limit = 20})
+    → GET /search?api_key=_apiKey&q=query&limit=20&rating=g
+    → DebugConfig.log(DebugConfig.repositoryCall, 'GiphyService.search: q=$query')
+
+  Future<List<GiphyGif>> trending({int limit = 20})
+    → GET /trending?api_key=_apiKey&limit=20&rating=g
+
+class GiphyGif
+  - id, url (original), previewUrl (fixed_width), width, height
+  - factory GiphyGif.fromJson(Map<String, dynamic> json)
+```
+
+#### 6.2.2 `lib/features/chat/widgets/gif_picker_sheet.dart` — SPoT GIF UI (~150 γραμμές)
+
+```
+showGifPickerSheet(BuildContext context, {required void Function(String gifUrl) onSelected})
+  → bottom sheet
+
+Structure:
+  - Search TextField με debounce 300ms
+  - GridView.builder (2 columns, 200px tiles)
+  - Initial load: trending GIFs από GiphyService.trending()
+  - Search: GiphyService.search() με debounce
+  - Loading: shimmer placeholders
+  - Empty: bilingual "Δεν βρέθηκαν GIF / No GIFs found"
+  - Error: bilingual "Σφάλμα φόρτωσης / Failed to load" + retry
+  - Tap GIF → Navigator.pop(context, gifUrl)
+
+Edge cases:
+  - No internet → error snackbar
+  - Empty query → trending
+  - Rapid typing → debounce cancels previous
+  - GIPHY rate limit → error snackbar
+```
+
+### 6.3 Τροποποιημένα Αρχεία (9) ✅
+
+| # | Αρχείο | Αλλαγή |
+|:-:|--------|--------|
+| 1 | `lib/core/config/feature_flags.dart` | +`gifSupportEnabled = false` (τέθηκε `true` μετά από testing) |
+| 2 | `lib/core/utils/error_messages.dart` | +`chat/gif-send-failed`, `chat/gif-api-error` (bilingual) |
+| 3 | `lib/repositories/chat_repository.dart` | +`sendMediaMessage(chatId, {content, type})` abstract |
+| 4 | `lib/repositories/chat_repository_impl.dart` | **2 αλλαγές**: (α) `sendMediaMessage` impl (β) media branch `type == 'gif' \|\| type == 'image' \|\| type == 'video'` |
+| 5 | `lib/features/chat/providers/chat_provider.dart` | +`sendMediaMessage(chatId, {content, type})` στο `ChatActionsNotifier` |
+| 6 | `lib/features/chat/widgets/chat_input_bar.dart` | + GIF button (`Icons.gif_box_outlined`) + `_pickGif()` |
+| 7 | `lib/features/chat/widgets/message_bubble.dart` | +`if (type == 'gif')` → `_GifBubble` με `CachedNetworkImage` (maxHeight=200) |
+| 8 | `lib/features/chat/screens/chat_list_screen.dart` | +`'gif'` → `'🎞️ GIF'` στο `_buildPreviewText` |
+| 9 | `lib/features/chat/screens/chat_screen.dart` | Καμία αλλαγή (GIF picker = bottom sheet, όχι inline state) |
+
+### 6.4 Υλοποιημένες Τροποποιήσεις ✅
+
+**(Ακολουθείται η αρχική πρόταση, με Tenor→GIPHY.)**
+
+#### 6.4.1 `feature_flags.dart`
 ```dart
-class TenorService {
-  final String _apiKey;
-  final http.Client _client;
-  static const _baseUrl = 'https://tenor.googleapis.com/v2';
+static const bool gifSupportEnabled = true;  // Ενεργοποιήθηκε μετά από testing
+```
 
-  TenorService({required String apiKey, http.Client? client})
-      : _apiKey = apiKey, _client = client ?? http.Client();
+#### 6.4.2 `error_messages.dart`
+```dart
+case 'chat/gif-send-failed':
+  return isGreek ? 'Αποστολή GIF απέτυχε' : 'GIF send failed';
+case 'chat/gif-api-error':
+  return isGreek ? 'Σφάλμα φόρτωσης GIF' : 'GIF loading error';
+```
 
-  Future<List<TenorGif>> search(String query, {int limit = 20}) async {
-    final uri = Uri.parse('$_baseUrl/search').replace(queryParameters: {
-      'q': query, 'key': _apiKey, 'client_key': 'near_me',
-      'limit': '$limit', 'media_filter': 'gif',
-    });
-    final response = await _client.get(uri);
-    if (response.statusCode != 200) {
-      throw AppException.network('tenor', 'Tenor error: ${response.statusCode}');
-    }
-    final json = jsonDecode(response.body);
-    return (json['results'] as List).map((r) => TenorGif.fromJson(r)).toList();
-  }
-}
+#### 6.4.3 `chat_repository.dart` — Interface + `chat_repository_impl.dart` sendMediaMessage
 
-class TenorGif {
-  final String id; final String url; final int width; final int height;
-  TenorGif({required this.id, required this.url, this.width = 0, this.height = 0});
-  factory TenorGif.fromJson(Map<String, dynamic> json) { /* ... */ }
+#### 6.4.4 `chat_repository_impl.dart` — messagesStream media branch:
+```dart
+} else if (type == 'gif' || type == 'image' || type == 'video') {
+  decrypted = encrypted;  // URL, όχι decrypt
 }
 ```
 
-### 6.2 GifPickerSheet (lib/features/chat/widgets/gif_picker_sheet.dart)
+#### 6.4.5 `chat_provider.dart` — ChatActionsNotifier.sendMediaMessage()
+#### 6.4.6 `chat_input_bar.dart` — GIF button + `_pickGif()`
+#### 6.4.7 `message_bubble.dart` — `_GifBubble` (CachedNetworkImage, maxHeight=200)
+#### 6.4.8 `chat_list_screen.dart` — `'gif'` → `'🎞️ GIF'`
 
-Bottom sheet με search + GridView. GIFs από Tenor CDN — **κανένα upload στο δικό μας Storage**.
-
-### 6.3 Message Schema
-
-```dart
-{
-  'type': 'gif',
-  'senderId': uid,
-  'content': tenorUrl,  // Tenor CDN URL (όχι δικό μας Storage)
-  'width': int?,
-  'height': int?,
-  'timestamp': Timestamp,
-  'isRead': false,
-}
+### 6.5 Device Test Results ✅
+```
+GiphyService.trending: limit=20
+GiphyService.search: q=smile limit=20
+GifPickerSheet: selected
+sendMediaMessage: success chat=SOuOdL9ojVQsAzt9Zy4u type=gif
+messagesStream: media message t1GACtYRznH1yrvXJs4W type=gif
+decrypt cache 27 hits, 0 misses for chat=SOuOdL9ojVQsAzt9Zy4u
 ```
 
-### 6.4 Feature Flag
+### 6.6 Tenor → GIPHY Migration Note
 
-```dart
-static const bool gifMessagesEnabled = false;  // ← false → true only after testing
-```
+| Πάροχος | URL | Free Tier |
+|:--------|:---:|:---------:|
+| ~~Tenor~~ (discontinued 30/6/2026) | ~~tenor.googleapis.com/v2~~ | ~~10k/day~~ |
+| **GIPHY** ✅ | `api.giphy.com/v1/gifs` | **10k/hour** |
 
-### 6.5 Δεν χρειάζονται αλλαγές
-
-Encryption, Storage, Storage rules, Firestore rules, Cloud Functions — **κανένα**.
+Το `tenor_service.dart` διαγράφηκε. Δημιουργήθηκε `giphy_service.dart` (ίδιο pattern: `dart:io` `HttpClient`, `--dart-define=GIPHY_API_KEY`).
 
 ---
+
 
 ## 7. Φάση 3 — Photo Sharing
 
@@ -1190,14 +1279,14 @@ case 'chat/video-too-large':
 |--------|:-------:|:----:|--------|
 | `lib/features/chat/widgets/chat_input_bar.dart` | ~200 | 1,2,3,4 | Extracted `_ChatInputBar` (emoji, GIF, photo, video buttons) |
 | `lib/repositories/chat_repository_media.dart` | ~90 | 3,4 | Part file: `sendMediaMessage` impl + messagesStream media branch |
-| `lib/shared/utils/tenor_service.dart` | ~80 | 2 | Tenor GIF API |
+| `lib/shared/utils/giphy_service.dart` | ~100 | 2 | GIPHY GIF API (αντικατέστησε Tenor) |
 | `lib/features/chat/widgets/gif_picker_sheet.dart` | ~120 | 2 | GIF search & picker UI |
 
 ### 9.2 Τροποποιούμενα Αρχεία (16 σύνολο)
 
 | # | Αρχείο | Φάσεις | Αλλαγή |
 |:-:|--------|:------:|--------|
-| 1 | `pubspec.yaml` | 1,2,3,4 | +5 deps (emoji_picker, video_thumbnail, video_player, http, visibility_detector) |
+| 1 | `pubspec.yaml` | 1,2,3,4 | +1 dep (emoji_picker_flutter) — GIF uses `dart:io` HttpClient (όχι `http`) |
 | 2 | `storage_service.dart` | 3,4 | +3 methods (uploadChatMedia, deleteChatMedia, deleteAllChatMedia) |
 | 3 | `storage.rules` | 3,4 | +1 match rule (chat_media — participant check via firestore.get(), ίδιο pattern με group_avatars) |
 | 4 | `chat_repository.dart` | 3,4 | +1 abstract method (sendMediaMessage) |
@@ -1386,18 +1475,19 @@ match /chat_media/{chatId}/{fileName} {
 
 **Βλ. §5 για πλήρη ανάλυση (edge cases, lifecycle, κώδικας, flags).**
 
-### Φάση 2 — GIF Support (2-3 ώρες)
+### Φάση 2 — GIF Support ✅ (Ολοκληρωμένη)
 
-| Βήμα | Ενέργεια | Αρχείο |
-|:----:|----------|--------|
-| 1 | `flutter pub add http` + Tenor API key από Google Cloud Console | pubspec.yaml |
-| 2 | Backup: chat_input_bar, message_bubble, feature_flags | backups/ |
-| 3 | Δημιουργία `TenorService` | `lib/shared/utils/tenor_service.dart` |
-| 4 | Δημιουργία `GifPickerSheet` | `lib/features/chat/widgets/gif_picker_sheet.dart` |
-| 5 | +`gifMessagesEnabled=false` flag | `feature_flags.dart` |
-| 6 | +GIF button + `_pickGif()` | `chat_input_bar.dart` |
-| 7 | +`type=='gif'` branch στο `_MediaBubble` | `message_bubble.dart` |
-| 8 | `flutter analyze` + test | — |
+| Βήμα | Ενέργεια | Αρχείο | Status |
+|:----:|----------|--------|:------:|
+| 1 | Δημιουργία `GiphyService` (αντί Tenor — API discontinued) | `lib/shared/utils/giphy_service.dart` | ✅ |
+| 2 | Δημιουργία `GifPickerSheet` bottom sheet | `lib/features/chat/widgets/gif_picker_sheet.dart` | ✅ |
+| 3 | +`gifSupportEnabled = false` flag (τέθηκε `true` μετά testing) | `feature_flags.dart` | ✅ |
+| 4 | +GIF button + `_pickGif()` | `chat_input_bar.dart` | ✅ |
+| 5 | +`type=='gif'` → `_GifBubble` | `message_bubble.dart` | ✅ |
+| 6 | +`'gif'` preview στην chat list | `chat_list_screen.dart` | ✅ |
+| 7 | +`sendMediaMessage()` abstract + impl | `chat_repository.dart`, `chat_repository_impl.dart` | ✅ |
+| 8 | +messagesStream media branch (skip decrypt) | `chat_repository_impl.dart` | ✅ |
+| 9 | `flutter analyze` clean ✅ + device test ✅ | — | ✅ |
 
 ### Φάση 3 — Photo Sharing (2 ώρες)
 

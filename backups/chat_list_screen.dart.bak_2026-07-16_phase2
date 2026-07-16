@@ -271,7 +271,6 @@ class _ChatTile extends ConsumerWidget {
 
     if (type != 'text') {
       if (type == 'image') return greek ? '📷 Φωτογραφία' : '📷 Photo';
-      if (type == 'gif') return '🎞️ GIF';
       return greek ? '💬 Μήνυμα' : '💬 Message';
     }
 

@@ -337,10 +337,6 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin im
             if (type == 'system') {
               decrypted = encrypted;
               DebugConfig.log(DebugConfig.chatStream, 'system message: $docId content=$encrypted');
-            } else if (type == 'gif' || type == 'image' || type == 'video') {
-              decrypted = encrypted;
-              DebugConfig.log(DebugConfig.chatStream,
-                  'messagesStream: media message $docId type=$type');
             } else if (encCache[docId] == encrypted && decCache.containsKey(docId)) {
               decrypted = decCache[docId]!;
               hitCount++;
@@ -648,85 +644,6 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin im
       await driftSub?.cancel();
       await controller.close();
       DebugConfig.log(DebugConfig.chatStream, 'streamChats: cancelled');
-    }
-  }
-
-  @override
-  Future<void> sendMediaMessage(String chatId, {
-    required String content,
-    required String type,
-  }) async {
-    final user = auth.currentUser;
-    if (user == null) throw AppException.auth('send_media', 'Δεν υπάρχει συνδεδεμένος χρήστης / No authenticated user');
-    if (!AuthRepository.canUserCommunicate(user)) {
-      throw AppException.auth('send_media', 'Πρέπει να επαληθεύσεις τον λογαριασμό σου / You must verify your account');
-    }
-
-    DebugConfig.log(DebugConfig.repositoryCall, 'sendMediaMessage: chat=$chatId type=$type');
-
-    List<String> participants = [];
-    bool isGroupChat = false;
-    try {
-      final chatDoc = await firestore.collection('chats').doc(chatId).get();
-      if (!chatDoc.exists) {
-        throw AppException.firestore('send_media', 'Η συνομιλία δεν βρέθηκε / Chat not found');
-      }
-      final data = chatDoc.data()!;
-      participants = List<String>.from(data['participants'] ?? []);
-      isGroupChat = data['isGroupChat'] == true;
-
-      if (!isGroupChat) {
-        final otherUid = participants.where((p) => p != user.uid).firstOrNull;
-        if (otherUid != null) {
-          final blockedDoc = await firestore
-              .collection('users').doc(otherUid).collection('blocked').doc(user.uid)
-              .get();
-          if (blockedDoc.exists) {
-            throw AppException.auth('send_media',
-                'Δεν μπορείς να στείλεις μήνυμα σε αυτόν τον χρήστη / You cannot send messages to this user');
-          }
-        }
-      }
-    } catch (e) {
-      if (e is AppException) rethrow;
-      DebugConfig.warn('sendMediaMessage: block check failed', data: e);
-    }
-
-    try {
-      final msgRef = firestore
-          .collection('chats').doc(chatId).collection('messages').doc();
-      final chatRef = firestore.collection('chats').doc(chatId);
-      final batch = firestore.batch();
-
-      final msgData = <String, dynamic>{
-        'senderId': user.uid,
-        'content': content,
-        'type': type,
-        'timestamp': FieldValue.serverTimestamp(),
-        'isRead': false,
-      };
-      batch.set(msgRef, msgData);
-
-      final updateData = <String, dynamic>{
-        'lastMessageAt': FieldValue.serverTimestamp(),
-        'lastMessageBy': user.uid,
-        'lastMessage': content,
-        'lastMessageType': type,
-      };
-      for (final p in participants) {
-        if (p != user.uid) {
-          updateData['unreadCount.$p'] = FieldValue.increment(1);
-        }
-      }
-      batch.update(chatRef, updateData);
-      await batch.commit();
-
-      DebugConfig.log(DebugConfig.repositoryResult, 'sendMediaMessage: success chat=$chatId type=$type');
-
-      await updateChatCache(chatId, hasUnread: false);
-    } catch (e) {
-      DebugConfig.error('sendMediaMessage failed', data: e);
-      throw AppException.firestore('send_media', 'Αποτυχία αποστολής / Failed to send');
     }
   }
 

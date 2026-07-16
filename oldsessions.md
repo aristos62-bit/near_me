@@ -662,7 +662,7 @@ final isAdmin = permsInfo?.hasPermission(currentUid, GroupPermission.inviteMembe
 
 | Μέτρο | Τιμή |
 |---|---|
-| Completion | ~99.9% (Phases 1-3 100%, MultiChat Phase 9 ✅) |
+| Completion | ~99.9% (Phases 1-3 100%, MultiChat Phase 9 ✅, Media Phase 1-2 ✅) |
 | Firestore indexes | 21 composite deployed |
 | Build | `flutter analyze` clean, release APK ~33.4MB |
 | Tests | **30/30 passed** |
@@ -710,6 +710,17 @@ final isAdmin = permsInfo?.hasPermission(currentUid, GroupPermission.inviteMembe
 
 ### ✅ Ολοκληρωμένο — Role-based visibility σε group chat screens
 **Session:** 161 (αρχική υλοποίηση) + 162 (διορθώσεις)
+
+### ✅ Ολοκληρωμένο — Media Input Phase 1: Emoji Picker (v4)
+**Session:** 175-180 (planning + extraction + refactor + v4 instance cache)
+- `EmojiPickerPanel` StatefulWidget με instance cache, SPoT restoration, dispose log summary
+- `flutter analyze` clean, device test 4 opens stable
+
+### ✅ Ολοκληρωμένο — Media Input Phase 2: GIF Support (GIPHY API)
+**Session:** 181 (full implementation + device test)
+- `GiphyService` (αντί Tenor — discontinued) + `GifPickerSheet` bottom sheet
+- `sendMediaMessage` + media branch skip decrypt + `_GifBubble` rendering
+- `gifSupportEnabled = true`, `flutter analyze` clean
 **Περιγραφή:** Εφαρμογή role-based απόκρυψη/εμφάνιση επιλογών βάσει Creator/Admin/Member.
 
 **Αρχική υλοποίηση (Session 161):**
@@ -1731,3 +1742,142 @@ final participantNicknames = ref.watch(_chatScreenNicknamesProvider(widget.chatI
 | `backups/chat_screen.dart.bak_2026-07-16_emojiPanel` | Backup pre-extraction |
 | `media_input.md` | Updated Phase 1 status |
 | `oldsessions.md` | Session 179 added |
+
+
+## Session 180 — EmojiPickerPanel instance cache + SPoT restoration + decrypt log summary
+
+**Ημερομηνία:** 16 Ιουλίου 2026
+
+### Στόχος
+Μετά την απομόνωση του EmojiPickerPanel σε leaf widget (v3), βελτιστοποίηση του Config creation με instance-level cache αντί static, διόρθωση SPoT violation, και μείωση θορύβου decrypt logs.
+
+### Αλλαγές
+
+**1. Static cache → Instance cache (EmojiPickerPanel → StatefulWidget)**
+- `EmojiPickerPanel` converted από StatelessWidget → StatefulWidget
+- Instance-level `_cachedConfig`, `_cachedIsDark`, `_cachedIsGreek` — το cache ζει όσο το widget
+- Auto-dispose: `_cachedConfig = null` στο `dispose()`, zero memory leak
+- `DebugConfig.log(DebugConfig.uiInteraction, 'EmojiPickerPanelState dispose')`
+
+**2. SPoT restoration**
+- Η `_getConfig()` αρχικά είχε αντιγράψει όλη την Config factory logic (duplicated από `EmojiPickerConfig.create()`)
+- Διορθώθηκε: `_getConfig()` καλεί `EmojiPickerConfig.create(context)` + caching — μοναδική πηγή αλήθειας
+- `EmojiPickerConfig.create()` ξανά pure factory (αφαιρέθηκε το static cache που είχε προστεθεί πρόχειρα)
+
+**3. Convention alignment check + fixes**
+| Κανόνας | Ενέργεια |
+|---------|----------|
+| Responsive | ✅ `EmojiPickerConfig.responsiveHeight()` — 35/30/25% portrait, 55% landscape |
+| Bilingual | ✅ `L10n.isGreek(context)` → el/en locale + labels |
+| SPoT | ✅ `_getConfig()` → `EmojiPickerConfig.create()` — μοναδική factory |
+| Debug | ✅ `DebugConfig.uiInteraction` σε build, _getConfig, dispose |
+| Edge cases | ✅ error boundary (`try-catch` + `DebugConfig.error()`), theme/locale recalc, dispose cleanup |
+
+**4. Decrypt log summary (chat_repository_impl.dart)**
+- Αντικατάσταση 30+ γραμμών `decrypt cache hit: msg=...` και `decrypt cache miss: msg=...` με μία γραμμή:
+  `messagesStream: decrypt cache N hits, M misses for chat=...`
+- Μετρητές `hitCount` / `missCount` στο asyncMap
+- Σπάνια events (fallback key, failed decrypt) παραμένουν ως ξεχωριστά logs
+
+### Device Test Results (v4)
+| Άνοιγμα | `ChatScreen didChangeDependencies` | `Config` creation | Panel rebuilds |
+|:-------:|:----------------------------------:|:-----------------:|:--------------:|
+| 1ο (18:50:27) | 1× (setState toggle) | 1× (cache miss) | ~18 (internal package) |
+| 2ο (18:50:34) | 0× | 1× (cache miss, νέο State) | ~18 |
+| 3ο (18:50:40) | 0× | 1× (cache miss, νέο State) | ~16 |
+| 4ο (18:50:52) | 1× (setState toggle) | 1× (cache miss, νέο State) | ~18 |
+
+**Συμπέρασμα:** Μηδενικό rebuild storm. `ChatScreen didChangeDependencies` μόνο από setState toggle (αναμενόμενο). Instance cache χάνεται σε κάθε dispose (σχεδιασμένο — auto-cleaning). Panel rebuilds ~16-18 είναι από `emoji_picker_flutter` internal `_updateEmojis()` cascade, όχι από MediaQuery/Theme.
+
+### Επαλήθευση
+- `flutter analyze` — **0 issues** ✅
+- Cache: 1 Config creation ανά άνοιγμα (miss), όλα τα υπόλοιπα rebuilds hit ✅
+- Dispose log εμφανίζεται σε κάθε κλείσιμο picker ✅
+- Decrypt log summary: `decrypt cache 30 hits, 1 miss` αντί 31 lines ✅
+
+### Αρχεία
+| Αρχείο | Αλλαγή |
+|--------|--------|
+| `lib/features/chat/widgets/emoji_picker_panel.dart` | StatelessWidget → StatefulWidget + instance cache + dispose log |
+| `lib/features/chat/utils/emoji_picker_config.dart` | Αφαίρεση static cache — pure factory |
+| `lib/repositories/chat_repository_impl.dart` | Decrypt log: hit/miss per-message → summary counters |
+| `media_input.md` | Updated Phase 1 → v4 |
+| `oldsessions.md` | Session 180 added |
+
+---
+
+## Session 181 — Phase 2: GIF Support (GIPHY API) — Complete
+
+**Ημερομηνία:** 16 Ιουλίου 2026
+
+### Στόχος
+Υλοποίηση GIF support ως Phase 2 του Media Input plan — GIF picker, αποστολή, εμφάνιση σε bubble και chat list.
+
+### Αλλαγές (9 τροποποιημένα + 2 νέα αρχεία)
+
+**Νέα Αρχεία:**
+| Αρχείο | Περιγραφή |
+|--------|-----------|
+| `lib/shared/utils/giphy_service.dart` | GIPHY API client (dart:io HttpClient, trending + search, GiphyGif model) — ~100 γρ. |
+| `lib/features/chat/widgets/gif_picker_sheet.dart` | Bottom sheet UI: debounce search, GridView 2 cols, loading/empty/error states — ~150 γρ. |
+
+**Τροποποιημένα Αρχεία:**
+| Αρχείο | Αλλαγή |
+|--------|--------|
+| `lib/core/config/feature_flags.dart` | +`gifSupportEnabled = false` (τέθηκε `true` μετά testing) |
+| `lib/core/utils/error_messages.dart` | +`chat/gif-send-failed`, `chat/gif-api-error` |
+| `lib/repositories/chat_repository.dart` | +`sendMediaMessage(chatId, {content, type})` abstract |
+| `lib/repositories/chat_repository_impl.dart` | 2 changes: (α) `sendMediaMessage` impl (β) messagesStream media branch: `type == 'gif' \|\| type == 'image' \|\| type == 'video'` skip decrypt |
+| `lib/features/chat/providers/chat_provider.dart` | +`sendMediaMessage(chatId, {content, type})` στο ChatActionsNotifier |
+| `lib/features/chat/widgets/chat_input_bar.dart` | + GIF button (`Icons.gif_box_outlined`) + `_pickGif()` |
+| `lib/features/chat/widgets/message_bubble.dart` | +`_GifBubble` (CachedNetworkImage, maxHeight=200, seen/read indicators) |
+| `lib/features/chat/screens/chat_list_screen.dart` | +`'gif'` → `'🎞️ GIF'` στην _buildPreviewText |
+
+**Διαγραμμένο Αρχείο:**
+| Αρχείο | Λόγος |
+|--------|-------|
+| `lib/shared/utils/tenor_service.dart` | Tenor API discontinued 30/6/2026 — αντικαταστάθηκε από GIPHY |
+
+### Tenor → GIPHY Migration
+
+Το Tenor API διακόπηκε στις 30 Ιουνίου 2026. Η υλοποίηση μεταφέρθηκε σε GIPHY:
+
+| Πάροχος | Base URL | Auth | Free Tier |
+|:--------|:--------:|:----:|:---------:|
+| ~~Tenor~~ (discontinued) | ~~tenor.googleapis.com/v2~~ | ~~API key~~ | ~~10k/day~~ |
+| **GIPHY** ✅ | `api.giphy.com/v1/gifs` | API key via `--dart-define=GIPHY_API_KEY` | **10k/hour** |
+
+Το `tenor_service.dart` διαγράφηκε. Δημιουργήθηκε `giphy_service.dart` με ίδιο pattern (`dart:io` `HttpClient`, connectionTimeout 6s, `String.fromEnvironment('GIPHY_API_KEY')`).
+
+### Key Decisions
+- **`dart:io` HttpClient** (όχι `http` package) — reuse pattern από `location_autocomplete_service.dart`
+- **API key** via `--dart-define=GIPHY_API_KEY` — reuse pattern από `ENABLE_RELEASE_DEBUG`
+- **GIF picker = bottom sheet** — self-contained, καμία αλλαγή στο ChatScreen state
+- **`CachedNetworkImage`** (υπάρχον dependency) για GIF bubbles
+- **`fixed_width`** images για picker grid (200px), **`original`** URL για αποθήκευση στο message
+- **`gifSupportEnabled = true`** — ενεργοποιήθηκε πλήρως μετά το device test
+
+### Device Test Results ✅
+```
+GiphyService.trending: limit=20                           ← trending φορτώνει
+GiphyService.search: q=smile limit=20                     ← αναζήτηση λειτουργεί
+GifPickerSheet: selected                                  ← επιλογή GIF
+ChatActions: sendMediaMessage chat=SOuOdL9ojVQsAzt9Zy4u type=gif
+sendMediaMessage: success chat=SOuOdL9ojVQsAzt9Zy4u type=gif  ← αποστολή επιτυχής
+messagesStream: media message t1GACtYRznH1yrvXJs4W type=gif   ← media branch skip decrypt
+decrypt cache 27 hits, 0 misses for chat=SOuOdL9ojVQsAzt9Zy4u  ← decrypt cache summary
+```
+
+### Επαλήθευση
+- `flutter analyze` — **0 issues** ✅
+- GIF picker opens (bottom sheet) ✅
+- Trending GIFs load ✅
+- Search with debounce ✅
+- GIF select → send → bubble renders ✅
+- seen/read indicators on GIF bubble ✅
+- Chat list preview shows "🎞️ GIF" ✅
+- All Tenor references removed ✅
+
+### Files
+`media_input.md` — Updated Phase 2 status (completed) + Tenor→GIPHY documentation
+`oldsessions.md` — Session 181 added

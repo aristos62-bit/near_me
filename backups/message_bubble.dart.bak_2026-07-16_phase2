@@ -1,9 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
-import 'emoji_only_bubble.dart';
 
 class MessageBubble extends StatelessWidget {
   final Map<String, dynamic> message;
@@ -61,32 +59,6 @@ class MessageBubble extends StatelessWidget {
         onRejectDelete: onRejectDelete,
         onDeleteForMe: onDeleteForMe,
         onKeepChat: onKeepChat,
-      );
-    }
-
-    if (type == 'gif') {
-      final isMe = senderId == currentUid;
-      return _GifBubble(
-        content: content,
-        timeStr: timeStr,
-        isMe: isMe,
-        isGroupChat: isGroupChat,
-        senderNickname: senderNickname,
-        seenBy: seenBy,
-        isRead: isRead,
-      );
-    }
-
-    if (type == 'text' && isOnlyEmoji(content)) {
-      final isMe = senderId == currentUid;
-      return EmojiOnlyBubble(
-        content: content,
-        timeStr: timeStr,
-        isMe: isMe,
-        isGroupChat: isGroupChat,
-        senderNickname: senderNickname,
-        seenBy: seenBy,
-        isRead: isRead,
       );
     }
 
@@ -347,128 +319,4 @@ class _SystemBubble extends StatelessWidget {
     );
   }
 }
-
-class _GifBubble extends StatelessWidget {
-  final String content;
-  final String timeStr;
-  final bool isMe;
-  final bool isGroupChat;
-  final String? senderNickname;
-  final List<String> seenBy;
-  final bool isRead;
-
-  const _GifBubble({
-    required this.content,
-    required this.timeStr,
-    required this.isMe,
-    this.isGroupChat = false,
-    this.senderNickname,
-    this.seenBy = const [],
-    this.isRead = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final maxBubbleWidth = constraints.maxWidth * 0.75;
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 3),
-          child: Column(
-            crossAxisAlignment:
-                isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-            children: [
-              if (isGroupChat && !isMe && senderNickname != null)
-                Padding(
-                  padding: const EdgeInsets.only(left: 14, bottom: 2),
-                  child: Text(
-                    senderNickname!,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              Container(
-                constraints: BoxConstraints(
-                    maxWidth: maxBubbleWidth, maxHeight: 200),
-                decoration: BoxDecoration(
-                  color: isMe
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(16),
-                    topRight: const Radius.circular(16),
-                    bottomLeft: Radius.circular(isMe ? 16 : 4),
-                    bottomRight: Radius.circular(isMe ? 4 : 16),
-                  ),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: CachedNetworkImage(
-                  imageUrl: content,
-                  fit: BoxFit.cover,
-                  placeholder: (_, _) => SizedBox(
-                    width: 200,
-                    height: 200,
-                    child: Center(
-                      child: SizedBox(
-                        width: 20, height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: isMe
-                              ? theme.colorScheme.onPrimary
-                              : theme.colorScheme.primary,
-                        ),
-                      ),
-                    ),
-                  ),
-                  errorWidget: (_, _, _) => SizedBox(
-                    width: 200,
-                    height: 200,
-                    child: Icon(Icons.broken_image,
-                        color: theme.colorScheme.onSurfaceVariant),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: EdgeInsets.only(
-                    top: 2,
-                    left: isMe ? 0 : 14,
-                    right: isMe ? 14 : 0),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(timeStr, style: theme.textTheme.labelSmall
-                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-                    if (isGroupChat && isMe && seenBy.isNotEmpty) ...[
-                      const SizedBox(width: 4),
-                      Icon(Icons.visibility, size: 14,
-                          color: theme.colorScheme.primary),
-                      const SizedBox(width: 2),
-                      Text('${seenBy.length}',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                              color: theme.colorScheme.primary)),
-                    ],
-                    if (!isGroupChat && isMe) ...[
-                      const SizedBox(width: 4),
-                      Icon(
-                        isRead ? Icons.done_all : Icons.done,
-                        size: 14,
-                        color: isRead
-                            ? theme.colorScheme.primary
-                            : theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
 

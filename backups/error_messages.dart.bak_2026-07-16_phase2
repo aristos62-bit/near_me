@@ -62,10 +62,6 @@ class ErrorMessages {
         return isGreek ? 'Αποστολή απέτυχε' : 'Send failed';
       case 'chat/unknown-error':
         return isGreek ? 'Σφάλμα συνομιλίας. Δοκίμασε ξανά.' : 'Chat error. Try again.';
-      case 'chat/gif-send-failed':
-        return isGreek ? 'Αποστολή GIF απέτυχε' : 'GIF send failed';
-      case 'chat/gif-api-error':
-        return isGreek ? 'Σφάλμα φόρτωσης GIF' : 'GIF loading error';
       case 'delete/unknown-error':
         return isGreek ? 'Σφάλμα διαγραφής λογαριασμού. Δοκίμασε ξανά.' : 'Account deletion error. Try again.';
       case 'stream/load-error':

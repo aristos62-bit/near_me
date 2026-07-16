@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
-import 'emoji_only_bubble.dart';
 
 class MessageBubble extends StatelessWidget {
   final Map<String, dynamic> message;
@@ -67,19 +66,6 @@ class MessageBubble extends StatelessWidget {
     if (type == 'gif') {
       final isMe = senderId == currentUid;
       return _GifBubble(
-        content: content,
-        timeStr: timeStr,
-        isMe: isMe,
-        isGroupChat: isGroupChat,
-        senderNickname: senderNickname,
-        seenBy: seenBy,
-        isRead: isRead,
-      );
-    }
-
-    if (type == 'text' && isOnlyEmoji(content)) {
-      final isMe = senderId == currentUid;
-      return EmojiOnlyBubble(
         content: content,
         timeStr: timeStr,
         isMe: isMe,
@@ -470,5 +456,4 @@ class _GifBubble extends StatelessWidget {
     );
   }
 }
-
 

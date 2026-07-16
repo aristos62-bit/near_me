@@ -1,7 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/config/feature_flags.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
@@ -10,7 +9,6 @@ import '../../../core/utils/error_messages.dart';
 import '../../../repositories/auth_repository.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
-import 'gif_picker_sheet.dart';
 
 class ChatInputBar extends ConsumerStatefulWidget {
   final String chatId;
@@ -83,24 +81,6 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     }
   }
 
-  Future<void> _pickGif() async {
-    DebugConfig.log(DebugConfig.uiInteraction, 'ChatInputBar: GIF picker shown');
-    if (widget.emojiPickerVisible) widget.onEmojiDismiss();
-    final greek = L10n.isGreek(context);
-    await showGifPickerSheet(context, onSelected: (url) async {
-      if (!mounted) return;
-      setState(() => _isLoading = true);
-      final ok = await ref.read(chatActionsProvider.notifier)
-          .sendMediaMessage(widget.chatId, content: url, type: 'gif');
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-      if (!ok) {
-        AppMessenger.showError(context, ErrorMessages.get(
-            'chat/gif-send-failed', greek));
-      }
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final greek = L10n.isGreek(context);
@@ -161,12 +141,6 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
                       ),
                       onPressed: widget.onEmojiToggle,
                       tooltip: 'Emoji',
-                    ),
-                  if (!_isLoading && FeatureFlags.gifSupportEnabled)
-                    IconButton(
-                      icon: const Icon(Icons.gif_box_outlined),
-                      onPressed: _pickGif,
-                      tooltip: 'GIF',
                     ),
                   Expanded(child: TextField(
                     controller: widget.textController,

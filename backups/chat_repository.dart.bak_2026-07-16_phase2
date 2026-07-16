@@ -110,10 +110,4 @@ abstract class ChatRepository {
 
   // Public group join
   Future<void> joinPublicGroup(String chatId);
-
-  // Media messages
-  Future<void> sendMediaMessage(String chatId, {
-    required String content,
-    required String type,
-  });
 }

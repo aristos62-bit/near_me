@@ -11,6 +11,7 @@ class MessageBubble extends StatelessWidget {
   final bool isGroupChat;
   final bool isRead;
   final String? senderNickname;
+  final String? senderAvatarUrl;
   final Map<String, String>? participantNicknames;
   final List<String> seenBy;
   final String? chatId;
@@ -26,6 +27,7 @@ class MessageBubble extends StatelessWidget {
     this.isGroupChat = false,
     this.isRead = false,
     this.senderNickname,
+    this.senderAvatarUrl,
     this.participantNicknames,
     this.seenBy = const [],
     this.chatId,
@@ -105,12 +107,27 @@ class MessageBubble extends StatelessWidget {
               if (isGroupChat && !isMe && senderNickname != null)
                 Padding(
                   padding: const EdgeInsets.only(left: 14, bottom: 2),
-                  child: Text(
-                    senderNickname!,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircleAvatar(
+                        radius: 10,
+                        backgroundImage: senderAvatarUrl != null
+                            ? CachedNetworkImageProvider(senderAvatarUrl!)
+                            : null,
+                        child: senderAvatarUrl == null
+                            ? Text(senderNickname![0],
+                                style: const TextStyle(fontSize: 11))
+                            : null,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(senderNickname!,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               Container(

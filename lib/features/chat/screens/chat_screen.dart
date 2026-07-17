@@ -162,6 +162,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ))
         .data;
 
+    final participantAvatarUrls = ref
+        .watch(chatDocProvider(widget.chatId).select(
+          (a) {
+            final raw = (a.asData?.value?.data() as Map<String, dynamic>?)
+                ?['participantAvatarUrls'] as Map<String, dynamic>?;
+            if (raw == null) return const <String, String>{};
+            return raw.map((k, v) => MapEntry(k, v as String? ?? ''));
+          },
+        ));
+
     final participantUids = ref.watch(participantUidsProvider(widget.chatId));
     final memberCount = isGroupChat ? participantUids.length : null;
 
@@ -325,6 +335,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           chatId: widget.chatId,
           isGroupChat: isGroupChat,
           participantNicknames: isGroupChat ? participantNicknames : null,
+          participantAvatarUrls: isGroupChat ? participantAvatarUrls : null,
           otherUid: otherUid,
         )),
         if (_emojiPickerVisible)

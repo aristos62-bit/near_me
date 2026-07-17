@@ -13,6 +13,7 @@ import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
 import '../../../data/local/database.dart';
+import '../../../features/chat/providers/chat_provider.dart';
 import '../../../shared/widgets/chip_selector.dart';
 import '../../../shared/widgets/form_section.dart';
 import '../../../shared/widgets/form_toggle.dart';
@@ -432,6 +433,18 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
         updatedAt: DateTime.now(),
       );
       await repo.saveProfile(profile);
+
+      // ΝΕΟ: sync nickname/avatar σε όλα τα chat docs
+      final chatRepo = ref.read(chatRepositoryProvider);
+      try {
+        await chatRepo.syncMyProfileAcrossChats(
+          nickname: name,
+          avatarUrl: _avatarUrl,
+        );
+      } catch (e, s) {
+        DebugConfig.warn('syncMyProfileAcrossChats failed', data: '$e\n$s');
+      }
+
       final commSettingsChanged = _loadedProfile != null && (
           _allowVideoCall != _loadedProfile!.allowVideoCall ||
           _allowDirectChat != _loadedProfile!.allowDirectChat);

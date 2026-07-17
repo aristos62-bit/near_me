@@ -609,12 +609,25 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin im
                 final lastMessageBy = data['lastMessageBy'] as String?;
                 final groupAvatarUrl = data['groupAvatarUrl'] as String?;
                 final groupName = data['groupName'] as String?;
-                if (lastMessageAt != null || groupAvatarUrl != null || groupName != null) {
+                final participants = List<String>.from(data['participants'] ?? []);
+                final otherUid = participants.where((p) => p != uid).firstOrNull;
+                final nicknames = data['participantNicknames'] as Map<String, dynamic>?;
+                final avatarUrls = data['participantAvatarUrls'] as Map<String, dynamic>?;
+                String? newOtherNickname;
+                String? newOtherAvatarUrl;
+                if (otherUid != null) {
+                  newOtherNickname = nicknames?[otherUid] as String?;
+                  newOtherAvatarUrl = avatarUrls?[otherUid] as String?;
+                }
+                if (lastMessageAt != null || groupAvatarUrl != null || groupName != null ||
+                    newOtherNickname != null || newOtherAvatarUrl != null) {
                   await updateChatCache(chatId,
                       lastMessageAt: lastMessageAt,
                       hasUnread: lastMessageBy != null && lastMessageBy != uid,
                       groupAvatarUrl: groupAvatarUrl,
-                      groupName: groupName);
+                      groupName: groupName,
+                      otherNickname: newOtherNickname,
+                      otherAvatarUrl: newOtherAvatarUrl);
                 }
               } else {
                 await _syncChatFromFirestore(chatId, change.doc.data() as Map<String, dynamic>);
@@ -728,6 +741,75 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin im
       DebugConfig.error('sendMediaMessage failed', data: e);
       throw AppException.firestore('send_media', 'Αποτυχία αποστολής / Failed to send');
     }
+  }
+
+  @override
+  Future<void> syncMyProfileAcrossChats({
+    required String nickname,
+    String? avatarUrl,
+  }) async {
+    final uid = auth.currentUser?.uid;
+    if (uid == null) {
+      DebugConfig.warn('syncMyProfileAcrossChats: no auth user');
+      return;
+    }
+
+    DebugConfig.log(DebugConfig.repositoryCall,
+        'syncMyProfileAcrossChats: uid=$uid nickname=$nickname hasAvatar=${avatarUrl != null}');
+
+    final chats = await getChats();
+    if (chats.isEmpty) {
+      DebugConfig.log(DebugConfig.firestoreRead,
+          'syncMyProfileAcrossChats: Drift empty, fallback Firestore query');
+      final snapshot = await firestore
+          .collection('chats')
+          .where('participants', arrayContains: uid)
+          .get();
+      if (snapshot.docs.isEmpty) {
+        DebugConfig.log(DebugConfig.repositoryResult,
+            'syncMyProfileAcrossChats: no chats found');
+        return;
+      }
+      _batchUpdateChatDocs(snapshot.docs.map((d) => d.reference).toList(),
+          uid, nickname, avatarUrl);
+      return;
+    }
+
+    final refs = chats
+        .where((c) => c.chatId != null)
+        .map((c) => firestore.collection('chats').doc(c.chatId!))
+        .toList();
+    _batchUpdateChatDocs(refs, uid, nickname, avatarUrl);
+  }
+
+  Future<void> _batchUpdateChatDocs(
+    List<DocumentReference> refs,
+    String uid,
+    String nickname,
+    String? avatarUrl,
+  ) async {
+    final updates = <String, dynamic>{
+      'participantNicknames.$uid': nickname,
+    };
+    if (avatarUrl != null) {
+      updates['participantAvatarUrls.$uid'] = avatarUrl;
+    }
+
+    const batchLimit = 500;
+    var batch = firestore.batch();
+    var count = 0;
+    for (final ref in refs) {
+      batch.update(ref, updates);
+      count++;
+      if (count % batchLimit == 0) {
+        await batch.commit();
+        batch = firestore.batch();
+      }
+    }
+    if (count % batchLimit != 0) await batch.commit();
+
+    DebugConfig.log(DebugConfig.firestoreWrite,
+        'syncMyProfileAcrossChats: updated $count chats');
   }
 
   @override

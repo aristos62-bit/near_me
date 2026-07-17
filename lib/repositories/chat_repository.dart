@@ -116,4 +116,10 @@ abstract class ChatRepository {
     required String content,
     required String type,
   });
+
+  // Profile sync across chats
+  Future<void> syncMyProfileAcrossChats({
+    required String nickname,
+    String? avatarUrl,
+  });
 }

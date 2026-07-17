@@ -13,6 +13,7 @@ class ChatMessagesList extends ConsumerStatefulWidget {
   final String chatId;
   final bool isGroupChat;
   final Map<String, String>? participantNicknames;
+  final Map<String, String>? participantAvatarUrls;
   final String? otherUid;
 
   const ChatMessagesList({
@@ -20,6 +21,7 @@ class ChatMessagesList extends ConsumerStatefulWidget {
     required this.chatId,
     this.isGroupChat = false,
     this.participantNicknames,
+    this.participantAvatarUrls,
     this.otherUid,
   });
 
@@ -157,6 +159,10 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
                 final senderNickname = widget.isGroupChat && nicknameMap != null
                     ? nicknameMap[senderId]
                     : null;
+                final avatarUrls = widget.participantAvatarUrls;
+                final senderAvatarUrl = widget.isGroupChat && avatarUrls != null
+                    ? avatarUrls[senderId]
+                    : null;
                 if (widget.isGroupChat && senderNickname == null) {
                   DebugConfig.warn(
                       'ChatMessagesList: senderNickname null for senderId=$senderId '
@@ -186,6 +192,7 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
                   isGroupChat: widget.isGroupChat,
                   isRead: effectiveIsRead,
                   senderNickname: senderNickname,
+                  senderAvatarUrl: senderAvatarUrl,
                   participantNicknames: widget.participantNicknames,
                   seenBy: seenBy,
                   chatId: widget.chatId,

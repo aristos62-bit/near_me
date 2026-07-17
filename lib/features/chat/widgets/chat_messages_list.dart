@@ -140,18 +140,16 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
             message: greek ? 'Καμία συνομιλία' : 'No messages',
           );
         }
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final w = ResponsiveUtils.resolveWidth(context, constraints);
-            return ListView.builder(
-              controller: _scrollCtrl,
-              reverse: true,
-              padding: EdgeInsets.symmetric(
-                horizontal: ResponsiveUtils.paddingValueFromWidth(w),
-                vertical: 8,
-              ),
-              itemCount: messages.length,
-              itemBuilder: (_, i) {
+        final w = MediaQuery.sizeOf(context).width;
+        return ListView.builder(
+          controller: _scrollCtrl,
+          reverse: true,
+          padding: EdgeInsets.symmetric(
+            horizontal: ResponsiveUtils.paddingValueFromWidth(w),
+            vertical: 8,
+          ),
+          itemCount: messages.length,
+          itemBuilder: (_, i) {
                 final msg = messages[messages.length - 1 - i];
                 final senderId = msg['senderId'] as String? ?? '';
                 final msgTimestamp = (msg['timestamp'] as Timestamp?)?.toDate();
@@ -198,8 +196,6 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
                 );
               },
             );
-          },
-        );
       },
     );
   }

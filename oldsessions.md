@@ -662,11 +662,11 @@ final isAdmin = permsInfo?.hasPermission(currentUid, GroupPermission.inviteMembe
 
 | Μέτρο | Τιμή |
 |---|---|
-| Completion | ~99.9% (Phases 1-3 100%, MultiChat Phase 9 ✅, Media Phase 1-2 ✅) |
+| Completion | ~99.9% (Phases 1-3 100%, MultiChat Phase 9 ✅, Media Phase 1-3 ✅) |
 | Firestore indexes | 21 composite deployed |
 | Build | `flutter analyze` clean, release APK ~33.4MB |
 | Tests | **30/30 passed** |
-| `.dart` files | ~109 (non-generated) |
+| `.dart` files | ~110 (non-generated) |
 | Cloud Functions | **6 deployed** (+1 new: `addGroupParticipant`) + `fcm-utils.ts` helper |
 | Unread tracking requests + FCM deep link | ✅ Session 139 |
 | RenderFlex overflow fixes (discovery + delete + request_card) | ✅ Sessions 140, 148a |
@@ -707,6 +707,7 @@ final isAdmin = permsInfo?.hasPermission(currentUid, GroupPermission.inviteMembe
 | **Existing members UI** (label "Μέλος/Member" disabled Chip) | ✅ **Session 173** |
 | **Auto-localize bilingual errors** (AppMessenger showError) | ✅ **Session 173** |
 | `flutter analyze` | ✅ Clean |
+| **Large Emoji-Only Messages** (emoji_only_bubble.dart) | ✅ **Session 182** |
 
 ### ✅ Ολοκληρωμένο — Role-based visibility σε group chat screens
 **Session:** 161 (αρχική υλοποίηση) + 162 (διορθώσεις)
@@ -1881,3 +1882,45 @@ decrypt cache 27 hits, 0 misses for chat=SOuOdL9ojVQsAzt9Zy4u  ← decrypt cache
 ### Files
 `media_input.md` — Updated Phase 2 status (completed) + Tenor→GIPHY documentation
 `oldsessions.md` — Session 181 added
+
+---
+
+## Session 182 — Large Emoji-Only Messages (Phase 3)
+
+**Ημερομηνία:** 16 Ιουλίου 2026
+
+### Στόχος
+Messages που περιέχουν μόνο emoji εμφανίζονται μεγάλα (όπως Telegram/iMessage) αντί για κανονικό text bubble.
+
+### Υλοποίηση
+
+**Ανίχνευση:** `EmojiRegex` από `emoji_picker_flutter` (υπάρχον dependency) — `\p{Emoji}` unicode property.
+
+**Font size logic:**
+| Emoji count | Font size |
+|:-----------:|:---------:|
+| 1 | 64px |
+| 2-3 | 48px |
+| 4-6 | 36px |
+| 7+ | 28px |
+
+**Flag emoji fix:** Regional Indicator pairs (🇬🇷) μετρώνται ως 1 emoji — `_riRegex` αφαιρεί RI pairs από το συνολικό count.
+
+### Αρχεία
+
+| Αρχείο | Αλλαγή |
+|--------|--------|
+| `lib/features/chat/widgets/emoji_only_bubble.dart` | **ΝΕΟ** — `EmojiOnlyBubble` widget + `isOnlyEmoji()` + `emojiFontSize()` (131 γρ.) |
+| `lib/features/chat/widgets/message_bubble.dart` | Import + dispatch `type == 'text' && isOnlyEmoji(content)` → `EmojiOnlyBubble` (474 γρ., από 600) |
+
+### Επαλήθευση
+- `flutter analyze` — **0 errors** ✅ (1 info-level `valid_regexps` από το ίδιο το πακέτο)
+- `flutter build apk --release --dart-define=ENABLE_RELEASE_DEBUG=true` — **successful** ✅
+- Device test logs — **all 3 font sizes verified** ✅
+- GIF/text/system bubbles — unaffected ✅
+- Send, receive, group chat nickname above emoji — все ✅
+
+### Side effects: **Κανένα**
+
+### Backup
+`backups/message_bubble.dart.backup_20260716_*.dart`

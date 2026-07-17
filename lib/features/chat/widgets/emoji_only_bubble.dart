@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/debug/debug_config.dart';
 
 final _emojiRegex = RegExp(EmojiRegex, unicode: true);
+// ignore: valid_regexps
 final _emojiCharRegex = RegExp(r'\p{Emoji}', unicode: true);
 final _riRegex = RegExp(r'\p{Regional_Indicator}', unicode: true);
 

@@ -90,8 +90,10 @@ class _GifPickerSheetContentState extends State<_GifPickerSheetContent> {
   Widget build(BuildContext context) {
     final greek = L10n.isGreek(context);
     final theme = Theme.of(context);
-    final screenHeight = MediaQuery.of(context).size.height;
-    final sheetHeight = MediaQuery.of(context).orientation == Orientation.landscape
+    // ΔΙΟΡΘΩΣΗ: sizeOf/orientationOf αντί MediaQuery.of — αποφυγή πλήρους rebuild
+    // του sheet σε κάθε μεταβολή viewInsets ενώ πληκτρολογεί ο χρήστης.
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final sheetHeight = MediaQuery.orientationOf(context) == Orientation.landscape
         ? screenHeight * 0.75
         : screenHeight * 0.60;
 

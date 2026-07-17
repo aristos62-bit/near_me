@@ -461,6 +461,8 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin im
             groupName: groupName != null ? Value(groupName) : Value.absent(),
             groupAvatarUrl: groupAvatarUrl != null ? Value(groupAvatarUrl) : Value.absent(),
           ));
+      DebugConfig.log(DebugConfig.databaseLocal,
+          'updateChatCache: written chat=$chatId otherNickname=$otherNickname');
     } catch (e) {
       DebugConfig.warn('updateChatCache failed for $chatId', data: e);
     }
@@ -619,6 +621,9 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin im
                   newOtherNickname = nicknames?[otherUid] as String?;
                   newOtherAvatarUrl = avatarUrls?[otherUid] as String?;
                 }
+                DebugConfig.log(DebugConfig.chatStream,
+                    'streamChats lightweight sync: chat=$chatId otherUid=$otherUid '
+                    'newOtherNickname=$newOtherNickname');
                 if (lastMessageAt != null || groupAvatarUrl != null || groupName != null ||
                     newOtherNickname != null || newOtherAvatarUrl != null) {
                   await updateChatCache(chatId,

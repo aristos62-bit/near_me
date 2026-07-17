@@ -197,7 +197,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     return Scaffold(
       appBar: AppBar(
         title: GestureDetector(
-          onTap: () => _showE2EInfo(isGroupChat ? (groupName ?? widget.chatId) : (_nickname ?? otherNickname ?? widget.chatId)),
+          onTap: () => _showE2EInfo(isGroupChat ? (groupName ?? widget.chatId) : (otherNickname ?? _nickname ?? widget.chatId)),
           child: isGroupChat
               ? Column(children: [
                   Row(mainAxisSize: MainAxisSize.min, children: [
@@ -223,7 +223,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     ]),
                 ])
               : Column(children: [
-                  Text(_nickname ?? otherNickname ?? widget.chatId),
+                  Text(otherNickname ?? _nickname ?? widget.chatId),
                   Row(mainAxisSize: MainAxisSize.min, children: [
                     Icon(Icons.lock, size: 12, color: theme.colorScheme.onSurfaceVariant),
                     const SizedBox(width: 4),

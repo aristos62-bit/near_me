@@ -38,7 +38,7 @@ class _ChatScreenNicknames {
 }
 
 class _ChatScreenState extends ConsumerState<ChatScreen> {
-
+  String? _nickname;
   static int _counter = 0;
   final int _instanceId = _counter++;
   final _textCtrl = TextEditingController();
@@ -62,7 +62,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     super.dispose();
   }
 
-
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _nickname ??= GoRouterState.of(context).extra as String?;
+    DebugConfig.log(DebugConfig.uiInteraction,
+        'ChatScreen didChangeDependencies #$_instanceId: '
+            'nickname=${_nickname ?? "null (will show chatId)"}');
+  }
 
   void _showE2EInfo(String label) {
     final greek = L10n.isGreek(context);
@@ -191,7 +198,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     return Scaffold(
       appBar: AppBar(
         title: GestureDetector(
-          onTap: () => _showE2EInfo(isGroupChat ? (groupName ?? widget.chatId) : (otherNickname ?? widget.chatId)),
+          onTap: () => _showE2EInfo(isGroupChat ? (groupName ?? widget.chatId) : (otherNickname ?? _nickname ?? widget.chatId)),
           child: isGroupChat
               ? Column(children: [
                   Row(mainAxisSize: MainAxisSize.min, children: [
@@ -217,7 +224,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     ]),
                 ])
               : Column(children: [
-                  Text(otherNickname ?? widget.chatId),
+                  Text(otherNickname ?? _nickname ?? widget.chatId),
                   Row(mainAxisSize: MainAxisSize.min, children: [
                     Icon(Icons.lock, size: 12, color: theme.colorScheme.onSurfaceVariant),
                     const SizedBox(width: 4),

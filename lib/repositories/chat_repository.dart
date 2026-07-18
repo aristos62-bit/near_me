@@ -127,4 +127,8 @@ abstract class ChatRepository {
   // Reactions
   Future<void> addReaction(String chatId, String messageId, String emoji);
   Future<void> removeReaction(String chatId, String messageId);
+
+  // Message actions
+  Future<void> editMessage(String chatId, String messageId, String newContent);
+  Future<void> deleteMessage(String chatId, String messageId);
 }

@@ -216,7 +216,6 @@ class MessageBubble extends StatelessWidget {
         replyTo: replyTo,
         onReply: onReply != null ? () => onReply!(message) : null,
         onEdit: onEdit != null ? () => onEdit!(message) : null,
-        onDelete: onDelete != null ? () => onDelete!(message) : null,
       );
     }
 
@@ -275,7 +274,16 @@ class MessageBubble extends StatelessWidget {
                     ],
                   ),
                 ),
-              GestureDetector(
+              if (replyTo != null)
+                ReplyPreview(
+                  replyTo: replyTo,
+                  isMe: isMe,
+                  isGroupChat: isGroupChat,
+                ),
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  GestureDetector(
                 onLongPressStart: (details) async {
                   final result = await MessageActionBar.show(
                     context: context,
@@ -286,66 +294,51 @@ class MessageBubble extends StatelessWidget {
                   if (result == 'edit') onEdit?.call(message);
                   if (result == 'delete') onDelete?.call(message);
                 },
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                  children: [
-                    if (replyTo != null)
-                      ReplyPreview(
-                        replyTo: replyTo,
-                        isMe: isMe,
-                        isGroupChat: isGroupChat,
-                      ),
-                    Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Container(
-                          constraints: BoxConstraints(maxWidth: maxBubbleWidth),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: bubbleColor,
-                            borderRadius: bubbleBorderRadius,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              mentions.isEmpty
-                                  ? Text(content, style: TextStyle(color: textColor))
-                                  : _buildRichContent(context, content, mentions, isMe),
-                              if (timeStr.isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 4),
-                                  child: Align(
-                                    alignment: AlignmentDirectional.bottomEnd,
-                                    child: Text(timeStr,
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: isMe
-                                            ? Colors.white.withAlpha(180)
-                                            : theme.colorScheme.onSurfaceVariant.withAlpha(180),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
+                child: Container(
+                constraints: BoxConstraints(maxWidth: maxBubbleWidth),
+            padding: const EdgeInsets.symmetric(
+                horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: bubbleColor,
+              borderRadius: bubbleBorderRadius,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                mentions.isEmpty
+                    ? Text(content, style: TextStyle(color: textColor))
+                    : _buildRichContent(context, content, mentions, isMe),
+                if (timeStr.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Align(
+                      alignment: AlignmentDirectional.bottomEnd,
+                      child: Text(timeStr,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: isMe
+                              ? Colors.white.withAlpha(180)
+                              : theme.colorScheme.onSurfaceVariant.withAlpha(180),
                         ),
-                        if (showTail)
-                          Positioned(
-                            bottom: 0,
-                            right: isMe ? -8 : null,
-                            left: !isMe ? -8 : null,
-                            child: CustomPaint(
-                              painter: TailPainter(color: bubbleColor),
-                              size: const Size(10, 8),
-                            ),
-                          ),
-                      ],
+                      ),
                     ),
-                  ],
+                  ),
+              ],
+            ),
+          ),
+              ),
+              if (showTail)
+                Positioned(
+                  bottom: 0,
+                  right: isMe ? -8 : null,
+                  left: !isMe ? -8 : null,
+                  child: CustomPaint(
+                    painter: TailPainter(color: bubbleColor),
+                    size: const Size(10, 8),
+                  ),
                 ),
+            ],
               ),
           if (chatId != null && FeatureFlags.messageReactionsEnabled)
             MessageReactions(

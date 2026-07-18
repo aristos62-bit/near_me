@@ -67,31 +67,59 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
   Future<void> _send() async {
     final text = widget.textController.text.trim();
     if (text.isEmpty || _isLoading) return;
-    final replyToData = _buildReplyData();
+    final editingMsg = ref.read(editingMessageProvider);
     setState(() => _isLoading = true);
-    final ok = await ref
-        .read(chatActionsProvider.notifier)
-        .sendMessage(widget.chatId, text, replyTo: replyToData);
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-    if (ok) {
-      widget.textController.clear();
-      _clearReply();
+    if (editingMsg != null) {
+      final msgId = editingMsg['id'] as String? ?? '';
+      final ok = await ref
+          .read(chatActionsProvider.notifier)
+          .editMessage(widget.chatId, msgId, text);
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      if (ok) {
+        widget.textController.clear();
+        _clearEdit();
+      } else {
+        widget.textController.text = text;
+        final chatState = ref.read(chatActionsProvider);
+        AppMessenger.showError(
+          context,
+          ErrorMessages.get(
+              chatState.errorMessage ?? 'chat/edit-failed',
+              L10n.isGreek(context)),
+        );
+      }
     } else {
-      widget.textController.text = text;
-      final chatState = ref.read(chatActionsProvider);
-      AppMessenger.showError(
-        context,
-        ErrorMessages.get(
-            chatState.errorMessage ?? 'chat/send-failed',
-            L10n.isGreek(context)),
-      );
+      final replyToData = _buildReplyData();
+      final ok = await ref
+          .read(chatActionsProvider.notifier)
+          .sendMessage(widget.chatId, text, replyTo: replyToData);
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      if (ok) {
+        widget.textController.clear();
+        _clearReply();
+      } else {
+        widget.textController.text = text;
+        final chatState = ref.read(chatActionsProvider);
+        AppMessenger.showError(
+          context,
+          ErrorMessages.get(
+              chatState.errorMessage ?? 'chat/send-failed',
+              L10n.isGreek(context)),
+        );
+      }
     }
   }
 
   void _clearReply() {
     DebugConfig.log(DebugConfig.chatReply, 'ChatInputBar: clear reply');
     ref.read(replyToMessageProvider.notifier).clear();
+  }
+
+  void _clearEdit() {
+    DebugConfig.log(DebugConfig.chatReply, 'ChatInputBar: clear edit');
+    ref.read(editingMessageProvider.notifier).clear();
   }
 
   Map<String, dynamic>? _buildReplyData() {
@@ -219,6 +247,72 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     );
   }
 
+  Widget _buildEditBanner(BuildContext context, ThemeData theme, bool greek, Map<String, dynamic> editingMsg) {
+    final content = editingMsg['content'] as String? ?? '';
+    final type = editingMsg['type'] as String? ?? 'text';
+    final isEmoji = type == 'text' && isOnlyEmoji(content);
+
+    String preview;
+    if (type == 'gif') {
+      preview = '🎞️ GIF';
+    } else if (isEmoji) {
+      preview = content.trim();
+    } else {
+      preview = content.length > 80 ? '${content.substring(0, 80)}...' : content;
+    }
+
+    DebugConfig.log(DebugConfig.chatReply,
+        'ChatInputBar: edit banner: $preview');
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer.withAlpha(120),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      child: Row(
+        children: [
+          const Icon(Icons.edit, size: 18, color: Colors.grey),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  greek ? 'Επεξεργασία μηνύματος' : 'Editing message',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+                Text(
+                  preview,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 18),
+            onPressed: () {
+              widget.textController.clear();
+              _clearEdit();
+            },
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            visualDensity: VisualDensity.compact,
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final greek = L10n.isGreek(context);
@@ -227,9 +321,19 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
         ref.watch(authStateProvider).value ?? FirebaseAuth.instance.currentUser;
     final canComm = AuthRepository.canUserCommunicate(currentUser);
     final replyToMsg = ref.watch(replyToMessageProvider);
+    final editingMsg = ref.watch(editingMessageProvider);
     DebugConfig.log(DebugConfig.uiInteraction,
         'ChatInputBar build: canComm=$canComm '
         'emojiVisible=${widget.emojiPickerVisible}');
+
+    ref.listen(editingMessageProvider, (prev, next) {
+      if (next != null && prev != next) {
+        final content = next['content'] as String? ?? '';
+        widget.textController.text = content;
+        widget.textController.selection = TextSelection.collapsed(offset: content.length);
+        _focusNode.requestFocus();
+      }
+    });
 
     final hintText = widget.isGroupChat
         ? (greek ? 'Γράψε στην ομάδα...' : 'Type to group...')
@@ -253,7 +357,9 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (replyToMsg != null)
+              if (editingMsg != null)
+                _buildEditBanner(context, theme, greek, editingMsg)
+              else if (replyToMsg != null)
                 _buildReplyBanner(context, theme, greek, replyToMsg),
               if (!canComm)
                 Row(children: [

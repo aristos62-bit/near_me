@@ -27,4 +27,9 @@ class FeatureFlags {
 
   // Reply to Message
   static const bool replyToMessageEnabled = true;
+
+  // Message actions (long-tap)
+  static const bool editMessageEnabled = true;
+  static const bool deleteMessageEnabled = true;
+  static const bool messageInfoEnabled = true;
 }

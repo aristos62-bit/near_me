@@ -108,6 +108,7 @@ class EmojiOnlyBubble extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        final maxBubbleWidth = constraints.maxWidth * 0.75;
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 3),
           child: Column(
@@ -164,6 +165,7 @@ class EmojiOnlyBubble extends StatelessWidget {
                   if (result == 'delete') onDelete?.call();
                 },
                 child: Container(
+                constraints: BoxConstraints(maxWidth: maxBubbleWidth),
                 padding: const EdgeInsets.symmetric(
                     horizontal: 8, vertical: 6),
                 decoration: BoxDecoration(

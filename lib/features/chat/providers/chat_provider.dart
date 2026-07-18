@@ -296,6 +296,38 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
     }
   }
 
+  Future<bool> editMessage(String chatId, String messageId, String newContent) async {
+    DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: editMessage chat=$chatId msg=$messageId');
+    state = const ChatActionState(status: ChatActionStatus.loading);
+    try {
+      await _chatRepo.editMessage(chatId, messageId, newContent);
+      DebugConfig.log(DebugConfig.repositoryResult, 'ChatActions: editMessage success');
+      state = const ChatActionState(status: ChatActionStatus.success);
+      ref.invalidate(messagesProvider(chatId));
+      return true;
+    } catch (e, s) {
+      DebugConfig.error('ChatActions: editMessage failed', data: e, exception: s);
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+      return false;
+    }
+  }
+
+  Future<bool> deleteMessage(String chatId, String messageId) async {
+    DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: deleteMessage chat=$chatId msg=$messageId');
+    state = const ChatActionState(status: ChatActionStatus.loading);
+    try {
+      await _chatRepo.deleteMessage(chatId, messageId);
+      DebugConfig.log(DebugConfig.repositoryResult, 'ChatActions: deleteMessage success');
+      state = const ChatActionState(status: ChatActionStatus.success);
+      ref.invalidate(messagesProvider(chatId));
+      return true;
+    } catch (e, s) {
+      DebugConfig.error('ChatActions: deleteMessage failed', data: e, exception: s);
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+      return false;
+    }
+  }
+
   String _friendlyError(Object error) {
     if (error is AppException) {
       if (error.message.contains(' / ')) return error.message;
@@ -555,4 +587,23 @@ class ReplyToMessageNotifier extends Notifier<Map<String, dynamic>?> {
 
 final replyToMessageProvider = NotifierProvider<ReplyToMessageNotifier, Map<String, dynamic>?>(
   ReplyToMessageNotifier.new,
+);
+
+class EditingMessageNotifier extends Notifier<Map<String, dynamic>?> {
+  @override
+  Map<String, dynamic>? build() => null;
+
+  void setEdit(Map<String, dynamic>? msg) {
+    DebugConfig.log(DebugConfig.chatReply, 'edit set for msg=${msg?['id']}');
+    state = msg;
+  }
+
+  void clear() {
+    DebugConfig.log(DebugConfig.chatReply, 'edit cleared');
+    state = null;
+  }
+}
+
+final editingMessageProvider = NotifierProvider<EditingMessageNotifier, Map<String, dynamic>?>(
+  EditingMessageNotifier.new,
 );

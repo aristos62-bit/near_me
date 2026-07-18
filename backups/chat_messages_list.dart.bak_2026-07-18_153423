@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
-import '../../../core/utils/app_messenger.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
@@ -86,29 +85,6 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
   void _onReply(Map<String, dynamic> msg) {
     DebugConfig.log(DebugConfig.chatReply, 'ChatMessagesList: reply msg=${msg['id']}');
     ref.read(replyToMessageProvider.notifier).setReply(msg);
-  }
-
-  void _onEdit(Map<String, dynamic> msg) {
-    DebugConfig.log(DebugConfig.chatReply, 'ChatMessagesList: edit msg=${msg['id']}');
-    ref.read(editingMessageProvider.notifier).setEdit(msg);
-  }
-
-  Future<void> _onDelete(Map<String, dynamic> msg) async {
-    final messageId = msg['id'] as String? ?? '';
-    if (messageId.isEmpty) return;
-    if (!mounted) return;
-    final greek = L10n.isGreek(context);
-    final confirmed = await AppMessenger.showConfirmDialog(
-      context,
-      title: greek ? 'Διαγραφή μηνύματος' : 'Delete message',
-      message: greek ? 'Θέλεις να διαγράψεις αυτό το μήνυμα;' : 'Delete this message?',
-      confirmLabel: greek ? 'Διαγραφή' : 'Delete',
-      cancelLabel: greek ? 'Ακύρωση' : 'Cancel',
-      isDestructive: true,
-    );
-    if (!mounted || confirmed != true) return;
-    DebugConfig.log(DebugConfig.chatReply, 'ChatMessagesList: delete msg=$messageId');
-    await ref.read(chatActionsProvider.notifier).deleteMessage(widget.chatId, messageId);
   }
 
   void _onMessagesChanged(List<Map<String, dynamic>> messages) {
@@ -196,7 +172,7 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
           itemBuilder: (_, i) {
                 final item = renderItems[renderItems.length - 1 - i];
                 if (item.type == RenderItemType.dateSeparator) {
-                  return DateSeparator(key: ValueKey('ds_${item.date}'), date: item.date!);
+                  return DateSeparator(date: item.date!);
                 }
 
                 final msg = item.message!;
@@ -233,9 +209,8 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
                   effectiveIsRead = msgIsRead || (otherLastRead != null && msgTimestamp != null && otherLastRead.compareTo(msgTimestamp) >= 0);
                 }
 
-              return MessageBubble(
-                key: ValueKey(msg['id'] as String? ?? ''),
-                message: msg,
+                return MessageBubble(
+                  message: msg,
                   currentUid: currentUid,
                   isGroupChat: widget.isGroupChat,
                   isRead: effectiveIsRead,
@@ -254,8 +229,6 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
                   onReact: _onReact,
                   onRemove: _onRemove,
                   onReply: _onReply,
-                  onEdit: _onEdit,
-                  onDelete: _onDelete,
                 );
               },
             );

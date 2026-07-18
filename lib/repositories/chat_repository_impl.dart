@@ -20,8 +20,9 @@ import 'group_search_repository.dart';
 part 'group_chat_mixin.dart';
 part 'chat_repository_delete.dart';
 part 'chat_repository_clear.dart';
+part 'chat_repository_message_actions.dart';
 
-class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin implements ChatRepository {
+class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, ChatMessageActionsMixin implements ChatRepository {
   @override
   final FirebaseFirestore firestore;
   @override
@@ -375,6 +376,8 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin im
               'type': data['type'] ?? 'text',
               'timestamp': data['timestamp'],
               'isRead': data['isRead'] ?? false,
+              'edited': data['edited'] ?? false,
+              'editedAt': data['editedAt'],
               'seenBy': (data['seenBy'] as List?)?.cast<String>() ?? <String>[],
               'mentions': (data['mentions'] as List?)?.cast<String>() ?? <String>[],
               'action': data['action'] as String?,

@@ -227,8 +227,16 @@ service cloud.firestore {
                       && (isGroupChatRef(chatId) || isNotBlockedInChat(chatId));
         allow update: if isAuthenticated()
                       && notBanned()
-                      && request.resource.data.diff(resource.data).affectedKeys()
-                           .hasOnly(['isRead']);
+                      && (
+                        request.resource.data.diff(resource.data).affectedKeys()
+                          .hasOnly(['isRead'])
+                        ||
+                        (request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['reactions'])
+                         && request.resource.data.reactions.diff(
+                              resource.data.get('reactions', {})
+                            ).affectedKeys().hasOnly([request.auth.uid]))
+                      );
         allow delete: if isAuthenticated()
                       && notBanned()
                       && isParticipant(

@@ -139,11 +139,11 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
     }
   }
 
-  Future<bool> sendMessage(String chatId, String content, {Map<String, dynamic>? replyTo}) async {
-    DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: sendMessage chat=$chatId replyTo=${replyTo?['messageId']}');
+  Future<bool> sendMessage(String chatId, String content) async {
+    DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: sendMessage chat=$chatId');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
-      await _chatRepo.sendMessage(chatId, content, replyTo: replyTo);
+      await _chatRepo.sendMessage(chatId, content);
       DebugConfig.log(DebugConfig.repositoryResult, 'ChatActions: sendMessage success');
       state = const ChatActionState(status: ChatActionStatus.success);
       return true;
@@ -157,13 +157,12 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
   Future<bool> sendMediaMessage(String chatId, {
     required String content,
     required String type,
-    Map<String, dynamic>? replyTo,
   }) async {
     DebugConfig.log(DebugConfig.repositoryCall,
-        'ChatActions: sendMediaMessage chat=$chatId type=$type replyTo=${replyTo?['messageId']}');
+        'ChatActions: sendMediaMessage chat=$chatId type=$type');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
-      await _chatRepo.sendMediaMessage(chatId, content: content, type: type, replyTo: replyTo);
+      await _chatRepo.sendMediaMessage(chatId, content: content, type: type);
       DebugConfig.log(DebugConfig.repositoryResult,
           'ChatActions: sendMediaMessage success');
       state = const ChatActionState(status: ChatActionStatus.success);
@@ -536,23 +535,4 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
 
 final chatActionsProvider = NotifierProvider<ChatActionsNotifier, ChatActionState>(
   ChatActionsNotifier.new,
-);
-
-class ReplyToMessageNotifier extends Notifier<Map<String, dynamic>?> {
-  @override
-  Map<String, dynamic>? build() => null;
-
-  void setReply(Map<String, dynamic>? msg) {
-    DebugConfig.log(DebugConfig.chatReply, 'reply set for msg=${msg?['messageId']}');
-    state = msg;
-  }
-
-  void clear() {
-    DebugConfig.log(DebugConfig.chatReply, 'reply cleared');
-    state = null;
-  }
-}
-
-final replyToMessageProvider = NotifierProvider<ReplyToMessageNotifier, Map<String, dynamic>?>(
-  ReplyToMessageNotifier.new,
 );

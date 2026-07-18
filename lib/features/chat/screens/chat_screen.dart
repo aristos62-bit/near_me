@@ -48,6 +48,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void initState() {
     super.initState();
     FcmService.registerActiveChat(widget.chatId);
+    ref.read(replyToMessageProvider.notifier).clear();
     DebugConfig.log(DebugConfig.uiInteraction,
         'ChatScreen init #$_instanceId: ${widget.chatId}');
   }
@@ -335,7 +336,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           chatId: widget.chatId,
           isGroupChat: isGroupChat,
           participantNicknames: isGroupChat ? participantNicknames : null,
-          participantAvatarUrls: isGroupChat ? participantAvatarUrls : null,
+          participantAvatarUrls: participantAvatarUrls,
           otherUid: otherUid,
         )),
         if (_emojiPickerVisible)
@@ -347,6 +348,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           emojiPickerVisible: _emojiPickerVisible,
           onEmojiToggle: _toggleEmojiPicker,
           onEmojiDismiss: _dismissEmojiPicker,
+          participantNicknames: isGroupChat ? participantNicknames : const {},
         ),
       ]),
     );

@@ -7,6 +7,8 @@ import '../../../core/theme/responsive_utils.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
+import '../utils/chat_ui_utils.dart';
+import 'date_separator.dart';
 import 'message_bubble.dart';
 
 class ChatMessagesList extends ConsumerStatefulWidget {
@@ -68,6 +70,21 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
   Future<void> _onKeepChat(String chatId) async {
     DebugConfig.log(DebugConfig.uiInteraction, 'ChatMessagesList: keepChat chat=$chatId');
     await ref.read(chatActionsProvider.notifier).cancelDeleteRequest(chatId);
+  }
+
+  Future<void> _onReact(String messageId, String emoji) async {
+    DebugConfig.log(DebugConfig.chatReactions, 'ChatMessagesList: react msg=$messageId emoji=$emoji');
+    await ref.read(chatActionsProvider.notifier).reactToMessage(widget.chatId, messageId, emoji);
+  }
+
+  Future<void> _onRemove(String messageId) async {
+    DebugConfig.log(DebugConfig.chatReactions, 'ChatMessagesList: remove reaction msg=$messageId');
+    await ref.read(chatActionsProvider.notifier).removeReaction(widget.chatId, messageId);
+  }
+
+  void _onReply(Map<String, dynamic> msg) {
+    DebugConfig.log(DebugConfig.chatReply, 'ChatMessagesList: reply msg=${msg['id']}');
+    ref.read(replyToMessageProvider.notifier).setReply(msg);
   }
 
   void _onMessagesChanged(List<Map<String, dynamic>> messages) {
@@ -142,6 +159,7 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
             message: greek ? 'Καμία συνομιλία' : 'No messages',
           );
         }
+        final renderItems = ChatGroupingCalculator.calculate(messages, currentUid);
         final w = MediaQuery.sizeOf(context).width;
         return ListView.builder(
           controller: _scrollCtrl,
@@ -150,9 +168,14 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
             horizontal: ResponsiveUtils.paddingValueFromWidth(w),
             vertical: 8,
           ),
-          itemCount: messages.length,
+          itemCount: renderItems.length,
           itemBuilder: (_, i) {
-                final msg = messages[messages.length - 1 - i];
+                final item = renderItems[renderItems.length - 1 - i];
+                if (item.type == RenderItemType.dateSeparator) {
+                  return DateSeparator(date: item.date!);
+                }
+
+                final msg = item.message!;
                 final senderId = msg['senderId'] as String? ?? '';
                 final msgTimestamp = (msg['timestamp'] as Timestamp?)?.toDate();
                 final nicknameMap = widget.participantNicknames;
@@ -160,7 +183,7 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
                     ? nicknameMap[senderId]
                     : null;
                 final avatarUrls = widget.participantAvatarUrls;
-                final senderAvatarUrl = widget.isGroupChat && avatarUrls != null
+                final senderAvatarUrl = avatarUrls != null
                     ? avatarUrls[senderId]
                     : null;
                 if (widget.isGroupChat && senderNickname == null) {
@@ -191,6 +214,9 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
                   currentUid: currentUid,
                   isGroupChat: widget.isGroupChat,
                   isRead: effectiveIsRead,
+                  isGrouped: item.isGrouped,
+                  isLastInGroup: item.isLastInGroup,
+                  showAvatar: item.showAvatar,
                   senderNickname: senderNickname,
                   senderAvatarUrl: senderAvatarUrl,
                   participantNicknames: widget.participantNicknames,
@@ -200,6 +226,9 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
                   onRejectDelete: _onRejectDelete,
                   onDeleteForMe: _onDeleteForMe,
                   onKeepChat: _onKeepChat,
+                  onReact: _onReact,
+                  onRemove: _onRemove,
+                  onReply: _onReply,
                 );
               },
             );

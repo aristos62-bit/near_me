@@ -68,7 +68,7 @@ class InviteInfo {
 abstract class ChatRepository {
   // 1-to-1 (unchanged)
   Future<String> createChat(String otherUid);
-  Future<void> sendMessage(String chatId, String content, {Map<String, dynamic>? replyTo});
+  Future<void> sendMessage(String chatId, String content);
   Future<List<ChatCacheTableData>> getChats();
   Stream<List<ChatCacheTableData>> streamChats();
   Stream<List<Map<String, dynamic>>> messagesStream(String chatId);
@@ -115,7 +115,6 @@ abstract class ChatRepository {
   Future<void> sendMediaMessage(String chatId, {
     required String content,
     required String type,
-    Map<String, dynamic>? replyTo,
   });
 
   // Profile sync across chats

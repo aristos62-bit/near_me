@@ -7,81 +7,11 @@ import '../../../core/l10n/l10n.dart';
 import 'emoji_only_bubble.dart';
 import 'message_reactions.dart';
 
-class ReplyPreview extends StatelessWidget {
-  final Map<String, dynamic> replyTo;
-  final bool isMe;
-  final bool isGroupChat;
-
-  const ReplyPreview({
-    super.key,
-    required this.replyTo,
-    required this.isMe,
-    this.isGroupChat = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final senderNickname = replyTo['senderNickname'] as String?;
-    final contentPreview = replyTo['contentPreview'] as String? ?? '';
-    final preview = isGroupChat && senderNickname != null
-        ? '@$senderNickname: $contentPreview'
-        : contentPreview;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withAlpha(180),
-        border: Border(
-          left: BorderSide(
-            color: theme.colorScheme.primary,
-            width: 3,
-          ),
-        ),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        preview,
-        style: theme.textTheme.bodySmall?.copyWith(
-          fontStyle: FontStyle.italic,
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-      ),
-    );
-  }
-}
-
-class TailPainter extends CustomPainter {
-  final Color color;
-
-  const TailPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = color;
-    final path = Path()
-      ..moveTo(0, 0)
-      ..lineTo(size.width, size.height / 2)
-      ..lineTo(0, size.height)
-      ..close();
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(TailPainter old) => old.color != color;
-}
-
 class MessageBubble extends StatelessWidget {
   final Map<String, dynamic> message;
   final String currentUid;
   final bool isGroupChat;
   final bool isRead;
-  final bool isGrouped;
-  final bool isLastInGroup;
-  final bool showAvatar;
   final String? senderNickname;
   final String? senderAvatarUrl;
   final Map<String, String>? participantNicknames;
@@ -93,7 +23,6 @@ class MessageBubble extends StatelessWidget {
   final Future<void> Function(String chatId)? onKeepChat;
   final Future<void> Function(String messageId, String emoji)? onReact;
   final Future<void> Function(String messageId)? onRemove;
-  final void Function(Map<String, dynamic> message)? onReply;
 
   const MessageBubble({
     super.key,
@@ -101,9 +30,6 @@ class MessageBubble extends StatelessWidget {
     required this.currentUid,
     this.isGroupChat = false,
     this.isRead = false,
-    this.isGrouped = false,
-    this.isLastInGroup = true,
-    this.showAvatar = true,
     this.senderNickname,
     this.senderAvatarUrl,
     this.participantNicknames,
@@ -115,13 +41,7 @@ class MessageBubble extends StatelessWidget {
     this.onKeepChat,
     this.onReact,
     this.onRemove,
-    this.onReply,
   });
-
-  static const double _bubbleRadius = 20;
-  static const double _tailRadius = 8;
-  static const Color _sentColor = Color(0xFF075E54);
-  static const Color _sentTextColor = Colors.white;
 
   @override
   Widget build(BuildContext context) {
@@ -130,18 +50,10 @@ class MessageBubble extends StatelessWidget {
     final senderId = message['senderId'] as String? ?? '';
     final content = message['content'] as String? ?? '';
     final timestamp = message['timestamp'] as dynamic;
-    final ts = timestamp is Timestamp ? timestamp.toDate() : null;
-    final timeStr = ts != null
-        ? L10n.formatTimeOfDay(context, TimeOfDay.fromDateTime(ts))
+    final timeStr = timestamp is Timestamp
+        ? _formatTime(timestamp.toDate())
         : '';
     final reactions = (message['reactions'] as Map<String, dynamic>?) ?? <String, dynamic>{};
-    final replyTo = message['replyTo'] as Map<String, dynamic>?;
-
-    DebugConfig.log(
-      DebugConfig.chatBubbleDesign,
-      'MessageBubble built: id=${message['id']} type=$type '
-      'isGrouped=$isGrouped isLastInGroup=$isLastInGroup',
-    );
 
     if (type == 'system') {
       final contentEn = message['contentEn'] as String?;
@@ -168,9 +80,6 @@ class MessageBubble extends StatelessWidget {
         timeStr: timeStr,
         isMe: isMe,
         isGroupChat: isGroupChat,
-        isGrouped: isGrouped,
-        isLastInGroup: isLastInGroup,
-        showAvatar: showAvatar,
         senderNickname: senderNickname,
         seenBy: seenBy,
         isRead: isRead,
@@ -180,8 +89,6 @@ class MessageBubble extends StatelessWidget {
         reactions: reactions,
         onReact: onReact,
         onRemove: onRemove,
-        replyTo: replyTo,
-        onReply: onReply != null ? () => onReply!(message) : null,
       );
     }
 
@@ -192,9 +99,6 @@ class MessageBubble extends StatelessWidget {
         timeStr: timeStr,
         isMe: isMe,
         isGroupChat: isGroupChat,
-        isGrouped: isGrouped,
-        isLastInGroup: isLastInGroup,
-        showAvatar: showAvatar,
         senderNickname: senderNickname,
         seenBy: seenBy,
         isRead: isRead,
@@ -204,27 +108,11 @@ class MessageBubble extends StatelessWidget {
         reactions: reactions,
         onReact: onReact,
         onRemove: onRemove,
-        replyTo: replyTo,
-        onReply: onReply != null ? () => onReply!(message) : null,
       );
     }
 
     final isMe = senderId == currentUid;
     final mentions = (message['mentions'] as List?)?.cast<String>() ?? <String>[];
-    final showTail = isLastInGroup;
-    final sentColor = _sentColor;
-    final receivedColor = theme.colorScheme.surfaceContainerHighest;
-    final bubbleColor = isMe ? sentColor : receivedColor;
-    final textColor = isMe ? _sentTextColor : theme.colorScheme.onSurface;
-
-    final bubbleBorderRadius = BorderRadius.only(
-      topLeft: const Radius.circular(_bubbleRadius),
-      topRight: const Radius.circular(_bubbleRadius),
-      bottomLeft: Radius.circular(
-          (!isMe && showTail) ? _tailRadius : _bubbleRadius),
-      bottomRight: Radius.circular(
-          (isMe && showTail) ? _tailRadius : _bubbleRadius),
-    );
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -235,8 +123,7 @@ class MessageBubble extends StatelessWidget {
             crossAxisAlignment:
                 isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
             children: [
-              if (!isMe && showAvatar
-                  && (senderAvatarUrl != null || (isGroupChat && senderNickname != null)))
+              if (isGroupChat && !isMe && senderNickname != null)
                 Padding(
                   padding: const EdgeInsets.only(left: 14, bottom: 2),
                   child: Row(
@@ -252,102 +139,38 @@ class MessageBubble extends StatelessWidget {
                                 style: const TextStyle(fontSize: 18))
                             : null,
                       ),
-                      if (isGroupChat && senderNickname != null) ...[
-                        const SizedBox(width: 4),
-                        Text(senderNickname!,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.w600,
-                          ),
+                      const SizedBox(width: 4),
+                      Text(senderNickname!,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
                         ),
-                      ],
+                      ),
                     ],
                   ),
                 ),
-              if (replyTo != null)
-                ReplyPreview(
-                  replyTo: replyTo,
-                  isMe: isMe,
-                  isGroupChat: isGroupChat,
-                ),
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  InkWell(
-                onLongPress: () async {
-                  final greek = L10n.isGreek(context);
-                  final renderBox = context.findRenderObject() as RenderBox?;
-                  if (renderBox == null || !renderBox.hasSize) return;
-                  final offset = renderBox.localToGlobal(Offset.zero);
-                  final result = await showMenu<String>(
-                    context: context,
-                    position: RelativeRect.fromLTRB(
-                      offset.dx, offset.dy,
-                      offset.dx + renderBox.size.width,
-                      offset.dy + renderBox.size.height,
-                    ),
-                    items: [
-                      if (FeatureFlags.replyToMessageEnabled)
-                        PopupMenuItem(
-                          value: 'reply',
-                          child: ListTile(
-                            leading: const Icon(Icons.reply, size: 20),
-                            title: Text(greek ? 'Απάντηση' : 'Reply'),
-                            dense: true,
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                        ),
-                    ],
-                  );
-                  if (result == 'reply') onReply?.call(message);
-                },
-                borderRadius: bubbleBorderRadius,
-                child: Container(
+              Container(
                 constraints: BoxConstraints(maxWidth: maxBubbleWidth),
             padding: const EdgeInsets.symmetric(
                 horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
-              color: bubbleColor,
-              borderRadius: bubbleBorderRadius,
+              color: isMe
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.only(
+                topLeft: const Radius.circular(16),
+                topRight: const Radius.circular(16),
+                bottomLeft: Radius.circular(isMe ? 16 : 4),
+                bottomRight: Radius.circular(isMe ? 4 : 16),
+              ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                mentions.isEmpty
-                    ? Text(content, style: TextStyle(color: textColor))
-                    : _buildRichContent(context, content, mentions, isMe),
-                if (timeStr.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Align(
-                      alignment: AlignmentDirectional.bottomEnd,
-                      child: Text(timeStr,
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: isMe
-                              ? Colors.white.withAlpha(180)
-                              : theme.colorScheme.onSurfaceVariant.withAlpha(180),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+            child: mentions.isEmpty
+                ? Text(content, style: TextStyle(
+                    color: isMe
+                        ? theme.colorScheme.onPrimary
+                        : theme.colorScheme.onSurface))
+                : _buildRichContent(context, content, mentions, isMe),
           ),
-              ),
-              if (showTail)
-                Positioned(
-                  bottom: 0,
-                  right: isMe ? -8 : null,
-                  left: !isMe ? -8 : null,
-                  child: CustomPaint(
-                    painter: TailPainter(color: bubbleColor),
-                    size: const Size(10, 8),
-                  ),
-                ),
-            ],
-              ),
           if (chatId != null && FeatureFlags.messageReactionsEnabled)
             MessageReactions(
               reactions: reactions,
@@ -366,7 +189,10 @@ class MessageBubble extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                Text(timeStr, style: theme.textTheme.labelSmall
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
                 if (isGroupChat && isMe && seenBy.isNotEmpty) ...[
+                  const SizedBox(width: 4),
                   Icon(Icons.visibility, size: 14,
                       color: theme.colorScheme.primary),
                   const SizedBox(width: 2),
@@ -375,6 +201,7 @@ class MessageBubble extends StatelessWidget {
                           color: theme.colorScheme.primary)),
                 ],
                 if (!isGroupChat && isMe) ...[
+                  const SizedBox(width: 4),
                   Icon(
                     isRead ? Icons.done_all : Icons.done,
                     size: 14,
@@ -435,6 +262,8 @@ class MessageBubble extends StatelessWidget {
     return Text.rich(TextSpan(children: spans, style: TextStyle(color: baseColor)));
   }
 
+  String _formatTime(DateTime dt) =>
+      '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
 }
 
 class _SystemBubble extends StatelessWidget {
@@ -570,9 +399,6 @@ class _GifBubble extends StatelessWidget {
   final String timeStr;
   final bool isMe;
   final bool isGroupChat;
-  final bool isGrouped;
-  final bool isLastInGroup;
-  final bool showAvatar;
   final String? senderNickname;
   final List<String> seenBy;
   final bool isRead;
@@ -582,17 +408,12 @@ class _GifBubble extends StatelessWidget {
   final Map<String, dynamic> reactions;
   final Future<void> Function(String messageId, String emoji)? onReact;
   final Future<void> Function(String messageId)? onRemove;
-  final Map<String, dynamic>? replyTo;
-  final VoidCallback? onReply;
 
   const _GifBubble({
     required this.content,
     required this.timeStr,
     required this.isMe,
     this.isGroupChat = false,
-    this.isGrouped = false,
-    this.isLastInGroup = true,
-    this.showAvatar = true,
     this.senderNickname,
     this.seenBy = const [],
     this.isRead = false,
@@ -602,36 +423,11 @@ class _GifBubble extends StatelessWidget {
     this.reactions = const {},
     this.onReact,
     this.onRemove,
-    this.replyTo,
-    this.onReply,
   });
-
-  static const double _bubbleRadius = 20;
-  static const double _tailRadius = 8;
-  static const Color _sentColor = Color(0xFF075E54);
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final showTail = isLastInGroup;
-    final sentColor = _sentColor;
-    final receivedColor = theme.colorScheme.surfaceContainerHighest;
-    final bubbleColor = isMe ? sentColor : receivedColor;
-
-    final bubbleBorderRadius = BorderRadius.only(
-      topLeft: const Radius.circular(_bubbleRadius),
-      topRight: const Radius.circular(_bubbleRadius),
-      bottomLeft: Radius.circular(
-          (!isMe && showTail) ? _tailRadius : _bubbleRadius),
-      bottomRight: Radius.circular(
-          (isMe && showTail) ? _tailRadius : _bubbleRadius),
-    );
-
-    DebugConfig.log(
-      DebugConfig.chatBubbleDesign,
-      '_GifBubble: isGrouped=$isGrouped isLastInGroup=$isLastInGroup',
-    );
-
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxBubbleWidth = constraints.maxWidth * 0.75;
@@ -641,7 +437,7 @@ class _GifBubble extends StatelessWidget {
             crossAxisAlignment:
                 isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
             children: [
-              if (isGroupChat && !isMe && showAvatar && senderNickname != null)
+              if (isGroupChat && !isMe && senderNickname != null)
                 Padding(
                   padding: const EdgeInsets.only(left: 14, bottom: 2),
                   child: Text(
@@ -652,50 +448,19 @@ class _GifBubble extends StatelessWidget {
                     ),
                   ),
                 ),
-              if (replyTo != null)
-                ReplyPreview(
-                  replyTo: replyTo!,
-                  isMe: isMe,
-                  isGroupChat: isGroupChat,
-                ),
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  InkWell(
-                onLongPress: () async {
-                  final greek = L10n.isGreek(context);
-                  final renderBox = context.findRenderObject() as RenderBox?;
-                  if (renderBox == null || !renderBox.hasSize) return;
-                  final offset = renderBox.localToGlobal(Offset.zero);
-                  final result = await showMenu<String>(
-                    context: context,
-                    position: RelativeRect.fromLTRB(
-                      offset.dx, offset.dy,
-                      offset.dx + renderBox.size.width,
-                      offset.dy + renderBox.size.height,
-                    ),
-                    items: [
-                      if (FeatureFlags.replyToMessageEnabled)
-                        PopupMenuItem(
-                          value: 'reply',
-                          child: ListTile(
-                            leading: const Icon(Icons.reply, size: 20),
-                            title: Text(greek ? 'Απάντηση' : 'Reply'),
-                            dense: true,
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                        ),
-                    ],
-                  );
-                  if (result == 'reply') onReply?.call();
-                },
-                borderRadius: bubbleBorderRadius,
-                child: Container(
+              Container(
                 constraints: BoxConstraints(
                     maxWidth: maxBubbleWidth, maxHeight: 200),
                 decoration: BoxDecoration(
-                  color: bubbleColor,
-                  borderRadius: bubbleBorderRadius,
+                  color: isMe
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(16),
+                    topRight: const Radius.circular(16),
+                    bottomLeft: Radius.circular(isMe ? 16 : 4),
+                    bottomRight: Radius.circular(isMe ? 4 : 16),
+                  ),
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: CachedNetworkImage(
@@ -710,7 +475,7 @@ class _GifBubble extends StatelessWidget {
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
                           color: isMe
-                              ? Colors.white
+                              ? theme.colorScheme.onPrimary
                               : theme.colorScheme.primary,
                         ),
                       ),
@@ -723,19 +488,6 @@ class _GifBubble extends StatelessWidget {
                         color: theme.colorScheme.onSurfaceVariant),
                   ),
                 ),
-              ),
-              ),
-              if (showTail)
-                Positioned(
-                  bottom: 0,
-                  right: isMe ? -8 : null,
-                  left: !isMe ? -8 : null,
-                  child: CustomPaint(
-                    painter: TailPainter(color: bubbleColor),
-                    size: const Size(10, 8),
-                  ),
-                ),
-            ],
               ),
               if (chatId != null && FeatureFlags.messageReactionsEnabled)
                 MessageReactions(

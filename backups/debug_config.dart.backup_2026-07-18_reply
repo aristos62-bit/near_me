@@ -113,8 +113,6 @@ class DebugConfig {
   static const bool chatFcm = true;             // FCM notification events (chat)
   static const bool requestFcm = true;          // FCM for incoming requests
   static const bool chatReactions = true;        // reactions add/remove/display
-  static const bool chatReply = true;             // reply to message (long-press → send)
-  static const bool chatBubbleDesign = true;      // bubble tails, date separators, message grouping
 
   /// ─────────────────────────────────────────────────────────────
   /// FILE STORAGE — Firebase Storage operations (Φάση 2+)

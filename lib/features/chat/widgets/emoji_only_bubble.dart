@@ -1,6 +1,10 @@
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter/material.dart';
+import '../../../core/config/feature_flags.dart';
 import '../../../core/debug/debug_config.dart';
+import '../../../core/l10n/l10n.dart';
+import 'message_bubble.dart';
+import 'message_reactions.dart';
 
 final _emojiRegex = RegExp(EmojiRegex, unicode: true);
 // ignore: valid_regexps
@@ -28,9 +32,20 @@ class EmojiOnlyBubble extends StatelessWidget {
   final String timeStr;
   final bool isMe;
   final bool isGroupChat;
+  final bool isGrouped;
+  final bool isLastInGroup;
+  final bool showAvatar;
   final String? senderNickname;
   final List<String> seenBy;
   final bool isRead;
+  final String? chatId;
+  final String currentUid;
+  final String messageId;
+  final Map<String, dynamic> reactions;
+  final Future<void> Function(String messageId, String emoji)? onReact;
+  final Future<void> Function(String messageId)? onRemove;
+  final Map<String, dynamic>? replyTo;
+  final VoidCallback? onReply;
 
   const EmojiOnlyBubble({
     super.key,
@@ -38,17 +53,52 @@ class EmojiOnlyBubble extends StatelessWidget {
     required this.timeStr,
     required this.isMe,
     this.isGroupChat = false,
+    this.isGrouped = false,
+    this.isLastInGroup = true,
+    this.showAvatar = true,
     this.senderNickname,
     this.seenBy = const [],
     this.isRead = false,
+    this.chatId,
+    this.currentUid = '',
+    this.messageId = '',
+    this.reactions = const {},
+    this.onReact,
+    this.onRemove,
+    this.replyTo,
+    this.onReply,
   });
+
+  static const double _bubbleRadius = 20;
+  static const double _tailRadius = 8;
+  static const Color _sentColor = Color(0xFF075E54);
+  static const Color _sentTextColor = Colors.white;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final fontSize = emojiFontSize(content);
-    DebugConfig.log(DebugConfig.uiInteraction,
-        'EmojiOnlyBubble: "${content.trim()}" fontSize=$fontSize');
+    final showTail = isLastInGroup;
+    final sentColor = _sentColor;
+    final receivedColor = theme.colorScheme.surfaceContainerHighest;
+    final bubbleColor = isMe ? sentColor : receivedColor;
+    final textColor = isMe ? _sentTextColor : theme.colorScheme.onSurface;
+
+    DebugConfig.log(
+      DebugConfig.chatBubbleDesign,
+      'EmojiOnlyBubble: "${content.trim()}" fontSize=$fontSize '
+      'isGrouped=$isGrouped isLastInGroup=$isLastInGroup',
+    );
+
+    final bubbleBorderRadius = BorderRadius.only(
+      topLeft: const Radius.circular(_bubbleRadius),
+      topRight: const Radius.circular(_bubbleRadius),
+      bottomLeft: Radius.circular(
+          (!isMe && showTail) ? _tailRadius : _bubbleRadius),
+      bottomRight: Radius.circular(
+          (isMe && showTail) ? _tailRadius : _bubbleRadius),
+    );
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxBubbleWidth = constraints.maxWidth * 0.75;
@@ -58,7 +108,7 @@ class EmojiOnlyBubble extends StatelessWidget {
             crossAxisAlignment:
                 isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
             children: [
-              if (isGroupChat && !isMe && senderNickname != null)
+              if (isGroupChat && !isMe && showAvatar && senderNickname != null)
                 Padding(
                   padding: const EdgeInsets.only(left: 14, bottom: 2),
                   child: Text(
@@ -69,31 +119,104 @@ class EmojiOnlyBubble extends StatelessWidget {
                     ),
                   ),
                 ),
-              Container(
+              if (replyTo != null)
+                ReplyPreview(
+                  replyTo: replyTo!,
+                  isMe: isMe,
+                  isGroupChat: isGroupChat,
+                ),
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  InkWell(
+                onLongPress: () async {
+                  final greek = L10n.isGreek(context);
+                  final renderBox = context.findRenderObject() as RenderBox?;
+                  if (renderBox == null || !renderBox.hasSize) return;
+                  final offset = renderBox.localToGlobal(Offset.zero);
+                  final result = await showMenu<String>(
+                    context: context,
+                    position: RelativeRect.fromLTRB(
+                      offset.dx, offset.dy,
+                      offset.dx + renderBox.size.width,
+                      offset.dy + renderBox.size.height,
+                    ),
+                    items: [
+                      if (FeatureFlags.replyToMessageEnabled)
+                        PopupMenuItem(
+                          value: 'reply',
+                          child: ListTile(
+                            leading: const Icon(Icons.reply, size: 20),
+                            title: Text(greek ? 'Απάντηση' : 'Reply'),
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                        ),
+                    ],
+                  );
+                  if (result == 'reply') onReply?.call();
+                },
+                borderRadius: bubbleBorderRadius,
+                child: Container(
                 constraints: BoxConstraints(maxWidth: maxBubbleWidth),
                 padding: const EdgeInsets.symmetric(
                     horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: isMe
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(16),
-                    topRight: const Radius.circular(16),
-                    bottomLeft: Radius.circular(isMe ? 16 : 4),
-                    bottomRight: Radius.circular(isMe ? 4 : 16),
-                  ),
+                  color: bubbleColor,
+                  borderRadius: bubbleBorderRadius,
                 ),
-                child: Text(
-                  content.trim(),
-                  style: TextStyle(
-                    fontSize: fontSize,
-                    color: isMe
-                        ? theme.colorScheme.onPrimary
-                        : theme.colorScheme.onSurface,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      content.trim(),
+                      style: TextStyle(
+                        fontSize: fontSize,
+                        color: textColor,
+                      ),
+                    ),
+                    if (timeStr.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Align(
+                          alignment: AlignmentDirectional.bottomEnd,
+                          child: Text(timeStr,
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: isMe
+                                  ? Colors.white.withAlpha(180)
+                                  : theme.colorScheme.onSurfaceVariant.withAlpha(180),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
+              ),
+              if (showTail)
+                Positioned(
+                  bottom: 0,
+                  right: isMe ? -8 : null,
+                  left: !isMe ? -8 : null,
+                  child: CustomPaint(
+                    painter: TailPainter(color: bubbleColor),
+                    size: const Size(10, 8),
+                  ),
+                ),
+            ],
+              ),
+              if (chatId != null && FeatureFlags.messageReactionsEnabled)
+                MessageReactions(
+                  reactions: reactions,
+                  currentUid: currentUid,
+                  chatId: chatId!,
+                  messageId: messageId,
+                  isMe: isMe,
+                  onReact: onReact,
+                  onRemove: onRemove,
+                ),
               Padding(
                 padding: EdgeInsets.only(
                     top: 2,
@@ -102,10 +225,7 @@ class EmojiOnlyBubble extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(timeStr, style: theme.textTheme.labelSmall
-                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
                     if (isGroupChat && isMe && seenBy.isNotEmpty) ...[
-                      const SizedBox(width: 4),
                       Icon(Icons.visibility, size: 14,
                           color: theme.colorScheme.primary),
                       const SizedBox(width: 2),
@@ -114,7 +234,6 @@ class EmojiOnlyBubble extends StatelessWidget {
                               color: theme.colorScheme.primary)),
                     ],
                     if (!isGroupChat && isMe) ...[
-                      const SizedBox(width: 4),
                       Icon(
                         isRead ? Icons.done_all : Icons.done,
                         size: 14,

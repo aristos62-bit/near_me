@@ -45,6 +45,22 @@ class L10n {
     return DateFormat.yMMMd(locale).add_jm().format(date);
   }
 
+  /// Returns "Σήμερα" / "Today", "Χθες" / "Yesterday", or formatted date.
+  static String relativeDateLabel(BuildContext context, DateTime date) {
+    final now = DateTime.now();
+    final greek = isGreek(context);
+    final locale = Localizations.localeOf(context).languageCode;
+
+    if (date.year == now.year && date.month == now.month && date.day == now.day) {
+      return greek ? 'Σήμερα' : 'Today';
+    }
+    final yesterday = now.subtract(const Duration(days: 1));
+    if (date.year == yesterday.year && date.month == yesterday.month && date.day == yesterday.day) {
+      return greek ? 'Χθες' : 'Yesterday';
+    }
+    return DateFormat.yMd(locale).format(date);
+  }
+
   static String formatNumber(BuildContext context, num value) {
     final locale = Localizations.localeOf(context).languageCode;
     return NumberFormat.decimalPattern(locale).format(value);

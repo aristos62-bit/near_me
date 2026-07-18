@@ -111,13 +111,13 @@ class MessageBubble extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       CircleAvatar(
-                        radius: 10,
+                        radius: 20,
                         backgroundImage: senderAvatarUrl != null
                             ? CachedNetworkImageProvider(senderAvatarUrl!)
                             : null,
                         child: senderAvatarUrl == null
                             ? Text(senderNickname![0],
-                                style: const TextStyle(fontSize: 11))
+                                style: const TextStyle(fontSize: 18))
                             : null,
                       ),
                       const SizedBox(width: 4),

@@ -41,13 +41,20 @@ class RenderItem {
 class ChatGroupingCalculator {
   ChatGroupingCalculator._();
 
+  static List<RenderItem>? _cachedResult;
+  static List<Map<String, dynamic>>? _cachedMessages;
+
   static List<RenderItem> calculate(
       List<Map<String, dynamic>> messages, String currentUid) {
     if (messages.isEmpty) return [];
+    if (identical(_cachedMessages, messages)) return _cachedResult!;
 
     final stopwatch = Stopwatch()..start();
     final items = _buildItems(messages);
     stopwatch.stop();
+
+    _cachedMessages = messages;
+    _cachedResult = items;
 
     DebugConfig.log(
       DebugConfig.chatBubbleDesign,

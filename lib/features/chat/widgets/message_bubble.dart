@@ -172,6 +172,7 @@ class MessageBubble extends StatelessWidget {
         isLastInGroup: isLastInGroup,
         showAvatar: showAvatar,
         senderNickname: senderNickname,
+        senderAvatarUrl: senderAvatarUrl,
         seenBy: seenBy,
         isRead: isRead,
         chatId: chatId,
@@ -196,6 +197,7 @@ class MessageBubble extends StatelessWidget {
         isLastInGroup: isLastInGroup,
         showAvatar: showAvatar,
         senderNickname: senderNickname,
+        senderAvatarUrl: senderAvatarUrl,
         seenBy: seenBy,
         isRead: isRead,
         chatId: chatId,
@@ -574,6 +576,7 @@ class _GifBubble extends StatelessWidget {
   final bool isLastInGroup;
   final bool showAvatar;
   final String? senderNickname;
+  final String? senderAvatarUrl;
   final List<String> seenBy;
   final bool isRead;
   final String? chatId;
@@ -594,6 +597,7 @@ class _GifBubble extends StatelessWidget {
     this.isLastInGroup = true,
     this.showAvatar = true,
     this.senderNickname,
+    this.senderAvatarUrl,
     this.seenBy = const [],
     this.isRead = false,
     this.chatId,
@@ -641,15 +645,33 @@ class _GifBubble extends StatelessWidget {
             crossAxisAlignment:
                 isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
             children: [
-              if (isGroupChat && !isMe && showAvatar && senderNickname != null)
+              if (!isMe && showAvatar
+                  && (senderAvatarUrl != null || (isGroupChat && senderNickname != null)))
                 Padding(
                   padding: const EdgeInsets.only(left: 14, bottom: 2),
-                  child: Text(
-                    senderNickname!,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircleAvatar(
+                        radius: 20,
+                        backgroundImage: senderAvatarUrl != null
+                            ? CachedNetworkImageProvider(senderAvatarUrl!)
+                            : null,
+                        child: senderAvatarUrl == null && senderNickname != null
+                            ? Text(senderNickname![0],
+                                style: const TextStyle(fontSize: 18))
+                            : null,
+                      ),
+                      if (isGroupChat && senderNickname != null) ...[
+                        const SizedBox(width: 4),
+                        Text(senderNickname!,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               if (replyTo != null)

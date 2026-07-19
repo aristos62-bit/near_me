@@ -37,28 +37,12 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
   int _lastMessageCount = 0;
   bool _hasMarkedRead = false;
   bool _isFirstLoad = true;
-  double _lastScrollLogPixels = 0;
-  Stopwatch? _scrollBurstStopwatch;
-  int _buildCount = 0;
 
   @override
   void initState() {
     super.initState();
     DebugConfig.log(DebugConfig.uiInteraction,
         'ChatMessagesList init: ${widget.chatId}');
-    _scrollCtrl.addListener(() {
-      final pixels = _scrollCtrl.position.pixels;
-      if ((pixels - _lastScrollLogPixels).abs() > 0.5) {
-        _lastScrollLogPixels = pixels;
-        _scrollBurstStopwatch ??= Stopwatch()..start();
-        DebugConfig.log(DebugConfig.uiInteraction,
-            'SCROLL: pixels=$pixels elapsed=${_scrollBurstStopwatch!.elapsedMilliseconds}ms');
-        if (_scrollBurstStopwatch!.elapsedMilliseconds > 500) {
-          _scrollBurstStopwatch?.stop();
-          _scrollBurstStopwatch = null;
-        }
-      }
-    });
   }
 
   @override
@@ -169,11 +153,6 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     final currentUid = ref.watch(authStateProvider).value?.uid ?? '';
     final chatDocAsync = ref.watch(chatDocProvider(widget.chatId));
     final greek = L10n.isGreek(context);
-    _buildCount++;
-    if (_buildCount > 1) {
-      DebugConfig.log(DebugConfig.uiInteraction,
-          'ChatMessagesList BUILD #$_buildCount');
-    }
 
     Map<String, DateTime> lastReadTimestamps = {};
     final chatData = chatDocAsync.asData?.value?.data() as Map<String, dynamic>?;

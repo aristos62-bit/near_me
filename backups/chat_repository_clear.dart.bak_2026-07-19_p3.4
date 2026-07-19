@@ -51,8 +51,6 @@ mixin ChatClearMixin {
         if (messages.docs.length < batchSize) hasMore = false;
       }
 
-      await deleteAllChatMedia(chatId);
-
       messageEncryptCache.remove(chatId);
       messageDecryptCache.remove(chatId);
 

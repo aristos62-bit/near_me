@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import '../data/local/database.dart';
 
 // ── Group Chat Types ─────────────────────────────────────────
@@ -117,7 +116,6 @@ abstract class ChatRepository {
     required String content,
     required String type,
     Map<String, dynamic>? replyTo,
-    Uint8List? imageBytes,
   });
 
   // Profile sync across chats

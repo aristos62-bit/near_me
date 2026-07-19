@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -159,13 +158,12 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
     required String content,
     required String type,
     Map<String, dynamic>? replyTo,
-    Uint8List? imageBytes,
   }) async {
     DebugConfig.log(DebugConfig.repositoryCall,
         'ChatActions: sendMediaMessage chat=$chatId type=$type replyTo=${replyTo?['messageId']}');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
-      await _chatRepo.sendMediaMessage(chatId, content: content, type: type, replyTo: replyTo, imageBytes: imageBytes);
+      await _chatRepo.sendMediaMessage(chatId, content: content, type: type, replyTo: replyTo);
       DebugConfig.log(DebugConfig.repositoryResult,
           'ChatActions: sendMediaMessage success');
       state = const ChatActionState(status: ChatActionStatus.success);

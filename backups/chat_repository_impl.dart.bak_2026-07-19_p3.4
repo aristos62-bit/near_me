@@ -682,7 +682,6 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
     required String content,
     required String type,
     Map<String, dynamic>? replyTo,
-    Uint8List? imageBytes,
   }) async {
     final user = auth.currentUser;
     if (user == null) throw AppException.auth('send_media', 'Δεν υπάρχει συνδεδεμένος χρήστης / No authenticated user');
@@ -725,13 +724,6 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
           .collection('chats').doc(chatId).collection('messages').doc();
       final chatRef = firestore.collection('chats').doc(chatId);
       final batch = firestore.batch();
-
-      if (imageBytes != null && type == 'image') {
-        final storageRef = FirebaseStorage.instance
-            .ref().child('chat_media/$chatId/${msgRef.id}.jpg');
-        await storageRef.putData(imageBytes, SettableMetadata(contentType: 'image/jpeg'));
-        content = await storageRef.getDownloadURL();
-      }
 
       final msgData = <String, dynamic>{
         'senderId': user.uid,
@@ -906,19 +898,5 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
     } catch (e, s) {
       DebugConfig.error('createChat consent log failed', data: e, exception: s);
     }
-  }
-}
-
-Future<void> deleteAllChatMedia(String chatId) async {
-  DebugConfig.log(DebugConfig.storageUpload, 'deleteAllChatMedia: $chatId');
-  try {
-    final ref = FirebaseStorage.instance.ref().child('chat_media/$chatId');
-    final result = await ref.listAll();
-    if (result.items.isNotEmpty) {
-      await Future.wait(result.items.map((item) => item.delete()));
-      DebugConfig.log(DebugConfig.storageUpload, 'deleteAllChatMedia: deleted ${result.items.length} files for $chatId');
-    }
-  } catch (e) {
-    DebugConfig.warn('deleteAllChatMedia failed (non-fatal)', data: e);
   }
 }

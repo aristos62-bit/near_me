@@ -578,7 +578,6 @@ mixin GroupChatMixin {
         batch.delete(doc.reference);
       }
       batch.delete(firestore.collection('chats').doc(chatId));
-      await deleteAllChatMedia(chatId);
       await batch.commit();
       await (db.delete(db.chatCacheTable)..where((t) => t.chatId.equals(chatId))).go();
       DebugConfig.log(DebugConfig.repositoryResult, 'deleteGroup: done $chatId');

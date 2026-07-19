@@ -166,7 +166,7 @@ class MessageBubble extends StatelessWidget {
       );
     }
 
-    if (type == 'gif' || type == 'image') {
+    if (type == 'gif') {
       final isMe = senderId == currentUid;
       return _GifBubble(
         content: content,
@@ -183,7 +183,6 @@ class MessageBubble extends StatelessWidget {
         chatId: chatId,
         currentUid: currentUid,
         messageId: message['id'] as String? ?? '',
-        isImage: type == 'image',
         reactions: reactions,
         onReact: onReact,
         onRemove: onRemove,
@@ -580,7 +579,6 @@ class _GifBubble extends StatelessWidget {
   final String? chatId;
   final String currentUid;
   final String messageId;
-  final bool isImage;
   final Map<String, dynamic> reactions;
   final Future<void> Function(String messageId, String emoji)? onReact;
   final Future<void> Function(String messageId)? onRemove;
@@ -604,7 +602,6 @@ class _GifBubble extends StatelessWidget {
     this.chatId,
     this.currentUid = '',
     this.messageId = '',
-    this.isImage = false,
     this.reactions = const {},
     this.onReact,
     this.onRemove,
@@ -617,28 +614,6 @@ class _GifBubble extends StatelessWidget {
   static const double _bubbleRadius = 20;
   static const double _tailRadius = 8;
   static const Color _sentColor = Color(0xFF075E54);
-
-  static void _showImageFullScreen(BuildContext context, String imageUrl) {
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => Scaffold(
-        backgroundColor: Colors.black,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          iconTheme: const IconThemeData(color: Colors.white),
-        ),
-        body: InteractiveViewer(
-          child: Center(
-            child: CachedNetworkImage(
-              imageUrl: imageUrl,
-              fit: BoxFit.contain,
-              placeholder: (_, _) => const CircularProgressIndicator(),
-              errorWidget: (_, _, _) => const Icon(Icons.broken_image, color: Colors.white),
-            ),
-          ),
-        ),
-      ),
-    ));
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -710,7 +685,6 @@ class _GifBubble extends StatelessWidget {
                 clipBehavior: Clip.none,
                 children: [
                   GestureDetector(
-                onTap: isImage ? () => _showImageFullScreen(context, content) : null,
                 onLongPressStart: (details) async {
                   final result = await MessageActionBar.show(
                     context: context,

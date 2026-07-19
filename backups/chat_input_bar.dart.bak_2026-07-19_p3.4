@@ -1,9 +1,7 @@
-import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_cropper/image_cropper.dart';
-import 'package:image_picker/image_picker.dart';
+import '../../../core/config/feature_flags.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
@@ -14,7 +12,6 @@ import '../../auth/providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
 import 'emoji_only_bubble.dart';
 import 'gif_picker_sheet.dart';
-import 'media_picker_sheet.dart';
 
 class ChatInputBar extends ConsumerStatefulWidget {
   final String chatId;
@@ -180,73 +177,6 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     });
   }
 
-  Future<void> _pickAndSendPhoto() => _pickImage(ImageSource.gallery, 'photo');
-
-  Future<void> _pickAndSendCamera() => _pickImage(ImageSource.camera, 'camera');
-
-  Future<void> _pickImage(ImageSource source, String debugLabel) async {
-    DebugConfig.log(DebugConfig.uiInteraction, 'ChatInputBar: $debugLabel picker shown');
-    if (widget.emojiPickerVisible) widget.onEmojiDismiss();
-    final greek = L10n.isGreek(context);
-    try {
-      final picker = ImagePicker();
-      final picked = await picker.pickImage(
-        source: source,
-        imageQuality: 70,
-        maxWidth: 1280,
-        maxHeight: 1280,
-      );
-      if (picked == null || !mounted) return;
-      final cropped = await ImageCropper.platform.cropImage(
-        sourcePath: picked.path,
-        maxWidth: 1024,
-        maxHeight: 1024,
-      );
-      if (cropped == null || !mounted) return;
-      final bytes = await File(cropped.path).readAsBytes();
-      final replyToData = _buildReplyData();
-      _clearReply();
-      setState(() => _isLoading = true);
-      final ok = await ref.read(chatActionsProvider.notifier)
-          .sendMediaMessage(widget.chatId, content: '', type: 'image', replyTo: replyToData, imageBytes: bytes);
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-      if (!ok) {
-        AppMessenger.showError(context, ErrorMessages.get('chat/image-send-failed', greek));
-      }
-    } catch (e, s) {
-      DebugConfig.error('ChatInputBar: _$debugLabel pick failed', data: e, exception: s);
-      if (mounted) {
-        AppMessenger.showError(context, ErrorMessages.get('chat/image-send-failed', greek));
-      }
-    }
-  }
-
-  Future<void> _showMediaPicker() async {
-    DebugConfig.log(DebugConfig.uiInteraction, 'ChatInputBar: media + pressed');
-    if (widget.emojiPickerVisible) widget.onEmojiDismiss();
-    final action = await showMediaPickerSheet(context);
-    if (!mounted || action == null) return;
-    switch (action) {
-      case MediaAction.emoji:
-        DebugConfig.log(DebugConfig.uiInteraction,
-            'ChatInputBar: media popup: emoji');
-        widget.onEmojiToggle();
-      case MediaAction.gif:
-        DebugConfig.log(DebugConfig.uiInteraction,
-            'ChatInputBar: media popup: gif');
-        _pickGif();
-      case MediaAction.photo:
-        DebugConfig.log(DebugConfig.uiInteraction,
-            'ChatInputBar: media popup: photo');
-        _pickAndSendPhoto();
-      case MediaAction.camera:
-        DebugConfig.log(DebugConfig.uiInteraction,
-            'ChatInputBar: media popup: camera');
-        _pickAndSendCamera();
-    }
-  }
-
   Widget _buildReplyBanner(BuildContext context, ThemeData theme, bool greek, Map<String, dynamic> replyToMsg) {
     final senderId = replyToMsg['senderId'] as String? ?? '';
     final content = replyToMsg['content'] as String? ?? '';
@@ -257,8 +187,6 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     String preview;
     if (type == 'gif') {
       preview = '🎞️ GIF';
-    } else if (type == 'image') {
-      preview = greek ? '📷 Φωτογραφία' : '📷 Photo';
     } else if (isEmoji) {
       preview = content.trim();
     } else {
@@ -327,8 +255,6 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     String preview;
     if (type == 'gif') {
       preview = '🎞️ GIF';
-    } else if (type == 'image') {
-      preview = greek ? '📷 Φωτογραφία' : '📷 Photo';
     } else if (isEmoji) {
       preview = content.trim();
     } else {
@@ -455,16 +381,24 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
                 Row(children: [
                   if (!_isLoading)
                     IconButton(
-                      icon: const Icon(Icons.add_circle_outline),
-                      onPressed: _showMediaPicker,
-                      tooltip: greek ? 'Προσθήκη' : 'Add',
+                      icon: Icon(
+                        widget.emojiPickerVisible
+                            ? Icons.keyboard
+                            : Icons.emoji_emotions_outlined,
+                      ),
+                      onPressed: widget.onEmojiToggle,
+                      tooltip: 'Emoji',
+                    ),
+                  if (!_isLoading && FeatureFlags.gifSupportEnabled)
+                    IconButton(
+                      icon: const Icon(Icons.gif_box_outlined),
+                      onPressed: _pickGif,
+                      tooltip: 'GIF',
                     ),
                   Expanded(child: TextField(
                     controller: widget.textController,
                     focusNode: _focusNode,
                     textInputAction: TextInputAction.send,
-                    minLines: 1,
-                    maxLines: 5,
                     onSubmitted: (_) => _send(),
                     decoration: InputDecoration(
                       hintText: hintText,

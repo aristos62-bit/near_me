@@ -122,8 +122,6 @@ mixin ChatDeleteMixin {
       }
       DebugConfig.log(DebugConfig.firestoreWrite, '_deleteChatForEveryone: messages phase done chat=$chatId totalDeleted=$totalDeleted');
 
-      await deleteAllChatMedia(chatId);
-
       try {
         await firestore.collection('chats').doc(chatId).delete();
         DebugConfig.log(DebugConfig.firestoreWrite, '_deleteChatForEveryone: chat document deleted OK chat=$chatId');

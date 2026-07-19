@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/debug/debug_config.dart';
@@ -41,7 +40,6 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
   double _lastScrollLogPixels = 0;
   Stopwatch? _scrollBurstStopwatch;
   int _buildCount = 0;
-  Map<String, DateTime>? _lastLastReadTimestamps;
 
   @override
   void initState() {
@@ -169,30 +167,22 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
   Widget build(BuildContext context) {
     final messagesAsync = ref.watch(messagesProvider(widget.chatId));
     final currentUid = ref.watch(authStateProvider).value?.uid ?? '';
-    final lastReadTimestamps = ref.watch(chatDocProvider(widget.chatId).select((a) {
-      final raw = (a.asData?.value?.data() as Map<String, dynamic>?)
-          ?['lastReadTimestamps'] as Map<String, dynamic>?;
-      if (raw == null) return const <String, DateTime>{};
-      final result = raw.map((k, v) {
-        final ts = (v as Timestamp?)?.toDate();
-        return MapEntry(k, ts ?? DateTime(2020));
-      });
-      if (_lastLastReadTimestamps != null &&
-          const DeepCollectionEquality().equals(_lastLastReadTimestamps, result)) {
-        DebugConfig.log(DebugConfig.chatStream,
-            'ChatMessagesList: lastReadTimestamps cache hit for ${widget.chatId}');
-        return _lastLastReadTimestamps!;
-      }
-      DebugConfig.log(DebugConfig.chatStream,
-          'ChatMessagesList: lastReadTimestamps cache miss for ${widget.chatId}');
-      _lastLastReadTimestamps = result;
-      return result;
-    }));
+    final chatDocAsync = ref.watch(chatDocProvider(widget.chatId));
     final greek = L10n.isGreek(context);
     _buildCount++;
     if (_buildCount > 1) {
       DebugConfig.log(DebugConfig.uiInteraction,
           'ChatMessagesList BUILD #$_buildCount');
+    }
+
+    Map<String, DateTime> lastReadTimestamps = {};
+    final chatData = chatDocAsync.asData?.value?.data() as Map<String, dynamic>?;
+    final raw = chatData?['lastReadTimestamps'] as Map<String, dynamic>?;
+    if (raw != null) {
+      lastReadTimestamps = raw.map((k, v) {
+        final ts = (v as Timestamp?)?.toDate();
+        return MapEntry(k, ts ?? DateTime(2020));
+      });
     }
 
     return messagesAsync.when(

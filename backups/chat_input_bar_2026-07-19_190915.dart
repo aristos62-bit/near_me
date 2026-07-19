@@ -82,7 +82,6 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
       if (ok) {
         widget.textController.clear();
         _clearEdit();
-        widget.onEmojiDismiss();
       } else {
         widget.textController.text = text;
         final chatState = ref.read(chatActionsProvider);
@@ -103,7 +102,6 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
       if (ok) {
         widget.textController.clear();
         _clearReply();
-        widget.onEmojiDismiss();
       } else {
         widget.textController.text = text;
         final chatState = ref.read(chatActionsProvider);

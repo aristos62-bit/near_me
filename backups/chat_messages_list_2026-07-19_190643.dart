@@ -48,7 +48,7 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
         'ChatMessagesList init: ${widget.chatId}');
     _scrollCtrl.addListener(() {
       final pixels = _scrollCtrl.position.pixels;
-      if ((pixels - _lastScrollLogPixels).abs() > 10.0) {
+      if ((pixels - _lastScrollLogPixels).abs() > 0.5) {
         _lastScrollLogPixels = pixels;
         _scrollBurstStopwatch ??= Stopwatch()..start();
         DebugConfig.log(DebugConfig.uiInteraction,

@@ -161,12 +161,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           (a) {
             final raw = (a.asData?.value?.data() as Map<String, dynamic>?)
                 ?['participantAvatarUrls'] as Map<String, dynamic>?;
-            if (raw == null) return const _ChatScreenNicknames(<String, String>{});
-            return _ChatScreenNicknames(
-                raw.map((k, v) => MapEntry(k, v as String? ?? '')));
+            if (raw == null) return const <String, String>{};
+            return raw.map((k, v) => MapEntry(k, v as String? ?? ''));
           },
-        ))
-        .data;
+        ));
 
     final participantUids = ref.watch(participantUidsProvider(widget.chatId));
     final memberCount = isGroupChat ? participantUids.length : null;

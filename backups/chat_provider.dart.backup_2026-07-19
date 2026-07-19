@@ -60,8 +60,11 @@ final messagesProvider = StreamProvider.autoDispose.family<List<Map<String, dyna
 
 final _participantUidCaches = <String, List<String>>{};
 
-final participantUidsProvider = Provider.family<List<String>, String>((ref, chatId) {
+final participantUidsProvider = Provider.autoDispose.family<List<String>, String>((ref, chatId) {
   DebugConfig.log(DebugConfig.providerCreate, 'participantUidsProvider created (derived) for chat: $chatId');
+  ref.onDispose(() {
+    DebugConfig.log(DebugConfig.providerDispose, 'participantUidsProvider disposed (derived) for chat: $chatId');
+  });
   final chatDocAsync = ref.watch(chatDocProvider(chatId));
   final snap = chatDocAsync.asData?.value;
   if (snap == null || !snap.exists) return [];

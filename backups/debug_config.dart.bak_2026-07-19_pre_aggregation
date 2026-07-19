@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 /// Συγκεντρωτικό αρχείο ελέγχου debug μηνυμάτων.
@@ -9,9 +8,6 @@ import 'package:flutter/foundation.dart';
 /// Χρήση: DebugConfig.log(DebugConfig.databaseLocal, 'UserProfile loaded');
 class DebugConfig {
   DebugConfig._();
-
-  static final Map<String, int> _logBuffer = {};
-  static Timer? _flushTimer;
 
   /// ─────────────────────────────────────────────────────────────
   /// MASTER SWITCH — απενεργοποιεί όλα τα debugs
@@ -131,23 +127,11 @@ class DebugConfig {
   /// ─────────────────────────────────────────────────────────────
   static void log(bool flag, String message, {Object? data}) {
     if (!debugMode || !flag) return;
-    final key = data != null ? '$message | $data' : message;
-    _logBuffer[key] = (_logBuffer[key] ?? 0) + 1;
-    _flushTimer ??= Timer(const Duration(seconds: 1), _flushLogBuffer);
-  }
-
-  static void _flushLogBuffer() {
-    _flushTimer = null;
-    if (_logBuffer.isEmpty) return;
-    final snapshot = Map<String, int>.from(_logBuffer);
-    _logBuffer.clear();
-    final ts = DateTime.now().toIso8601String().substring(11, 23);
-    for (final e in snapshot.entries) {
-      if (e.value == 1) {
-        debugPrint('[$ts][DEBUG] ${e.key}');
-      } else {
-        debugPrint('[$ts][DEBUG] ${e.key} (×${e.value})');
-      }
+    final timestamp = DateTime.now().toIso8601String().substring(11, 23);
+    if (data != null) {
+      debugPrint('[$timestamp][DEBUG] $message | $data');
+    } else {
+      debugPrint('[$timestamp][DEBUG] $message');
     }
   }
 

@@ -2466,3 +2466,63 @@ Dart `Map.==` κάνει deep comparison — όταν τα δεδομένα εί
 | `lib/features/chat/widgets/chat_messages_list.dart` | `select()` return `chatDoc.value?.lastReadTimestamps` |
 
 **Verified:** `flutter analyze` clean ✅ | Log analysis: 3 misses, 10+ hits ✅
+
+---
+
+## Session 193 — participantUidsProvider dispose/recreate cascade fix
+
+**Ημερομηνία:** 19 Ιουλίου 2026
+
+**Πεδίο:** Διόρθωση rebuild storm (18-30× `ChatMessagesList BUILD`) από `participantUidsProvider` που γινόταν dispose/recreate σε κάθε emit του `chatDocProvider` (λόγω αλλαγής `pending` flag metadata).
+
+### Πρόβλημα
+
+Από logs:
+```
+chatDocProvider emit: Ehwy... pending=false
+participantUidsProvider disposed (derived) for chat: Ehwy...
+participantUidsProvider created (derived) for chat: Ehwy...
+ChatMessagesList BUILD #N   ← σε κάθε emit, ακόμα και όταν participantUids ίδια
+```
+
+### Root cause
+
+Ο `participantUidsProvider` ορίστηκε ως `Provider.autoDispose.family<List<String>, String>`. Το `autoDispose` + `.family` δημιουργεί νέο provider instance που διαγράφεται όταν η upstream dependency (`chatDocProvider`) κάνει emit. Παρόλο που το `chatDocProvider` είχε ήδη `DeepCollectionEquality` cache (Session 174), το `pending` flag (`snap.metadata.hasPendingWrites`) αλλάζει σε κάθε Firestore write cycle (local→pending=true→server→pending=false), κάτι που δημιουργεί διαφορετικό `DocumentSnapshot` instance που περνάει το cache.
+
+Το `participantUidsProvider` κάνει `ref.watch(chatDocProvider(chatId))` — κάθε φορά που αυτό εκπέμπει, ο `autoDispose` provider διαλύεται και ξαναδημιουργείται, παρόλο που η υπολογιζόμενη λίστα `participants` + `participantIsActive` είναι ίδια.
+
+Το υπάρχον static cache (`_participantUidCaches`) δεν προλάβαινε να βοηθήσει — ο ίδιος ο provider γινόταν dispose/recreate.
+
+### Fix
+
+**Αφαίρεση `autoDispose`** από `participantUidsProvider`:
+- `Provider.autoDispose.family` → `Provider.family`
+- Αφαίρεση `ref.onDispose(...)` logging callback
+
+**Αιτιολόγηση:** Ο `participantUidsProvider` είναι `Provider` (όχι `StreamProvider`) — δεν κρατά stream subscription, η μνήμη του είναι μια `List<String>` ανά chatId (αμελητέα). Το `autoDispose` δεν προσέφερε κανένα όφελος πέρα από το να προκαλεί τον cascade.
+
+### Αποτέλεσμα (από logs)
+
+| Μετρική | Πριν | Μετά | Σχόλιο |
+|---------|:----:|:----:|--------|
+| `disposed` events | ~20-25 | **0** | Το βασικό fix |
+| Σύνολο BUILD ChatMessagesList | ~28-35 | **20** | ~30% βελτίωση |
+| Rebuilds από pending toggle | ~8 | **3** | cache hit απορροφά τα υπόλοιπα |
+
+**Παραμένουν rebuilds (#5, #7, #12, #18) από `chatDocProvider` pending toggle** — αυτά οφείλονται σε απευθείας `watch` του `ChatMessagesList` στο `chatDocProvider` (για `lastReadTimestamps`), όχι στο `participantUidsProvider`. Είναι ξεχωριστό ζήτημα.
+
+### Side effects: **Κανένα**
+- sendMessage ✅ (3 αποστολές)
+- decrypt cache ✅ (23 hits, 0 misses)
+- Navigation Chat→List→Profile ✅
+- `chatDocProvider` dispose (μόνο όταν φεύγει από chat) ✅
+- `messagesProvider` dispose ✅
+- Errors/Warnings: **0**
+- Memory: μία `List<String>`/chat στο static cache (αμελητέα)
+
+### Αρχεία
+
+| Αρχείο | Αλλαγή |
+|--------|--------|
+| `lib/features/chat/providers/chat_provider.dart` | Aφαίρεση `autoDispose` + `ref.onDispose()` από `participantUidsProvider` |
+| `backups/chat_provider.dart.backup_2026-07-19` | Backup pre-fix |

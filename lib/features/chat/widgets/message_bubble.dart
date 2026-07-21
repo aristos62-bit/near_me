@@ -78,6 +78,7 @@ class TailPainter extends CustomPainter {
 
 class MessageBubble extends StatelessWidget {
   static final _buildCounts = <String, int>{};
+  final double bubbleMaxWidth;
   final Map<String, dynamic> message;
   final String currentUid;
   final bool isGroupChat;
@@ -102,6 +103,7 @@ class MessageBubble extends StatelessWidget {
 
   const MessageBubble({
     super.key,
+    required this.bubbleMaxWidth,
     required this.message,
     required this.currentUid,
     this.isGroupChat = false,
@@ -174,6 +176,7 @@ class MessageBubble extends StatelessWidget {
     if (type == 'gif' || type == 'image') {
       final isMe = senderId == currentUid;
       return _GifBubble(
+        bubbleMaxWidth: bubbleMaxWidth,
         content: content,
         timeStr: timeStr,
         isMe: isMe,
@@ -202,6 +205,7 @@ class MessageBubble extends StatelessWidget {
     if (type == 'text' && isOnlyEmoji(content)) {
       final isMe = senderId == currentUid;
       return EmojiOnlyBubble(
+        bubbleMaxWidth: bubbleMaxWidth,
         content: content,
         timeStr: timeStr,
         isMe: isMe,
@@ -243,27 +247,17 @@ class MessageBubble extends StatelessWidget {
           (isMe && showTail) ? _tailRadius : _bubbleRadius),
     );
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final maxBubbleWidth = constraints.maxWidth * 0.75;
-        DebugConfig.log(
-          DebugConfig.chatBubbleDesign,
-          'MessageBubble LB: id=${message['id']} build#$buildN '
-          'minW=${constraints.minWidth.toStringAsFixed(0)} '
-          'maxW=${constraints.maxWidth.toStringAsFixed(0)} '
-          'bubbleW=${maxBubbleWidth.toStringAsFixed(0)}',
-        );
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 3),
-          child: Align(
-            alignment: isMe
-                ? Alignment.centerRight
-                : Alignment.centerLeft,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment:
-                  isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-              children: [
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Align(
+        alignment: isMe
+            ? Alignment.centerRight
+            : Alignment.centerLeft,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment:
+              isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          children: [
               if (!isMe && showAvatar
                   && (senderAvatarUrl != null || (isGroupChat && senderNickname != null)))
                 Padding(
@@ -318,7 +312,7 @@ class MessageBubble extends StatelessWidget {
                       clipBehavior: Clip.none,
                       children: [
                         Container(
-                          constraints: BoxConstraints(maxWidth: maxBubbleWidth),
+                          constraints: BoxConstraints(maxWidth: bubbleMaxWidth),
                           padding: const EdgeInsets.symmetric(
                               horizontal: 14, vertical: 10),
                           decoration: BoxDecoration(
@@ -386,11 +380,9 @@ class MessageBubble extends StatelessWidget {
               ),
             ),
             ],
+            ),
           ),
-        ),
-      );
-      },
-    );
+        );
   }
 
   Widget _buildRichContent(
@@ -571,6 +563,7 @@ class _SystemBubble extends StatelessWidget {
 
 class _GifBubble extends StatelessWidget {
   static final _buildCounts = <String, int>{};
+  final double bubbleMaxWidth;
   final String content;
   final String timeStr;
   final bool isMe;
@@ -595,6 +588,7 @@ class _GifBubble extends StatelessWidget {
   final VoidCallback? onDelete;
 
   const _GifBubble({
+    required this.bubbleMaxWidth,
     required this.content,
     required this.timeStr,
     required this.isMe,
@@ -671,152 +665,140 @@ class _GifBubble extends StatelessWidget {
       'isLastInGroup=$isLastInGroup build#$gifBuildN',
     );
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final maxBubbleWidth = constraints.maxWidth * 0.75;
-        DebugConfig.log(
-          DebugConfig.chatBubbleDesign,
-          '_GifBubble LB: id=$gifMsgId build#$gifBuildN '
-          'minW=${constraints.minWidth.toStringAsFixed(0)} '
-          'maxW=${constraints.maxWidth.toStringAsFixed(0)} '
-          'bubbleW=${maxBubbleWidth.toStringAsFixed(0)}',
-        );
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 3),
-          child: Column(
-            crossAxisAlignment:
-                isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-            children: [
-              if (!isMe && showAvatar
-                  && (senderAvatarUrl != null || (isGroupChat && senderNickname != null)))
-                Padding(
-                  padding: const EdgeInsets.only(left: 14, bottom: 2),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircleAvatar(
-                        radius: 20,
-                        backgroundImage: senderAvatarUrl != null
-                            ? CachedNetworkImageProvider(senderAvatarUrl!)
-                            : null,
-                        child: senderAvatarUrl == null && senderNickname != null
-                            ? Text(senderNickname![0],
-                                style: const TextStyle(fontSize: 18))
-                            : null,
-                      ),
-                      if (isGroupChat && senderNickname != null) ...[
-                        const SizedBox(width: 4),
-                        Text(senderNickname!,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              if (replyTo != null)
-                ReplyPreview(
-                  replyTo: replyTo!,
-                  isMe: isMe,
-                  isGroupChat: isGroupChat,
-                ),
-              Stack(
-                clipBehavior: Clip.none,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Column(
+        crossAxisAlignment:
+            isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          if (!isMe && showAvatar
+              && (senderAvatarUrl != null || (isGroupChat && senderNickname != null)))
+            Padding(
+              padding: const EdgeInsets.only(left: 14, bottom: 2),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  GestureDetector(
-                onTap: isImage ? () => _showImageFullScreen(context, content) : null,
-                onLongPressStart: (details) async {
-                  final result = await MessageActionBar.show(
-                    context: context,
-                    isOwn: isMe,
-                    globalPosition: details.globalPosition,
-                  );
-                  if (result == 'reply') onReply?.call();
-                  if (result == 'edit') onEdit?.call();
-                  if (result == 'delete') onDelete?.call();
-                },
-                child: Container(
-                constraints: BoxConstraints(
-                    maxWidth: maxBubbleWidth, maxHeight: 200),
-                decoration: BoxDecoration(
-                  color: bubbleColor,
-                  borderRadius: bubbleBorderRadius,
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: CachedNetworkImage(
-                  imageUrl: content,
-                  fit: BoxFit.cover,
-                  placeholder: (_, _) => SizedBox(
-                    width: 200,
-                    height: 200,
-                    child: Center(
-                      child: SizedBox(
-                        width: 20, height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: isMe
-                              ? Colors.white
-                              : theme.colorScheme.primary,
-                        ),
+                  CircleAvatar(
+                    radius: 20,
+                    backgroundImage: senderAvatarUrl != null
+                        ? CachedNetworkImageProvider(senderAvatarUrl!)
+                        : null,
+                    child: senderAvatarUrl == null && senderNickname != null
+                        ? Text(senderNickname![0],
+                            style: const TextStyle(fontSize: 18))
+                        : null,
+                  ),
+                  if (isGroupChat && senderNickname != null) ...[
+                    const SizedBox(width: 4),
+                    Text(senderNickname!,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
                       ),
-                    ),
-                  ),
-                  errorWidget: (_, _, _) => SizedBox(
-                    width: 200,
-                    height: 200,
-                    child: Icon(Icons.broken_image,
-                        color: theme.colorScheme.onSurfaceVariant),
-                  ),
-                ),
-              ),
-              ),
-              if (showTail)
-                Positioned(
-                  bottom: 0,
-                  right: isMe ? -8 : null,
-                  left: !isMe ? -8 : null,
-                  child: CustomPaint(
-                    painter: TailPainter(color: bubbleColor),
-                    size: const Size(10, 8),
-                  ),
-                ),
-            ],
-              ),
-              if (chatId != null && FeatureFlags.messageReactionsEnabled)
-                MessageReactions(
-                  reactions: reactions,
-                  currentUid: currentUid,
-                  chatId: chatId!,
-                  messageId: messageId,
-                  isMe: isMe,
-                  onReact: onReact,
-                  onRemove: onRemove,
-                ),
-              Padding(
-                padding: EdgeInsets.only(
-                    top: 2,
-                    left: isMe ? 0 : 14,
-                    right: isMe ? 14 : 0),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(timeStr, style: theme.textTheme.labelSmall
-                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-                    ReadReceiptIndicator(
-                      isGroupChat: isGroupChat,
-                      isMe: isMe,
-                      isRead: isRead,
-                      seenBy: seenBy,
                     ),
                   ],
+                ],
+              ),
+            ),
+          if (replyTo != null)
+            ReplyPreview(
+              replyTo: replyTo!,
+              isMe: isMe,
+              isGroupChat: isGroupChat,
+            ),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              GestureDetector(
+            onTap: isImage ? () => _showImageFullScreen(context, content) : null,
+            onLongPressStart: (details) async {
+              final result = await MessageActionBar.show(
+                context: context,
+                isOwn: isMe,
+                globalPosition: details.globalPosition,
+              );
+              if (result == 'reply') onReply?.call();
+              if (result == 'edit') onEdit?.call();
+              if (result == 'delete') onDelete?.call();
+            },
+            child: Container(
+            constraints: BoxConstraints(
+                maxWidth: bubbleMaxWidth, maxHeight: 200),
+            decoration: BoxDecoration(
+              color: bubbleColor,
+              borderRadius: bubbleBorderRadius,
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: CachedNetworkImage(
+              imageUrl: content,
+              fit: BoxFit.cover,
+              placeholder: (_, _) => SizedBox(
+                width: 200,
+                height: 200,
+                child: Center(
+                  child: SizedBox(
+                    width: 20, height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: isMe
+                          ? Colors.white
+                          : theme.colorScheme.primary,
+                    ),
+                  ),
                 ),
               ),
-            ],
+              errorWidget: (_, _, _) => SizedBox(
+                width: 200,
+                height: 200,
+                child: Icon(Icons.broken_image,
+                    color: theme.colorScheme.onSurfaceVariant),
+              ),
+            ),
           ),
-        );
-      },
+          ),
+          if (showTail)
+            Positioned(
+              bottom: 0,
+              right: isMe ? -8 : null,
+              left: !isMe ? -8 : null,
+              child: CustomPaint(
+                painter: TailPainter(color: bubbleColor),
+                size: const Size(10, 8),
+              ),
+            ),
+        ],
+          ),
+          if (chatId != null && FeatureFlags.messageReactionsEnabled)
+            MessageReactions(
+              reactions: reactions,
+              currentUid: currentUid,
+              chatId: chatId!,
+              messageId: messageId,
+              isMe: isMe,
+              onReact: onReact,
+              onRemove: onRemove,
+            ),
+          Padding(
+            padding: EdgeInsets.only(
+                top: 2,
+                left: isMe ? 0 : 14,
+                right: isMe ? 14 : 0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(timeStr, style: theme.textTheme.labelSmall
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                ReadReceiptIndicator(
+                  isGroupChat: isGroupChat,
+                  isMe: isMe,
+                  isRead: isRead,
+                  seenBy: seenBy,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

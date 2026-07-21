@@ -2608,3 +2608,104 @@ ChatMessagesList BUILD #N   ← σε κάθε emit, ακόμα και όταν p
 | `backups/*` | Backups δημιουργήθηκαν πριν από κάθε edit |
 
 **Verified:** `flutter analyze` — **0 issues** ✅
+
+---
+
+## Session 195 — Log Analysis: resizeToAvoidBottomInset fix + 5 remaining issues
+
+**Ημερομηνία:** 21 Ιουλίου 2026
+
+**Πεδίο:** Ανάλυση νέων logs από device test μετά από εφαρμογή `resizeToAvoidBottomInset: false` στο ChatScreen. Εντοπισμός 5 προβλημάτων (1 bug + 3 performance + 1 race).
+
+### ✅ Διορθώθηκε — `resizeToAvoidBottomInset: false`
+**Αιτία:** Το default `resizeToAvoidBottomInset: true` προκαλούσε layout pass cascade (60fps animation) όταν το πληκτρολόγιο/sheets άνοιγαν/έκλειναν. Κάθε frame άλλαζε το `body` height → `Column` → `Expanded(ChatMessagesList)` → `ListView.builder` layout → rebuild όλων των visible MessageBubble.
+
+**Fix:** `resizeToAvoidBottomInset: false` στο `Scaffold` (chat_screen.dart:194).
+
+**Αποτέλεσμα:** Δεν υπάρχουν πλέον invisible layout-pass cascades (`MessageBubble built` χωρίς BUILD #N). Κάθε rebuild έχει πλέον BUILD #N μετρήσιμο και traceable.
+
+### ⚠️ ΔΕΝ διορθώθηκε — 5 εναπομείναντα προβλήματα
+
+#### 1. 🔴 BUG — `decrypt lastMessage failed` για media messages
+**Αρχείο:** `chat_repository_impl.dart:513-521`
+
+**Αιτία:** `_syncChatFromFirestore` αποκρυπτογραφεί το `lastMessage` χωρίς να ελέγχει `lastMessageType`. Για media (`gif`/`image`/`video`), το `lastMessage` είναι URL (όχι base64 encrypted text). `FormatException: Invalid length, must be multiple of four`.
+
+**Υπάρχει και στο `_syncGroupChatToCache`:** `group_chat_mixin.dart:172-178` — έχει skip για `'system'` αλλά όχι για media types.
+
+#### 2. 🟡 PERFORMANCE — Rebuild cascade 17-53× ανά sheet open
+**Αιτία:** `chatDocProvider` εκπέμπει 2 φορές (pending=true → pending=false) για κάθε Firestore write με `FieldValue.serverTimestamp()` ή `FieldValue.increment()`. Το υπάρχον `DeepCollectionEquality` dedup (Session 174) ΔΕΝ πιάνει τα emits γιατί τα δεδομένα είναι πραγματικά διαφορετικά (τοπική εκτίμηση vs server timestamp).
+
+**Ποσοστό:** 17-53 BUILD #N σε MediaPicker/EmojiPicker sheet open, 81 σε group chat.
+
+#### 3. 🟡 RACE — Group initial state flash (`isGroupChat=false`)
+**Αρχείο:** `chat_screen.dart:137-141`
+
+**Αιτία:** Το `.select()` για `isGroupChat` επιστρέφει `false` όταν `a.asData?.value?.data()` είναι null (πριν το πρώτο snapshot). Τα permissions (`canInvite`, `canDeleteMsgs`) υπολογίζονται με `isGroupChat=false` → `permsAsync=null`, δίνοντας λανθασμένες τιμές στο πρώτο frame.
+
+#### 4. 🟡 RACE — `effectiveIsRead: msgTs=null`
+**Αρχείο:** `chat_messages_list.dart:258-265`
+
+**Αιτία:** Όταν το μήνυμα μόλις στάλθηκε, το `msg['timestamp']` είναι null (δεν έχει φτάσει το Firestore server timestamp). Το `effectiveIsRead` υπολογίζεται λανθασμένα όταν `msgTimestamp == null && otherLastRead != null`.
+
+#### 5. 🟢 ASTOXIA — Redundant `Badge set to 0`
+**Αρχείο:** `chat_repository_impl.dart:402-437`
+
+**Αιτία:** `markAsRead` καλείται σε κάθε `_onMessagesChanged` και γράφει `lastReadTimestamps.$uid = serverTimestamp()` + `unreadCount.$uid = 0`. Αυτό πυροδοτεί `chatDocProvider` emit → `streamChats` lightweight sync → Drift write → `chatsProvider` emit. Περιττός κύκλος όταν δεν υπάρχουν unread.
+
+### Αρχεία που χρειάζονται αλλαγές
+
+| # | Αρχείο | Πρόβλημα |
+|:-:|--------|----------|
+| 1 | `lib/repositories/chat_repository_impl.dart` | `_syncChatFromFirestore` — skip decrypt για media |
+| 2 | `lib/repositories/group_chat_mixin.dart` | `_syncGroupChatToCache` — skip decrypt για media |
+| 3 | `lib/features/chat/providers/chat_provider.dart` | `chatDocProvider` — φιλτράρισμα `pending=true` emits |
+| 4 | `lib/features/chat/screens/chat_screen.dart` | Group flash fix — loading check πριν permissions |
+| 5 | `lib/features/chat/widgets/chat_messages_list.dart` | `effectiveIsRead` null-safe + `lastReadTimestamps` select cache |
+| 6 | `lib/features/chat/widgets/chat_messages_list.dart` | `_onMessagesChanged` — markAsRead μόνο όταν υπάρχει unread |
+
+### Backups
+(κανένα ακόμα — δεν έγιναν edits)
+
+---
+
+## Session 196 — ChatMessagesList rebuild cascade fix: LayoutBuilder removal
+
+**Ημερομηνία:** 21 Ιουλίου 2026
+
+**Πεδίο:** Διόρθωση rebuild cascade στο `ChatMessagesList` — κάθε per-message `LayoutBuilder` δημιουργούσε νέο `LayoutChangeRecord` στο Element tree → cascade rebuilds. Αντικατάσταση με pre-computed `bubbleMaxWidth`.
+
+### Πρόβλημα
+Κάθε `MessageBubble` + `_GifBubble` είχε `LayoutBuilder` που υπολόγιζε `bubbleMaxWidth = constraints.maxWidth * 0.75`. Το `LayoutBuilder` έκανε register constraint dependencies στο Element → κάθε layout pass πυροδοτούσε rebuild όλων των bubbles, ακόμα και όταν τα δεδομένα δεν άλλαζαν.
+
+### Fix
+- `bubbleMaxWidth` υπολογίζεται **μία φορά** στο `ChatMessagesList.build()`: `w * 0.75` (όπου `w = MediaQuery.of(context).size.width`)
+- Περνιέται ως `double` prop σε `MessageBubble` → `_GifBubble` / `EmojiOnlyBubble`
+- `LayoutBuilder` αφαιρέθηκε από `MessageBubble` και `_GifBubble`
+- `EmojiOnlyBubble`: `bubbleMaxWidth` field για constructor compatibility (δεν χρησιμοποιείται — δεν έχει bubble card από Session 194)
+
+### Αποτέλεσμα (από logs)
+- `MessageBubble LB` / `_GifBubble LB` logs: **μηδέν** σε ολόκληρο session ✅
+- Rebuilds παραμένουν (λόγω `chatDocProvider` double-emit) αλλά με **μικρότερο κόστος ανά rebuild**
+
+### Verified
+- `flutter analyze` — **0 issues** ✅
+- `flutter build apk --release --dart-define=ENABLE_RELEASE_DEBUG=true` — **15.8MB** ✅
+- Device test: 1-to-1 + group chat, text/emoji/GIF/image messages — **όλα delivered** ✅
+
+### Αρχεία
+| Αρχείο | Αλλαγή |
+|--------|--------|
+| `lib/features/chat/widgets/chat_messages_list.dart` | `bubbleMaxWidth` computed at build (line 225) |
+| `lib/features/chat/widgets/message_bubble.dart` | `bubbleMaxWidth` prop, `LayoutBuilder` removed from `MessageBubble` + `_GifBubble` |
+| `lib/features/chat/widgets/emoji_only_bubble.dart` | `bubbleMaxWidth` field added (unused) |
+
+### Backups
+`backups/message_bubble_lb_fix/` — 3 `.bak` files (message_bubble, emoji_only_bubble, chat_messages_list)
+
+### Εναπομείναντα προβλήματα (από Session 195)
+1. **BUG — `decrypt lastMessage failed`** — `FormatException` όταν το `lastMessage` είναι URL (media)
+2. **PERFORMANCE — `chatDocProvider` double-emit** (pending=true→false) — root cause rebuild cascade
+3. **RACE — Group flash** (`isGroupChat=false` → `true` στο πρώτο frame)
+4. **RACE — `effectiveIsRead: msgTs=null`** για νέα μηνύματα
+5. **REDUNDANT — `Badge set to 0`** σε κάθε `markAsRead`

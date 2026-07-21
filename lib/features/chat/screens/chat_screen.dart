@@ -191,6 +191,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         'ChatScreen #$_instanceId: isGroup=$isGroupChat groupName=$groupName');
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: GestureDetector(
           onTap: () => _showE2EInfo(isGroupChat ? (groupName ?? widget.chatId) : (otherNickname ?? widget.chatId)),
@@ -334,16 +335,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           participantAvatarUrls: participantAvatarUrls,
           otherUid: otherUid,
         )),
-        if (_emojiPickerVisible)
-          EmojiPickerPanel(onEmojiSelected: _onEmojiSelected),
-        ChatInputBar(
-          chatId: widget.chatId,
-          isGroupChat: isGroupChat,
-          textController: _textCtrl,
-          emojiPickerVisible: _emojiPickerVisible,
-          onEmojiToggle: _toggleEmojiPicker,
-          onEmojiDismiss: _dismissEmojiPicker,
-          participantNicknames: isGroupChat ? participantNicknames : const {},
+        Padding(
+          padding: EdgeInsets.only(
+              bottom: MediaQuery.viewInsetsOf(context).bottom),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_emojiPickerVisible)
+                EmojiPickerPanel(onEmojiSelected: _onEmojiSelected),
+              ChatInputBar(
+                chatId: widget.chatId,
+                isGroupChat: isGroupChat,
+                textController: _textCtrl,
+                emojiPickerVisible: _emojiPickerVisible,
+                onEmojiToggle: _toggleEmojiPicker,
+                onEmojiDismiss: _dismissEmojiPicker,
+                participantNicknames: isGroupChat ? participantNicknames : const {},
+              ),
+            ],
+          ),
         ),
       ]),
     );

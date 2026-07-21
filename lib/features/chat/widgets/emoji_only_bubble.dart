@@ -45,6 +45,7 @@ class EmojiOnlyBubble extends StatelessWidget {
   final String? chatId;
   final String currentUid;
   final String messageId;
+  final double bubbleMaxWidth;
   final Map<String, dynamic> reactions;
   final Future<void> Function(String messageId, String emoji)? onReact;
   final Future<void> Function(String messageId)? onRemove;
@@ -55,6 +56,7 @@ class EmojiOnlyBubble extends StatelessWidget {
 
   const EmojiOnlyBubble({
     super.key,
+    required this.bubbleMaxWidth,
     required this.content,
     required this.timeStr,
     required this.isMe,

@@ -216,6 +216,7 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
         }
         final renderItems = ChatGroupingCalculator.calculate(messages, currentUid);
         final w = MediaQuery.sizeOf(context).width;
+        final bubbleMaxWidth = w * 0.75;
         return ListView.builder(
           controller: _scrollCtrl,
           reverse: true,
@@ -275,6 +276,7 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
 
               return MessageBubble(
                 key: ValueKey(msg['id'] as String? ?? ''),
+                bubbleMaxWidth: bubbleMaxWidth,
                 message: msg,
                   currentUid: currentUid,
                   isGroupChat: widget.isGroupChat,

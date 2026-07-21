@@ -264,6 +264,15 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
                   effectiveIsRead = msgIsRead || (otherLastRead != null && msgTimestamp != null && otherLastRead.compareTo(msgTimestamp) >= 0);
                 }
 
+                if (!widget.isGroupChat && senderId == currentUid) {
+                  final dbgMsgIsRead = msg['isRead'] as bool? ?? false;
+                  final dbgOtherUid = widget.otherUid;
+                  final dbgOtherLT = dbgOtherUid != null ? lastReadTimestamps[dbgOtherUid] : null;
+                  DebugConfig.log(DebugConfig.chatBubbleDesign,
+                      'effectiveIsRead: msgIsRead=$dbgMsgIsRead otherLastRead=$dbgOtherLT '
+                      'msgTs=$msgTimestamp effective=$effectiveIsRead');
+                }
+
               return MessageBubble(
                 key: ValueKey(msg['id'] as String? ?? ''),
                 message: msg,

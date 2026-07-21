@@ -7,6 +7,7 @@ import '../../../core/l10n/l10n.dart';
 import 'emoji_only_bubble.dart';
 import 'message_action_bar.dart';
 import 'message_reactions.dart';
+import '../../../shared/widgets/read_receipt_indicator.dart';
 
 class ReplyPreview extends StatelessWidget {
   final Map<String, dynamic> replyTo;
@@ -76,6 +77,7 @@ class TailPainter extends CustomPainter {
 }
 
 class MessageBubble extends StatelessWidget {
+  static final _buildCounts = <String, int>{};
   final Map<String, dynamic> message;
   final String currentUid;
   final bool isGroupChat;
@@ -142,10 +144,13 @@ class MessageBubble extends StatelessWidget {
     final reactions = (message['reactions'] as Map<String, dynamic>?) ?? <String, dynamic>{};
     final replyTo = message['replyTo'] as Map<String, dynamic>?;
 
+    final msgId = message['id'] as String? ?? '';
+    _buildCounts[msgId] = (_buildCounts[msgId] ?? 0) + 1;
+    final buildN = _buildCounts[msgId]!;
     DebugConfig.log(
       DebugConfig.chatBubbleDesign,
-      'MessageBubble built: id=${message['id']} type=$type '
-      'isGrouped=$isGrouped isLastInGroup=$isLastInGroup',
+      'MessageBubble built: id=$msgId type=$type '
+      'isGrouped=$isGrouped isLastInGroup=$isLastInGroup build#$buildN',
     );
 
     if (type == 'system') {
@@ -241,12 +246,24 @@ class MessageBubble extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxBubbleWidth = constraints.maxWidth * 0.75;
+        DebugConfig.log(
+          DebugConfig.chatBubbleDesign,
+          'MessageBubble LB: id=${message['id']} build#$buildN '
+          'minW=${constraints.minWidth.toStringAsFixed(0)} '
+          'maxW=${constraints.maxWidth.toStringAsFixed(0)} '
+          'bubbleW=${maxBubbleWidth.toStringAsFixed(0)}',
+        );
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 3),
-          child: Column(
-            crossAxisAlignment:
-                isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-            children: [
+          child: Align(
+            alignment: isMe
+                ? Alignment.centerRight
+                : Alignment.centerLeft,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment:
+                  isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              children: [
               if (!isMe && showAvatar
                   && (senderAvatarUrl != null || (isGroupChat && senderNickname != null)))
                 Padding(
@@ -309,11 +326,11 @@ class MessageBubble extends StatelessWidget {
                             borderRadius: bubbleBorderRadius,
                           ),
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.end,
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               mentions.isEmpty
-                                  ? Text(content, style: TextStyle(color: textColor))
+                                  ? Text(content, style: TextStyle(color: textColor), textAlign: TextAlign.end)
                                   : _buildRichContent(context, content, mentions, isMe),
                               if (timeStr.isNotEmpty)
                                 Padding(
@@ -358,37 +375,20 @@ class MessageBubble extends StatelessWidget {
               onReact: onReact,
               onRemove: onRemove,
             ),
-          Padding(
-            padding: EdgeInsets.only(
-                top: 2,
-                left: isMe ? 0 : 14,
-                right: isMe ? 14 : 0),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (isGroupChat && isMe && seenBy.isNotEmpty) ...[
-                  Icon(Icons.visibility, size: 14,
-                      color: theme.colorScheme.primary),
-                  const SizedBox(width: 2),
-                  Text('${seenBy.length}',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.primary)),
-                ],
-                if (!isGroupChat && isMe) ...[
-                  Icon(
-                    isRead ? Icons.done_all : Icons.done,
-                    size: 14,
-                    color: isRead
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.onSurfaceVariant,
-                  ),
-                ],
-              ],
+          if (isMe)
+            Padding(
+              padding: const EdgeInsets.only(top: 2, right: 14),
+              child: ReadReceiptIndicator(
+                isGroupChat: isGroupChat,
+                isMe: isMe,
+                isRead: isRead,
+                seenBy: seenBy,
+              ),
             ),
+            ],
           ),
-        ],
-      ),
-    );
+        ),
+      );
       },
     );
   }
@@ -432,12 +432,13 @@ class MessageBubble extends StatelessWidget {
       spans.add(TextSpan(text: content.substring(lastEnd)));
     }
 
-    return Text.rich(TextSpan(children: spans, style: TextStyle(color: baseColor)));
+    return Text.rich(TextSpan(children: spans, style: TextStyle(color: baseColor)), textAlign: TextAlign.end);
   }
 
 }
 
 class _SystemBubble extends StatelessWidget {
+  static int _sysBuildCount = 0;
   final String content;
   final String? contentEn;
   final String timeStr;
@@ -470,8 +471,11 @@ class _SystemBubble extends StatelessWidget {
         action == 'delete_request' || action == 'delete_rejected'
     );
 
+    _sysBuildCount++;
     DebugConfig.log(DebugConfig.uiInteraction,
-        '_SystemBubble: action=$action isRequester=$isRequester showActions=$showActions hasEn=${contentEn != null}');
+        '_SystemBubble build#$_sysBuildCount: action=$action '
+        'isRequester=$isRequester showActions=$showActions '
+        'hasEn=${contentEn != null}');
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -566,6 +570,7 @@ class _SystemBubble extends StatelessWidget {
 }
 
 class _GifBubble extends StatelessWidget {
+  static final _buildCounts = <String, int>{};
   final String content;
   final String timeStr;
   final bool isMe;
@@ -657,14 +662,25 @@ class _GifBubble extends StatelessWidget {
           (isMe && showTail) ? _tailRadius : _bubbleRadius),
     );
 
+    final gifMsgId = messageId;
+    _buildCounts[gifMsgId] = (_buildCounts[gifMsgId] ?? 0) + 1;
+    final gifBuildN = _buildCounts[gifMsgId]!;
     DebugConfig.log(
       DebugConfig.chatBubbleDesign,
-      '_GifBubble: isGrouped=$isGrouped isLastInGroup=$isLastInGroup',
+      '_GifBubble: id=$gifMsgId isGrouped=$isGrouped '
+      'isLastInGroup=$isLastInGroup build#$gifBuildN',
     );
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxBubbleWidth = constraints.maxWidth * 0.75;
+        DebugConfig.log(
+          DebugConfig.chatBubbleDesign,
+          '_GifBubble LB: id=$gifMsgId build#$gifBuildN '
+          'minW=${constraints.minWidth.toStringAsFixed(0)} '
+          'maxW=${constraints.maxWidth.toStringAsFixed(0)} '
+          'bubbleW=${maxBubbleWidth.toStringAsFixed(0)}',
+        );
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 3),
           child: Column(
@@ -788,25 +804,12 @@ class _GifBubble extends StatelessWidget {
                   children: [
                     Text(timeStr, style: theme.textTheme.labelSmall
                         ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-                    if (isGroupChat && isMe && seenBy.isNotEmpty) ...[
-                      const SizedBox(width: 4),
-                      Icon(Icons.visibility, size: 14,
-                          color: theme.colorScheme.primary),
-                      const SizedBox(width: 2),
-                      Text('${seenBy.length}',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                              color: theme.colorScheme.primary)),
-                    ],
-                    if (!isGroupChat && isMe) ...[
-                      const SizedBox(width: 4),
-                      Icon(
-                        isRead ? Icons.done_all : Icons.done,
-                        size: 14,
-                        color: isRead
-                            ? theme.colorScheme.primary
-                            : theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ],
+                    ReadReceiptIndicator(
+                      isGroupChat: isGroupChat,
+                      isMe: isMe,
+                      isRead: isRead,
+                      seenBy: seenBy,
+                    ),
                   ],
                 ),
               ),

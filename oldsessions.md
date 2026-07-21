@@ -2526,3 +2526,85 @@ ChatMessagesList BUILD #N   ← σε κάθε emit, ακόμα και όταν p
 |--------|--------|
 | `lib/features/chat/providers/chat_provider.dart` | Aφαίρεση `autoDispose` + `ref.onDispose()` από `participantUidsProvider` |
 | `backups/chat_provider.dart.backup_2026-07-19` | Backup pre-fix |
+
+---
+
+## Session 194 — ReadReceiptIndicator shared widget + emoji card removal + text alignment
+
+**Ημερομηνία:** 21 Ιουλίου 2026
+
+**Πεδίο:** 4 ανεξάρτητες βελτιώσεις στο chat UI: (1) ReadReceiptIndicator shared widget για εξάλειψη triplication, (2) unread eye icon από filled→outlined + grey, (3) text alignment σε end για όλα τα μηνύματα, (4) emoji χωρίς bubble card (στο background).
+
+### Fix 1 — ReadReceiptIndicator (ΝΕΟ shared widget)
+
+**Πρόβλημα:** Το read receipt UI (eye icon + seen count) ήταν copy-pasted σε 3 μέρη: `MessageBubble`, `EmojiOnlyBubble`, `_GifBubble`. Κάθε αλλαγή απαιτούσε edit σε 3 σημεία.
+
+**Λύση:** Νέο `shared/widgets/read_receipt_indicator.dart` — `ReadReceiptIndicator` StatelessWidget:
+- `!isMe` → `SizedBox.shrink()`
+- `isGroupChat && seenBy.isEmpty` → `SizedBox.shrink()`
+- `isGroupChat && seenBy.isNotEmpty` → tooltip + icon + count
+- `isRead=false` → `Icons.visibility_outlined` + `onSurfaceVariant` (grey)
+- `isRead=true` → `Icons.visibility` + `primary`
+- Bilingual tooltips (el/en)
+
+**Αντικατάσταση σε 3 widgets:**
+- `message_bubble.dart` — Line 329 removed, `ReadReceiptIndicator` call
+- `emoji_only_bubble.dart` — import + `ReadReceiptIndicator` call
+- `message_bubble.dart` (`_GifBubble`) — import + `ReadReceiptIndicator` call
+
+### Fix 2 — Unread eye icon: outlined + grey
+
+**Πρόβλημα:** Σε 1-to-1 unread messages, το εικονίδιο ήταν `Icons.visibility` (filled) με primary color — έμοιαζε με read. Δεν υπήρχε οπτική διαφορά read vs unread.
+
+**Λύση:** 
+- Unread: `Icons.visibility_outlined` + `theme.colorScheme.onSurfaceVariant` (grey)
+- Read: `Icons.visibility` + `theme.colorScheme.primary` (unchanged)
+
+### Fix 3 — Text alignment: end για όλα τα μηνύματα
+
+**Αλλαγές:**
+- `message_bubble.dart:313` — `CrossAxisAlignment.start` → `CrossAxisAlignment.end`
+- `message_bubble.dart:317` — `Text(content, ...)` + `textAlign: TextAlign.end`
+- `message_bubble.dart:418` — `Text.rich(...)` + `textAlign: TextAlign.end`
+- `emoji_only_bubble.dart:147` — εσωτερικό `Column crossAxisAlignment: TextAlign.end`
+- `emoji_only_bubble.dart:170` — `Text(timeStr, ...)` + `textAlign: TextAlign.end`
+- `_GifBubble`: **δεν πειράχτηκε** (δεν έχει text content)
+
+**Ισχύει και για isMe=true και isMe=false.**
+
+### Fix 4 — Emoji χωρίς bubble card (πάνω στο background)
+
+**Πρόβλημα:** Τα emoji-only messages είχαν `Container` με `BoxDecoration` (bubble color, borderRadius, tail) — δεν διέφεραν από κανονικά text bubbles.
+
+**Λύση:**
+- Αφαίρεση `Container` με `BoxDecoration` (bubble)
+- Αφαίρεση `TailPainter` (ουρά)
+- Αφαίρεση `LayoutBuilder` wrapper
+- Αφαίρεση `static const` που δεν χρησιμοποιούνται πλέον: `_bubbleRadius`, `_tailRadius`, `_sentColor`, `_sentTextColor`
+- Emoji text color: πλέον `onSurface` (όχι white) — σωστό αφού δεν έχει σκούρο bubble
+- Time text color: πλέον `onSurfaceVariant.withAlpha(180)` για isMe=true (όχι `Colors.white.withAlpha(180)`)
+- Padding: `isMe ? right:14 : left:14` — σωστή απόσταση από άκρη
+
+### Edge cases covered (πλήρης έλεγχος)
+
+| Edge case | Status |
+|-----------|:------:|
+| mentions rich text (Text.rich) alignment | ✅ `textAlign: TextAlign.end` |
+| ReplyPreview positioning (outside bubble) | ✅ unaffected |
+| Tail positioning (`Positioned`) | ✅ independent from alignment |
+| Gif/Image bubbles (no text content) | ✅ _GifBubble not touched |
+| Emoji πολλά (font size scaling) | ✅ χωρίς maxWidth, όχι overflow |
+| Reactions / Avatar / Nickname / Read receipts | ✅ all unaffected |
+| File size limits | ✅ emoji_only_bubble 204γρ, message_bubble 791γρ |
+| `flutter analyze` | ✅ No issues found |
+
+### Αρχεία
+
+| Αρχείο | Αλλαγή |
+|--------|--------|
+| `lib/shared/widgets/read_receipt_indicator.dart` | **ΝΕΟ** — ReadReceiptIndicator (70 γρ.) |
+| `lib/features/chat/widgets/message_bubble.dart` | ReadReceiptIndicator reuse + textAlign: end |
+| `lib/features/chat/widgets/emoji_only_bubble.dart` | ReadReceiptIndicator reuse + card removal + textAlign: end + cleanup |
+| `backups/*` | Backups δημιουργήθηκαν πριν από κάθε edit |
+
+**Verified:** `flutter analyze` — **0 issues** ✅

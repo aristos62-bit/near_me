@@ -43,6 +43,7 @@ class ChatInputBar extends ConsumerStatefulWidget {
 class _ChatInputBarState extends ConsumerState<ChatInputBar> {
   final _focusNode = FocusNode();
   bool _isLoading = false;
+  int _buildCount = 0;
 
   @override
   void initState() {
@@ -398,8 +399,9 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     final canComm = AuthRepository.canUserCommunicate(currentUser);
     final replyToMsg = ref.watch(replyToMessageProvider);
     final editingMsg = ref.watch(editingMessageProvider);
+    _buildCount++;
     DebugConfig.log(DebugConfig.uiInteraction,
-        'ChatInputBar build: canComm=$canComm '
+        'ChatInputBar build#$_buildCount: canComm=$canComm '
         'emojiVisible=${widget.emojiPickerVisible}');
 
     ref.listen(editingMessageProvider, (prev, next) {

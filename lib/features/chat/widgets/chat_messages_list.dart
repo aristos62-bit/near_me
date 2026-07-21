@@ -13,6 +13,12 @@ import '../utils/chat_ui_utils.dart';
 import 'date_separator.dart';
 import 'message_bubble.dart';
 
+class _MessageReadProps {
+  final bool effectiveIsRead;
+  final List<String> seenBy;
+  const _MessageReadProps({required this.effectiveIsRead, required this.seenBy});
+}
+
 class ChatMessagesList extends ConsumerStatefulWidget {
   final String chatId;
   final bool isGroupChat;
@@ -36,7 +42,6 @@ class ChatMessagesList extends ConsumerStatefulWidget {
 class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
   final _scrollCtrl = ScrollController();
   int _lastMessageCount = 0;
-  bool _hasMarkedRead = false;
   bool _isFirstLoad = true;
   double _lastScrollLogPixels = 0;
   Stopwatch? _scrollBurstStopwatch;
@@ -130,15 +135,6 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
   }
 
   void _onMessagesChanged(List<Map<String, dynamic>> messages) {
-    if (!_hasMarkedRead) {
-      _hasMarkedRead = true;
-      Future.microtask(() {
-        if (mounted) {
-          ref.read(chatActionsProvider.notifier)
-              .markAsRead(widget.chatId, isGroupChat: widget.isGroupChat);
-        }
-      });
-    }
     if (messages.isEmpty || !mounted) return;
     if (messages.length == _lastMessageCount && !_isFirstLoad) return;
     final isNewMessage = messages.length > _lastMessageCount;
@@ -215,6 +211,13 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
           );
         }
         final renderItems = ChatGroupingCalculator.calculate(messages, currentUid);
+        final readProps = _precomputeReadProps(
+          messages,
+          currentUid,
+          widget.otherUid,
+          lastReadTimestamps,
+          widget.isGroupChat,
+        );
         final w = MediaQuery.sizeOf(context).width;
         final bubbleMaxWidth = w * 0.75;
         return ListView.builder(
@@ -233,7 +236,6 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
 
                 final msg = item.message!;
                 final senderId = msg['senderId'] as String? ?? '';
-                final msgTimestamp = (msg['timestamp'] as Timestamp?)?.toDate();
                 final nicknameMap = widget.participantNicknames;
                 final senderNickname = widget.isGroupChat && nicknameMap != null
                     ? nicknameMap[senderId]
@@ -248,46 +250,24 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
                       'chat=${widget.chatId} nicknameMapSize=${nicknameMap?.length ?? 0}');
                 }
 
-                List<String> seenBy = [];
-                if (widget.isGroupChat && msgTimestamp != null) {
-                  seenBy = lastReadTimestamps.entries
-                      .where((e) => e.key != senderId && e.value.compareTo(msgTimestamp) >= 0)
-                      .map((e) => e.key)
-                      .toList();
-                }
-
-                final bool effectiveIsRead;
-                if (widget.isGroupChat) {
-                  effectiveIsRead = false;
-                } else {
-                  final msgIsRead = msg['isRead'] as bool? ?? false;
-                  final otherLastRead = widget.otherUid != null ? lastReadTimestamps[widget.otherUid] : null;
-                  effectiveIsRead = msgIsRead || (otherLastRead != null && msgTimestamp != null && otherLastRead.compareTo(msgTimestamp) >= 0);
-                }
-
-                if (!widget.isGroupChat && senderId == currentUid) {
-                  final dbgMsgIsRead = msg['isRead'] as bool? ?? false;
-                  final dbgOtherUid = widget.otherUid;
-                  final dbgOtherLT = dbgOtherUid != null ? lastReadTimestamps[dbgOtherUid] : null;
-                  DebugConfig.log(DebugConfig.chatBubbleDesign,
-                      'effectiveIsRead: msgIsRead=$dbgMsgIsRead otherLastRead=$dbgOtherLT '
-                      'msgTs=$msgTimestamp effective=$effectiveIsRead');
-                }
+                final msgId = msg['id'] as String? ?? '';
+                final props = readProps[msgId] ??
+                    const _MessageReadProps(effectiveIsRead: false, seenBy: []);
 
               return MessageBubble(
-                key: ValueKey(msg['id'] as String? ?? ''),
+                key: ValueKey(msgId),
                 bubbleMaxWidth: bubbleMaxWidth,
                 message: msg,
                   currentUid: currentUid,
                   isGroupChat: widget.isGroupChat,
-                  isRead: effectiveIsRead,
+                  isRead: props.effectiveIsRead,
                   isGrouped: item.isGrouped,
                   isLastInGroup: item.isLastInGroup,
                   showAvatar: item.showAvatar,
                   senderNickname: senderNickname,
                   senderAvatarUrl: senderAvatarUrl,
                   participantNicknames: widget.participantNicknames,
-                  seenBy: seenBy,
+                  seenBy: props.seenBy,
                   chatId: widget.chatId,
                   onApproveDelete: _onApproveDelete,
                   onRejectDelete: _onRejectDelete,
@@ -303,5 +283,52 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
             );
       },
     );
+  }
+
+  Map<String, _MessageReadProps> _precomputeReadProps(
+    List<Map<String, dynamic>> messages,
+    String currentUid,
+    String? otherUid,
+    Map<String, DateTime> lastReadTimestamps,
+    bool isGroupChat,
+  ) {
+    final result = <String, _MessageReadProps>{};
+    for (final msg in messages) {
+      final msgId = msg['id'] as String? ?? '';
+      if (msgId.isEmpty) continue;
+      final senderId = msg['senderId'] as String? ?? '';
+      final rawTs = msg['timestamp'];
+      final msgTimestamp = rawTs is Timestamp ? rawTs.toDate() : null;
+
+      List<String> seenBy;
+      if (isGroupChat && msgTimestamp != null) {
+        seenBy = lastReadTimestamps.entries
+            .where((e) => e.key != senderId && e.value.compareTo(msgTimestamp) >= 0)
+            .map((e) => e.key)
+            .toList();
+      } else {
+        seenBy = [];
+      }
+
+      bool effectiveIsRead;
+      if (isGroupChat) {
+        effectiveIsRead = false;
+      } else {
+        final msgIsRead = msg['isRead'] as bool? ?? false;
+        final otherLastRead = otherUid != null ? lastReadTimestamps[otherUid] : null;
+        effectiveIsRead = msgIsRead ||
+            (otherLastRead != null &&
+                msgTimestamp != null &&
+                otherLastRead.compareTo(msgTimestamp) >= 0);
+      }
+
+      result[msgId] = _MessageReadProps(
+        effectiveIsRead: effectiveIsRead,
+        seenBy: seenBy,
+      );
+    }
+    DebugConfig.log(DebugConfig.chatBubbleDesign,
+        'ChatMessagesList: precomputed ${result.length} readProps for ${messages.length} msgs');
+    return result;
   }
 }

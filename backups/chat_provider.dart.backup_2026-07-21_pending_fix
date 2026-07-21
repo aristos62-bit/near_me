@@ -24,11 +24,6 @@ final chatDocProvider = StreamProvider.autoDispose.family<DocumentSnapshot?, Str
         final previous = _chatDocSnapCaches[chatId];
         DebugConfig.log(DebugConfig.firestoreStream,
             'chatDocProvider emit: $chatId exists=${snap.exists} pending=${snap.metadata.hasPendingWrites}');
-        if (previous != null && snap.metadata.hasPendingWrites) {
-          DebugConfig.log(DebugConfig.firestoreStream,
-              'chatDocProvider suppressed (pending): $chatId');
-          return previous;
-        }
         if (previous != null && snap.exists && previous.exists) {
           final prevData = previous.data();
           final currData = snap.data();

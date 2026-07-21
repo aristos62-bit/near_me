@@ -2709,3 +2709,91 @@ ChatMessagesList BUILD #N   ← σε κάθε emit, ακόμα και όταν p
 3. **RACE — Group flash** (`isGroupChat=false` → `true` στο πρώτο frame)
 4. **RACE — `effectiveIsRead: msgTs=null`** για νέα μηνύματα
 5. **REDUNDANT — `Badge set to 0`** σε κάθε `markAsRead`
+
+---
+
+## Session 197 — ChatScreen massive rebuild cascade fix (5-phase)
+
+**Ημερομηνία:** 21 Ιουλίου 2026
+
+**Πεδίο:** Διόρθωση massive rebuild cascade (25+ widget rebuilds ανά frame) στο ChatScreen κατά την είσοδο σε 1-to-1 chat και αποστολή μηνύματος. Το root cause chain ήταν: `_onMessagesChanged` (σε build phase) → `markAsRead` → Firestore write → `chatDocProvider` + `messagesProvider` re-emit → cascade.
+
+### Αλλαγές (4 φάσεις, 4 αρχεία)
+
+| Φάση | Αρχείο | Αλλαγή |
+|:----:|--------|--------|
+| **1** | `chat_messages_list.dart` | `markAsRead` αφαιρέθηκε από `_onMessagesChanged` |
+|  | `chat_screen.dart` | `markAsRead` προστέθηκε σε `initState` via `addPostFrameCallback` |
+| **2** | `chat_messages_list.dart` | `_MessageReadProps` class + `_precomputeReadProps()` — `effectiveIsRead`+`seenBy` precomputed πριν το `ListView.builder`, όχι μέσα στο `itemBuilder` |
+| **3** | `chat_ui_utils.dart` | `ChatGroupingCalculator` cache: `identical()` → boundary check (length + first/last message ID) |
+| **4** | `chat_provider.dart` | `_chatDocSnapCaches` global map αντί local `previous` στο `chatDocProvider` — persistence του suppression cache σε dispose/recreate |
+
+### Αποτελέσματα από logs
+
+| Μετρική | Πριν | Μετά |
+|---------|:----:|:----:|
+| `markAsRead` calls (ανά chat entry) | Πολλαπλές | **1** ✅ |
+| `ChatGroupingCalculator` cache hit | 0% (ποτέ) | **HIT** σε rebuilds |
+| `chatDocProvider suppressed` | N/A | Λειτουργεί για data-unchanged emits |
+| build # cascade αμέσως μετά entry | 25× | **0** (η αρχική cascade εξαλείφθηκε) |
+
+### Παραμένει
+- Δευτερεύουσα cascade (~26 rebuilds) ~13s μετά την είσοδο — πηγή είναι `streamChats` lightweight sync, όχι `markAsRead`. Πιθανά σχετίζεται με batch writes από background sync.
+
+### Αρχεία
+| Αρχείο | Αλλαγή |
+|--------|--------|
+| `lib/features/chat/widgets/chat_messages_list.dart` | `_MessageReadProps` class, `_precomputeReadProps()`, αφαίρεση `_hasMarkedRead`+`markAsRead` |
+| `lib/features/chat/screens/chat_screen.dart` | `addPostFrameCallback` → `markAsRead` |
+| `lib/features/chat/utils/chat_ui_utils.dart` | Boundary identity cache |
+| `lib/features/chat/providers/chat_provider.dart` | `_chatDocSnapCaches` global cache |
+
+**Verified:** `flutter analyze` clean ✅ | Build: release APK 15.8MB ✅
+
+---
+
+## Session 198 — ChatScreen 2nd cascade fix: markAsRead lifecycle + _SafeInputArea (keyboard cascade ELIMINATED)
+
+**Ημερομηνία:** 21 Ιουλίου 2026
+
+**Πεδίο:** Διόρθωση massive rebuild cascade (25+ widget rebuilds per frame) κατά την είσοδο σε 1-to-1 chat. Περιλάμβανε **2 ξεχωριστές cascades**.
+
+### PRIMARY CASCADE — markAsRead σε build path (25× rebuilds αμέσως μετά entry)
+**Root cause:** `_onMessagesChanged` (messagesProvider listener) → `Future.microtask(markAsRead)` → Firestore write → `chatDocProvider` + `messagesProvider` emit → `ChatMessagesList` watches both → cascade rebuild.
+
+**Λύση (Phase 1):** `_onMessagesChanged` δεν καλεί πλέον `markAsRead`. Μεταφορά σε `ChatScreen.initState` via `addPostFrameCallback` → fire-and-forget, 1 φορά.
+
+**Phase 2:** `_MessageReadProps` class + `_precomputeReadProps()` στο `ChatMessagesList`. `effectiveIsRead`+`seenBy` precomputed build-phase, lookup αντί O(n×m) μέσα στο `itemBuilder`.
+
+**Phase 3:** `ChatGroupingCalculator` cache: `identical()` never hits (Riverpod νέο List). Boundary check: same `length` + same first/last `message['id']` → cache hit.
+
+**Phase 4:** `_chatDocSnapCaches` Map στο `chat_provider.dart`. Auto-dispose του `chatDocProvider` έχανε το `previous` suppression snapshot. Global cache persists across dispose/recreate.
+
+### SECONDARY CASCADE — Keyboard animation (26× στο ~400ms από MediaQuery)
+**Root cause:** `MediaQuery.viewInsetsOf(context).bottom` στο `ChatScreen.build()` → ChatScreen Element γίνεται dependent στο `MediaQuery` InheritedWidget. Κάθε keyboard animation frame → `didChangeDependencies` → ChatScreen ×26 rebuild.
+
+**Λύση:** Εξαγωγή padding area σε `_SafeInputArea` leaf widget στο `chat_screen.dart`. Διαβάζει `MediaQuery.viewInsetsOf(context).bottom` στο δικό του build → μόνο το padding area ξαναχτίζεται. ChatScreen `build()` δεν εξαρτάται πλέον από MediaQuery.
+
+### Temporary diagnostic logs
+BUILD# counting, `didChangeDependencies` override, timing logs (app_router, main, chat_screen). Παραμένουν προς καθαρισμό.
+
+### Αποτέλεσμα (device logs, νέο run)
+
+| Μέτρηση | Πριν | Μετά |
+|---------|:----:|:----:|
+| `ChatScreen BUILD #1` | +0ms ✅ | +0ms ✅ |
+| `ChatScreen BUILD #2` | +150ms (markAsRead) | +150ms ✅ |
+| `didChangeDependencies BUILD #3→#28` | **+1480ms — 26 builds** | **ΔΕΝ ΥΠΑΡΧΕΙ** 🎉 |
+| `ChatMessagesList BUILD` max | #31 | **#3** 🎉 |
+
+### Αρχεία
+| Αρχείο | Αλλαγή |
+|--------|--------|
+| `lib/features/chat/screens/chat_screen.dart` | Phase 1: `markAsRead` via `addPostFrameCallback`. Secondary: `_SafeInputArea` widget |
+| `lib/features/chat/widgets/chat_messages_list.dart` | Phase 1+2: `_MessageReadProps`, `_precomputeReadProps()`, αφαίρεση `markAsRead` |
+| `lib/features/chat/utils/chat_ui_utils.dart` | Phase 3: boundary identity cache |
+| `lib/features/chat/providers/chat_provider.dart` | Phase 4: `_chatDocSnapCaches` global map |
+| `lib/core/router/app_router.dart` | Temporary diagnostic (timing logs `user.reload()`) |
+| `lib/main.dart` | Temporary diagnostic (provider listener logs) |
+
+**Verified:** `flutter analyze` clean ✅ (2×) | Release APK 15.8MB ✅ | Device log: secondary cascade ELIMINATED ✅

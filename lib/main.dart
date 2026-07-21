@@ -352,11 +352,18 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
     ref.listen(authStateProvider, (prev, next) {
       final prevUser = prev?.value;
       final nextUser = next.value;
+      DebugConfig.log(DebugConfig.authFlow,
+          'main: authStateProvider listener fired '
+          'prevUid=${prevUser?.uid ?? "null"} prevVerified=${prevUser?.emailVerified} '
+          'nextUid=${nextUser?.uid ?? "null"} nextVerified=${nextUser?.emailVerified}');
       if (mounted) {
         final uidChanged = prevUser?.uid != nextUser?.uid;
         final emailVerifiedChanged =
             prevUser?.emailVerified != nextUser?.emailVerified;
         if ((uidChanged || emailVerifiedChanged) && prev is AsyncData) {
+          DebugConfig.log(DebugConfig.authFlow,
+              'main: auth changed — about to invalidate chatsProvider '
+              'uidChanged=$uidChanged emailVerifiedChanged=$emailVerifiedChanged');
           ref.invalidate(chatsProvider);
           if (uidChanged) {
             DebugConfig.log(DebugConfig.authFlow,
@@ -376,6 +383,10 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
           setState(() => _isLocked = false);
         }
       }
+    });
+    ref.listen(chatsProvider, (prev, next) {
+      DebugConfig.log(DebugConfig.chatStream,
+          'main: chatsProvider emitted prev=${prev?.value?.length} next=${next.value?.length}');
     });
     ref.listen(appSettingsProvider, (prev, next) {
       if (!mounted) return;

@@ -48,6 +48,14 @@ class ChatGroupingCalculator {
       List<Map<String, dynamic>> messages, String currentUid) {
     if (messages.isEmpty) return [];
     if (identical(_cachedMessages, messages)) return _cachedResult!;
+    if (_cachedMessages != null &&
+        _cachedResult != null &&
+        _cachedMessages!.length == messages.length &&
+        _cachedMessages!.isNotEmpty &&
+        _cachedMessages!.first['id'] == messages.first['id'] &&
+        _cachedMessages!.last['id'] == messages.last['id']) {
+      return _cachedResult!;
+    }
 
     final stopwatch = Stopwatch()..start();
     final items = _buildItems(messages);

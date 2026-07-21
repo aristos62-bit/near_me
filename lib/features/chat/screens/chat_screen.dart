@@ -43,14 +43,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final int _instanceId = _counter++;
   final _textCtrl = TextEditingController();
   bool _emojiPickerVisible = false;
+  int _buildCount = 0;
+  DateTime? _initTime;
 
   @override
   void initState() {
     super.initState();
+    _initTime = DateTime.now();
     FcmService.registerActiveChat(widget.chatId);
     ref.read(replyToMessageProvider.notifier).clear();
     DebugConfig.log(DebugConfig.uiInteraction,
         'ChatScreen init #$_instanceId: ${widget.chatId}');
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(chatActionsProvider.notifier)
+            .markAsRead(widget.chatId, isGroupChat: false);
+        DebugConfig.log(DebugConfig.uiInteraction,
+            'ChatScreen: markAsRead scheduled chat=${widget.chatId}');
+      }
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    DebugConfig.log(DebugConfig.uiRebuild,
+        'ChatScreen #$_instanceId: didChangeDependencies');
   }
 
   @override
@@ -132,6 +150,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    _buildCount++;
+    final elapsed = _initTime != null
+        ? DateTime.now().difference(_initTime!).inMilliseconds
+        : 0;
+    DebugConfig.log(DebugConfig.uiRebuild,
+        'ChatScreen #$_instanceId BUILD #$_buildCount +${elapsed}ms');
     final greek = L10n.isGreek(context);
     final theme = Theme.of(context);
     final isGroupChat = ref.watch(chatDocProvider(widget.chatId).select(
@@ -335,9 +359,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           participantAvatarUrls: participantAvatarUrls,
           otherUid: otherUid,
         )),
-        Padding(
-          padding: EdgeInsets.only(
-              bottom: MediaQuery.viewInsetsOf(context).bottom),
+        _SafeInputArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -360,4 +382,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 }
 
+class _SafeInputArea extends StatelessWidget {
+  final Widget child;
+  const _SafeInputArea({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      child: child,
+    );
+  }
+}
 

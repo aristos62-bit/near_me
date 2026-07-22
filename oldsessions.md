@@ -130,7 +130,9 @@ Typesense, Video (Agora), AI matching, Groups extra features, Verified badge, Pr
 | 198 | Keyboard animation cascade (26× από MediaQuery dependency) | `_SafeInputArea` leaf widget extraction | 198 |
 | 199 | messagesStream always emitted new list instances after decrypt — unnecessary ChatMessagesList rebuilds | `DeepCollectionEquality` cache: return same list reference if content unchanged | 200 |
 | 200 | _obtainBubble cache cascade — every signature miss recreates all MessageBubble widgets | `_MessageBubbleSignature` + `_obtainBubble` cache with `DeepCollectionEquality` on message map + all params | 200 |
- 
+| 201 | EmojiOnlyBubble static `_buildCounts` memory leak — global Map<String,int> never cleared, misleading debug output | Remove static debug map (emoji_only_bubble.dart) | 201 |
+| 202 | markAsRead serverTimestamp write cascade — group chat signature miss from every navigation | Guard: skip `FieldValue.serverTimestamp()` write when `unreadCount==0` (read from local Drift cache) | 201 |
+  
 ### Profile & Privacy
 | # | Bug | Fix | Session |
 |---|---|---|---|
@@ -237,6 +239,8 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 | 199 | **pending=true suppression** — chatDocProvider double-emit fixed |
 | 200 | **messagesStream equality caching** — `DeepCollectionEquality` σε decrypted messages list (chat_repository_impl.dart) |
 | 200 | **_MessageBubbleSignature + _obtainBubble cache** — MessageBubble instances cached by signature (chat_messages_list.dart) |
+| 201 | **EmojiOnlyBubble _buildCounts cleanup** — remove static debug map (memory leak, misleading cascade counters) |
+| 201 | **markAsRead guard** — skip serverTimestamp write when unreadCount==0 via local Drift cache (prevents group chat cascade) |
  
 ## Current State
 

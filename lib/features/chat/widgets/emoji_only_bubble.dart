@@ -30,7 +30,6 @@ double emojiFontSize(String text) {
 }
 
 class EmojiOnlyBubble extends StatelessWidget {
-  static final _buildCounts = <String, int>{};
   final String content;
   final String timeStr;
   final bool isMe;
@@ -89,13 +88,11 @@ class EmojiOnlyBubble extends StatelessWidget {
         : theme.colorScheme.onSurface;
 
     final emojiMsgId = messageId;
-    _buildCounts[emojiMsgId] = (_buildCounts[emojiMsgId] ?? 0) + 1;
-    final emojiBuildN = _buildCounts[emojiMsgId]!;
     DebugConfig.log(
       DebugConfig.chatBubbleDesign,
       'EmojiOnlyBubble: id=$emojiMsgId '
-      '"${content.trim()}" fontSize=$fontSize '
-      'isGrouped=$isGrouped isLastInGroup=$isLastInGroup build#$emojiBuildN',
+          '"${content.trim()}" fontSize=$fontSize '
+          'isGrouped=$isGrouped isLastInGroup=$isLastInGroup',
     );
 
     return Padding(

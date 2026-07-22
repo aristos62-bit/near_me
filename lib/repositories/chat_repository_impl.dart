@@ -418,10 +418,24 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
     DebugConfig.log(DebugConfig.repositoryCall, 'markAsRead: chat=$chatId isGroup=$isGroupChat');
 
     try {
-      await firestore.collection('chats').doc(chatId).update({
-        'lastReadTimestamps.${user.uid}': FieldValue.serverTimestamp(),
-        'unreadCount.${user.uid}': 0,
-      });
+      // Διαβάζουμε το τοπικό (ήδη συγχρονισμένο) unreadCount ΠΡΙΝ γράψουμε,
+      // ώστε να μη γράφουμε serverTimestamp() όταν δεν υπάρχει πραγματικά
+      // τίποτα καινούριο να διαβαστεί — αυτό το serverTimestamp είναι που
+      // προκαλούσε το rebuild storm σε ομαδικές συνομιλίες.
+      final cachedRow = await (db.select(db.chatCacheTable)
+        ..where((t) => t.chatId.equals(chatId)))
+          .getSingleOrNull();
+      final hadUnread = cachedRow == null || cachedRow.unreadCount > 0;
+
+      if (hadUnread) {
+        await firestore.collection('chats').doc(chatId).update({
+          'lastReadTimestamps.${user.uid}': FieldValue.serverTimestamp(),
+          'unreadCount.${user.uid}': 0,
+        });
+      } else {
+        DebugConfig.log(DebugConfig.repositoryCall,
+            'markAsRead: skipped lastReadTimestamps write (already 0 unread) chat=$chatId');
+      }
 
       if (!isGroupChat) {
         final unread = await firestore

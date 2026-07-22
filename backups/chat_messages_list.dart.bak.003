@@ -148,6 +148,7 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
           'ChatMessagesList: bubble cache hit id=$msgId');
       return _bubbleCache[msgId]!;
     }
+
     final bubble = MessageBubble(
       key: ValueKey(msgId),
       bubbleMaxWidth: bubbleMaxWidth,

@@ -77,6 +77,7 @@ class TailPainter extends CustomPainter {
 }
 
 class MessageBubble extends StatelessWidget {
+  static final _buildCounts = <String, int>{};
   final double bubbleMaxWidth;
   final Map<String, dynamic> message;
   final String currentUid;
@@ -144,6 +145,15 @@ class MessageBubble extends StatelessWidget {
         : '';
     final reactions = (message['reactions'] as Map<String, dynamic>?) ?? <String, dynamic>{};
     final replyTo = message['replyTo'] as Map<String, dynamic>?;
+
+    final msgId = message['id'] as String? ?? '';
+    _buildCounts[msgId] = (_buildCounts[msgId] ?? 0) + 1;
+    final buildN = _buildCounts[msgId]!;
+    DebugConfig.log(
+      DebugConfig.chatBubbleDesign,
+      'MessageBubble built: id=$msgId type=$type '
+      'isGrouped=$isGrouped isLastInGroup=$isLastInGroup build#$buildN',
+    );
 
     if (type == 'system') {
       final contentEn = message['contentEn'] as String?;

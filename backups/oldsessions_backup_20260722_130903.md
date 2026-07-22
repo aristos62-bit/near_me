@@ -128,9 +128,7 @@ Typesense, Video (Agora), AI matching, Groups extra features, Verified badge, Pr
 | 196 | LayoutBuilder per-bubble → constraint cascade rebuild | Pre-computed `bubbleMaxWidth` at ChatMessagesList level | 196 |
 | 197 | markAsRead σε build path → Firestore write → cascade | Move markAsRead to `initState` via `addPostFrameCallback` | 197 |
 | 198 | Keyboard animation cascade (26× από MediaQuery dependency) | `_SafeInputArea` leaf widget extraction | 198 |
-| 199 | messagesStream always emitted new list instances after decrypt — unnecessary ChatMessagesList rebuilds | `DeepCollectionEquality` cache: return same list reference if content unchanged | 200 |
-| 200 | _obtainBubble cache cascade — every signature miss recreates all MessageBubble widgets | `_MessageBubbleSignature` + `_obtainBubble` cache with `DeepCollectionEquality` on message map + all params | 200 |
- 
+
 ### Profile & Privacy
 | # | Bug | Fix | Session |
 |---|---|---|---|
@@ -235,9 +233,7 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 | 197 | **markAsRead cascade fix** — move to `initState` postFrameCallback + _MessageReadProps precompute |
 | 198 | **Keyboard cascade eliminated** — `_SafeInputArea` leaf widget (26→0 rebuilds) |
 | 199 | **pending=true suppression** — chatDocProvider double-emit fixed |
-| 200 | **messagesStream equality caching** — `DeepCollectionEquality` σε decrypted messages list (chat_repository_impl.dart) |
-| 200 | **_MessageBubbleSignature + _obtainBubble cache** — MessageBubble instances cached by signature (chat_messages_list.dart) |
- 
+
 ## Current State
 
 | Μέτρο | Τιμή |

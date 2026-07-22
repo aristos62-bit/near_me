@@ -131,8 +131,19 @@ class MessageBubble extends StatelessWidget {
   static const Color _sentColor = Color(0xFF075E54);
   static const Color _sentTextColor = Colors.white;
 
+  static int _msgBubbleBuildCount = 0;
+
   @override
   Widget build(BuildContext context) {
+    _msgBubbleBuildCount++;
+    final mediaW = MediaQuery.sizeOf(context).width;
+    final textScale = MediaQuery.textScalerOf(context).textScaleFactor;
+    DebugConfig.log(DebugConfig.chatBubbleDesign,
+        'MsgBubble BUILD #$_msgBubbleBuildCount id=${message['id']} '
+        'key=${key.hashCode} identity=${identityHashCode(this)} '
+        'mediaW=${mediaW.toStringAsFixed(1)} textScale=${textScale.toStringAsFixed(2)} '
+        'bubbleMaxWidth=$bubbleMaxWidth');
+
     final theme = Theme.of(context);
     final type = message['type'] as String? ?? 'text';
     final senderId = message['senderId'] as String? ?? '';
@@ -420,6 +431,7 @@ class MessageBubble extends StatelessWidget {
 }
 
 class _SystemBubble extends StatelessWidget {
+  static int _sysBuildCount = 0;
   final String content;
   final String? contentEn;
   final String timeStr;
@@ -451,6 +463,12 @@ class _SystemBubble extends StatelessWidget {
     final showActions = chatId != null && !isRequester && (
         action == 'delete_request' || action == 'delete_rejected'
     );
+
+    _sysBuildCount++;
+    DebugConfig.log(DebugConfig.uiInteraction,
+        '_SystemBubble build#$_sysBuildCount: action=$action '
+        'isRequester=$isRequester showActions=$showActions '
+        'hasEn=${contentEn != null}');
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -545,6 +563,7 @@ class _SystemBubble extends StatelessWidget {
 }
 
 class _GifBubble extends StatelessWidget {
+  static final _buildCounts = <String, int>{};
   final double bubbleMaxWidth;
   final String content;
   final String timeStr;
@@ -636,6 +655,15 @@ class _GifBubble extends StatelessWidget {
           (!isMe && showTail) ? _tailRadius : _bubbleRadius),
       bottomRight: Radius.circular(
           (isMe && showTail) ? _tailRadius : _bubbleRadius),
+    );
+
+    final gifMsgId = messageId;
+    _buildCounts[gifMsgId] = (_buildCounts[gifMsgId] ?? 0) + 1;
+    final gifBuildN = _buildCounts[gifMsgId]!;
+    DebugConfig.log(
+      DebugConfig.chatBubbleDesign,
+      '_GifBubble: id=$gifMsgId isGrouped=$isGrouped '
+      'isLastInGroup=$isLastInGroup build#$gifBuildN',
     );
 
     return Padding(

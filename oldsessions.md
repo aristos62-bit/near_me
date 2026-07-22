@@ -263,3 +263,42 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 - Repository pattern: abstract + impl, ποτέ raw Firestore στο UI
 - Privacy-first: πλήρες profile στο Drift, minimal public snapshot στο Firestore
 - GPS-first → session cache (5min) → last known → failure
+
+---
+
+## 🐞 Session 201+ — Bubble Layout Cache Bug (UNRESOLVED)
+
+### Το πρόβλημα
+Το `_obtainBubble` cache (προστέθηκε Session 200) αποθηκεύει το **ίδιο instance** `MessageBubble` όταν η `_MessageBubbleSignature` ταιριάζει. Σε cold restart, το πρώτο build (MediaQuery/textScaleFactor/constraints σε transition) μπορεί να έχει λάθος layout. Στο δεύτερο build, το cached instance κάνει τον Flutter να κάνει identity skip (`child.widget == newWidget`) → `build()` δεν καλείται ποτέ → το λάθος layout μένει **παγωμένο**.
+
+### Attempt #1 — ValueKey + bubbleMaxWidth (Session 202, - revert)
+**Πρόταση:** `ValueKey('$msgId|${bubbleMaxWidth.toStringAsFixed(0)}')` αντί `ValueKey(msgId)`.
+**Σκοπός:** Αν το `bubbleMaxWidth` αλλάξει (π.χ. cold restart), το key είναι διαφορετικό → νέο Element → φρέσκο layout. Το cache signature comparison παραμένει για cascade prevention.
+**Αποτέλεσμα:** ΔΕΝ δούλεψε — το bubbleMaxWidth ήταν ίδιο, οπότε key ίδιο → identity skip. Revert.
+
+### Attempt #2 — Αφαίρεση _obtainBubble cache (Session 202, - revert)
+**Πρόταση:** Αφαίρεση `_MessageBubbleSignature` class, `_bubbleCache`, `_bubbleSignatures`, `_obtainBubble`. Δημιουργία φρέσκου `MessageBubble` κάθε φορά στο itemBuilder.
+**Σκοπός:** Χωρίς instance cache, Flutter δεν κάνει identity skip → `build()` καλείται πάντα → σωστό layout.
+**Αποτέλεσμα:** ΔΕΝ δούλεψε — το layout παραμένει λάθος. Το πρόβλημα είναι αλλού. Revert.
+
+### Attempt #3 — Debug counters cascade + LayoutBuilder wrapper (revert)
+**Πρόβλημα:** Δύο παράλληλα issues που επιδεινώνονταν αμοιβαία:
+
+**(α) LayoutBuilder debug wrapper:** Προστέθηκε `LayoutBuilder` γύρω από το `Container` του `MsgBubble.build()` για logging constraints. Δεν μετρούσε το πραγματικό rendered πλάτος — μόνο CONT constraints. Αφαιρέθηκε ως μη χρήσιμο.
+
+**(β) Debug counters cascade:** Οι στατικοί μετρητές debug (`_msgBubbleBuildCount` + `DebugConfig.log()` + `MediaQuery.sizeOf()`/`textScalerOf()` readings) μέσα στο `MsgBubble.build()` προκαλούσαν cascading rebuilds loop:
+1. build() → increment counter → log() + MediaQuery.read → Flutter reschedules layout
+2. Layout → νέο build → increment → log → άπειρος βρόχος για 1 frame
+3. Cascade από #9 έως ~300+ MsgBubble builds στο ίδιο frame (PID 14413)
+
+**Απόδειξη:** PID 14413 (με counters): `MsgBubble BUILD #9→#327 cascade`. PID 15801 (χωρίς counters, ίδια δεδομένα): ηρεμία, **καμία** αναδρομή.
+
+**Fix:** Αφαίρεση και των 3 debug counters (`_msgBubbleBuildCount` από MsgBubble, `_sysBuildCount` από _SystemBubble, `_buildCounts` από _GifBubble) + αφαίρεση LayoutBuilder wrapper.
+
+**Συμπέρασμα:**
+- `DebugConfig.log()` + `MediaQuery.*` readings + mutable static counters μέσα σε `build()` = guaranteed cascade loop
+- Τα debugs πρέπει να είναι **read-only** και να μην μεταβάλλουν state/counters ούτε να διαβάζουν `MediaQuery` κατά τη διάρκεια του build
+- Ακόμα και ένα απλό `print()` / `debugPrint` mid-frame μπορεί να προκαλέσει reschedule σε συγκεκριμένες συνθήκες Flutter engine
+
+### Κατάσταση: Ανοιχτό
+Το bug (green card full-width σε cold restart) παραμένει μετά από 3 προσπάθειες. Η 3η αποκάλυψε ότι τα debug counters προκαλούσαν cascade που έκανε την UI διερεύνηση αδύνατη. Με το cascade eliminated, η διερεύνηση του πραγματικού width bug μπορεί να συνεχιστεί χωρίς θόρυβο.

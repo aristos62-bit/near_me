@@ -360,7 +360,7 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
             message: greek ? 'Καμία συνομιλία' : 'No messages',
           );
         }
-        final renderItems = ChatGroupingCalculator.calculate(messages, currentUid);
+        final renderItems = ChatGroupingCalculator.calculate(widget.chatId, messages, currentUid);
         final readProps = _precomputeReadProps(
           messages,
           currentUid,

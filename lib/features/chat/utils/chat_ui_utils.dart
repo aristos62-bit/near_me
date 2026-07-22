@@ -41,32 +41,36 @@ class RenderItem {
 class ChatGroupingCalculator {
   ChatGroupingCalculator._();
 
-  static List<RenderItem>? _cachedResult;
-  static List<Map<String, dynamic>>? _cachedMessages;
+  static final Map<String, List<RenderItem>> _cachedResults = {};
+  static final Map<String, List<Map<String, dynamic>>?> _cachedMessages = {};
 
   static List<RenderItem> calculate(
-      List<Map<String, dynamic>> messages, String currentUid) {
+      String chatId, List<Map<String, dynamic>> messages, String currentUid) {
     if (messages.isEmpty) return [];
-    if (identical(_cachedMessages, messages)) return _cachedResult!;
-    if (_cachedMessages != null &&
-        _cachedResult != null &&
-        _cachedMessages!.length == messages.length &&
-        _cachedMessages!.isNotEmpty &&
-        _cachedMessages!.first['id'] == messages.first['id'] &&
-        _cachedMessages!.last['id'] == messages.last['id']) {
-      return _cachedResult!;
+
+    final cachedMsgs = _cachedMessages[chatId];
+    final cachedResult = _cachedResults[chatId];
+
+    if (identical(cachedMsgs, messages)) return cachedResult!;
+    if (cachedMsgs != null &&
+        cachedResult != null &&
+        cachedMsgs.length == messages.length &&
+        cachedMsgs.isNotEmpty &&
+        cachedMsgs.first['id'] == messages.first['id'] &&
+        cachedMsgs.last['id'] == messages.last['id']) {
+      return cachedResult;
     }
 
     final stopwatch = Stopwatch()..start();
     final items = _buildItems(messages);
     stopwatch.stop();
 
-    _cachedMessages = messages;
-    _cachedResult = items;
+    _cachedMessages[chatId] = messages;
+    _cachedResults[chatId] = items;
 
     DebugConfig.log(
       DebugConfig.chatBubbleDesign,
-      'ChatGroupingCalculator: ${items.length} items from ${messages.length} msgs '
+      'ChatGroupingCalculator[$chatId]: ${items.length} items from ${messages.length} msgs '
       'in ${stopwatch.elapsedMicroseconds}us',
     );
     return items;

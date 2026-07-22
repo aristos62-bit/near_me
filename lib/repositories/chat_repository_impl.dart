@@ -16,6 +16,7 @@ import '../core/utils/encryption_utils.dart';
 import '../shared/utils/mention_utils.dart';
 import '../features/chat/utils/system_message_formatter.dart';
 import 'group_search_repository.dart';
+import 'package:collection/collection.dart';
 
 part 'group_chat_mixin.dart';
 part 'chat_repository_delete.dart';
@@ -33,6 +34,7 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
   // Cache αποκρυπτογραφημένων messages — αποφυγή re-decrypt σε κάθε Firestore snapshot
   final Map<String, Map<String, String>> _messageEncryptCache = {};
   final Map<String, Map<String, String>> _messageDecryptCache = {};
+  final Map<String, List<Map<String, dynamic>>> _lastMessagesListCache = {};
 
   @override
   Map<String, Map<String, String>> get messageEncryptCache => _messageEncryptCache;
@@ -321,83 +323,93 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
         .orderBy('timestamp', descending: false)
         .snapshots()
         .map((snapshot) {
-          DebugConfig.log(DebugConfig.chatStream,
-              'messagesStream snapshot: ${snapshot.docs.length} docs chat=$chatId');
-          return snapshot;
-        })
+      DebugConfig.log(DebugConfig.chatStream,
+          'messagesStream snapshot: ${snapshot.docs.length} docs chat=$chatId');
+      return snapshot;
+    })
         .asyncMap((snapshot) async {
-          final key = await EncryptionUtils.getKeyOrDerive(chatId);
-          final encCache = _messageEncryptCache.putIfAbsent(chatId, () => {});
-          final decCache = _messageDecryptCache.putIfAbsent(chatId, () => {});
-          int hitCount = 0;
-          int missCount = 0;
-          final messages = snapshot.docs.map((doc) {
-            final data = doc.data();
-            final encrypted = data['content'] as String? ?? '';
-            final docId = doc.id;
-            final type = data['type'] as String? ?? 'text';
+      final key = await EncryptionUtils.getKeyOrDerive(chatId);
+      final encCache = _messageEncryptCache.putIfAbsent(chatId, () => {});
+      final decCache = _messageDecryptCache.putIfAbsent(chatId, () => {});
+      int hitCount = 0;
+      int missCount = 0;
+      final messages = snapshot.docs.map((doc) {
+        final data = doc.data();
+        final encrypted = data['content'] as String? ?? '';
+        final docId = doc.id;
+        final type = data['type'] as String? ?? 'text';
 
-            String decrypted;
-            if (type == 'system') {
-              decrypted = encrypted;
-              DebugConfig.log(DebugConfig.chatStream, 'system message: $docId content=$encrypted');
-            } else if (type == 'gif' || type == 'image' || type == 'video') {
-              decrypted = encrypted;
-              DebugConfig.log(DebugConfig.chatStream,
-                  'messagesStream: media message $docId type=$type');
-            } else if (encCache[docId] == encrypted && decCache.containsKey(docId)) {
-              decrypted = decCache[docId]!;
-              hitCount++;
-            } else {
-              try {
-                decrypted = EncryptionUtils.decryptMessage(key, encrypted);
-                encCache[docId] = encrypted;
-                decCache[docId] = decrypted;
-                missCount++;
-              } catch (e) {
-                encCache.remove(docId);
-                decCache.remove(docId);
-                try {
-                  final fallbackKey = EncryptionUtils.deriveKey(chatId);
-                  decrypted = EncryptionUtils.decryptMessage(fallbackKey, encrypted);
-                  encCache[docId] = encrypted;
-                  decCache[docId] = decrypted;
-                  DebugConfig.log(DebugConfig.chatEncrypt, 'messagesStream: decrypt with derived key succeeded for msg $docId');
-                } catch (_) {
-                  DebugConfig.warn('messagesStream: decrypt failed for msg $docId', data: e);
-                  decrypted = '[Μη αναγνώσιμο μήνυμα / Unreadable message]';
-                }
-              }
+        String decrypted;
+        if (type == 'system') {
+          decrypted = encrypted;
+          DebugConfig.log(DebugConfig.chatStream, 'system message: $docId content=$encrypted');
+        } else if (type == 'gif' || type == 'image' || type == 'video') {
+          decrypted = encrypted;
+          DebugConfig.log(DebugConfig.chatStream,
+              'messagesStream: media message $docId type=$type');
+        } else if (encCache[docId] == encrypted && decCache.containsKey(docId)) {
+          decrypted = decCache[docId]!;
+          hitCount++;
+        } else {
+          try {
+            decrypted = EncryptionUtils.decryptMessage(key, encrypted);
+            encCache[docId] = encrypted;
+            decCache[docId] = decrypted;
+            missCount++;
+          } catch (e) {
+            encCache.remove(docId);
+            decCache.remove(docId);
+            try {
+              final fallbackKey = EncryptionUtils.deriveKey(chatId);
+              decrypted = EncryptionUtils.decryptMessage(fallbackKey, encrypted);
+              encCache[docId] = encrypted;
+              decCache[docId] = decrypted;
+              DebugConfig.log(DebugConfig.chatEncrypt, 'messagesStream: decrypt with derived key succeeded for msg $docId');
+            } catch (_) {
+              DebugConfig.warn('messagesStream: decrypt failed for msg $docId', data: e);
+              decrypted = '[Μη αναγνώσιμο μήνυμα / Unreadable message]';
             }
-            return {
-              'id': docId,
-              'senderId': data['senderId'] ?? '',
-              'content': decrypted,
-              'type': data['type'] ?? 'text',
-              'timestamp': data['timestamp'],
-              'isRead': data['isRead'] ?? false,
-              'edited': data['edited'] ?? false,
-              'editedAt': data['editedAt'],
-              'seenBy': (data['seenBy'] as List?)?.cast<String>() ?? <String>[],
-              'mentions': (data['mentions'] as List?)?.cast<String>() ?? <String>[],
-              'action': data['action'] as String?,
-              'contentEn': data['contentEn'] as String?,
-              'reactions': (data['reactions'] as Map<String, dynamic>?) ?? <String, dynamic>{},
-              'replyTo': data['replyTo'] as Map<String, dynamic>?,
-            };
-          }).toList();
-
-          if (hitCount + missCount > 0) {
-            DebugConfig.log(DebugConfig.chatEncrypt,
-                'messagesStream: decrypt cache $hitCount hits, $missCount misses for chat=$chatId');
           }
-          return messages;
-        });
+        }
+        return {
+          'id': docId,
+          'senderId': data['senderId'] ?? '',
+          'content': decrypted,
+          'type': data['type'] ?? 'text',
+          'timestamp': data['timestamp'],
+          'isRead': data['isRead'] ?? false,
+          'edited': data['edited'] ?? false,
+          'editedAt': data['editedAt'],
+          'seenBy': (data['seenBy'] as List?)?.cast<String>() ?? <String>[],
+          'mentions': (data['mentions'] as List?)?.cast<String>() ?? <String>[],
+          'action': data['action'] as String?,
+          'contentEn': data['contentEn'] as String?,
+          'reactions': (data['reactions'] as Map<String, dynamic>?) ?? <String, dynamic>{},
+          'replyTo': data['replyTo'] as Map<String, dynamic>?,
+        };
+      }).toList();
+
+      if (hitCount + missCount > 0) {
+        DebugConfig.log(DebugConfig.chatEncrypt,
+            'messagesStream: decrypt cache $hitCount hits, $missCount misses for chat=$chatId');
+      }
+
+      // --- ΝΕΟ: equality-caching, ίδιο pattern με chatDocProvider/participantUidsProvider ---
+      final previous = _lastMessagesListCache[chatId];
+      if (previous != null &&
+          const DeepCollectionEquality().equals(previous, messages)) {
+        DebugConfig.log(DebugConfig.chatStream,
+            'messagesStream: suppressed (content unchanged) chat=$chatId docs=${messages.length}');
+        return previous;
+      }
+      _lastMessagesListCache[chatId] = messages;
+      return messages;
+      // --- ΤΕΛΟΣ ΝΕΟΥ ΚΩΔΙΚΑ ---
+    });
 
     DebugConfig.log(DebugConfig.chatStream, 'messagesStream: listener active chat=$chatId');
     return stream;
   }
-
   @override
   Future<void> markAsRead(String chatId, {bool isGroupChat = false}) async {
     final user = auth.currentUser;

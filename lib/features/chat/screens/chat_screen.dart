@@ -45,11 +45,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   bool _emojiPickerVisible = false;
   int _buildCount = 0;
   DateTime? _initTime;
+  late final Widget _messagesList;
 
   @override
   void initState() {
     super.initState();
     _initTime = DateTime.now();
+    _messagesList = ChatMessagesList(chatId: widget.chatId);
     FcmService.registerActiveChat(widget.chatId);
     ref.read(replyToMessageProvider.notifier).clear();
     DebugConfig.log(DebugConfig.uiInteraction,
@@ -340,7 +342,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ],
       ),
       body: Column(children: [
-        Expanded(child: ChatMessagesList(chatId: widget.chatId)),
+        Expanded(child: _messagesList),
         _SafeInputArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,

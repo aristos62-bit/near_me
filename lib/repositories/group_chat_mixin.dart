@@ -170,11 +170,17 @@ mixin GroupChatMixin {
         : null;
 
     String? decryptedLastMessage;
-    if (encryptedLastMessage != null && lastMessageType != 'system') {
+    if (encryptedLastMessage != null &&
+        lastMessageType != 'system' &&
+        lastMessageType != 'gif' &&
+        lastMessageType != 'image' &&
+        lastMessageType != 'video') {
       try {
         final key = await EncryptionUtils.getKeyOrDerive(chatId);
         decryptedLastMessage = EncryptionUtils.decryptMessage(key, encryptedLastMessage);
       } catch (_) { /* system messages stay as-is */ }
+    } else if (encryptedLastMessage != null) {
+      decryptedLastMessage = encryptedLastMessage;
     }
 
     final participantUidsStr = participants.isNotEmpty ? participants.join(',') : null;

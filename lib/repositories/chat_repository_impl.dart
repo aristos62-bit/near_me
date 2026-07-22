@@ -536,7 +536,11 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
       } catch (_) {}
 
       String? decryptedLastMessage;
-      if (encryptedLastMessage != null) {
+      if (encryptedLastMessage != null &&
+          lastMessageType != 'system' &&
+          lastMessageType != 'gif' &&
+          lastMessageType != 'image' &&
+          lastMessageType != 'video') {
         try {
           final key = await EncryptionUtils.getKeyOrDerive(chatId);
           decryptedLastMessage = EncryptionUtils.decryptMessage(key, encryptedLastMessage);
@@ -544,6 +548,8 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
           DebugConfig.warn('_syncChatFromFirestore: decrypt lastMessage failed chat=$chatId', data: e);
           decryptedLastMessage = null;
         }
+      } else if (encryptedLastMessage != null) {
+        decryptedLastMessage = encryptedLastMessage;
       }
 
       final lastMessageSender = lastMessageBy != null

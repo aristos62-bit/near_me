@@ -22,10 +22,18 @@ class _MessageReadProps {
 
 class ChatMessagesList extends ConsumerStatefulWidget {
   final String chatId;
+  final bool isGroupChat;
+  final Map<String, String>? participantNicknames;
+  final Map<String, String>? participantAvatarUrls;
+  final String? otherUid;
 
   const ChatMessagesList({
     super.key,
     required this.chatId,
+    this.isGroupChat = false,
+    this.participantNicknames,
+    this.participantAvatarUrls,
+    this.otherUid,
   });
 
   @override
@@ -177,29 +185,6 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
       _lastLastReadTimestamps = result;
       return result;
     }));
-    final isGroupChat = ref.watch(chatDocProvider(widget.chatId).select(
-      (a) =>
-          (a.asData?.value?.data() as Map<String, dynamic>?)?['isGroupChat'] ==
-          true,
-    ));
-    final participantNicknames = ref.watch(chatDocProvider(widget.chatId).select(
-      (a) {
-        final raw = (a.asData?.value?.data() as Map<String, dynamic>?)
-            ?['participantNicknames'] as Map<String, dynamic>?;
-        if (raw == null) return const <String, String>{};
-        return raw.map((k, v) => MapEntry(k, v as String? ?? k));
-      },
-    ));
-    final participantAvatarUrls = ref.watch(chatDocProvider(widget.chatId).select(
-      (a) {
-        final raw = (a.asData?.value?.data() as Map<String, dynamic>?)
-            ?['participantAvatarUrls'] as Map<String, dynamic>?;
-        if (raw == null) return const <String, String>{};
-        return raw.map((k, v) => MapEntry(k, v as String? ?? ''));
-      },
-    ));
-    final participantUids = ref.watch(participantUidsProvider(widget.chatId));
-    final otherUid = isGroupChat ? null : participantUids.where((u) => u != currentUid).firstOrNull;
     final greek = L10n.isGreek(context);
     _buildCount++;
     final screenW = MediaQuery.sizeOf(context).width;
@@ -230,9 +215,9 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
         final readProps = _precomputeReadProps(
           messages,
           currentUid,
-          otherUid,
+          widget.otherUid,
           lastReadTimestamps,
-          isGroupChat,
+          widget.isGroupChat,
         );
         return ListView.builder(
           controller: _scrollCtrl,
@@ -251,16 +236,18 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
 
             final msg = item.message!;
             final senderId = msg['senderId'] as String? ?? '';
-            final senderNickname = isGroupChat
-                ? participantNicknames[senderId]
+            final nicknameMap = widget.participantNicknames;
+            final senderNickname = widget.isGroupChat && nicknameMap != null
+                ? nicknameMap[senderId]
                 : null;
-            final senderAvatarUrl = isGroupChat
-                ? participantAvatarUrls[senderId]
+            final avatarUrls = widget.participantAvatarUrls;
+            final senderAvatarUrl = avatarUrls != null
+                ? avatarUrls[senderId]
                 : null;
-            if (isGroupChat && senderNickname == null) {
+            if (widget.isGroupChat && senderNickname == null) {
               DebugConfig.warn(
                   'ChatMessagesList: senderNickname null for senderId=$senderId '
-                      'chat=${widget.chatId} nicknameMapSize=${participantNicknames.length}');
+                      'chat=${widget.chatId} nicknameMapSize=${nicknameMap?.length ?? 0}');
             }
 
             final msgId = msg['id'] as String? ?? '';
@@ -274,14 +261,14 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
               key: ValueKey(msgId),
               message: msg,
               currentUid: currentUid,
-              isGroupChat: isGroupChat,
+              isGroupChat: widget.isGroupChat,
               isRead: props.effectiveIsRead,
               isGrouped: item.isGrouped,
               isLastInGroup: item.isLastInGroup,
               showAvatar: item.showAvatar,
               senderNickname: senderNickname,
               senderAvatarUrl: senderAvatarUrl,
-              participantNicknames: isGroupChat ? participantNicknames : null,
+              participantNicknames: widget.participantNicknames,
               seenBy: props.seenBy,
               chatId: widget.chatId,
               callbacks: MessageCallbacks(

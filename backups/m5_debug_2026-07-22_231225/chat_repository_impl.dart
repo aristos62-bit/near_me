@@ -328,7 +328,6 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
       return snapshot;
     })
         .asyncMap((snapshot) async {
-      DebugConfig.log(DebugConfig.chatStream, 'messagesStream: processing ${snapshot.docs.length} docs for chat=$chatId');
       final key = await EncryptionUtils.getKeyOrDerive(chatId);
       final encCache = _messageEncryptCache.putIfAbsent(chatId, () => {});
       final decCache = _messageDecryptCache.putIfAbsent(chatId, () => {});
@@ -394,10 +393,6 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
         DebugConfig.log(DebugConfig.chatEncrypt,
             'messagesStream: decrypt cache $hitCount hits, $missCount misses for chat=$chatId');
       }
-
-      final msgsWithReactions = messages.where((m) => (m['reactions'] as Map<String, dynamic>?)?.isNotEmpty ?? false).length;
-      DebugConfig.log(DebugConfig.chatStream,
-          'messagesStream: $msgsWithReactions/${messages.length} msgs have reactions for chat=$chatId');
 
       // --- ΝΕΟ: equality-caching, ίδιο pattern με chatDocProvider/participantUidsProvider ---
       final previous = _lastMessagesListCache[chatId];

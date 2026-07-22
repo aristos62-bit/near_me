@@ -180,6 +180,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ))
         .data;
 
+    final participantAvatarUrls = ref
+        .watch(chatDocProvider(widget.chatId).select(
+          (a) {
+            final raw = (a.asData?.value?.data() as Map<String, dynamic>?)
+                ?['participantAvatarUrls'] as Map<String, dynamic>?;
+            if (raw == null) return const _ChatScreenNicknames(<String, String>{});
+            return _ChatScreenNicknames(
+                raw.map((k, v) => MapEntry(k, v as String? ?? '')));
+          },
+        ))
+        .data;
+
     final participantUids = ref.watch(participantUidsProvider(widget.chatId));
     final memberCount = isGroupChat ? participantUids.length : null;
 
@@ -340,7 +352,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ],
       ),
       body: Column(children: [
-        Expanded(child: ChatMessagesList(chatId: widget.chatId)),
+        Expanded(child: ChatMessagesList(
+          chatId: widget.chatId,
+          isGroupChat: isGroupChat,
+          participantNicknames: isGroupChat ? participantNicknames : null,
+          participantAvatarUrls: participantAvatarUrls,
+          otherUid: otherUid,
+        )),
         _SafeInputArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,

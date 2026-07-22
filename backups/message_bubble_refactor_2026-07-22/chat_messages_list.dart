@@ -11,8 +11,7 @@ import '../../auth/providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
 import '../utils/chat_ui_utils.dart';
 import 'date_separator.dart';
-import 'message_bubble/message_bubble.dart';
-import 'message_bubble/message_callbacks.dart';
+import 'message_bubble.dart';
 
 class _MessageReadProps {
   final bool effectiveIsRead;
@@ -20,12 +19,82 @@ class _MessageReadProps {
   const _MessageReadProps({required this.effectiveIsRead, required this.seenBy});
 }
 
+/// Αποθηκεύει τις τιμές με τις οποίες χτίστηκε μια MessageBubble, ώστε να
+/// μπορούμε να συγκρίνουμε (plain Dart equality, όχι Widget.==) αν κάτι
+/// άλλαξε πραγματικά πριν φτιάξουμε νέο instance.
+class _MessageBubbleSignature {
+  final Map<String, dynamic> message;
+  final String currentUid;
+  final bool isGroupChat;
+  final bool isRead;
+  final bool isGrouped;
+  final bool isLastInGroup;
+  final bool showAvatar;
+  final String? senderNickname;
+  final String? senderAvatarUrl;
+  final Map<String, String>? participantNicknames;
+  final List<String> seenBy;
+  final double bubbleMaxWidth;
+
+  const _MessageBubbleSignature({
+    required this.message,
+    required this.currentUid,
+    required this.isGroupChat,
+    required this.isRead,
+    required this.isGrouped,
+    required this.isLastInGroup,
+    required this.showAvatar,
+    required this.senderNickname,
+    required this.senderAvatarUrl,
+    required this.participantNicknames,
+    required this.seenBy,
+    required this.bubbleMaxWidth,
+  });
+
+  bool matches({
+    required Map<String, dynamic> message,
+    required String currentUid,
+    required bool isGroupChat,
+    required bool isRead,
+    required bool isGrouped,
+    required bool isLastInGroup,
+    required bool showAvatar,
+    required String? senderNickname,
+    required String? senderAvatarUrl,
+    required Map<String, String>? participantNicknames,
+    required List<String> seenBy,
+    required double bubbleMaxWidth,
+  }) {
+    return currentUid == this.currentUid &&
+        isGroupChat == this.isGroupChat &&
+        isRead == this.isRead &&
+        isGrouped == this.isGrouped &&
+        isLastInGroup == this.isLastInGroup &&
+        showAvatar == this.showAvatar &&
+        senderNickname == this.senderNickname &&
+        senderAvatarUrl == this.senderAvatarUrl &&
+        bubbleMaxWidth == this.bubbleMaxWidth &&
+        const ListEquality<String>().equals(seenBy, this.seenBy) &&
+        const DeepCollectionEquality()
+            .equals(participantNicknames, this.participantNicknames) &&
+        const DeepCollectionEquality().equals(message, this.message);
+  }
+}
+
 class ChatMessagesList extends ConsumerStatefulWidget {
   final String chatId;
+  final bool isGroupChat;
+  final Map<String, String>? participantNicknames;
+  final Map<String, String>? participantAvatarUrls;
+  final String? otherUid;
 
   const ChatMessagesList({
     super.key,
     required this.chatId,
+    this.isGroupChat = false,
+    this.participantNicknames,
+    this.participantAvatarUrls,
+    this.otherUid,
   });
 
   @override
@@ -40,6 +109,95 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
   Stopwatch? _scrollBurstStopwatch;
   int _buildCount = 0;
   Map<String, DateTime>? _lastLastReadTimestamps;
+  final Map<String, MessageBubble> _bubbleCache = {};
+  final Map<String, _MessageBubbleSignature> _bubbleSignatures = {};
+
+  MessageBubble _obtainBubble({
+    required String msgId,
+    required Map<String, dynamic> message,
+    required double bubbleMaxWidth,
+    required String currentUid,
+    required bool isGroupChat,
+    required bool isRead,
+    required bool isGrouped,
+    required bool isLastInGroup,
+    required bool showAvatar,
+    required String? senderNickname,
+    required String? senderAvatarUrl,
+    required Map<String, String>? participantNicknames,
+    required List<String> seenBy,
+    required String chatId,
+  }) {
+    final existingSig = _bubbleSignatures[msgId];
+    if (existingSig != null &&
+        existingSig.matches(
+          message: message,
+          currentUid: currentUid,
+          isGroupChat: isGroupChat,
+          isRead: isRead,
+          isGrouped: isGrouped,
+          isLastInGroup: isLastInGroup,
+          showAvatar: showAvatar,
+          senderNickname: senderNickname,
+          senderAvatarUrl: senderAvatarUrl,
+          participantNicknames: participantNicknames,
+          seenBy: seenBy,
+          bubbleMaxWidth: bubbleMaxWidth,
+        )) {
+      final cached = _bubbleCache[msgId]!;
+      DebugConfig.log(DebugConfig.chatBubbleDesign,
+          'MSG_LIST: cache HIT id=$msgId '
+          'identity=${identityHashCode(cached)} '
+          'bubbleMaxWidth=$bubbleMaxWidth');
+      return cached;
+    }
+    DebugConfig.log(DebugConfig.chatBubbleDesign,
+        'MSG_LIST: cache MISS id=$msgId '
+        'existingSig=${existingSig != null} '
+        'bubbleMaxWidth=$bubbleMaxWidth');
+    final bubble = MessageBubble(
+      key: ValueKey(msgId),
+      bubbleMaxWidth: bubbleMaxWidth,
+      message: message,
+      currentUid: currentUid,
+      isGroupChat: isGroupChat,
+      isRead: isRead,
+      isGrouped: isGrouped,
+      isLastInGroup: isLastInGroup,
+      showAvatar: showAvatar,
+      senderNickname: senderNickname,
+      senderAvatarUrl: senderAvatarUrl,
+      participantNicknames: participantNicknames,
+      seenBy: seenBy,
+      chatId: chatId,
+      onApproveDelete: _onApproveDelete,
+      onRejectDelete: _onRejectDelete,
+      onDeleteForMe: _onDeleteForMe,
+      onKeepChat: _onKeepChat,
+      onReact: _onReact,
+      onRemove: _onRemove,
+      onReply: _onReply,
+      onEdit: _onEdit,
+      onDelete: _onDelete,
+    );
+
+    _bubbleCache[msgId] = bubble;
+    _bubbleSignatures[msgId] = _MessageBubbleSignature(
+      message: message,
+      currentUid: currentUid,
+      isGroupChat: isGroupChat,
+      isRead: isRead,
+      isGrouped: isGrouped,
+      isLastInGroup: isLastInGroup,
+      showAvatar: showAvatar,
+      senderNickname: senderNickname,
+      senderAvatarUrl: senderAvatarUrl,
+      participantNicknames: participantNicknames,
+      seenBy: seenBy,
+      bubbleMaxWidth: bubbleMaxWidth,
+    );
+    return bubble;
+  }
 
   @override
   void initState() {
@@ -177,35 +335,13 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
       _lastLastReadTimestamps = result;
       return result;
     }));
-    final isGroupChat = ref.watch(chatDocProvider(widget.chatId).select(
-      (a) =>
-          (a.asData?.value?.data() as Map<String, dynamic>?)?['isGroupChat'] ==
-          true,
-    ));
-    final participantNicknames = ref.watch(chatDocProvider(widget.chatId).select(
-      (a) {
-        final raw = (a.asData?.value?.data() as Map<String, dynamic>?)
-            ?['participantNicknames'] as Map<String, dynamic>?;
-        if (raw == null) return const <String, String>{};
-        return raw.map((k, v) => MapEntry(k, v as String? ?? k));
-      },
-    ));
-    final participantAvatarUrls = ref.watch(chatDocProvider(widget.chatId).select(
-      (a) {
-        final raw = (a.asData?.value?.data() as Map<String, dynamic>?)
-            ?['participantAvatarUrls'] as Map<String, dynamic>?;
-        if (raw == null) return const <String, String>{};
-        return raw.map((k, v) => MapEntry(k, v as String? ?? ''));
-      },
-    ));
-    final participantUids = ref.watch(participantUidsProvider(widget.chatId));
-    final otherUid = isGroupChat ? null : participantUids.where((u) => u != currentUid).firstOrNull;
     final greek = L10n.isGreek(context);
     _buildCount++;
     final screenW = MediaQuery.sizeOf(context).width;
+    final textScale = MediaQuery.textScalerOf(context).textScaleFactor;
     DebugConfig.log(DebugConfig.chatBubbleDesign,
         'MSG_LIST BUILD #$_buildCount chat=${widget.chatId} '
-        'screenW=${screenW.toStringAsFixed(1)}');
+        'screenW=${screenW.toStringAsFixed(1)} textScale=${textScale.toStringAsFixed(2)}');
 
     return messagesAsync.when(
       loading: () => const LoadingView(),
@@ -219,6 +355,12 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
         );
       },
       data: (messages) {
+        final currentIds = messages
+            .map((m) => m['id'] as String? ?? '')
+            .where((id) => id.isNotEmpty)
+            .toSet();
+        _bubbleCache.removeWhere((id, _) => !currentIds.contains(id));
+        _bubbleSignatures.removeWhere((id, _) => !currentIds.contains(id));
         _onMessagesChanged(messages);
         if (messages.isEmpty) {
           return EmptyView(
@@ -230,16 +372,17 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
         final readProps = _precomputeReadProps(
           messages,
           currentUid,
-          otherUid,
+          widget.otherUid,
           lastReadTimestamps,
-          isGroupChat,
+          widget.isGroupChat,
         );
+        final w = MediaQuery.sizeOf(context).width;
+        final bubbleMaxWidth = w * 0.75;
         return ListView.builder(
           controller: _scrollCtrl,
           reverse: true,
           padding: EdgeInsets.symmetric(
-            horizontal: ResponsiveUtils.paddingValueFromWidth(
-                MediaQuery.sizeOf(context).width),
+            horizontal: ResponsiveUtils.paddingValueFromWidth(w),
             vertical: 8,
           ),
           itemCount: renderItems.length,
@@ -251,50 +394,39 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
 
             final msg = item.message!;
             final senderId = msg['senderId'] as String? ?? '';
-            final senderNickname = isGroupChat
-                ? participantNicknames[senderId]
+            final nicknameMap = widget.participantNicknames;
+            final senderNickname = widget.isGroupChat && nicknameMap != null
+                ? nicknameMap[senderId]
                 : null;
-            final senderAvatarUrl = isGroupChat
-                ? participantAvatarUrls[senderId]
+            final avatarUrls = widget.participantAvatarUrls;
+            final senderAvatarUrl = avatarUrls != null
+                ? avatarUrls[senderId]
                 : null;
-            if (isGroupChat && senderNickname == null) {
+            if (widget.isGroupChat && senderNickname == null) {
               DebugConfig.warn(
                   'ChatMessagesList: senderNickname null for senderId=$senderId '
-                      'chat=${widget.chatId} nicknameMapSize=${participantNicknames.length}');
+                      'chat=${widget.chatId} nicknameMapSize=${nicknameMap?.length ?? 0}');
             }
 
             final msgId = msg['id'] as String? ?? '';
             final props = readProps[msgId] ??
                 const _MessageReadProps(effectiveIsRead: false, seenBy: []);
 
-            DebugConfig.log(DebugConfig.chatBubbleDesign,
-                'MSG_LIST: create bubble id=$msgId');
-
-            return MessageBubble(
-              key: ValueKey(msgId),
+            return _obtainBubble(
+              msgId: msgId,
               message: msg,
+              bubbleMaxWidth: bubbleMaxWidth,
               currentUid: currentUid,
-              isGroupChat: isGroupChat,
+              isGroupChat: widget.isGroupChat,
               isRead: props.effectiveIsRead,
               isGrouped: item.isGrouped,
               isLastInGroup: item.isLastInGroup,
               showAvatar: item.showAvatar,
               senderNickname: senderNickname,
               senderAvatarUrl: senderAvatarUrl,
-              participantNicknames: isGroupChat ? participantNicknames : null,
+              participantNicknames: widget.participantNicknames,
               seenBy: props.seenBy,
               chatId: widget.chatId,
-              callbacks: MessageCallbacks(
-                onApproveDelete: _onApproveDelete,
-                onRejectDelete: _onRejectDelete,
-                onDeleteForMe: _onDeleteForMe,
-                onKeepChat: _onKeepChat,
-                onReact: _onReact,
-                onRemove: _onRemove,
-                onReply: () => _onReply(msg),
-                onEdit: () => _onEdit(msg),
-                onDelete: () => _onDelete(msg),
-              ),
             );
           },
         );

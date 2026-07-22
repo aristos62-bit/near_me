@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import '../../../core/config/feature_flags.dart';
 import '../../../core/debug/debug_config.dart';
 import 'message_action_bar.dart';
-import 'message_bubble/reply_preview.dart';
+import 'message_bubble.dart';
 import 'message_reactions.dart';
 import '../../../shared/widgets/read_receipt_indicator.dart';
 
@@ -44,6 +44,7 @@ class EmojiOnlyBubble extends StatelessWidget {
   final String? chatId;
   final String currentUid;
   final String messageId;
+  final double bubbleMaxWidth;
   final Map<String, dynamic> reactions;
   final Future<void> Function(String messageId, String emoji)? onReact;
   final Future<void> Function(String messageId)? onRemove;
@@ -54,6 +55,7 @@ class EmojiOnlyBubble extends StatelessWidget {
 
   const EmojiOnlyBubble({
     super.key,
+    required this.bubbleMaxWidth,
     required this.content,
     required this.timeStr,
     required this.isMe,

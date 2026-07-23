@@ -10,6 +10,7 @@ import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../providers/chat_provider.dart';
+import 'chat_screen.dart';
 
 class CreateGroupScreen extends ConsumerStatefulWidget {
   const CreateGroupScreen({super.key});
@@ -154,7 +155,8 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
       AppMessenger.showSuccess(context, greek
           ? 'Η ομάδα δημιουργήθηκε'
           : 'Group created');
-      context.replace('/chat/$chatId');
+      context.replace('/chat/$chatId',
+          extra: ChatNavExtra(isGroupChat: true, groupName: groupName.isNotEmpty ? groupName : null));
     } catch (e, s) {
       DebugConfig.error('CreateGroup failed', data: e, exception: s);
       if (mounted) {

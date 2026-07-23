@@ -12,6 +12,7 @@ import '../../../data/local/database.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
+import '../screens/chat_screen.dart';
 
 class ChatListScreen extends ConsumerWidget {
   const ChatListScreen({super.key});
@@ -257,8 +258,8 @@ class _ChatTile extends ConsumerWidget {
         ),
         onTap: () {
           DebugConfig.log(DebugConfig.uiInteraction, 'ChatListScreen: tap chat=$chatId isGroup=$isGroup');
-          final extra = isGroup ? null : title;
-          context.push('/chat/$chatId', extra: extra);
+          context.push('/chat/$chatId',
+              extra: ChatNavExtra(isGroupChat: isGroup, groupName: isGroup ? title : null));
         },
       ),
     );

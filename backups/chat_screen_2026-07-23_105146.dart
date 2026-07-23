@@ -69,21 +69,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     DebugConfig.log(DebugConfig.uiInteraction,
         'ChatScreen init #$_instanceId: ${widget.chatId}');
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-
-      final allChats = ref.read(chatsProvider).asData?.value ?? [];
-      final cached = allChats.where((c) => c.chatId == widget.chatId).firstOrNull;
-      final isGroup = cached?.isGroupChat
-          ?? widget.navExtra?.isGroupChat
-          ?? false;
-
-      DebugConfig.log(DebugConfig.firestoreWrite,
-          'ChatScreen: markAsRead chat=${widget.chatId} '
-          'isGroupChat=$isGroup '
-          'src=${cached != null ? "drift" : widget.navExtra != null ? "navExtra" : "default"}');
-
-      ref.read(chatActionsProvider.notifier)
-          .markAsRead(widget.chatId, isGroupChat: isGroup);
+      if (mounted) {
+        ref.read(chatActionsProvider.notifier)
+            .markAsRead(widget.chatId, isGroupChat: false);
+        DebugConfig.log(DebugConfig.uiInteraction,
+            'ChatScreen: markAsRead scheduled chat=${widget.chatId}');
+      }
     });
   }
 

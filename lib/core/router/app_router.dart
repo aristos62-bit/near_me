@@ -144,7 +144,8 @@ class AppRouter {
       ),
       GoRoute(path: '/chat/:chatId', pageBuilder: (context, state) {
         final chatId = state.pathParameters['chatId']!;
-        return _slideUp(ChatScreen(chatId: chatId));
+        final navExtra = state.extra is ChatNavExtra ? state.extra as ChatNavExtra : null;
+        return _slideUp(ChatScreen(chatId: chatId, navExtra: navExtra));
       }),
       GoRoute(path: '/user/:uid', pageBuilder: (context, state) => _slideUp(const PublicProfileViewScreen())),
       GoRoute(path: '/discovery/filters', pageBuilder: (context, state) => _slideUp(const SearchFiltersScreen())),

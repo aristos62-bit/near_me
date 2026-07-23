@@ -987,6 +987,7 @@ final decrypted = encrypter.decrypt64(parts[1], iv: IV.fromBase64(parts[0]));
 
 ### Chat features (pending)
 - Message expiry (opt-in, CF scheduler) — P3.2
+- Image message type — P3.4
 
 ---
 

@@ -108,8 +108,6 @@ Routing logic: `hasGeoSearch && (!hasLocationFilter || hasRadiusFilter)` → `_g
 | 13 | E2E encryption indicator (lock icon + tap dialog) | ✅ |
 | 14 | Unread tracking requests (readAt, blue dot, bold, profile badge με count) | ✅ |
 | 15 | FCM deep link /requests/:requestId | ✅ |
-| 16 | Image message type σε chat (encrypted) | ✅ |
-| 17 | Auto-expire stale requests (scheduled CF) | ✅ |
 
 ---
 
@@ -212,7 +210,9 @@ Routing logic: `hasGeoSearch && (!hasLocationFilter || hasRadiusFilter)` → `_g
 |:--------:|------|:--------:|
 | P3.2 | Message expiry (opt-in, CF scheduler) | 3-4 ώρες |
 | P3.3 | Email trigger CF (nodemailer/Resend) | 2 ώρες |
+| P3.4 | Image message type σε chat | 2-3 ώρες |
 | P3.10 | Data export (GDPR portability) | ~1 εβδομάδα |
+| P3.11 | Auto-expire stale requests (scheduled CF) | 1 ώρα |
 | Phase 4 | Typesense, Video (Agora), AI matching, Groups, Verified badge, Premium, Web, Admin | μήνες |
 
 ### Tech Debt

@@ -926,30 +926,6 @@ export const leaveGroup = functions.https.onCall(async (data, context) => {
   }
 });
 
-export const expireStaleRequests = functions.pubsub
-  .schedule('0 2 * * *')
-  .timeZone('Europe/Athens')
-  .onRun(async () => {
-    const now = admin.firestore.Timestamp.now();
-    const expired = await db
-      .collection('requests')
-      .where('status', '==', 'pending')
-      .where('expiresAt', '<', now)
-      .get();
-
-    if (expired.size === 0) {
-      functions.logger.info('expireStaleRequests: no stale requests found');
-      return null;
-    }
-
-    const batch = db.batch();
-    expired.docs.forEach((doc) => batch.update(doc.ref, { status: 'expired' }));
-    await batch.commit();
-
-    functions.logger.info(`expireStaleRequests: expired ${expired.size} stale requests`);
-    return null;
-  });
-
 function getNotificationStrings(lang: string) {
   const isGreek = lang === 'el';
   return {

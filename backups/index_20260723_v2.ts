@@ -944,72 +944,6 @@ export const expireStaleRequests = functions.pubsub
     return null;
   });
 
-export const sendReactionNotification = functions.firestore
-  .document('chats/{chatId}/messages/{messageId}')
-  .onUpdate(async (change, context) => {
-    const before = change.before.data();
-    const after = change.after.data();
-    const { chatId } = context.params;
-
-    const beforeReactions = before.reactions ?? {};
-    const afterReactions = after.reactions ?? {};
-    const reactorUid = Object.keys(afterReactions).find(
-      (uid) => afterReactions[uid] !== beforeReactions[uid],
-    );
-    if (!reactorUid) return null;
-
-    if (reactorUid === before.senderId) return null;
-    if (reactorUid === 'deleted_user' || before.senderId === 'deleted_user') return null;
-    if (before.senderId === 'system') return null;
-
-    const blockSnap = await db
-      .doc(`users/${before.senderId}/blocked/${reactorUid}`)
-      .get();
-    if (blockSnap.exists) return null;
-
-    const reactorSnap = await db.doc(`users/${reactorUid}/public/profile`).get();
-    const reactorName = reactorSnap.data()?.nickname ?? 'Someone';
-
-    const targetLangSnap = await db.doc(`users/${before.senderId}/public/profile`).get();
-    const lang = targetLangSnap.data()?.lang ?? 'en';
-    const strings = getNotificationStrings(lang);
-    const emoji = afterReactions[reactorUid];
-
-    const { allTokens, tokenRefMap } = await fetchTokensForUids([before.senderId]);
-    if (allTokens.length === 0) return null;
-
-    const payload: admin.messaging.MulticastMessage = {
-      tokens: allTokens,
-      notification: {
-        title: reactorName,
-        body: `${strings.reaction} ${emoji}`,
-      },
-      data: {
-        chatId,
-        type: 'chat_message',
-        action: 'reaction',
-        reactionEmoji: emoji,
-        reactorUid,
-        reactionMessageId: context.params.messageId,
-      },
-      android: { priority: 'high' },
-      apns: { payload: { aps: { sound: 'default' } } },
-    };
-
-    try {
-      const response = await sendWithRetry(payload);
-      if (response.failureCount > 0) {
-        cleanupInvalidTokens(response.responses, allTokens, tokenRefMap, db);
-      }
-      functions.logger.info(
-        `sendReactionNotification: msg=${context.params.messageId} reactor=${reactorUid} → ${before.senderId} ${emoji}`,
-      );
-    } catch (error) {
-      functions.logger.error('sendReactionNotification failed', error);
-    }
-    return null;
-  });
-
 function getNotificationStrings(lang: string) {
   const isGreek = lang === 'el';
   return {
@@ -1022,7 +956,6 @@ function getNotificationStrings(lang: string) {
     accept_video: isGreek ? 'Αποδοχή αιτήματος για βιντεοκλήση' : 'Video call accepted',
     accept_default: isGreek ? 'Αποδοχή αιτήματος' : 'Request accepted',
     declined: isGreek ? 'Απόρριψη αιτήματος' : 'Request declined',
-    reaction: isGreek ? 'Αντέδρασε' : 'Reacted',
   };
 }
 

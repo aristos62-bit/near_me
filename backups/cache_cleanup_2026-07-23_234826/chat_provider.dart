@@ -15,8 +15,6 @@ final chatDocProvider = StreamProvider.autoDispose.family<DocumentSnapshot?, Str
   DebugConfig.log(DebugConfig.providerCreate, 'chatDocProvider created for chat: $chatId');
   ref.onDispose(() {
     DebugConfig.log(DebugConfig.providerDispose, 'chatDocProvider disposed for chat: $chatId');
-    _chatDocSnapCaches.remove(chatId);
-    _participantUidCaches.remove(chatId);
   });
   return FirebaseFirestore.instance
       .collection('chats')
@@ -60,11 +58,8 @@ final chatsProvider = StreamProvider<List<ChatCacheTableData>>((ref) {
 
 final messagesProvider = StreamProvider.autoDispose.family<List<Map<String, dynamic>>, String>((ref, chatId) {
   DebugConfig.log(DebugConfig.providerCreate, 'messagesProvider created for chat: $chatId');
+  ref.onDispose(() => DebugConfig.log(DebugConfig.providerDispose, 'messagesProvider disposed for chat: $chatId'));
   final chatRepo = ref.watch(chatRepositoryProvider);
-  ref.onDispose(() {
-    DebugConfig.log(DebugConfig.providerDispose, 'messagesProvider disposed for chat: $chatId');
-    chatRepo.clearMessageCaches(chatId);
-  });
   final stream = chatRepo.messagesStream(chatId).map((messages) {
     DebugConfig.log(DebugConfig.chatStream, 'messagesProvider emitted ${messages.length} messages for chat=$chatId');
     return messages;

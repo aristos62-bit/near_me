@@ -58,6 +58,11 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
           _scrollBurstStopwatch = null;
         }
       }
+      // --- ΝΕΟ: φόρτωση παλιότερων μηνυμάτων όταν ο χρήστης φτάνει κοντά στην κορυφή ---
+      // (reverse:true => η "κορυφή"/παλιά μηνύματα είναι στο maxScrollExtent)
+      if (_scrollCtrl.position.maxScrollExtent - pixels < 300) {
+        _maybeLoadOlder();
+      }
     });
   }
 
@@ -154,6 +159,15 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     });
   }
 
+  void _maybeLoadOlder() {
+    final current = ref.read(combinedMessagesProvider(widget.chatId));
+    if (current.isEmpty) return;
+    final oldest = current.first;
+    final rawTs = oldest['timestamp'];
+    if (rawTs is! Timestamp) return;
+    ref.read(olderMessagesByChatProvider.notifier).loadMore(widget.chatId, rawTs.toDate());
+  }
+
   @override
   Widget build(BuildContext context) {
     final messagesAsync = ref.watch(messagesProvider(widget.chatId));
@@ -200,6 +214,10 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     ));
     final participantUids = ref.watch(participantUidsProvider(widget.chatId));
     final otherUid = isGroupChat ? null : participantUids.where((u) => u != currentUid).firstOrNull;
+    // --- ΝΕΟ: combined (παλιά + live) λίστα για rendering + loading state παλιών μηνυμάτων ---
+    final combinedMessages = ref.watch(combinedMessagesProvider(widget.chatId));
+    final isLoadingOlder = ref.watch(olderMessagesByChatProvider
+        .select((m) => m[widget.chatId]?.isLoading ?? false));
     final greek = L10n.isGreek(context);
     _buildCount++;
     final screenW = MediaQuery.sizeOf(context).width;
@@ -219,22 +237,25 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
         );
       },
       data: (messages) {
+        // _onMessagesChanged οδηγείται από το live window (όχι το combined),
+        // ώστε το auto-scroll-to-bottom να ενεργοποιείται ΜΟΝΟ από νέα μηνύματα
+        // και όχι από τη φόρτωση παλιότερων (που δεν πρέπει να προκαλεί scroll).
         _onMessagesChanged(messages);
-        if (messages.isEmpty) {
+        if (combinedMessages.isEmpty) {
           return EmptyView(
             icon: Icons.chat_bubble_outline,
             message: greek ? 'Καμία συνομιλία' : 'No messages',
           );
         }
-        final renderItems = ChatGroupingCalculator.calculate(widget.chatId, messages, currentUid);
+        final renderItems = ChatGroupingCalculator.calculate(widget.chatId, combinedMessages, currentUid);
         final readProps = _precomputeReadProps(
-          messages,
+          combinedMessages,
           currentUid,
           otherUid,
           lastReadTimestamps,
           isGroupChat,
         );
-        final totalWithReactions = messages.where((m) {
+        final totalWithReactions = combinedMessages.where((m) {
           final r = m['reactions'] as Map<String, dynamic>?;
           return r != null && r.isNotEmpty;
         }).length;
@@ -242,10 +263,12 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
         final totalWithSeenBy = readProps.values.where((p) => p.seenBy.isNotEmpty).length;
         DebugConfig.log(DebugConfig.chatBubbleDesign,
             'MSG_LIST: ${renderItems.length} items, '
-            '${messages.length} msgs, '
+            '${combinedMessages.length} msgs, '
             '$totalWithReactions with reactions, '
             '$totalRead read, '
             '$totalWithSeenBy with seenBy');
+        // --- ΝΕΟ: +1 item στην κορυφή (μεγαλύτερο index, λόγω reverse:true) όσο φορτώνονται παλιά μηνύματα ---
+        final itemCount = renderItems.length + (isLoadingOlder ? 1 : 0);
         return ListView.builder(
           controller: _scrollCtrl,
           reverse: true,
@@ -254,8 +277,20 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
                 MediaQuery.sizeOf(context).width),
             vertical: 8,
           ),
-          itemCount: renderItems.length,
+          itemCount: itemCount,
           itemBuilder: (_, i) {
+            if (isLoadingOlder && i == itemCount - 1) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              );
+            }
             final item = renderItems[renderItems.length - 1 - i];
             if (item.type == RenderItemType.dateSeparator) {
               return DateSeparator(key: ValueKey('ds_${item.date}'), date: item.date!);

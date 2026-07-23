@@ -84,7 +84,6 @@ abstract class ChatRepository {
   Future<void> deleteChatForMe(String chatId);
   Future<void> deleteGroup(String chatId);
   Future<void> clearMessages(String chatId);
-  void clearMessageCaches(String chatId);
 
   // Group chat
   Future<String> createGroupChat(List<String> participantUids, {String? groupName, bool isPublic = false, String? description, List<String>? tags, String? city});

@@ -42,14 +42,6 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
   @override
   Map<String, Map<String, String>> get messageDecryptCache => _messageDecryptCache;
 
-  @override
-  void clearMessageCaches(String chatId) {
-    _messageEncryptCache.remove(chatId);
-    _messageDecryptCache.remove(chatId);
-    _lastMessagesListCache.remove(chatId);
-    DebugConfig.log(DebugConfig.providerDispose, 'clearMessageCaches: cleared caches for chat=$chatId');
-  }
-
   ChatRepositoryImpl({
     FirebaseFirestore? firestore,
     FirebaseAuth? auth,

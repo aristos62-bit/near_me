@@ -51,15 +51,11 @@ class ChatGroupingCalculator {
     final cachedMsgs = _cachedMessages[chatId];
     final cachedResult = _cachedResults[chatId];
 
+    // Fast path: το messagesStream επιστρέφει ήδη το ΙΔΙΟ object reference
+    // όταν το περιεχόμενο δεν έχει αλλάξει (deep-equality cache στο repository).
+    // ΔΕΝ προσθέτουμε επιπλέον heuristic βάσει μήκους/πρώτου-τελευταίου ID εδώ,
+    // γιατί αγνοεί αλλαγές (reactions, edits, isRead) σε ενδιάμεσα μηνύματα.
     if (identical(cachedMsgs, messages)) return cachedResult!;
-    if (cachedMsgs != null &&
-        cachedResult != null &&
-        cachedMsgs.length == messages.length &&
-        cachedMsgs.isNotEmpty &&
-        cachedMsgs.first['id'] == messages.first['id'] &&
-        cachedMsgs.last['id'] == messages.last['id']) {
-      return cachedResult;
-    }
 
     final stopwatch = Stopwatch()..start();
     final items = _buildItems(messages);

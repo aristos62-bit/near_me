@@ -24,6 +24,9 @@ class MessageReactions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    DebugConfig.log(DebugConfig.chatReactions,
+        'MessageReactions.build: msg=$messageId reactions=${reactions.length} '
+            'entries keys=(${reactions.keys.join(", ")})');
     final theme = Theme.of(context);
 
     final userEmoji = reactions[currentUid] as String?;

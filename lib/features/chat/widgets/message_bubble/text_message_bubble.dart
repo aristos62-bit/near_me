@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../core/config/feature_flags.dart';
-import '../../../../core/debug/debug_config.dart';
 import '../message_action_bar.dart';
 import '../message_reactions.dart';
 import '../../../../shared/widgets/read_receipt_indicator.dart';
@@ -32,9 +31,6 @@ class TextMessageBubble extends StatelessWidget {
   final VoidCallback? onReply;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
-
-  static final Map<String, GlobalKey> _bubbleKeys = {};
-  static final Map<String, double> _loggedW = {};
 
   const TextMessageBubble({
     super.key,
@@ -112,7 +108,6 @@ class TextMessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bubbleKey = _bubbleKeys.putIfAbsent(messageId, () => GlobalKey());
     final theme = Theme.of(context);
     final showTail = isLastInGroup;
     final sentColor = _sentColor;
@@ -129,26 +124,6 @@ class TextMessageBubble extends StatelessWidget {
           (isMe && showTail) ? _tailRadius : _bubbleRadius),
     );
 
-    if (mentions.isNotEmpty) {
-      DebugConfig.log(DebugConfig.chatBubbleDesign,
-          'TextBubble: id=$messageId mentions=${mentions.length}');
-    }
-
-    {
-      final ctx = bubbleKey.currentContext;
-      if (ctx != null) {
-        double? w;
-        try { w = ctx.size?.width; } catch (_) {}
-        if (w != null) {
-          final prev = _loggedW[messageId];
-          if (prev == null || (prev - w).abs() > 0.5) {
-            _loggedW[messageId] = w;
-            DebugConfig.log(DebugConfig.chatBubbleDesign,
-                'BUBBLE_W id=$messageId w=${w.toStringAsFixed(1)}');
-          }
-        }
-      }
-    }
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Align(
@@ -158,14 +133,6 @@ class TextMessageBubble extends StatelessWidget {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final bubbleMaxWidth = constraints.maxWidth * 0.75;
-            double? prevLayoutW;
-            try { prevLayoutW = context.size?.width; } catch (_) {}
-            DebugConfig.log(DebugConfig.chatBubbleDesign,
-                'TextBubble id=$messageId '
-                'constraintsMax=${constraints.maxWidth.toStringAsFixed(1)} '
-                'bubbleMax=${bubbleMaxWidth.toStringAsFixed(1)} '
-                'contentLen=${content.length} timeLen=${timeStr.length} '
-                'prevW=${prevLayoutW?.toStringAsFixed(1) ?? "null"}');
             return Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment:
@@ -225,7 +192,6 @@ class TextMessageBubble extends StatelessWidget {
                         clipBehavior: Clip.none,
                         children: [
                           Container(
-                            key: bubbleKey,
                             constraints: BoxConstraints(maxWidth: bubbleMaxWidth),
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 14, vertical: 10),

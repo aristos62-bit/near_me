@@ -246,11 +246,8 @@ service cloud.firestore {
                       && isParticipant(
                            get(/databases/$(database)/documents/chats/$(chatId)).data
                          )
-                      && (
-                        resource.data.get('isGroupChat', false) != true
-                        || request.auth.uid == resource.data.senderId
-                        || (isGroupChatRef(chatId) && isGroupAdmin(chatId))
-                      );
+                      && (request.auth.uid == resource.data.senderId
+                          || (isGroupChatRef(chatId) && isGroupAdmin(chatId)));
       }
     }
 

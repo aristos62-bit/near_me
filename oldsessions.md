@@ -132,6 +132,7 @@ Typesense, Video (Agora), AI matching, Groups extra features, Verified badge, Pr
 | 200 | _obtainBubble cache cascade — every signature miss recreates all MessageBubble widgets | `_MessageBubbleSignature` + `_obtainBubble` cache with `DeepCollectionEquality` on message map + all params | 200 |
 | 201 | EmojiOnlyBubble static `_buildCounts` memory leak — global Map<String,int> never cleared, misleading debug output | Remove static debug map (emoji_only_bubble.dart) | 201 |
 | 202 | markAsRead serverTimestamp write cascade — group chat signature miss from every navigation | Guard: skip `FieldValue.serverTimestamp()` write when `unreadCount==0` (read from local Drift cache) | 201 |
+| 203 | Bubble width = bubbleMaxWidth (264) on initial load — Column(mainAxisSize: min, crossAxisAlignment: end) fails intrinsic sizing on first layout pass inside Container(maxWidth) | `IntrinsicWidth` wrapper around inner Column in TextMessageBubble | 203 |
   
 ### Profile & Privacy
 | # | Bug | Fix | Session |
@@ -266,39 +267,30 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 
 ---
 
-## 🐞 Session 201+ — Bubble Layout Cache Bug (UNRESOLVED)
+## 🐞 Session 201+ — Bubble Width Bug (RESOLVED)
 
 ### Το πρόβλημα
-Το `_obtainBubble` cache (προστέθηκε Session 200) αποθηκεύει το **ίδιο instance** `MessageBubble` όταν η `_MessageBubbleSignature` ταιριάζει. Σε cold restart, το πρώτο build (MediaQuery/textScaleFactor/constraints σε transition) μπορεί να έχει λάθος layout. Στο δεύτερο build, το cached instance κάνει τον Flutter να κάνει identity skip (`child.widget == newWidget`) → `build()` δεν καλείται ποτέ → το λάθος layout μένει **παγωμένο**.
+Όλα τα text message bubbles εμφανίζονταν στο `bubbleMaxWidth=264.0` (max) αντί στο σωστό content width (~55.9 για 4 χαρακτήρες). Αυτό συνέβαινε στο **πρώτο layout pass** για υπάρχοντα μηνύματα. Για νέα μηνύματα, το 1ο frame ήταν σωστό (55.9) αλλά το 2ο layout pass (ts=null → ts=Timestamp) το μετέτρεπε σε 264.0.
 
-### Attempt #1 — ValueKey + bubbleMaxWidth (Session 202, - revert)
-**Πρόταση:** `ValueKey('$msgId|${bubbleMaxWidth.toStringAsFixed(0)}')` αντί `ValueKey(msgId)`.
-**Σκοπός:** Αν το `bubbleMaxWidth` αλλάξει (π.χ. cold restart), το key είναι διαφορετικό → νέο Element → φρέσκο layout. Το cache signature comparison παραμένει για cascade prevention.
-**Αποτέλεσμα:** ΔΕΝ δούλεψε — το bubbleMaxWidth ήταν ίδιο, οπότε key ίδιο → identity skip. Revert.
+### Διάγνωση
+Από `GlobalKey` στο Container + `BUBBLE_W` debug logs:
+- Υπάρχοντα μηνύματα: `w=264.0` από την αρχή
+- Νέο μήνυμα, 1ο frame: `w=55.9` (σωστό), μετά `w=264.0` (max)
+- `constraintsMax=352.0`, `bubbleMax=264.0` — ΠΑΝΤΟΤΕ ίδια, δεν αλλάζουν
+- `prevW=264.0` για όλα μετά το πρώτο layout
 
-### Attempt #2 — Αφαίρεση _obtainBubble cache (Session 202, - revert)
-**Πρόταση:** Αφαίρεση `_MessageBubbleSignature` class, `_bubbleCache`, `_bubbleSignatures`, `_obtainBubble`. Δημιουργία φρέσκου `MessageBubble` κάθε φορά στο itemBuilder.
-**Σκοπός:** Χωρίς instance cache, Flutter δεν κάνει identity skip → `build()` καλείται πάντα → σωστό layout.
-**Αποτέλεσμα:** ΔΕΝ δούλεψε — το layout παραμένει λάθος. Το πρόβλημα είναι αλλού. Revert.
+**Αιτία:** `Column(mainAxisSize: min, crossAxisAlignment: end)` μέσα σε `Container(constraints: BoxConstraints(maxWidth: 264))` — στο πρώτο layout pass, το Column αποτυγχάνει να υπολογίσει intrinsic width και παίρνει ολόκληρο το max constraint.
 
-### Attempt #3 — Debug counters cascade + LayoutBuilder wrapper (revert)
-**Πρόβλημα:** Δύο παράλληλα issues που επιδεινώνονταν αμοιβαία:
+### Attempt #1 — SizedBox.shrink αντί conditional if (FAILED)
+**Πρόταση:** Αντικατάσταση `if (timeStr.isNotEmpty) Padding(...)` με ternary `timeStr.isNotEmpty ? Padding(...) : SizedBox.shrink()` για σταθερό αριθμό children.
+**Αποτέλεσμα:** ΔΕΝ δούλεψε — ακόμα και με 2 σταθερά children, το bug εμφανίζεται. Το intrinsic sizing αποτυγχάνει ανεξάρτητα από τον αριθμό children.
 
-**(α) LayoutBuilder debug wrapper:** Προστέθηκε `LayoutBuilder` γύρω από το `Container` του `MsgBubble.build()` για logging constraints. Δεν μετρούσε το πραγματικό rendered πλάτος — μόνο CONT constraints. Αφαιρέθηκε ως μη χρήσιμο.
+### Fix: IntrinsicWidth (ΛΥΣΗ)
+**Πρόταση:** Wrapping του inner Column (text + time) με `IntrinsicWidth` στο Container.
+**Αποτέλεσμα:** ✅ **ΕΠΙΤΥΧΙΑ** — `IntrinsicWidth` εξαναγκάζει ένα επιπλέον intrinsic measurement pass, διορθώνοντας το sizing από το πρώτο layout. `BUBBLE_W`: `w=55.9`, `w=83.9`, `w=103.4` (όλα σωστά). `prevW` διατηρείται σταθερά.
 
-**(β) Debug counters cascade:** Οι στατικοί μετρητές debug (`_msgBubbleBuildCount` + `DebugConfig.log()` + `MediaQuery.sizeOf()`/`textScalerOf()` readings) μέσα στο `MsgBubble.build()` προκαλούσαν cascading rebuilds loop:
-1. build() → increment counter → log() + MediaQuery.read → Flutter reschedules layout
-2. Layout → νέο build → increment → log → άπειρος βρόχος για 1 frame
-3. Cascade από #9 έως ~300+ MsgBubble builds στο ίδιο frame (PID 14413)
+**Αρχείο:** `text_message_bubble.dart:236` — `child: IntrinsicWidth(child: Column(...))`
 
-**Απόδειξη:** PID 14413 (με counters): `MsgBubble BUILD #9→#327 cascade`. PID 15801 (χωρίς counters, ίδια δεδομένα): ηρεμία, **καμία** αναδρομή.
-
-**Fix:** Αφαίρεση και των 3 debug counters (`_msgBubbleBuildCount` από MsgBubble, `_sysBuildCount` από _SystemBubble, `_buildCounts` από _GifBubble) + αφαίρεση LayoutBuilder wrapper.
-
-**Συμπέρασμα:**
-- `DebugConfig.log()` + `MediaQuery.*` readings + mutable static counters μέσα σε `build()` = guaranteed cascade loop
-- Τα debugs πρέπει να είναι **read-only** και να μην μεταβάλλουν state/counters ούτε να διαβάζουν `MediaQuery` κατά τη διάρκεια του build
-- Ακόμα και ένα απλό `print()` / `debugPrint` mid-frame μπορεί να προκαλέσει reschedule σε συγκεκριμένες συνθήκες Flutter engine
-
-### Κατάσταση: Ανοιχτό
-Το bug (green card full-width σε cold restart) παραμένει μετά από 3 προσπάθειες. Η 3η αποκάλυψε ότι τα debug counters προκαλούσαν cascade που έκανε την UI διερεύνηση αδύνατη. Με το cascade eliminated, η διερεύνηση του πραγματικού width bug μπορεί να συνεχιστεί χωρίς θόρυβο.
+### Σημείωση
+- `DebugConfig` import αφαιρέθηκε από `message_bubble.dart` και `text_message_bubble.dart`
+- Όλα τα debug logs (`BUILD`, `TextBubble`, `BUBBLE_W`) και στατικές μεταβλητές (`_bubbleKeys`, `_loggedW`) αφαιρέθηκαν

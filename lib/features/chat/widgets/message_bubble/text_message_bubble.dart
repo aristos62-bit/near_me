@@ -145,7 +145,7 @@ class TextMessageBubble extends StatelessWidget {
                   isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
               children: [
                 if (!isMe && showAvatar
-                    && (senderAvatarUrl != null || (isGroupChat && senderNickname != null)))
+                    && (senderAvatarUrl != null || senderNickname != null))
                   Padding(
                     padding: const EdgeInsets.only(left: 14, bottom: 2),
                     child: Row(

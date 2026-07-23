@@ -263,9 +263,13 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
 
             final msg = item.message!;
             final senderId = msg['senderId'] as String? ?? '';
-            final senderNickname = participantNicknames[senderId];
-            final senderAvatarUrl = participantAvatarUrls[senderId];
-            if (senderNickname == null) {
+            final senderNickname = isGroupChat
+                ? participantNicknames[senderId]
+                : null;
+            final senderAvatarUrl = isGroupChat
+                ? participantAvatarUrls[senderId]
+                : null;
+            if (isGroupChat && senderNickname == null) {
               DebugConfig.warn(
                   'ChatMessagesList: senderNickname null for senderId=$senderId '
                       'chat=${widget.chatId} nicknameMapSize=${participantNicknames.length}');

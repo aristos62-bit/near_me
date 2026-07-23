@@ -140,6 +140,8 @@ class _SendRequestScreenState extends ConsumerState<SendRequestScreen> {
               _typeChip('video', Icons.videocam_outlined, isGreek ? 'Βιντεοκλήση' : 'Video Call', Colors.purple, theme)
             else
               _disabledTypeChip(Icons.videocam_outlined, isGreek ? 'Βιντεοκλήση (μη διαθέσιμη)' : 'Video Call (not available)', theme),
+            const SizedBox(height: 8),
+            _typeChip('email', Icons.email_outlined, isGreek ? 'Email' : 'Email', Colors.orange, theme),
           ],
         ),
       ),

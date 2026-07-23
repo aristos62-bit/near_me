@@ -357,9 +357,6 @@ export const sendRequestNotification = functions.firestore
       case 'video':
         body = strings.request_video;
         break;
-      case 'email':
-        body = strings.request_email;
-        break;
       default:
         body = strings.request_default;
     }
@@ -483,9 +480,6 @@ export const sendRequestResponseNotification = functions.firestore
           break;
         case 'video':
           body = strings.accept_video;
-          break;
-        case 'email':
-          body = strings.accept_email;
           break;
         default:
           body = strings.accept_default;
@@ -957,11 +951,9 @@ function getNotificationStrings(lang: string) {
     new_group_message: isGreek ? 'Νέο μήνυμα στην ομάδα' : 'New group message',
     request_chat: isGreek ? 'Νέο αίτημα για συνομιλία' : 'Chat request',
     request_video: isGreek ? 'Νέο αίτημα για βιντεοκλήση' : 'Video call request',
-    request_email: isGreek ? 'Νέο αίτημα μέσω email' : 'Email request',
     request_default: isGreek ? 'Νέο αίτημα' : 'New request',
     accept_chat: isGreek ? 'Αποδοχή αιτήματος για συνομιλία' : 'Chat request accepted',
     accept_video: isGreek ? 'Αποδοχή αιτήματος για βιντεοκλήση' : 'Video call accepted',
-    accept_email: isGreek ? 'Αποδοχή αιτήματος μέσω email' : 'Email request accepted',
     accept_default: isGreek ? 'Αποδοχή αιτήματος' : 'Request accepted',
     declined: isGreek ? 'Απόρριψη αιτήματος' : 'Request declined',
   };

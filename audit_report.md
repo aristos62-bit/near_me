@@ -211,7 +211,6 @@ Routing logic: `hasGeoSearch && (!hasLocationFilter || hasRadiusFilter)` → `_g
 | Priority | Θέμα | Εκτίμηση |
 |:--------:|------|:--------:|
 | P3.2 | Message expiry (opt-in, CF scheduler) | 3-4 ώρες |
-| P3.3 | Email trigger CF (nodemailer/Resend) | 2 ώρες |
 | P3.10 | Data export (GDPR portability) | ~1 εβδομάδα |
 | Phase 4 | Typesense, Video (Agora), AI matching, Groups, Verified badge, Premium, Web, Admin | μήνες |
 

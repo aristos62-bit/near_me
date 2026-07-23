@@ -245,6 +245,10 @@ class _TypeBadge extends StatelessWidget {
         label = isGreek ? 'Βιντεοκλήση' : 'Video Call';
         icon = Icons.videocam_outlined;
         color = Colors.purple;
+      case 'email':
+        label = isGreek ? 'Email' : 'Email';
+        icon = Icons.email_outlined;
+        color = Colors.orange;
       default:
         label = type;
         icon = Icons.help_outline;

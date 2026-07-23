@@ -33,9 +33,6 @@ class TextMessageBubble extends StatelessWidget {
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
 
-  static final Map<String, GlobalKey> _bubbleKeys = {};
-  static final Map<String, double> _loggedW = {};
-
   const TextMessageBubble({
     super.key,
     required this.content,
@@ -112,7 +109,6 @@ class TextMessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bubbleKey = _bubbleKeys.putIfAbsent(messageId, () => GlobalKey());
     final theme = Theme.of(context);
     final showTail = isLastInGroup;
     final sentColor = _sentColor;
@@ -134,21 +130,6 @@ class TextMessageBubble extends StatelessWidget {
           'TextBubble: id=$messageId mentions=${mentions.length}');
     }
 
-    {
-      final ctx = bubbleKey.currentContext;
-      if (ctx != null) {
-        double? w;
-        try { w = ctx.size?.width; } catch (_) {}
-        if (w != null) {
-          final prev = _loggedW[messageId];
-          if (prev == null || (prev - w).abs() > 0.5) {
-            _loggedW[messageId] = w;
-            DebugConfig.log(DebugConfig.chatBubbleDesign,
-                'BUBBLE_W id=$messageId w=${w.toStringAsFixed(1)}');
-          }
-        }
-      }
-    }
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Align(
@@ -158,14 +139,6 @@ class TextMessageBubble extends StatelessWidget {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final bubbleMaxWidth = constraints.maxWidth * 0.75;
-            double? prevLayoutW;
-            try { prevLayoutW = context.size?.width; } catch (_) {}
-            DebugConfig.log(DebugConfig.chatBubbleDesign,
-                'TextBubble id=$messageId '
-                'constraintsMax=${constraints.maxWidth.toStringAsFixed(1)} '
-                'bubbleMax=${bubbleMaxWidth.toStringAsFixed(1)} '
-                'contentLen=${content.length} timeLen=${timeStr.length} '
-                'prevW=${prevLayoutW?.toStringAsFixed(1) ?? "null"}');
             return Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment:
@@ -225,7 +198,6 @@ class TextMessageBubble extends StatelessWidget {
                         clipBehavior: Clip.none,
                         children: [
                           Container(
-                            key: bubbleKey,
                             constraints: BoxConstraints(maxWidth: bubbleMaxWidth),
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 14, vertical: 10),
@@ -233,31 +205,29 @@ class TextMessageBubble extends StatelessWidget {
                               color: bubbleColor,
                               borderRadius: bubbleBorderRadius,
                             ),
-                            child: IntrinsicWidth(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  mentions.isEmpty
-                                      ? Text(content, style: TextStyle(color: textColor), textAlign: TextAlign.end)
-                                      : _buildRichContent(context, content, mentions, isMe),
-                                  if (timeStr.isNotEmpty)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 4),
-                                      child: Align(
-                                        alignment: AlignmentDirectional.bottomEnd,
-                                        child: Text(timeStr,
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            color: isMe
-                                                ? Colors.white.withAlpha(180)
-                                                : theme.colorScheme.onSurfaceVariant.withAlpha(180),
-                                          ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                mentions.isEmpty
+                                    ? Text(content, style: TextStyle(color: textColor), textAlign: TextAlign.end)
+                                    : _buildRichContent(context, content, mentions, isMe),
+                                if (timeStr.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Align(
+                                      alignment: AlignmentDirectional.bottomEnd,
+                                      child: Text(timeStr,
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          color: isMe
+                                              ? Colors.white.withAlpha(180)
+                                              : theme.colorScheme.onSurfaceVariant.withAlpha(180),
                                         ),
                                       ),
                                     ),
-                                ],
-                              ),
+                                  ),
+                              ],
                             ),
                           ),
                           if (showTail)

@@ -588,7 +588,6 @@ class ReplyToMessageNotifier extends Notifier<Map<String, dynamic>?> {
   }
 
   void clear() {
-    DebugConfig.log(DebugConfig.chatReply, 'reply cleared');
     state = null;
   }
 }

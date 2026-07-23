@@ -234,18 +234,6 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
           lastReadTimestamps,
           isGroupChat,
         );
-        final totalWithReactions = messages.where((m) {
-          final r = m['reactions'] as Map<String, dynamic>?;
-          return r != null && r.isNotEmpty;
-        }).length;
-        final totalRead = readProps.values.where((p) => p.effectiveIsRead).length;
-        final totalWithSeenBy = readProps.values.where((p) => p.seenBy.isNotEmpty).length;
-        DebugConfig.log(DebugConfig.chatBubbleDesign,
-            'MSG_LIST: ${renderItems.length} items, '
-            '${messages.length} msgs, '
-            '$totalWithReactions with reactions, '
-            '$totalRead read, '
-            '$totalWithSeenBy with seenBy');
         return ListView.builder(
           controller: _scrollCtrl,
           reverse: true,
@@ -278,6 +266,9 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
             final msgId = msg['id'] as String? ?? '';
             final props = readProps[msgId] ??
                 const _MessageReadProps(effectiveIsRead: false, seenBy: []);
+
+            DebugConfig.log(DebugConfig.chatBubbleDesign,
+                'MSG_LIST: create bubble id=$msgId');
 
             return MessageBubble(
               key: ValueKey(msgId),

@@ -27,6 +27,7 @@ class MessageReactions extends StatelessWidget {
     final theme = Theme.of(context);
 
     final userEmoji = reactions[currentUid] as String?;
+    DebugConfig.log(DebugConfig.chatReactions, 'MessageReactions.build: msg=$messageId reactions=${reactions.length} entries keys=${reactions.keys}');
 
     final Map<String, List<String>> grouped = {};
     for (final entry in reactions.entries) {

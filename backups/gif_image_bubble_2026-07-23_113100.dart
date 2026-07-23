@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../../../core/config/feature_flags.dart';
+import '../../../../core/debug/debug_config.dart';
 import '../message_action_bar.dart';
 import '../message_reactions.dart';
 import '../../../../shared/widgets/read_receipt_indicator.dart';
@@ -99,6 +100,9 @@ class GifImageBubble extends StatelessWidget {
       bottomRight: Radius.circular(
           (isMe && showTail) ? _tailRadius : _bubbleRadius),
     );
+
+    DebugConfig.log(DebugConfig.chatBubbleDesign,
+        'GifImageBubble: id=$messageId isImage=$isImage');
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),

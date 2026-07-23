@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/debug/debug_config.dart';
 import '../../core/l10n/l10n.dart';
 
 class ReadReceiptIndicator extends StatelessWidget {
@@ -26,8 +27,12 @@ class ReadReceiptIndicator extends StatelessWidget {
 
     if (isGroupChat) {
       if (seenBy.isEmpty) {
+        DebugConfig.log(DebugConfig.chatBubbleDesign,
+            'ReadReceiptIndicator: group hidden (seenBy empty)');
         return const SizedBox.shrink();
       }
+      DebugConfig.log(DebugConfig.chatBubbleDesign,
+          'ReadReceiptIndicator: group visible seenBy=${seenBy.length}');
       return Tooltip(
         message: greek
             ? 'Διαβάστηκε από ${seenBy.length} άτομα'
@@ -50,6 +55,10 @@ class ReadReceiptIndicator extends StatelessWidget {
         ? theme.colorScheme.primary
         : theme.colorScheme.onSurfaceVariant;
     final iconData = isRead ? Icons.visibility : Icons.visibility_outlined;
+
+    DebugConfig.log(DebugConfig.chatBubbleDesign,
+        'ReadReceiptIndicator: 1-to-1 ${isRead ? "read" : "unread"} '
+        'isRead=$isRead icon=${isRead ? "filled" : "outlined"}');
 
     return Tooltip(
       message: isRead

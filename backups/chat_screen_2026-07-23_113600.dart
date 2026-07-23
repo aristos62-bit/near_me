@@ -88,6 +88,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    DebugConfig.log(DebugConfig.uiRebuild,
+        'ChatScreen #$_instanceId: didChangeDependencies');
+  }
+
+  @override
   void dispose() {
     FcmService.unregisterActiveChat(widget.chatId);
     _textCtrl.dispose();

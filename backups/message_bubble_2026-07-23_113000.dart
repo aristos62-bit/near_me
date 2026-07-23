@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../../../../core/debug/debug_config.dart';
 import '../../../../core/l10n/l10n.dart';
 import '../emoji_only_bubble.dart';
 import 'message_callbacks.dart';
@@ -56,6 +57,9 @@ class MessageBubble extends StatelessWidget {
     final contentEn = message['contentEn'] as String?;
     final action = message['action'] as String?;
     final mentions = (message['mentions'] as List?)?.cast<String>() ?? <String>[];
+
+    DebugConfig.log(DebugConfig.chatBubbleDesign,
+        'MessageBubble: type=$type id=$msgId');
 
     return switch (type) {
       'system' => SystemMessageBubble(

@@ -125,10 +125,8 @@ class TextMessageBubble extends StatelessWidget {
           (isMe && showTail) ? _tailRadius : _bubbleRadius),
     );
 
-    if (mentions.isNotEmpty) {
-      DebugConfig.log(DebugConfig.chatBubbleDesign,
-          'TextBubble: id=$messageId mentions=${mentions.length}');
-    }
+    DebugConfig.log(DebugConfig.chatBubbleDesign,
+        'TextBubble: id=$messageId mentions=${mentions.length}');
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),

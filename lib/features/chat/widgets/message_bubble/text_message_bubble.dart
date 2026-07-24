@@ -5,6 +5,7 @@ import 'sender_header.dart';
 import 'bubble_long_press_wrapper.dart';
 import 'message_reactions_row.dart';
 import 'read_receipt_footer.dart';
+import '../../../../core/theme/app_colors.dart';
 
 class TextMessageBubble extends StatelessWidget {
   final String content;
@@ -60,7 +61,7 @@ class TextMessageBubble extends StatelessWidget {
 
   static const double _bubbleRadius = 20;
   static const double _tailRadius = 8;
-  static const Color _sentColor = Color(0xFF075E54);
+  static const Color _sentColor = AppColors.chatBubbleSent;
   static const Color _sentTextColor = Colors.white;
 
   Widget _buildRichContent(
@@ -102,7 +103,7 @@ class TextMessageBubble extends StatelessWidget {
       spans.add(TextSpan(text: content.substring(lastEnd)));
     }
 
-    return Text.rich(TextSpan(children: spans, style: TextStyle(color: baseColor)), textAlign: TextAlign.end);
+    return Text.rich(TextSpan(children: spans, style: TextStyle(color: baseColor)), textAlign: TextAlign.start);
   }
 
   @override
@@ -176,7 +177,7 @@ class TextMessageBubble extends StatelessWidget {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   mentions.isEmpty
-                                      ? Text(content, style: TextStyle(color: textColor), textAlign: TextAlign.end)
+                                      ? Text(content, style: TextStyle(color: textColor), textAlign: TextAlign.start)
                                       : _buildRichContent(context, content, mentions, isMe),
                                   if (timeStr.isNotEmpty)
                                     Padding(

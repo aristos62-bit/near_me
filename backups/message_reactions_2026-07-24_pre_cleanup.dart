@@ -1,5 +1,6 @@
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter/material.dart';
+import '../../../core/debug/debug_config.dart';
 
 class MessageReactions extends StatelessWidget {
   final Map<String, dynamic> reactions;
@@ -23,6 +24,9 @@ class MessageReactions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    DebugConfig.log(DebugConfig.chatReactions,
+        'MessageReactions.build: msg=$messageId reactions=${reactions.length} '
+            'entries keys=(${reactions.keys.join(", ")})');
     final theme = Theme.of(context);
 
     final userEmoji = reactions[currentUid] as String?;
@@ -72,6 +76,8 @@ class MessageReactions extends StatelessWidget {
   void _toggle(BuildContext context, String emoji) {
     final currentEmoji = reactions[currentUid] as String?;
     final isRemove = currentEmoji == emoji;
+    DebugConfig.log(DebugConfig.chatReactions,
+        'MessageReactions: toggle msg=$messageId emoji=$emoji isRemove=$isRemove');
     if (isRemove) {
       onRemove?.call(messageId);
     } else {
@@ -80,6 +86,8 @@ class MessageReactions extends StatelessWidget {
   }
 
   void _showPicker(BuildContext context) {
+    DebugConfig.log(DebugConfig.chatReactions,
+        'MessageReactions: picker shown msg=$messageId');
     showModalBottomSheet(
       context: context,
       builder: (_) {

@@ -28,6 +28,7 @@ class AppColors {
 
   static const Color online = Color(0xFF4CAF50);
   static const Color offline = Color(0xFF9E9E9E);
+  static const Color chatBubbleSent = Color(0xFF075E54);
 
   static Color shimmerBaseLight = Colors.grey.shade300;
   static Color shimmerBaseDark = Colors.grey.shade700;

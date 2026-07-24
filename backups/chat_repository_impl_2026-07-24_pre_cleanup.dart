@@ -339,8 +339,10 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
     String decrypted;
     if (type == 'system') {
       decrypted = encrypted;
+      DebugConfig.log(DebugConfig.chatStream, 'system message: $docId content=$encrypted');
     } else if (type == 'gif' || type == 'image' || type == 'video') {
       decrypted = encrypted;
+      DebugConfig.log(DebugConfig.chatStream, '_decodeMessageDoc: media message $docId type=$type');
     } else if (encCache[docId] == encrypted && decCache.containsKey(docId)) {
       decrypted = decCache[docId]!;
     } else {
@@ -356,6 +358,7 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
           decrypted = EncryptionUtils.decryptMessage(fallbackKey, encrypted);
           encCache[docId] = encrypted;
           decCache[docId] = decrypted;
+          DebugConfig.log(DebugConfig.chatEncrypt, '_decodeMessageDoc: decrypt with derived key succeeded for msg $docId');
         } catch (_) {
           DebugConfig.warn('_decodeMessageDoc: decrypt failed for msg $docId', data: e);
           decrypted = '[Μη αναγνώσιμο μήνυμα / Unreadable message]';

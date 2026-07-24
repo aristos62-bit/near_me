@@ -99,7 +99,7 @@ class EmojiOnlyBubble extends StatelessWidget {
             isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           if (!isMe && showAvatar
-              && (senderAvatarUrl != null || (isGroupChat && senderNickname != null)))
+              && (senderAvatarUrl != null || senderNickname != null))
             SenderHeader(
               senderAvatarUrl: senderAvatarUrl,
               senderNickname: senderNickname,
@@ -117,7 +117,7 @@ class EmojiOnlyBubble extends StatelessWidget {
             onEdit: onEdit,
             onDelete: onDelete,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+              crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
                 Padding(
@@ -126,7 +126,7 @@ class EmojiOnlyBubble extends StatelessWidget {
                       right: isMe ? 14 : 0),
                   child: Text(
                     content.trim(),
-                    textAlign: TextAlign.end,
+                    textAlign: TextAlign.start,
                     style: TextStyle(
                       fontSize: fontSize,
                       color: textColor,

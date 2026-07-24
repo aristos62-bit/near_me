@@ -6,6 +6,7 @@ import 'tail_painter.dart';
 import 'sender_header.dart';
 import 'bubble_long_press_wrapper.dart';
 import 'message_reactions_row.dart';
+import '../../../../core/theme/app_colors.dart';
 
 class GifImageBubble extends StatelessWidget {
   final String content;
@@ -59,7 +60,7 @@ class GifImageBubble extends StatelessWidget {
 
   static const double _bubbleRadius = 20;
   static const double _tailRadius = 8;
-  static const Color _sentColor = Color(0xFF075E54);
+  static const Color _sentColor = AppColors.chatBubbleSent;
 
   static void _showImageFullScreen(BuildContext context, String imageUrl) {
     Navigator.of(context).push(
@@ -117,8 +118,7 @@ class GifImageBubble extends StatelessWidget {
             children: [
               if (!isMe &&
                   showAvatar &&
-                  (senderAvatarUrl != null ||
-                      (isGroupChat && senderNickname != null)))
+                  (senderAvatarUrl != null || senderNickname != null))
                 SenderHeader(
                   senderAvatarUrl: senderAvatarUrl,
                   senderNickname: senderNickname,

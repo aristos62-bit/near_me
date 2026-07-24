@@ -103,6 +103,7 @@ class EncryptionUtils {
     final encrypter = encrypt.Encrypter(encrypt.AES(key, mode: encrypt.AESMode.gcm));
     final iv = encrypt.IV.fromBase64(parts[0]);
     final decrypted = encrypter.decrypt64(parts[1], iv: iv);
+    DebugConfig.log(DebugConfig.chatEncrypt, 'Decrypted message (${encrypted.length} chars -> ${decrypted.length} chars)');
     return decrypted;
   }
 

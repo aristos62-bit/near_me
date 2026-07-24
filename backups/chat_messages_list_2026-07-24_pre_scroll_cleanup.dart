@@ -36,6 +36,8 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
   final _scrollCtrl = ScrollController();
   int _lastMessageCount = 0;
   bool _isFirstLoad = true;
+  double _lastScrollLogPixels = 0;
+  Stopwatch? _scrollBurstStopwatch;
   int _buildCount = 0;
   Map<String, DateTime>? _lastLastReadTimestamps;
 
@@ -46,6 +48,18 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
         'ChatMessagesList init: ${widget.chatId}');
     _scrollCtrl.addListener(() {
       final pixels = _scrollCtrl.position.pixels;
+      if ((pixels - _lastScrollLogPixels).abs() > 10.0) {
+        _lastScrollLogPixels = pixels;
+        _scrollBurstStopwatch ??= Stopwatch()..start();
+        DebugConfig.log(DebugConfig.uiInteraction,
+            'SCROLL: pixels=$pixels elapsed=${_scrollBurstStopwatch!.elapsedMilliseconds}ms');
+        if (_scrollBurstStopwatch!.elapsedMilliseconds > 500) {
+          _scrollBurstStopwatch?.stop();
+          _scrollBurstStopwatch = null;
+        }
+      }
+      // --- ΝΕΟ: φόρτωση παλιότερων μηνυμάτων όταν ο χρήστης φτάνει κοντά στην κορυφή ---
+      // (reverse:true => η "κορυφή"/παλιά μηνύματα είναι στο maxScrollExtent)
       if (_scrollCtrl.position.maxScrollExtent - pixels < 300) {
         _maybeLoadOlder();
       }

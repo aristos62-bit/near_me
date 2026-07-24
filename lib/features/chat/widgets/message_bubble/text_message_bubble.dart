@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import '../../../../core/config/feature_flags.dart';
-import '../message_action_bar.dart';
-import '../message_reactions.dart';
-import '../../../../shared/widgets/read_receipt_indicator.dart';
 import 'reply_preview.dart';
 import 'tail_painter.dart';
+import 'sender_header.dart';
+import 'bubble_long_press_wrapper.dart';
+import 'message_reactions_row.dart';
+import 'read_receipt_footer.dart';
 
 class TextMessageBubble extends StatelessWidget {
   final String content;
@@ -140,44 +139,16 @@ class TextMessageBubble extends StatelessWidget {
               children: [
                 if (!isMe && showAvatar
                     && (senderAvatarUrl != null || senderNickname != null))
-                  Padding(
-                    padding: const EdgeInsets.only(left: 14, bottom: 2),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircleAvatar(
-                          radius: 20,
-                          backgroundImage: senderAvatarUrl != null
-                              ? CachedNetworkImageProvider(senderAvatarUrl!)
-                              : null,
-                          child: senderAvatarUrl == null
-                              ? Text(senderNickname![0],
-                                  style: const TextStyle(fontSize: 18))
-                              : null,
-                        ),
-                        if (isGroupChat && senderNickname != null) ...[
-                          const SizedBox(width: 4),
-                          Text(senderNickname!,
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
+                  SenderHeader(
+                    senderAvatarUrl: senderAvatarUrl,
+                    senderNickname: senderNickname,
+                    isGroupChat: isGroupChat,
                   ),
-                GestureDetector(
-                  onLongPressStart: (details) async {
-                    final result = await MessageActionBar.show(
-                      context: context,
-                      isOwn: isMe,
-                      globalPosition: details.globalPosition,
-                    );
-                    if (result == 'reply') onReply?.call();
-                    if (result == 'edit') onEdit?.call();
-                    if (result == 'delete') onDelete?.call();
-                  },
+                BubbleLongPressWrapper(
+                  isMe: isMe,
+                  onReply: onReply,
+                  onEdit: onEdit,
+                  onDelete: onDelete,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
@@ -241,26 +212,21 @@ class TextMessageBubble extends StatelessWidget {
                     ],
                   ),
                 ),
-            if (chatId != null && FeatureFlags.messageReactionsEnabled)
-              MessageReactions(
-                reactions: reactions,
-                currentUid: currentUid,
-                chatId: chatId!,
-                messageId: messageId,
-                isMe: isMe,
-                onReact: onReact,
-                onRemove: onRemove,
-              ),
-            if (isMe)
-              Padding(
-                padding: const EdgeInsets.only(top: 2, right: 14),
-                child: ReadReceiptIndicator(
-                  isGroupChat: isGroupChat,
+                MessageReactionsRow(
+                  chatId: chatId,
+                  reactions: reactions,
+                  currentUid: currentUid,
+                  messageId: messageId,
                   isMe: isMe,
+                  onReact: onReact,
+                  onRemove: onRemove,
+                ),
+                ReadReceiptFooter(
+                  isMe: isMe,
+                  isGroupChat: isGroupChat,
                   isRead: isRead,
                   seenBy: seenBy,
                 ),
-              ),
               ],
             );
           },

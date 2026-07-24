@@ -95,8 +95,22 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     ref.read(replyToMessageProvider.notifier).setReply(msg);
   }
 
+  static const _editWindow = Duration(minutes: 15);
+
   void _onEdit(Map<String, dynamic> msg) {
     DebugConfig.log(DebugConfig.chatReply, 'ChatMessagesList: edit msg=${msg['id']}');
+    final rawTs = msg['timestamp'];
+    final ts = rawTs is Timestamp ? rawTs.toDate() : null;
+    if (ts != null && DateTime.now().difference(ts) > _editWindow) {
+      final greek = L10n.isGreek(context);
+      AppMessenger.showInfo(
+        context,
+        greek
+            ? 'Το χρονικό όριο επεξεργασίας (15 λεπτά) έχει λήξει'
+            : 'The 15-minute edit window has expired',
+      );
+      return;
+    }
     ref.read(editingMessageProvider.notifier).setEdit(msg);
   }
 

@@ -10,7 +10,6 @@ import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
 import '../../../core/utils/error_messages.dart';
-import '../../../shared/utils/image_utils.dart';
 import '../../../repositories/auth_repository.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
@@ -131,15 +130,6 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     ref.read(editingMessageProvider.notifier).clear();
   }
 
-  String _mediaPreview(String type, String content, bool isEmoji, {bool greek = false}) {
-    if (type == 'audio') return greek ? '🎵 Ηχογράφηση' : '🎵 Recording';
-    if (type == 'gif') return '🎞️ GIF';
-    if (type == 'image') return greek ? '📷 Φωτογραφία' : '📷 Photo';
-    if (type == 'video') return greek ? '🎬 Βίντεο' : '🎬 Video';
-    if (isEmoji) return content.trim();
-    return content.length > 80 ? '${content.substring(0, 80)}...' : content;
-  }
-
   Map<String, dynamic>? _buildReplyData() {
     final replyToMsg = ref.read(replyToMessageProvider);
     if (replyToMsg == null) return null;
@@ -150,7 +140,22 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     final currentUid = ref.read(authStateProvider).value?.uid ?? '';
     final isEmoji = type == 'text' && isOnlyEmoji(content);
 
-    final contentPreview = _mediaPreview(type, content, isEmoji);
+    String contentPreview;
+    if (type == 'audio') {
+      contentPreview = '🎵 Recording';
+    } else if (type == 'gif') {
+      contentPreview = '🎞️ GIF';
+    } else if (type == 'image') {
+      contentPreview = '📷 Photo';
+    } else if (type == 'video') {
+      contentPreview = '🎬 Video';
+    } else if (isEmoji) {
+      contentPreview = content.trim();
+    } else {
+      contentPreview = content.length > 80
+          ? '${content.substring(0, 80)}...'
+          : content;
+    }
 
     final senderNickname = widget.isGroupChat
         ? (widget.participantNicknames[senderId] ?? senderId)
@@ -207,8 +212,7 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
         maxHeight: 1024,
       );
       if (cropped == null || !mounted) return;
-      final bytes = await ImageUtils.stripExif(
-          await File(cropped.path).readAsBytes());
+      final bytes = await File(cropped.path).readAsBytes();
       final replyToData = _buildReplyData();
       _clearReply();
       setState(() => _isLoading = true);
@@ -368,7 +372,20 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     final currentUid = ref.read(authStateProvider).value?.uid ?? '';
     final isEmoji = type == 'text' && isOnlyEmoji(content);
 
-    final preview = _mediaPreview(type, content, isEmoji, greek: greek);
+    String preview;
+    if (type == 'audio') {
+      preview = greek ? '🎵 Ηχογράφηση' : '🎵 Recording';
+    } else if (type == 'gif') {
+      preview = '🎞️ GIF';
+    } else if (type == 'image') {
+      preview = greek ? '📷 Φωτογραφία' : '📷 Photo';
+    } else if (type == 'video') {
+      preview = greek ? '🎬 Βίντεο' : '🎬 Video';
+    } else if (isEmoji) {
+      preview = content.trim();
+    } else {
+      preview = content.length > 80 ? '${content.substring(0, 80)}...' : content;
+    }
 
     final senderNickname = widget.isGroupChat
         ? (widget.participantNicknames[senderId] ?? senderId)
@@ -429,7 +446,20 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     final type = editingMsg['type'] as String? ?? 'text';
     final isEmoji = type == 'text' && isOnlyEmoji(content);
 
-    final preview = _mediaPreview(type, content, isEmoji, greek: greek);
+    String preview;
+    if (type == 'audio') {
+      preview = greek ? '🎵 Ηχογράφηση' : '🎵 Recording';
+    } else if (type == 'gif') {
+      preview = '🎞️ GIF';
+    } else if (type == 'image') {
+      preview = greek ? '📷 Φωτογραφία' : '📷 Photo';
+    } else if (type == 'video') {
+      preview = greek ? '🎬 Βίντεο' : '🎬 Video';
+    } else if (isEmoji) {
+      preview = content.trim();
+    } else {
+      preview = content.length > 80 ? '${content.substring(0, 80)}...' : content;
+    }
 
     DebugConfig.log(DebugConfig.chatReply,
         'ChatInputBar: edit banner: $preview');

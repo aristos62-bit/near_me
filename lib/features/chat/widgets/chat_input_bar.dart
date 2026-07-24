@@ -270,7 +270,7 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
       if (picked == null || !mounted) return;
 
       final fileSize = await picked.length();
-      if (fileSize >= 15 * 1024 * 1024) {
+      if (fileSize >= 50 * 1024 * 1024) {
         if (!mounted) return;
         AppMessenger.showError(context,
             ErrorMessages.get('chat/video-too-large', greek));

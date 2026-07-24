@@ -193,6 +193,9 @@ class _VideoMessageBubbleState extends State<VideoMessageBubble> {
     final controller = _getController();
     final isMyController = _isMyController();
     final isLoading = widget.content == widget.isLoadingUrl;
+    final videoAspectRatio = (isMyController && controller != null && controller.value.isInitialized)
+        ? controller.value.aspectRatio
+        : 16 / 9;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
@@ -241,10 +244,11 @@ class _VideoMessageBubbleState extends State<VideoMessageBubble> {
                               onTap: _togglePlayPause,
                               child: SizedBox(
                                 width: bubbleMaxWidth,
-                                height: bubbleMaxWidth * 9 / 16,
-                                child: Stack(
-                                  alignment: Alignment.center,
-                                  children: [
+                                child: AspectRatio(
+                                  aspectRatio: videoAspectRatio,
+                                  child: Stack(
+                                    alignment: Alignment.center,
+                                    children: [
                                     if (isMyController && controller != null)
                                       VideoPlayer(controller)
                                     else
@@ -314,6 +318,7 @@ class _VideoMessageBubbleState extends State<VideoMessageBubble> {
                                 ),
                               ),
                             ),
+                          ),
                           ],
                         ),
                       ),

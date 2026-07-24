@@ -238,8 +238,10 @@ service cloud.firestore {
                             ).affectedKeys().hasOnly([request.auth.uid]))
                         ||
                         (request.resource.data.diff(resource.data).affectedKeys()
-                           .hasOnly(['content', 'edited', 'editedAt'])
-                         && request.auth.uid == resource.data.senderId)
+                                                   .hasOnly(['content', 'edited', 'editedAt'])
+                                                 && request.auth.uid == resource.data.senderId
+                                                 && resource.data.timestamp is timestamp
+                                                 && request.time < resource.data.timestamp + duration.value(15, 'm'))
                       );
         allow delete: if isAuthenticated()
                       && notBanned()
@@ -348,8 +350,10 @@ service cloud.firestore {
     // ─────────────────────────────────────────────────────────
 
     match /{path=**}/invites/{inviteId} {
-      allow read: if isAuthenticated() && notBanned();
-    }
+          allow read: if isAuthenticated()
+                      && notBanned()
+                      && request.query.limit <= 1;
+        }
 
     // ─────────────────────────────────────────────────────────
     // Collection group: groups (public profile search)

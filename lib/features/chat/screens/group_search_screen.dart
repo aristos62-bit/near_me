@@ -11,6 +11,7 @@ import '../../../shared/widgets/app_state_widget.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
 import 'chat_screen.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 final _searchResultsProvider = FutureProvider.autoDispose
     .family<List<GroupPublicProfile>, _SearchParams>((ref, params) {
@@ -191,12 +192,17 @@ class _GroupSearchTile extends ConsumerWidget {
             Row(
               children: [
                 CircleAvatar(
+                  backgroundImage: group.groupAvatarUrl != null
+                      ? CachedNetworkImageProvider(group.groupAvatarUrl!)
+                      : null,
                   backgroundColor: theme.colorScheme.primaryContainer,
-                  child: Text(
+                  child: group.groupAvatarUrl == null
+                      ? Text(
                     group.groupName.isNotEmpty
                         ? group.groupName[0].toUpperCase()
                         : '?',
-                  ),
+                  )
+                      : null,
                 ),
                 const SizedBox(width: 12),
                 Expanded(

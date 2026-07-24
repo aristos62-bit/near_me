@@ -4,7 +4,7 @@ import '../../../core/config/feature_flags.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 
-enum MediaAction { emoji, gif, photo, camera, record, videoGallery, videoCamera }
+enum MediaAction { emoji, gif, photo, camera, record }
 
 Future<MediaAction?> showMediaPickerSheet(
   BuildContext context,
@@ -15,9 +15,6 @@ Future<MediaAction?> showMediaPickerSheet(
     if (FeatureFlags.gifSupportEnabled) MediaAction.gif,
     if (FeatureFlags.mediaMessagesEnabled) ...[MediaAction.photo, MediaAction.camera],
     if (FeatureFlags.audioMessagesEnabled && !kIsWeb) MediaAction.record,
-    if (FeatureFlags.videoMessagesEnabled && !kIsWeb) ...[
-      MediaAction.videoGallery, MediaAction.videoCamera,
-    ],
   ];
 
   if (available.length == 1) {
@@ -73,10 +70,6 @@ class _MediaPickerContent extends StatelessWidget {
           greek ? 'Κάμερα' : 'Camera'),
       MediaAction.record => (Icons.mic_outlined,
           greek ? 'Ηχογράφηση' : 'Record'),
-      MediaAction.videoGallery => (Icons.video_library_outlined,
-          greek ? 'Βίντεο' : 'Video'),
-      MediaAction.videoCamera => (Icons.videocam_outlined,
-          greek ? 'Εγγραφή βίντεο' : 'Record Video'),
     };
 
     return ListTile(

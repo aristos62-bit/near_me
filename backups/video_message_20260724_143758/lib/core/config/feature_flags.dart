@@ -23,7 +23,6 @@ class FeatureFlags {
   static const bool gifSupportEnabled = true;
   static const bool mediaMessagesEnabled = true;
   static const bool audioMessagesEnabled = true;
-  static const bool videoMessagesEnabled = true;
 
   // Reactions
   static const bool messageReactionsEnabled = true;

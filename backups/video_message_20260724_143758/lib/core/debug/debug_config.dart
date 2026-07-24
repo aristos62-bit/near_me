@@ -120,7 +120,6 @@ class DebugConfig {
   static const bool chatReply = true;             // reply to message (long-press → send)
   static const bool chatBubbleDesign = true;      // bubble tails, date separators, message grouping
   static const bool chatAudio = true;              // voice message recording & playback
-  static const bool chatVideo = true;              // video message recording & playback
 
   /// ─────────────────────────────────────────────────────────────
   /// FILE STORAGE — Firebase Storage operations (Φάση 2+)

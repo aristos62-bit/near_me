@@ -28,8 +28,6 @@
 	<string>NearMe uses Face ID to lock the app and protect your privacy.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Το NearMe χρειάζεται πρόσβαση στο μικρόφωνο για αποστολή φωνητικών μηνυμάτων / NearMe needs microphone access to send voice messages</string>
-	<key>NSCameraUsageDescription</key>
-	<string>Η εφαρμογή χρειάζεται πρόσβαση στην κάμερα για εγγραφή βίντεο / The app needs camera access to record video</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

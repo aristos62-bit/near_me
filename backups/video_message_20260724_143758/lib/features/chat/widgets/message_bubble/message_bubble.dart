@@ -7,7 +7,6 @@ import 'message_callbacks.dart';
 import 'system_message_bubble.dart';
 import 'gif_image_bubble.dart';
 import 'text_message_bubble.dart';
-import 'video_message_bubble.dart';
 
 class MessageBubble extends StatelessWidget {
   final Map<String, dynamic> message;
@@ -23,8 +22,6 @@ class MessageBubble extends StatelessWidget {
   final List<String> seenBy;
   final String? chatId;
   final dynamic audioPlayer;
-  final dynamic videoPlayer;
-  final String? videoLoadingUrl;
   final MessageCallbacks callbacks;
 
   const MessageBubble({
@@ -42,8 +39,6 @@ class MessageBubble extends StatelessWidget {
     this.seenBy = const [],
     this.chatId,
     this.audioPlayer,
-    this.videoPlayer,
-    this.videoLoadingUrl,
     this.callbacks = const MessageCallbacks(),
   });
 
@@ -101,32 +96,6 @@ class MessageBubble extends StatelessWidget {
         onRejectDelete: callbacks.onRejectDelete,
         onDeleteForMe: callbacks.onDeleteForMe,
         onKeepChat: callbacks.onKeepChat,
-      ),
-      'video' => VideoMessageBubble(
-        content: content,
-        duration: message['duration'] as int? ?? 0,
-        timeStr: timeStr,
-        isMe: isMe,
-        isGroupChat: isGroupChat,
-        isGrouped: isGrouped,
-        isLastInGroup: isLastInGroup,
-        showAvatar: showAvatar,
-        senderNickname: senderNickname,
-        senderAvatarUrl: senderAvatarUrl,
-        seenBy: seenBy,
-        isRead: isRead,
-        chatId: chatId,
-        currentUid: currentUid,
-        messageId: msgId,
-        reactions: reactions,
-        onReact: callbacks.onReact,
-        onRemove: callbacks.onRemove,
-        replyTo: replyTo,
-        onReply: callbacks.onReply,
-        onDelete: callbacks.onDelete,
-        videoPlayer: videoPlayer,
-        onPlayVideo: callbacks.onPlayVideo,
-        isLoadingUrl: videoLoadingUrl,
       ),
       'gif' || 'image' => GifImageBubble(
         content: content,

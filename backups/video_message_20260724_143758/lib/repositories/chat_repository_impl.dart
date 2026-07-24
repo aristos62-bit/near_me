@@ -782,7 +782,6 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
     Map<String, dynamic>? replyTo,
     Uint8List? imageBytes,
     Uint8List? audioBytes,
-    Uint8List? videoBytes,
     int? duration,
   }) async {
     final user = auth.currentUser;
@@ -844,23 +843,13 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
         content = await storageRef.getDownloadURL();
       }
 
-      if (videoBytes != null && type == 'video') {
-        DebugConfig.log(DebugConfig.chatVideo,
-            'sendMediaMessage: uploading video chat=$chatId');
-        final storageRef = FirebaseStorage.instance
-            .ref().child('chat_media/$chatId/${msgRef.id}.mp4');
-        await storageRef.putData(videoBytes,
-            SettableMetadata(contentType: 'video/mp4'));
-        content = await storageRef.getDownloadURL();
-      }
-
       final msgData = <String, dynamic>{
         'senderId': user.uid,
         'content': content,
         'type': type,
         'timestamp': FieldValue.serverTimestamp(),
         'isRead': false,
-        if ((type == 'audio' || type == 'video') && duration != null) 'duration': duration,
+        if (type == 'audio' && duration != null) 'duration': duration,
       };
       if (replyTo != null) {
         msgData['replyTo'] = replyTo;

@@ -87,7 +87,8 @@ class _AudioRecorderSheetContentState extends State<_AudioRecorderSheetContent> 
           _stopRecording();
           if (mounted) {
             AppMessenger.showInfo(context,
-                ErrorMessages.get('chat/audio-too-long', L10n.isGreek(context)));
+                L10n.localizedMessage(context,
+                    'Μέγιστη διάρκεια 60 δευτερόλεπτα / Maximum duration 60 seconds'));
           }
         }
       });

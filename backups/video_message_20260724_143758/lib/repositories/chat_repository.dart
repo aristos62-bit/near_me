@@ -123,7 +123,6 @@ abstract class ChatRepository {
     Map<String, dynamic>? replyTo,
     Uint8List? imageBytes,
     Uint8List? audioBytes,
-    Uint8List? videoBytes,
     int? duration,
   });
 

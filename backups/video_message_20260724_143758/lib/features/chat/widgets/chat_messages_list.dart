@@ -23,17 +23,11 @@ class _MessageReadProps {
 class ChatMessagesList extends ConsumerStatefulWidget {
   final String chatId;
   final dynamic audioPlayer;
-  final dynamic videoPlayer;
-  final Future<void> Function(String url)? onPlayVideo;
-  final String? videoLoadingUrl;
 
   const ChatMessagesList({
     super.key,
     required this.chatId,
     this.audioPlayer,
-    this.videoPlayer,
-    this.onPlayVideo,
-    this.videoLoadingUrl,
   });
 
   @override
@@ -339,8 +333,6 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
               seenBy: props.seenBy,
               chatId: widget.chatId,
               audioPlayer: widget.audioPlayer,
-              videoPlayer: widget.videoPlayer,
-              videoLoadingUrl: widget.videoLoadingUrl,
               callbacks: MessageCallbacks(
                 onApproveDelete: _onApproveDelete,
                 onRejectDelete: _onRejectDelete,
@@ -351,7 +343,6 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
                 onReply: () => _onReply(msg),
                 onEdit: () => _onEdit(msg),
                 onDelete: () => _onDelete(msg),
-                onPlayVideo: widget.onPlayVideo,
               ),
             );
           },

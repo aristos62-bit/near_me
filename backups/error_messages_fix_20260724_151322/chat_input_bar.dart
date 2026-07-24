@@ -285,15 +285,16 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
         DebugConfig.warn('ChatInputBar: video duration read failed', data: e);
       }
 
-      if (!mounted) return;
       if (durationSeconds > 30) {
         AppMessenger.showError(context,
-            ErrorMessages.get('chat/video-too-long', greek));
+            greek ? 'Το βίντεο είναι πολύ μεγάλο (μέγιστο 30s)'
+                  : 'Video is too long (max 30 seconds)');
         return;
       }
       if (durationSeconds < 1) {
         AppMessenger.showError(context,
-            ErrorMessages.get('chat/video-too-short', greek));
+            greek ? 'Το βίντεο είναι πολύ σύντομο'
+                  : 'Video is too short');
         return;
       }
 

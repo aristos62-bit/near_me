@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:video_player/video_player.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
@@ -147,8 +146,6 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
       contentPreview = '🎞️ GIF';
     } else if (type == 'image') {
       contentPreview = '📷 Photo';
-    } else if (type == 'video') {
-      contentPreview = '🎬 Video';
     } else if (isEmoji) {
       contentPreview = content.trim();
     } else {
@@ -253,75 +250,6 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     }
   }
 
-  Future<void> _pickAndSendVideoGallery() =>
-      _pickVideo(ImageSource.gallery, 'videoGallery');
-
-  Future<void> _pickAndSendVideoCamera() =>
-      _pickVideo(ImageSource.camera, 'videoCamera');
-
-  Future<void> _pickVideo(ImageSource source, String debugLabel) async {
-    DebugConfig.log(DebugConfig.chatVideo,
-        'ChatInputBar: $debugLabel picker shown');
-    if (widget.emojiPickerVisible) widget.onEmojiDismiss();
-    final greek = L10n.isGreek(context);
-
-    try {
-      final picker = ImagePicker();
-      final picked = await picker.pickVideo(
-        source: source,
-        maxDuration: const Duration(seconds: 30),
-      );
-      if (picked == null || !mounted) return;
-
-      final bytes = await File(picked.path).readAsBytes();
-
-      int durationSeconds = 0;
-      try {
-        final controller = VideoPlayerController.file(File(picked.path));
-        await controller.initialize();
-        durationSeconds = controller.value.duration.inSeconds;
-        await controller.dispose();
-      } catch (e) {
-        DebugConfig.warn('ChatInputBar: video duration read failed', data: e);
-      }
-
-      if (!mounted) return;
-      if (durationSeconds > 30) {
-        AppMessenger.showError(context,
-            ErrorMessages.get('chat/video-too-long', greek));
-        return;
-      }
-      if (durationSeconds < 1) {
-        AppMessenger.showError(context,
-            ErrorMessages.get('chat/video-too-short', greek));
-        return;
-      }
-
-      final replyToData = _buildReplyData();
-      _clearReply();
-      setState(() => _isLoading = true);
-      final ok = await ref.read(chatActionsProvider.notifier)
-          .sendMediaMessage(widget.chatId,
-              content: '', type: 'video',
-              replyTo: replyToData,
-              videoBytes: bytes,
-              duration: durationSeconds);
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-      if (!ok) {
-        AppMessenger.showError(context,
-            ErrorMessages.get('chat/video-send-failed', greek));
-      }
-    } catch (e, s) {
-      DebugConfig.error('ChatInputBar: $debugLabel pick failed', data: e,
-          exception: s);
-      if (mounted) {
-        AppMessenger.showError(context,
-            ErrorMessages.get('chat/video-send-failed', greek));
-      }
-    }
-  }
-
   Future<void> _showMediaPicker() async {
     DebugConfig.log(DebugConfig.uiInteraction, 'ChatInputBar: media + pressed');
     if (widget.emojiPickerVisible) widget.onEmojiDismiss();
@@ -348,14 +276,6 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
         DebugConfig.log(DebugConfig.chatAudio,
             'ChatInputBar: record pressed');
         _recordAndSend();
-      case MediaAction.videoGallery:
-        DebugConfig.log(DebugConfig.chatVideo,
-            'ChatInputBar: media popup: video gallery');
-        _pickAndSendVideoGallery();
-      case MediaAction.videoCamera:
-        DebugConfig.log(DebugConfig.chatVideo,
-            'ChatInputBar: media popup: video camera');
-        _pickAndSendVideoCamera();
     }
   }
 
@@ -373,8 +293,6 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
       preview = '🎞️ GIF';
     } else if (type == 'image') {
       preview = greek ? '📷 Φωτογραφία' : '📷 Photo';
-    } else if (type == 'video') {
-      preview = greek ? '🎬 Βίντεο' : '🎬 Video';
     } else if (isEmoji) {
       preview = content.trim();
     } else {
@@ -447,8 +365,6 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
       preview = '🎞️ GIF';
     } else if (type == 'image') {
       preview = greek ? '📷 Φωτογραφία' : '📷 Photo';
-    } else if (type == 'video') {
-      preview = greek ? '🎬 Βίντεο' : '🎬 Video';
     } else if (isEmoji) {
       preview = content.trim();
     } else {

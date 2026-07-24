@@ -63,7 +63,6 @@ dependencies:
   emoji_picker_flutter: ^4.4.0
   record: ^7.1.1
   audioplayers: ^6.8.1
-  video_player: ^2.13.0
 
 dev_dependencies:
   flutter_test:

@@ -82,6 +82,8 @@ class ErrorMessages {
         return isGreek ? 'Δεν δόθηκε άδεια κάμερας' : 'Camera permission denied';
       case 'chat/video-too-short':
         return isGreek ? 'Το βίντεο είναι πολύ σύντομο' : 'Video is too short';
+      case 'chat/video-too-large':
+        return isGreek ? 'Το βίντεο είναι πολύ μεγάλο (max 15MB)' : 'Video too large (max 15MB)';
       case 'chat/video-too-long':
         return isGreek ? 'Το βίντεο είναι πολύ μεγάλο (μέγιστο 30s)' : 'Video is too long (max 30s)';
       case 'chat/audio-too-long':

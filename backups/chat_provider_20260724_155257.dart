@@ -255,14 +255,14 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
     Map<String, dynamic>? replyTo,
     Uint8List? imageBytes,
     Uint8List? audioBytes,
-    String? videoPath,
+    Uint8List? videoBytes,
     int? duration,
   }) async {
     DebugConfig.log(DebugConfig.repositoryCall,
         'ChatActions: sendMediaMessage chat=$chatId type=$type replyTo=${replyTo?['messageId']}');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
-      await _chatRepo.sendMediaMessage(chatId, content: content, type: type, replyTo: replyTo, imageBytes: imageBytes, audioBytes: audioBytes, videoPath: videoPath, duration: duration);
+      await _chatRepo.sendMediaMessage(chatId, content: content, type: type, replyTo: replyTo, imageBytes: imageBytes, audioBytes: audioBytes, videoBytes: videoBytes, duration: duration);
       DebugConfig.log(DebugConfig.repositoryResult,
           'ChatActions: sendMediaMessage success');
       state = const ChatActionState(status: ChatActionStatus.success);

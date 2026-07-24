@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -783,7 +782,7 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
     Map<String, dynamic>? replyTo,
     Uint8List? imageBytes,
     Uint8List? audioBytes,
-    String? videoPath,
+    Uint8List? videoBytes,
     int? duration,
   }) async {
     final user = auth.currentUser;
@@ -845,13 +844,12 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
         content = await storageRef.getDownloadURL();
       }
 
-      if (videoPath != null && type == 'video') {
+      if (videoBytes != null && type == 'video') {
         DebugConfig.log(DebugConfig.chatVideo,
             'sendMediaMessage: uploading video chat=$chatId');
         final storageRef = FirebaseStorage.instance
             .ref().child('chat_media/$chatId/${msgRef.id}.mp4');
-        final file = File(videoPath);
-        await storageRef.putFile(file,
+        await storageRef.putData(videoBytes,
             SettableMetadata(contentType: 'video/mp4'));
         content = await storageRef.getDownloadURL();
       }

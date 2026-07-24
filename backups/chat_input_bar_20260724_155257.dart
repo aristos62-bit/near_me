@@ -274,12 +274,13 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
       if (picked == null || !mounted) return;
 
       final fileSize = await picked.length();
-      if (fileSize >= 15 * 1024 * 1024) {
-        if (!mounted) return;
+      if (fileSize > 15 * 1024 * 1024) {
         AppMessenger.showError(context,
             ErrorMessages.get('chat/video-too-large', greek));
         return;
       }
+
+      final bytes = await File(picked.path).readAsBytes();
 
       int durationSeconds = 0;
       try {
@@ -310,7 +311,7 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
           .sendMediaMessage(widget.chatId,
               content: '', type: 'video',
               replyTo: replyToData,
-              videoPath: picked.path,
+              videoBytes: bytes,
               duration: durationSeconds);
       if (!mounted) return;
       setState(() => _isLoading = false);

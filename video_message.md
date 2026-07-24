@@ -1,9 +1,9 @@
-# Video Message Support — Πρόταση Υλοποίησης v2.1
+# Video Message Support — Πρόταση Υλοποίησης v2.2
 
 > **Βασισμένο στην αρχιτεκτονική Audio Message v2.0**
 > **Επαναχρησιμοποίηση υπαρχόντων patterns αντί δημιουργίας νέων**
 > Ημερομηνία: 24 Ιουλίου 2026
-> **v2.1**: Διορθώσεις από audit — DebugConfig bool (όχι int), error_messages, `_messagesList` late→late Widget, line numbers, missing 'video' cases σε reply/edit banners
+> **v2.2**: Προσθήκη aspect ratio fix (portrait video distortion), 50MB size limit, repeated switch→helper refactor, pending video thumbnails (βλ. §35)
 
 ---
 

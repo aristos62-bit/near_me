@@ -11,7 +11,7 @@
 | Navigation | GoRouter 17 (StatefulShellRoute) |
 | Auth | Firebase (Anonymous → Email/Phone) |
 | Cloud DB | Firestore (collectionGroup, 21 composite indexes) |
-| Storage | Firebase Storage (avatars/photos/chat_media, max 5MB) |
+| Storage | Firebase Storage (avatars/photos 5MB, chat_media 50MB) |
 | Functions | Firebase Functions (TypeScript, 1st Gen, 6 deployed) |
 | Encryption | encrypt 5.0.3 (AES-256 GCM) + deriveKey (SHA-256) |
 | Secure Storage | flutter_secure_storage (encryption keys) |
@@ -286,6 +286,32 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 
 **Backup:** `backups/sound_message_20260724_130843/`
 **`flutter analyze`:** clean ✅ (0 issues)
+
+---
+
+### Video Messages (v2.1) — 100% (Session 200)
+**Αρχείο πρότασης:** `video_message.md` (v2.2, 24 Ιουλ 2026)
+
+21 SPoTs υλοποιήθηκαν:
+- **Package:** `video_player: ^2.9.0`
+- **Config:** `videoMessagesEnabled` flag, `chatVideo` debug flag (bool), 4 error codes
+- **Repository:** `videoPath` + `duration` params σε `sendMediaMessage()` (interface/impl/provider)
+- **Upload:** Video `.mp4` → `chat_media/{chatId}/{msgId}.mp4` (Storage, **putFile** αντί putData — streaming)
+- **Decode:** `'video'` σε skip-decrypt list (3 σημεία)
+- **ChatInputBar:** `_pickAndSendVideoGallery/Camera` → `_pickVideo` (30s max, ≥1s min, 15MB→50MB limit)
+- **VideoMessageBubble** (νέο): Playback bubble (shared VideoPlayerController από ChatScreen, play/pause/mute, duration badge, E2E lock icon)
+- **Storage Rules Fix:** participant check στο **read** (chat_media + group_avatars), 15MB→50MB size limit
+- **EXIF stripping:** `flutter_image_compress` + `ImageUtils.stripExif` σε chat photos, avatar, profile photos
+- **Aspect Ratio Fix:** `AspectRatio` με `controller.value.aspectRatio` αντί fixed 16:9 — διόρθωση portrait video distortion
+- **Repeated switch→helper:** `_mediaPreview()` αντί τριπλής επανάληψης σε `_buildReplyData`/`_buildReplyBanner`/`_buildEditBanner`
+
+**Backup:** — (in-place edits, `git` pending)
+**`flutter analyze`:** clean ✅ (0 issues)
+
+### Video Thumbnails (v2.2) — **ΕΚΚΡΕΜΟΤΗΤΑ** (pending approval)
+**Αρχείο πρότασης:** `video_message.md` §35
+
+7 SPoTs, 1 new package (`video_thumbnail`), 0 new files, 12 edge cases, 3-layer equality cache ✅
 
 ---
 

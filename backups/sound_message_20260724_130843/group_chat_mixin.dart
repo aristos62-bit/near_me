@@ -174,8 +174,7 @@ mixin GroupChatMixin {
         lastMessageType != 'system' &&
         lastMessageType != 'gif' &&
         lastMessageType != 'image' &&
-        lastMessageType != 'video' &&
-        lastMessageType != 'audio') {
+        lastMessageType != 'video') {
       try {
         final key = await EncryptionUtils.getKeyOrDerive(chatId);
         decryptedLastMessage = EncryptionUtils.decryptMessage(key, encryptedLastMessage);

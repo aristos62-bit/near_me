@@ -7,7 +7,6 @@ class MessageActionBar {
     required BuildContext context,
     required bool isOwn,
     required Offset globalPosition,
-    bool showEdit = true,
   }) {
     final greek = L10n.isGreek(context);
     final items = <PopupMenuEntry<String>>[
@@ -21,7 +20,7 @@ class MessageActionBar {
             contentPadding: EdgeInsets.zero,
           ),
         ),
-      if (FeatureFlags.editMessageEnabled && isOwn && showEdit)
+      if (FeatureFlags.editMessageEnabled && isOwn)
         PopupMenuItem(
           value: 'edit',
           child: ListTile(

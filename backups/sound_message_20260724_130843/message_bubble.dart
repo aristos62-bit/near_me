@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../../../core/l10n/l10n.dart';
 import '../emoji_only_bubble.dart';
-import 'audio_message_bubble.dart';
 import 'message_callbacks.dart';
 import 'system_message_bubble.dart';
 import 'gif_image_bubble.dart';
@@ -21,7 +20,6 @@ class MessageBubble extends StatelessWidget {
   final Map<String, String>? participantNicknames;
   final List<String> seenBy;
   final String? chatId;
-  final dynamic audioPlayer;
   final MessageCallbacks callbacks;
 
   const MessageBubble({
@@ -38,7 +36,6 @@ class MessageBubble extends StatelessWidget {
     this.participantNicknames,
     this.seenBy = const [],
     this.chatId,
-    this.audioPlayer,
     this.callbacks = const MessageCallbacks(),
   });
 
@@ -61,30 +58,6 @@ class MessageBubble extends StatelessWidget {
     final mentions = (message['mentions'] as List?)?.cast<String>() ?? <String>[];
 
     return switch (type) {
-      'audio' => AudioMessageBubble(
-        content: content,
-        duration: message['duration'] as int? ?? 0,
-        timeStr: timeStr,
-        isMe: isMe,
-        isGroupChat: isGroupChat,
-        isGrouped: isGrouped,
-        isLastInGroup: isLastInGroup,
-        showAvatar: showAvatar,
-        senderNickname: senderNickname,
-        senderAvatarUrl: senderAvatarUrl,
-        seenBy: seenBy,
-        isRead: isRead,
-        chatId: chatId,
-        currentUid: currentUid,
-        messageId: msgId,
-        reactions: reactions,
-        onReact: callbacks.onReact,
-        onRemove: callbacks.onRemove,
-        replyTo: replyTo,
-        onReply: callbacks.onReply,
-        onDelete: callbacks.onDelete,
-        audioPlayer: audioPlayer,
-      ),
       'system' => SystemMessageBubble(
         content: content,
         contentEn: contentEn,

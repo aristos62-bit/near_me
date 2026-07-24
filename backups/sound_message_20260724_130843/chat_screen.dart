@@ -1,4 +1,3 @@
-import 'package:audioplayers/audioplayers.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -56,7 +55,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final int _instanceId = _counter++;
   final _textCtrl = TextEditingController();
   bool _emojiPickerVisible = false;
-  final _audioPlayer = AudioPlayer();
   int _buildCount = 0;
   DateTime? _initTime;
   late final Widget _messagesList;
@@ -65,7 +63,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void initState() {
     super.initState();
     _initTime = DateTime.now();
-    _messagesList = ChatMessagesList(chatId: widget.chatId, audioPlayer: _audioPlayer);
+    _messagesList = ChatMessagesList(chatId: widget.chatId);
     FcmService.registerActiveChat(widget.chatId);
     ref.read(replyToMessageProvider.notifier).clear();
     DebugConfig.log(DebugConfig.uiInteraction,
@@ -93,7 +91,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void dispose() {
     FcmService.unregisterActiveChat(widget.chatId);
     _textCtrl.dispose();
-    _audioPlayer.dispose();
     DebugConfig.log(DebugConfig.uiInteraction,
         'ChatScreen dispose #$_instanceId: ${widget.chatId}');
     super.dispose();

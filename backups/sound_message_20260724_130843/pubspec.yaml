@@ -61,8 +61,6 @@ dependencies:
   geocoding: ^4.0.0
   image_cropper: 12.2.1
   emoji_picker_flutter: ^4.4.0
-  record: ^7.1.1
-  audioplayers: ^6.8.1
 
 dev_dependencies:
   flutter_test:

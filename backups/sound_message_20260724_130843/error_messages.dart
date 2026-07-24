@@ -68,14 +68,6 @@ class ErrorMessages {
         return isGreek ? 'Σφάλμα φόρτωσης GIF' : 'GIF loading error';
       case 'chat/image-send-failed':
         return isGreek ? 'Αποστολή φωτογραφίας απέτυχε' : 'Image send failed';
-      case 'chat/audio-send-failed':
-        return isGreek ? 'Αποστολή ηχογραφήματος απέτυχε' : 'Audio send failed';
-      case 'chat/audio-playback-error':
-        return isGreek ? 'Σφάλμα αναπαραγωγής' : 'Playback error';
-      case 'chat/audio-permission-denied':
-        return isGreek ? 'Δεν δόθηκε άδεια μικροφώνου' : 'Microphone permission denied';
-      case 'chat/audio-too-short':
-        return isGreek ? 'Το ηχητικό μήνυμα είναι πολύ σύντομο' : 'Audio message is too short';
       case 'chat/reply-send-failed':
         return isGreek ? 'Αποτυχία αποστολής απάντησης' : 'Failed to send reply';
       case 'delete/unknown-error':

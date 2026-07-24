@@ -26,8 +26,6 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>NearMe uses Face ID to lock the app and protect your privacy.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Το NearMe χρειάζεται πρόσβαση στο μικρόφωνο για αποστολή φωνητικών μηνυμάτων / NearMe needs microphone access to send voice messages</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

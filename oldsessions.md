@@ -247,14 +247,14 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 
 | Μέτρο | Τιμή |
 |---|---|
-| Completion | ~99.9% (Phases 1-3 100%, MultiChat 100%, Media 100%, Chat Redesign 100%) |
-| `.dart` files | ~120 (non-generated) |
+| Completion | ~99.9% (Phases 1-3 100%, MultiChat 100%, Media 100%, Chat Redesign 100%, Audio Messages 100%) |
+| `.dart` files | ~122 (non-generated) |
 | Firestore indexes | 21 composite deployed |
 | Cloud Functions | 6 deployed + `fcm-utils.ts` helper |
 | Build | `flutter analyze` clean, release APK ~15.8MB |
 | Tests | 30/30 passed |
 | Schema | Drift v12, 7 tables |
-| Feature Flags | 10 (typesenseEnabled, videoCallEnabled, groupChatEnabled, gifSupportEnabled, mediaMessagesEnabled, messageReactionsEnabled, replyToMessageEnabled, groupEventsEnabled, webVersionEnabled, aiMatchingEnabled, verifiedBadgeEnabled, premiumTierEnabled) |
+| Feature Flags | 11 (audioMessagesEnabled, typesenseEnabled, videoCallEnabled, groupChatEnabled, gifSupportEnabled, mediaMessagesEnabled, messageReactionsEnabled, replyToMessageEnabled, groupEventsEnabled, webVersionEnabled, aiMatchingEnabled, verifiedBadgeEnabled, premiumTierEnabled) |
 
 ## Key Conventions
 - File size ≤ 500 lines (exceptions: profile_repository_impl ~570, chat_repository_impl ~590 with user permission)
@@ -264,6 +264,28 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 - Repository pattern: abstract + impl, ποτέ raw Firestore στο UI
 - Privacy-first: πλήρες profile στο Drift, minimal public snapshot στο Firestore
 - GPS-first → session cache (5min) → last known → failure
+
+---
+
+### Audio Messages (Voice Messages) — 100% (Session 204-205)
+**Αρχείο πρότασης:** `sound_message.md` (v2.0, 24 Ιουλ 2026)
+
+22 SPoTs υλοποιήθηκαν:
+- **Packages:** `record ^7.1.1`, `audioplayers ^6.8.1`
+- **Permissions:** `RECORD_AUDIO` (Android), `NSMicrophoneUsageDescription` (iOS)
+- **Config:** `audioMessagesEnabled` flag, `chatAudio` debug flag, 4 νέα error codes
+- **Repository:** `audioBytes` + `duration` params σε `sendMediaMessage()` (interface/impl/provider)
+- **Upload:** Audio `.m4a` → `chat_media/{chatId}/{msgId}.m4a` (Storage)
+- **Decode:** `'audio'` σε skip-decrypt list (3 σημεία: `_decodeMessageDoc`, `_syncChatFromFirestore`, `_syncGroupChatToCache`)
+- **Duration:** `duration` field σε Firestore msgData + return map
+- **AudioRecorderSheet** (νέο): Record UI (60s max, ≥1s min, AAC 44kHz, play/pause, progress bar, temp file via path_provider)
+- **AudioMessageBubble** (νέο): Playback bubble (shared AudioPlayer από ChatScreen, progress indicator, E2E lock icon)
+- **Edit guard:** 3-layer (`MessageActionBar.showEdit=false`, `BubbleLongPressWrapper.canEdit=false`, `ChatMessagesList._onEdit` type guard)
+- **Media Picker:** `MediaAction.record` με `kIsWeb` guard
+- **Chat preview:** `'🎵 Φωνητικό μήνυμα / Voice message'`
+
+**Backup:** `backups/sound_message_20260724_130843/`
+**`flutter analyze`:** clean ✅ (0 issues)
 
 ---
 

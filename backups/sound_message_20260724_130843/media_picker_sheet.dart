@@ -1,10 +1,9 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../../../core/config/feature_flags.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 
-enum MediaAction { emoji, gif, photo, camera, record }
+enum MediaAction { emoji, gif, photo, camera }
 
 Future<MediaAction?> showMediaPickerSheet(
   BuildContext context,
@@ -14,7 +13,6 @@ Future<MediaAction?> showMediaPickerSheet(
     MediaAction.emoji,
     if (FeatureFlags.gifSupportEnabled) MediaAction.gif,
     if (FeatureFlags.mediaMessagesEnabled) ...[MediaAction.photo, MediaAction.camera],
-    if (FeatureFlags.audioMessagesEnabled && !kIsWeb) MediaAction.record,
   ];
 
   if (available.length == 1) {
@@ -68,8 +66,6 @@ class _MediaPickerContent extends StatelessWidget {
           greek ? 'Φωτογραφία' : 'Photo'),
       MediaAction.camera => (Icons.photo_camera_outlined,
           greek ? 'Κάμερα' : 'Camera'),
-      MediaAction.record => (Icons.mic_outlined,
-          greek ? 'Ηχογράφηση' : 'Record'),
     };
 
     return ListTile(

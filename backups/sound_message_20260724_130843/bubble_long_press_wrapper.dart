@@ -11,7 +11,6 @@ class BubbleLongPressWrapper extends StatelessWidget {
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
   final Widget child;
-  final bool canEdit;
 
   const BubbleLongPressWrapper({
     super.key,
@@ -20,7 +19,6 @@ class BubbleLongPressWrapper extends StatelessWidget {
     this.onReply,
     this.onEdit,
     this.onDelete,
-    this.canEdit = true,
   });
 
   @override
@@ -31,7 +29,6 @@ class BubbleLongPressWrapper extends StatelessWidget {
           context: context,
           isOwn: isMe,
           globalPosition: details.globalPosition,
-          showEdit: canEdit,
         );
         if (result == 'reply') onReply?.call();
         if (result == 'edit') onEdit?.call();

@@ -12,7 +12,6 @@ import '../../../core/utils/error_messages.dart';
 import '../../../repositories/auth_repository.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
-import 'audio_recorder_sheet.dart';
 import 'emoji_only_bubble.dart';
 import 'gif_picker_sheet.dart';
 import 'media_picker_sheet.dart';
@@ -140,9 +139,7 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     final isEmoji = type == 'text' && isOnlyEmoji(content);
 
     String contentPreview;
-    if (type == 'audio') {
-      contentPreview = '🎵 Recording';
-    } else if (type == 'gif') {
+    if (type == 'gif') {
       contentPreview = '🎞️ GIF';
     } else if (type == 'image') {
       contentPreview = '📷 Photo';
@@ -228,28 +225,6 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     }
   }
 
-  Future<void> _recordAndSend() async {
-    if (widget.emojiPickerVisible) widget.onEmojiDismiss();
-    final greek = L10n.isGreek(context);
-    final result = await showAudioRecorderSheet(context);
-    if (!mounted || result == null) return;
-    final replyToData = _buildReplyData();
-    _clearReply();
-    setState(() => _isLoading = true);
-    final ok = await ref.read(chatActionsProvider.notifier)
-        .sendMediaMessage(widget.chatId,
-            content: '', type: 'audio',
-            replyTo: replyToData,
-            audioBytes: result.bytes,
-            duration: result.durationSeconds);
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-    if (!ok) {
-      AppMessenger.showError(context,
-          ErrorMessages.get('chat/audio-send-failed', greek));
-    }
-  }
-
   Future<void> _showMediaPicker() async {
     DebugConfig.log(DebugConfig.uiInteraction, 'ChatInputBar: media + pressed');
     if (widget.emojiPickerVisible) widget.onEmojiDismiss();
@@ -272,10 +247,6 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
         DebugConfig.log(DebugConfig.uiInteraction,
             'ChatInputBar: media popup: camera');
         _pickAndSendCamera();
-      case MediaAction.record:
-        DebugConfig.log(DebugConfig.chatAudio,
-            'ChatInputBar: record pressed');
-        _recordAndSend();
     }
   }
 
@@ -287,9 +258,7 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     final isEmoji = type == 'text' && isOnlyEmoji(content);
 
     String preview;
-    if (type == 'audio') {
-      preview = greek ? '🎵 Ηχογράφηση' : '🎵 Recording';
-    } else if (type == 'gif') {
+    if (type == 'gif') {
       preview = '🎞️ GIF';
     } else if (type == 'image') {
       preview = greek ? '📷 Φωτογραφία' : '📷 Photo';
@@ -359,9 +328,7 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     final isEmoji = type == 'text' && isOnlyEmoji(content);
 
     String preview;
-    if (type == 'audio') {
-      preview = greek ? '🎵 Ηχογράφηση' : '🎵 Recording';
-    } else if (type == 'gif') {
+    if (type == 'gif') {
       preview = '🎞️ GIF';
     } else if (type == 'image') {
       preview = greek ? '📷 Φωτογραφία' : '📷 Photo';

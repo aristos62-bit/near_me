@@ -22,12 +22,10 @@ class _MessageReadProps {
 
 class ChatMessagesList extends ConsumerStatefulWidget {
   final String chatId;
-  final dynamic audioPlayer;
 
   const ChatMessagesList({
     super.key,
     required this.chatId,
-    this.audioPlayer,
   });
 
   @override
@@ -100,12 +98,6 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
   static const _editWindow = Duration(minutes: 15);
 
   void _onEdit(Map<String, dynamic> msg) {
-    final type = msg['type'] as String? ?? 'text';
-    if (type != 'text') {
-      DebugConfig.log(DebugConfig.chatReply,
-          '_onEdit: skipped for type=$type');
-      return;
-    }
     DebugConfig.log(DebugConfig.chatReply, 'ChatMessagesList: edit msg=${msg['id']}');
     final rawTs = msg['timestamp'];
     final ts = rawTs is Timestamp ? rawTs.toDate() : null;
@@ -332,7 +324,6 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
               participantNicknames: isGroupChat ? participantNicknames : null,
               seenBy: props.seenBy,
               chatId: widget.chatId,
-              audioPlayer: widget.audioPlayer,
               callbacks: MessageCallbacks(
                 onApproveDelete: _onApproveDelete,
                 onRejectDelete: _onRejectDelete,

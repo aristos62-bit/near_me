@@ -122,8 +122,6 @@ abstract class ChatRepository {
     required String type,
     Map<String, dynamic>? replyTo,
     Uint8List? imageBytes,
-    Uint8List? audioBytes,
-    int? duration,
   });
 
   // Profile sync across chats

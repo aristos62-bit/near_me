@@ -339,7 +339,7 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
     String decrypted;
     if (type == 'system') {
       decrypted = encrypted;
-    } else if (type == 'gif' || type == 'image' || type == 'video' || type == 'audio') {
+    } else if (type == 'gif' || type == 'image' || type == 'video') {
       decrypted = encrypted;
     } else if (encCache[docId] == encrypted && decCache.containsKey(docId)) {
       decrypted = decCache[docId]!;
@@ -377,7 +377,6 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
       'contentEn': data['contentEn'] as String?,
       'reactions': (data['reactions'] as Map<String, dynamic>?) ?? <String, dynamic>{},
       'replyTo': data['replyTo'] as Map<String, dynamic>?,
-      'duration': data['duration'] as int? ?? 0,
     };
   }
 
@@ -596,8 +595,7 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
           lastMessageType != 'system' &&
           lastMessageType != 'gif' &&
           lastMessageType != 'image' &&
-          lastMessageType != 'video' &&
-          lastMessageType != 'audio') {
+          lastMessageType != 'video') {
         try {
           final key = await EncryptionUtils.getKeyOrDerive(chatId);
           decryptedLastMessage = EncryptionUtils.decryptMessage(key, encryptedLastMessage);
@@ -781,8 +779,6 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
     required String type,
     Map<String, dynamic>? replyTo,
     Uint8List? imageBytes,
-    Uint8List? audioBytes,
-    int? duration,
   }) async {
     final user = auth.currentUser;
     if (user == null) throw AppException.auth('send_media', 'Δεν υπάρχει συνδεδεμένος χρήστης / No authenticated user');
@@ -833,23 +829,12 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
         content = await storageRef.getDownloadURL();
       }
 
-      if (audioBytes != null && type == 'audio') {
-        DebugConfig.log(DebugConfig.chatAudio,
-            'sendMediaMessage: uploading audio chat=$chatId');
-        final storageRef = FirebaseStorage.instance
-            .ref().child('chat_media/$chatId/${msgRef.id}.m4a');
-        await storageRef.putData(audioBytes,
-            SettableMetadata(contentType: 'audio/mp4'));
-        content = await storageRef.getDownloadURL();
-      }
-
       final msgData = <String, dynamic>{
         'senderId': user.uid,
         'content': content,
         'type': type,
         'timestamp': FieldValue.serverTimestamp(),
         'isRead': false,
-        if (type == 'audio' && duration != null) 'duration': duration,
       };
       if (replyTo != null) {
         msgData['replyTo'] = replyTo;

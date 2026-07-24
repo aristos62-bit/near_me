@@ -10,6 +10,7 @@ import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
 import '../../../core/utils/error_messages.dart';
+import '../../../shared/utils/image_utils.dart';
 import '../../../repositories/auth_repository.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
@@ -212,7 +213,8 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
         maxHeight: 1024,
       );
       if (cropped == null || !mounted) return;
-      final bytes = await File(cropped.path).readAsBytes();
+      final bytes = await ImageUtils.stripExif(
+          await File(cropped.path).readAsBytes());
       final replyToData = _buildReplyData();
       _clearReply();
       setState(() => _isLoading = true);

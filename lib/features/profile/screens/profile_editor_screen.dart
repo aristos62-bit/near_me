@@ -14,6 +14,7 @@ import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
 import '../../../data/local/database.dart';
 import '../../../features/chat/providers/chat_provider.dart';
+import '../../../shared/utils/image_utils.dart';
 import '../../../shared/widgets/chip_selector.dart';
 import '../../../shared/widgets/form_section.dart';
 import '../../../shared/widgets/form_toggle.dart';
@@ -275,7 +276,7 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
     DebugConfig.log(DebugConfig.storageUpload, 'Avatar cropped: ${cropped.path}');
     setState(() => _isUploadingAvatar = true);
     try {
-      final bytes = await cropped.readAsBytes();
+      final bytes = await ImageUtils.stripExif(await cropped.readAsBytes());
       final url = await ref.read(profileRepositoryProvider).saveAvatar(bytes);
       setState(() { _avatarUrl = url; _avatarErrorShown = false; });
       if (!context.mounted) return;
@@ -341,7 +342,7 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
     DebugConfig.log(DebugConfig.storageUpload, 'Photo cropped: ${cropped.path} index=$index');
     setState(() => _uploadingPhotoIndex = index);
     try {
-      final bytes = await cropped.readAsBytes();
+      final bytes = await ImageUtils.stripExif(await cropped.readAsBytes());
       final url = await ref.read(profileRepositoryProvider).savePhoto(bytes, index);
       setState(() { while (_photoUrls.length <= index) { _photoUrls.add(''); } _photoUrls[index] = url; });
     } catch (e, s) {

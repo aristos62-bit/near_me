@@ -9,7 +9,6 @@ import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
-import '../../../core/utils/error_messages.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
@@ -412,12 +411,7 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     );
     if (!mounted || confirmed != true) return;
     DebugConfig.log(DebugConfig.chatReply, 'ChatMessagesList: delete msg=$messageId');
-    final ok = await ref.read(chatActionsProvider.notifier).deleteMessage(widget.chatId, messageId);
-    if (!ok && mounted) {
-      final chatState = ref.read(chatActionsProvider);
-      AppMessenger.showError(context,
-          ErrorMessages.get(chatState.errorMessage ?? 'chat/unknown-error', L10n.isGreek(context)));
-    }
+    await ref.read(chatActionsProvider.notifier).deleteMessage(widget.chatId, messageId);
   }
 
   void _onMessagesChanged(List<Map<String, dynamic>> messages) {

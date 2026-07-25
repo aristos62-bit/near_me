@@ -48,7 +48,6 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
       if (!mounted) return;
       setState(() => _isUploadingAvatar = false);
       if (success) {
-        ref.invalidate(chatDocProvider(widget.chatId));
         AppMessenger.showSuccess(context, greek ? 'Το avatar ενημερώθηκε' : 'Avatar updated');
       }
     } catch (e, s) {
@@ -66,7 +65,6 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
       await ref.read(chatActionsProvider.notifier).removeGroupAvatar(widget.chatId);
       if (!mounted) return;
       setState(() => _isUploadingAvatar = false);
-      ref.invalidate(chatDocProvider(widget.chatId));
       DebugConfig.log(DebugConfig.repositoryResult, 'GroupSettings: removeAvatar success ${widget.chatId}');
       AppMessenger.showSuccess(context, greek ? 'Το avatar αφαιρέθηκε' : 'Avatar removed');
     } catch (e, s) {

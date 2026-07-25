@@ -124,6 +124,7 @@ abstract class ChatRepository {
     Uint8List? imageBytes,
     Uint8List? audioBytes,
     String? videoPath,
+    Uint8List? thumbnailBytes,
     int? duration,
   });
 

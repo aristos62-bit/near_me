@@ -1104,7 +1104,7 @@ flutter run --dart-define=ENABLE_RELEASE_DEBUG=true
 
 ---
 
-## 35. Εκκρεμότητα — Video Thumbnails (v2.2)
+## 35. Εκκρεμότητα — Video Thumbnails + Upload Progress (v2.2)
 
 **Σχεδίαση:** 24 Ιουλίου 2026 — υπό έγκριση.
 
@@ -1115,40 +1115,59 @@ flutter run --dart-define=ENABLE_RELEASE_DEBUG=true
 
 | SPoT | Αλλαγή |
 |------|--------|
-| `chat_input_bar.dart:264` | Thumbnail extraction (`kIsWeb` guard + try-catch) μετά duration, πριν sendMediaMessage |
-| `chat_input_bar.dart:311` | `thumbnailBytes:` pass to sendMediaMessage |
-| `chat_repository.dart:120` | `Uint8List? thumbnailBytes` new param |
-| `chat_repository_impl.dart:848-869` | Thumbnail upload (`putData`, `${msgId}_thumb.jpg`) + msgData `thumbnailUrl` |
-| `chat_provider.dart:252` | `thumbnailBytes` param + pass-through |
+| `chat_input_bar.dart:264` | Thumbnail extraction (`kIsWeb` guard + try-catch) μετά duration |
+| `chat_input_bar.dart:310` | `_uploadProgress` state (0.0–1.0) + pass `onProgress:` στο sendMediaMessage |
+| `chat_input_bar.dart:318` | `setState(() => _uploadProgress = null)` μετά success/fail |
+| `chat_input_bar.dart:585` | `if (_uploadProgress != null) LinearProgressIndicator(value: _uploadProgress)` πάνω από text field |
+| `chat_repository.dart:120` | `Uint8List? thumbnailBytes` + `void Function(double)? onProgress` new params |
+| `chat_repository_impl.dart:848-869` | Video upload: `final task = ref.putFile(...)` + `task.snapshotEvents` → `onProgress?.call(snapshot.bytesTransferred / snapshot.totalByteCount)` + `await task` |
+| `chat_repository_impl.dart:869` | Thumbnail upload (`putData`, `${msgId}_thumb.jpg`) + msgData `thumbnailUrl` |
+| `chat_provider.dart:252` | `thumbnailBytes` + `onProgress` pass-through |
 | `message_bubble.dart:105-130` | `thumbnailUrl` extraction + pass to VideoMessageBubble |
 | `video_message_bubble.dart` | `thumbnailUrl` property + `CachedNetworkImage` (placeholder/errorWidget → generic icon) |
+
+**Upload task pattern (chat_repository_impl):**
+```dart
+final task = storageRef.putFile(file, SettableMetadata(contentType: 'video/mp4'));
+task.snapshotEvents.listen((snapshot) {
+  if (snapshot.totalByteCount > 0) {
+    onProgress?.call(snapshot.bytesTransferred / snapshot.totalByteCount);
+  }
+});
+await task;
+content = await storageRef.getDownloadURL();
+```
 
 ### Λογική εμφάνισης
 - `isMyController` → `VideoPlayer`
 - `else if thumbnailUrl != null` → `CachedNetworkImage`
 - `else` → generic icon (`Icons.movie_creation_outlined`)
 - loading → spinner (υπάρχων μηχανισμός `isLoadingUrl`)
+- Upload progress → `LinearProgressIndicator` πάνω από text field, εξαφανίζεται όταν τελειώσει
 
 ### Rebuild storm
 - `DeepCollectionEquality` σε 3 layers (messagesStream, messagesProvider, combinedMessagesProvider)
 - `thumbnailUrl` string γράφεται μία φορά, ποτέ δεν αλλάζει → cache hit ✅
 - `ValueKey(msgId)` → Flutter reuses widget
+- `_uploadProgress` → τοπικό `setState` στο `ChatInputBar` (StatefulWidget), κανένα cascade
 
-### Edge cases (12)
+### Edge cases (14)
 | # | Edge | Προστασία |
 |---|------|-----------|
 | 1 | Extraction fails | try-catch → non-fatal → generic icon |
 | 2 | kIsWeb | `kIsWeb` guard + catch → non-fatal |
-| 3 | Upload fails | try-catch → msg χωρίς `thumbnailUrl` → generic icon |
+| 3 | Thumbnail upload fails | try-catch → msg χωρίς `thumbnailUrl` → generic icon |
 | 4 | Orphan `_thumb.jpg` | `deleteAllChatMedia` listAll → auto-deleted |
 | 5 | Παλιά μηνύματα | `message['thumbnailUrl']` null → generic icon |
 | 6 | Empty thumbnailUrl | `isNotEmpty` check → null → generic icon |
 | 7 | Tap play | `isMyController` → true → `VideoPlayer` replaces thumbnail |
 | 8 | CachedNetworkImage error | `errorWidget` → generic icon |
-| 9 | Navigate away | `mounted` guard (υπάρχει) |
+| 9 | Navigate away mid-upload | `mounted` guard (υπάρχει) + dispose clears progress state |
 | 10 | Dispose mid-extraction | `mounted` guard (υπάρχει) |
 | 11 | Rebuild storm | 3-layer equality cache + stable URL ✅ |
-| 12 | Video >15MB | Guarded πριν extraction |
+| 12 | Video >15MB (now 50MB) | Guarded πριν extraction |
+| 13 | Upload progress 0/totalByteCount=0 | `if (snapshot.totalByteCount > 0)` guard |
+| 14 | Multiple rapid uploads | `_isLoading` guard (υπάρχει) → μπλοκάρει δεύτερο tap |
 
 ### Δεν χρειάζονται
 - Storage rules (wildcard covers `_thumb.jpg`)

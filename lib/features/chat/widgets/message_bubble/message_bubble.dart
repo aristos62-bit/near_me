@@ -105,6 +105,7 @@ class MessageBubble extends StatelessWidget {
       'video' => VideoMessageBubble(
         content: content,
         duration: message['duration'] as int? ?? 0,
+        thumbnailUrl: message['thumbnailUrl'] as String?,
         timeStr: timeStr,
         isMe: isMe,
         isGroupChat: isGroupChat,

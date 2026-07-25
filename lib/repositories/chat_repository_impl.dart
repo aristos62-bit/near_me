@@ -379,6 +379,7 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
       'reactions': (data['reactions'] as Map<String, dynamic>?) ?? <String, dynamic>{},
       'replyTo': data['replyTo'] as Map<String, dynamic>?,
       'duration': data['duration'] as int? ?? 0,
+      'thumbnailUrl': data['thumbnailUrl'] as String?,
     };
   }
 
@@ -784,6 +785,7 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
     Uint8List? imageBytes,
     Uint8List? audioBytes,
     String? videoPath,
+    Uint8List? thumbnailBytes,
     int? duration,
   }) async {
     final user = auth.currentUser;
@@ -845,6 +847,7 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
         content = await storageRef.getDownloadURL();
       }
 
+      String? thumbnailUrl;
       if (videoPath != null && type == 'video') {
         DebugConfig.log(DebugConfig.chatVideo,
             'sendMediaMessage: uploading video chat=$chatId');
@@ -854,6 +857,18 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
         await storageRef.putFile(file,
             SettableMetadata(contentType: 'video/mp4'));
         content = await storageRef.getDownloadURL();
+
+        if (thumbnailBytes != null) {
+          try {
+            final thumbRef = FirebaseStorage.instance
+                .ref().child('chat_media/$chatId/${msgRef.id}_thumb.jpg');
+            await thumbRef.putData(thumbnailBytes,
+                SettableMetadata(contentType: 'image/jpeg'));
+            thumbnailUrl = await thumbRef.getDownloadURL();
+          } catch (e) {
+            DebugConfig.warn('sendMediaMessage: thumbnail upload failed', data: e);
+          }
+        }
       }
 
       final msgData = <String, dynamic>{
@@ -863,6 +878,7 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
         'timestamp': FieldValue.serverTimestamp(),
         'isRead': false,
         if ((type == 'audio' || type == 'video') && duration != null) 'duration': duration,
+        if (type == 'video' && thumbnailUrl != null) 'thumbnailUrl': thumbnailUrl,
       };
       if (replyTo != null) {
         msgData['replyTo'] = replyTo;

@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import '../../../../core/debug/debug_config.dart';
@@ -10,6 +11,7 @@ import 'tail_painter.dart';
 class VideoMessageBubble extends StatefulWidget {
   final String content;
   final int duration;
+  final String? thumbnailUrl;
   final String timeStr;
   final bool isMe;
   final bool isGroupChat;
@@ -37,6 +39,7 @@ class VideoMessageBubble extends StatefulWidget {
     super.key,
     required this.content,
     this.duration = 0,
+    this.thumbnailUrl,
     required this.timeStr,
     required this.isMe,
     this.isGroupChat = false,
@@ -81,6 +84,8 @@ class _VideoMessageBubbleState extends State<VideoMessageBubble> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.content != widget.content) {
       _resetState();
+      _initPlayerListeners();
+    } else if (oldWidget.videoPlayer != widget.videoPlayer) {
       _initPlayerListeners();
     }
   }
@@ -249,21 +254,44 @@ class _VideoMessageBubbleState extends State<VideoMessageBubble> {
                                   child: Stack(
                                     alignment: Alignment.center,
                                     children: [
-                                    if (isMyController && controller != null)
-                                      VideoPlayer(controller)
-                                    else
-                                      Container(
-                                        color: Colors.black38,
-                                        child: isLoading
-                                            ? const CircularProgressIndicator(
-                                                color: Colors.white70,
-                                              )
-                                            : const Icon(
-                                                Icons.movie_creation_outlined,
-                                                size: 48,
+                                      if (isMyController && controller != null)
+                                        VideoPlayer(controller)
+                                      else if (widget.thumbnailUrl != null)
+                                        Stack(
+                                          alignment: Alignment.center,
+                                          fit: StackFit.expand,
+                                          children: [
+                                            CachedNetworkImage(
+                                              imageUrl: widget.thumbnailUrl!,
+                                              fit: BoxFit.cover,
+                                              errorWidget: (_, _, _) => Container(
+                                                color: Colors.black38,
+                                                child: const Icon(
+                                                  Icons.movie_creation_outlined,
+                                                  size: 48,
+                                                  color: Colors.white70,
+                                                ),
+                                              ),
+                                            ),
+                                            if (isLoading)
+                                              const CircularProgressIndicator(
                                                 color: Colors.white70,
                                               ),
-                                      ),
+                                          ],
+                                        )
+                                      else
+                                        Container(
+                                          color: Colors.black38,
+                                          child: isLoading
+                                              ? const CircularProgressIndicator(
+                                            color: Colors.white70,
+                                          )
+                                              : const Icon(
+                                            Icons.movie_creation_outlined,
+                                            size: 48,
+                                            color: Colors.white70,
+                                          ),
+                                        ),
                                     if (!isLoading)
                                       Container(
                                         decoration: BoxDecoration(

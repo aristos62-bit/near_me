@@ -138,8 +138,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       final controller = VideoPlayerController.networkUrl(Uri.parse(url));
       await controller.initialize();
       controller.setVolume(0.0);
-      controller.setLooping(true);
-      await controller.play();
 
       setState(() {
         _videoController = controller;

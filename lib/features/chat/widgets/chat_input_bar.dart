@@ -1,10 +1,13 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
+import 'package:get_thumbnail_video/index.dart';
+import 'package:get_thumbnail_video/video_thumbnail.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
@@ -299,15 +302,29 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
         return;
       }
 
+      Uint8List? thumbBytes;
+      try {
+        thumbBytes = await VideoThumbnail.thumbnailData(
+          video: picked.path,
+          imageFormat: ImageFormat.JPEG,
+          maxWidth: 480,
+          quality: 70,
+        );
+      } catch (e) {
+        DebugConfig.warn('ChatInputBar: thumbnail generation failed', data: e);
+      }
+
+      if (!mounted) return;
       final replyToData = _buildReplyData();
       _clearReply();
       setState(() => _isLoading = true);
       final ok = await ref.read(chatActionsProvider.notifier)
           .sendMediaMessage(widget.chatId,
-              content: '', type: 'video',
-              replyTo: replyToData,
-              videoPath: picked.path,
-              duration: durationSeconds);
+          content: '', type: 'video',
+          replyTo: replyToData,
+          videoPath: picked.path,
+          duration: durationSeconds,
+          thumbnailBytes: thumbBytes);
       if (!mounted) return;
       setState(() => _isLoading = false);
       if (!ok) {

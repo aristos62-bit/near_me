@@ -86,8 +86,6 @@ class ErrorMessages {
         return isGreek ? 'Το βίντεο είναι πολύ μεγάλο (max 15MB)' : 'Video too large (max 15MB)';
       case 'chat/video-too-long':
         return isGreek ? 'Το βίντεο είναι πολύ μεγάλο (μέγιστο 30s)' : 'Video is too long (max 30s)';
-      case 'chat/video-playback-error':
-        return isGreek ? 'Σφάλμα αναπαραγωγής βίντεο' : 'Video playback error';
       case 'chat/audio-too-long':
         return isGreek ? 'Μέγιστη διάρκεια 60 δευτερόλεπτα' : 'Maximum duration 60 seconds';
       case 'chat/reply-send-failed':

@@ -2,9 +2,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import '../../../../core/debug/debug_config.dart';
-import '../../../../core/l10n/l10n.dart';
-import '../../../../core/utils/app_messenger.dart';
-import '../../../../core/utils/error_messages.dart';
 import 'bubble_long_press_wrapper.dart';
 import 'message_reactions_row.dart';
 import 'reply_preview.dart';
@@ -172,10 +169,6 @@ class _VideoMessageBubbleState extends State<VideoMessageBubble> {
     } catch (e, s) {
       DebugConfig.error('VideoBubble: playback error msg=${widget.messageId}',
           data: e, exception: s);
-      if (mounted) {
-        AppMessenger.showError(context,
-            ErrorMessages.get('chat/video-playback-error', L10n.isGreek(context)));
-      }
     }
   }
 

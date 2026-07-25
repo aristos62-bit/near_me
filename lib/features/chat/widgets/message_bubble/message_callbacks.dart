@@ -8,6 +8,9 @@ class MessageCallbacks {
   final void Function()? onReply;
   final void Function()? onEdit;
   final void Function()? onDelete;
+  final void Function()? onInfo;
+  final void Function()? onEmail;
+  final void Function()? onShare;
   final Future<void> Function(String url)? onPlayVideo;
 
   const MessageCallbacks({
@@ -20,6 +23,9 @@ class MessageCallbacks {
     this.onReply,
     this.onEdit,
     this.onDelete,
+    this.onInfo,
+    this.onEmail,
+    this.onShare,
     this.onPlayVideo,
   });
 }

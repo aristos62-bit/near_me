@@ -88,6 +88,9 @@ class MessageBubble extends StatelessWidget {
         replyTo: replyTo,
         onReply: callbacks.onReply,
         onDelete: callbacks.onDelete,
+        onInfo: callbacks.onInfo,
+        onEmail: callbacks.onEmail,
+        onShare: callbacks.onShare,
         audioPlayer: audioPlayer,
       ),
       'system' => SystemMessageBubble(
@@ -125,6 +128,9 @@ class MessageBubble extends StatelessWidget {
         replyTo: replyTo,
         onReply: callbacks.onReply,
         onDelete: callbacks.onDelete,
+        onInfo: callbacks.onInfo,
+        onEmail: callbacks.onEmail,
+        onShare: callbacks.onShare,
         videoPlayer: videoPlayer,
         onPlayVideo: callbacks.onPlayVideo,
         isLoadingUrl: videoLoadingUrl,
@@ -152,6 +158,9 @@ class MessageBubble extends StatelessWidget {
         onReply: callbacks.onReply,
         onEdit: callbacks.onEdit,
         onDelete: callbacks.onDelete,
+        onInfo: callbacks.onInfo,
+        onEmail: callbacks.onEmail,
+        onShare: callbacks.onShare,
       ),
       _ when type == 'text' && isOnlyEmoji(content) => EmojiOnlyBubble(
         content: content,
@@ -175,6 +184,9 @@ class MessageBubble extends StatelessWidget {
         onReply: callbacks.onReply,
         onEdit: callbacks.onEdit,
         onDelete: callbacks.onDelete,
+        onInfo: callbacks.onInfo,
+        onEmail: callbacks.onEmail,
+        onShare: callbacks.onShare,
       ),
       _ => TextMessageBubble(
         content: content,
@@ -200,6 +212,9 @@ class MessageBubble extends StatelessWidget {
         onReply: callbacks.onReply,
         onEdit: callbacks.onEdit,
         onDelete: callbacks.onDelete,
+        onInfo: callbacks.onInfo,
+        onEmail: callbacks.onEmail,
+        onShare: callbacks.onShare,
       ),
     };
   }

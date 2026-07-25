@@ -50,6 +50,9 @@ class EmojiOnlyBubble extends StatelessWidget {
   final VoidCallback? onReply;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
+  final VoidCallback? onInfo;
+  final VoidCallback? onEmail;
+  final VoidCallback? onShare;
 
   const EmojiOnlyBubble({
     super.key,
@@ -74,6 +77,9 @@ class EmojiOnlyBubble extends StatelessWidget {
     this.onReply,
     this.onEdit,
     this.onDelete,
+    this.onInfo,
+    this.onEmail,
+    this.onShare,
   });
 
   @override
@@ -116,6 +122,9 @@ class EmojiOnlyBubble extends StatelessWidget {
             onReply: onReply,
             onEdit: onEdit,
             onDelete: onDelete,
+            onInfo: onInfo,
+            onEmail: onEmail,
+            onShare: onShare,
             child: Column(
               crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,

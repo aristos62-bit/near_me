@@ -66,6 +66,9 @@ dependencies:
   video_player: ^2.13.0
   flutter_image_compress: ^2.5.0
   get_thumbnail_video: ^0.7.3
+    # Sharing & External
+  share_plus: ^13.3.0
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:

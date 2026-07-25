@@ -35,4 +35,6 @@ class FeatureFlags {
   static const bool editMessageEnabled = true;
   static const bool deleteMessageEnabled = true;
   static const bool messageInfoEnabled = true;
+  static const bool messageEmailEnabled = true;
+  static const bool messageShareEnabled = true;
 }

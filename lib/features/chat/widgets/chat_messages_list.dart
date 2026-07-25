@@ -1,7 +1,10 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
@@ -82,6 +85,201 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     DebugConfig.log(DebugConfig.uiInteraction, 'ChatMessagesList: deleteForMe chat=$chatId');
     await ref.read(chatActionsProvider.notifier).deleteChatForMe(chatId);
   }
+
+  void _onInfo(
+      Map<String, dynamic> msg,
+      _MessageReadProps props,
+      bool isGroupChat,
+      Map<String, String> participantNicknames,
+      Map<String, String> participantAvatarUrls,
+      ) {
+    final greek = L10n.isGreek(context);
+    final senderId = msg['senderId'] as String? ?? '';
+    final reactions = (msg['reactions'] as Map<String, dynamic>?) ?? const <String, dynamic>{};
+    final readerUids = participantNicknames.keys.where((u) {
+      if (u == senderId) return false;
+      final hasRead = isGroupChat ? props.seenBy.contains(u) : props.effectiveIsRead;
+      final hasReacted = reactions.containsKey(u);
+      return hasRead || hasReacted;
+    }).toList();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.5,
+        minChildSize: 0.25,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (ctx2, scrollController) => ListView(
+          controller: scrollController,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text(
+                greek ? 'Πληροφορίες μηνύματος' : 'Message info',
+                style: Theme.of(ctx2).textTheme.titleMedium,
+              ),
+            ),
+            if (readerUids.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(greek
+                    ? 'Κανείς δεν το έχει διαβάσει ακόμα'
+                    : 'No one has read this yet'),
+              ),
+            ...readerUids.map((uid) {
+              final nickname = participantNicknames[uid] ?? uid;
+              final avatarUrl = participantAvatarUrls[uid];
+              final reaction = reactions[uid] as String?;
+              return ListTile(
+                leading: CircleAvatar(
+                  backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
+                      ? CachedNetworkImageProvider(avatarUrl)
+                      : null,
+                  child: (avatarUrl == null || avatarUrl.isEmpty)
+                      ? Text(nickname.isNotEmpty ? nickname[0] : '?')
+                      : null,
+                ),
+                title: Text(nickname),
+                subtitle: Text(greek ? 'Το διάβασε' : 'Read'),
+                trailing: reaction != null
+                    ? Text(reaction, style: const TextStyle(fontSize: 22))
+                    : null,
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _onEmail(Map<String, dynamic> msg) async {
+    final greek = L10n.isGreek(context);
+    final content = msg['content'] as String? ?? '';
+    final rawTs = msg['timestamp'];
+    final ts = rawTs is Timestamp ? rawTs.toDate() : null;
+    final subject = greek ? 'Μήνυμα από near_me' : 'Message from near_me';
+    final body = ts != null
+        ? '$content\n\n(${L10n.formatTimeOfDay(context, TimeOfDay.fromDateTime(ts))})'
+        : content;
+    final uri = Uri(scheme: 'mailto', queryParameters: {
+      'subject': subject,
+      'body': body,
+    });
+    try {
+      final launched = await launchUrl(uri);
+      if (!launched && mounted) {
+        AppMessenger.showError(context, greek
+            ? 'Δεν βρέθηκε εφαρμογή email'
+            : 'No email app found');
+      }
+    } catch (e) {
+      DebugConfig.error('ChatMessagesList: email launch failed', data: e);
+      if (mounted) {
+        AppMessenger.showError(context, greek
+            ? 'Αποτυχία ανοίγματος email'
+            : 'Failed to open email');
+      }
+    }
+  }
+
+  Future<void> _onShare(Map<String, dynamic> msg) async {
+    final greek = L10n.isGreek(context);
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.forward),
+              title: Text(greek ? 'Προώθηση σε συνομιλία' : 'Forward to a chat'),
+              onTap: () => Navigator.of(ctx).pop('forward'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.ios_share),
+              title: Text(greek ? 'Κοινοποίηση εκτός εφαρμογής' : 'Share externally'),
+              onTap: () => Navigator.of(ctx).pop('external'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || !mounted) return;
+
+    if (choice == 'external') {
+      final content = msg['content'] as String? ?? '';
+      try {
+        await SharePlus.instance.share(ShareParams(text: content));
+      } catch (e) {
+        DebugConfig.error('ChatMessagesList: share failed', data: e);
+        if (mounted) {
+          AppMessenger.showError(context,
+              greek ? 'Αποτυχία κοινοποίησης' : 'Failed to share');
+        }
+      }
+      return;
+    }
+    await _forwardToChat(msg, greek);
+  }
+
+  Future<void> _forwardToChat(Map<String, dynamic> msg, bool greek) async {
+    final chats = (ref.read(chatsProvider).asData?.value ?? [])
+        .where((c) => c.chatId != null)
+        .toList();
+    if (chats.isEmpty) {
+      if (!mounted) return;
+      AppMessenger.showInfo(context, greek
+          ? 'Δεν υπάρχουν συνομιλίες για προώθηση'
+          : 'No chats available to forward to');
+      return;
+    }
+
+    final targetChatId = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => ListView(
+        shrinkWrap: true,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Text(greek ? 'Προώθηση σε' : 'Forward to',
+                style: Theme.of(ctx).textTheme.titleMedium),
+          ),
+          ...chats.map((chat) {
+            final isGroup = chat.isGroupChat;
+            final title = isGroup ? (chat.groupName ?? '') : (chat.otherNickname ?? '');
+            final avatarUrl = isGroup ? chat.groupAvatarUrl : chat.otherAvatarUrl;
+            return ListTile(
+              leading: CircleAvatar(
+                backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
+                    ? CachedNetworkImageProvider(avatarUrl)
+                    : null,
+                child: (avatarUrl == null || avatarUrl.isEmpty)
+                    ? Icon(isGroup ? Icons.group : Icons.person)
+                    : null,
+              ),
+              title: Text(title),
+              onTap: () => Navigator.of(ctx).pop(chat.chatId),
+            );
+          }),
+        ],
+      ),
+    );
+    if (targetChatId == null || !mounted) return;
+
+    final content = msg['content'] as String? ?? '';
+    final success = await ref.read(chatActionsProvider.notifier)
+        .sendMessage(targetChatId, content);
+    if (!mounted) return;
+    if (success) {
+      AppMessenger.showSuccess(context, greek ? 'Προωθήθηκε' : 'Forwarded');
+    } else {
+      final state = ref.read(chatActionsProvider);
+      AppMessenger.showError(context, state.errorMessage ??
+          (greek ? 'Αποτυχία προώθησης' : 'Failed to forward'));
+    }
+  }
+
 
   Future<void> _onKeepChat(String chatId) async {
     DebugConfig.log(DebugConfig.uiInteraction, 'ChatMessagesList: keepChat chat=$chatId');
@@ -351,6 +549,15 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
                 onReply: () => _onReply(msg),
                 onEdit: () => _onEdit(msg),
                 onDelete: () => _onDelete(msg),
+                onInfo: () => _onInfo(
+                  msg,
+                  props,
+                  isGroupChat,
+                  participantNicknames,
+                  participantAvatarUrls,
+                ),
+                onEmail: () => _onEmail(msg),
+                onShare: () => _onShare(msg),
                 onPlayVideo: widget.onPlayVideo,
               ),
             );

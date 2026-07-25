@@ -31,6 +31,9 @@ class GifImageBubble extends StatelessWidget {
   final VoidCallback? onReply;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
+  final VoidCallback? onInfo;
+  final VoidCallback? onEmail;
+  final VoidCallback? onShare;
 
   const GifImageBubble({
     super.key,
@@ -56,6 +59,9 @@ class GifImageBubble extends StatelessWidget {
     this.onReply,
     this.onEdit,
     this.onDelete,
+    this.onInfo,
+    this.onEmail,
+    this.onShare,
   });
 
   static const double _bubbleRadius = 20;
@@ -134,10 +140,13 @@ class GifImageBubble extends StatelessWidget {
                 clipBehavior: Clip.none,
                 children: [
                   BubbleLongPressWrapper(
-                      isMe: isMe,
-                      onReply: onReply,
-                      onEdit: onEdit,
-                      onDelete: onDelete,
+                    isMe: isMe,
+                    onReply: onReply,
+                    onEdit: onEdit,
+                    onDelete: onDelete,
+                    onInfo: onInfo,
+                    onEmail: onEmail,
+                    onShare: onShare,
                       child: GestureDetector(
                         onTap: isImage ? () => _showImageFullScreen(context, content) : null,
                         child: Container(

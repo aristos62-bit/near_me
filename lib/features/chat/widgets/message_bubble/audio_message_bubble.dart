@@ -33,6 +33,9 @@ class AudioMessageBubble extends StatefulWidget {
   final Map<String, dynamic>? replyTo;
   final VoidCallback? onReply;
   final VoidCallback? onDelete;
+  final VoidCallback? onInfo;
+  final VoidCallback? onEmail;
+  final VoidCallback? onShare;
   final AudioPlayer? audioPlayer;
 
   const AudioMessageBubble({
@@ -58,6 +61,9 @@ class AudioMessageBubble extends StatefulWidget {
     this.replyTo,
     this.onReply,
     this.onDelete,
+    this.onInfo,
+    this.onEmail,
+    this.onShare,
     this.audioPlayer,
   });
 
@@ -223,6 +229,9 @@ class _AudioMessageBubbleState extends State<AudioMessageBubble> {
                     canEdit: false,
                     onReply: widget.onReply,
                     onDelete: widget.onDelete,
+                    onInfo: widget.onInfo,
+                    onEmail: widget.onEmail,
+                    onShare: widget.onShare,
                     child: Container(
                       constraints: BoxConstraints(maxWidth: bubbleMaxWidth),
                       decoration: BoxDecoration(

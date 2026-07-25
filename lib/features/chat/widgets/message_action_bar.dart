@@ -21,12 +21,42 @@ class MessageActionBar {
             contentPadding: EdgeInsets.zero,
           ),
         ),
+      if (FeatureFlags.messageInfoEnabled)
+        PopupMenuItem(
+          value: 'info',
+          child: ListTile(
+            leading: const Icon(Icons.info_outline, size: 20),
+            title: Text(greek ? 'Πληροφορίες' : 'Info'),
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
       if (FeatureFlags.editMessageEnabled && isOwn && showEdit)
         PopupMenuItem(
           value: 'edit',
           child: ListTile(
             leading: const Icon(Icons.edit, size: 20),
             title: Text(greek ? 'Επεξεργασία' : 'Edit'),
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+      if (FeatureFlags.messageEmailEnabled)
+        PopupMenuItem(
+          value: 'email',
+          child: ListTile(
+            leading: const Icon(Icons.email_outlined, size: 20),
+            title: Text(greek ? 'Αποστολή σε Email' : 'Send via Email'),
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+      if (FeatureFlags.messageShareEnabled)
+        PopupMenuItem(
+          value: 'share',
+          child: ListTile(
+            leading: const Icon(Icons.share_outlined, size: 20),
+            title: Text(greek ? 'Κοινοποίηση' : 'Share'),
             dense: true,
             contentPadding: EdgeInsets.zero,
           ),

@@ -4,7 +4,6 @@ import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
@@ -20,6 +19,7 @@ import 'message_bubble/message_callbacks.dart';
 import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:flutter_email_sender/flutter_email_sender.dart';
 
 class _MessageReadProps {
   final bool effectiveIsRead;
@@ -186,51 +186,68 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     final content = msg['content'] as String? ?? '';
     final msgId = msg['id'] as String? ?? DateTime.now().millisecondsSinceEpoch.toString();
     final subject = greek ? 'Μήνυμα από near_me' : 'Message from near_me';
+    final isMedia = type == 'image' || type == 'audio' || type == 'video';
 
-    if (type == 'image' || type == 'audio' || type == 'video') {
+    EmailCapabilities capabilities;
+    try {
+      capabilities = await FlutterEmailSender.getCapabilities();
+    } catch (e) {
+      DebugConfig.error('ChatMessagesList: getCapabilities failed', data: e);
+      if (!mounted) return;
+      AppMessenger.showError(context, greek
+          ? 'Δεν βρέθηκε εφαρμογή email'
+          : 'No email app found');
+      return;
+    }
+    if (!mounted) return;
+    if (!capabilities.canSend) {
+      AppMessenger.showError(context, greek
+          ? 'Δεν βρέθηκε ρυθμισμένη εφαρμογή email'
+          : 'No configured email app found');
+      return;
+    }
+
+    String? attachmentPath;
+    if (isMedia && capabilities.supportsAttachments) {
       final file = await _downloadMediaAsFile(content, type, msgId);
       if (!mounted) return;
-      if (file != null) {
-        var shared = false;
-        try {
-          await SharePlus.instance.share(ShareParams(files: [file], subject: subject));
-          shared = true;
-        } catch (e) {
-          DebugConfig.error('ChatMessagesList: email attach failed', data: e);
-        }
-        if (!mounted) return;
-        if (shared) return;
+      attachmentPath = file?.path;
+      if (attachmentPath == null) {
+        AppMessenger.showInfo(context, greek
+            ? 'Δεν ήταν δυνατή η επισύναψη — θα σταλεί ο σύνδεσμος'
+            : 'Could not attach file — sending link instead');
       }
-      AppMessenger.showInfo(context, greek
-          ? 'Δεν ήταν δυνατή η επισύναψη — θα σταλεί ο σύνδεσμος'
-          : 'Could not attach file — sending link instead');
     }
 
     final rawTs = msg['timestamp'];
     final ts = rawTs is Timestamp ? rawTs.toDate() : null;
-    final body = ts != null
-        ? '$content\n\n(${L10n.formatTimeOfDay(context, TimeOfDay.fromDateTime(ts))})'
-        : content;
-    final uri = Uri(scheme: 'mailto', queryParameters: {
-      'subject': subject,
-      'body': body,
-    });
-    var launched = false;
+    final tsSuffix = ts != null
+        ? '\n\n(${L10n.formatTimeOfDay(context, TimeOfDay.fromDateTime(ts))})'
+        : '';
+    final body = attachmentPath != null ? tsSuffix.trim() : '$content$tsSuffix';
+
+    final email = Email(
+      subject: subject,
+      body: body,
+      attachmentPaths: attachmentPath != null ? [attachmentPath] : null,
+      isHTML: false,
+    );
+
     try {
-      launched = await launchUrl(uri);
-    } catch (e) {
-      DebugConfig.error('ChatMessagesList: email launch failed', data: e);
+      await FlutterEmailSender.send(email);
+    } on FlutterEmailSenderNotAvailableException {
       if (!mounted) return;
       AppMessenger.showError(context, greek
-          ? 'Αποτυχία ανοίγματος email'
-          : 'Failed to open email');
-      return;
-    }
-    if (!mounted) return;
-    if (!launched) {
+          ? 'Η εφαρμογή email δεν είναι διαθέσιμη αυτή τη στιγμή'
+          : 'Email composer is unavailable right now');
+    } on FlutterEmailSenderUnsupportedFeatureException catch (e) {
+      DebugConfig.warn('ChatMessagesList: email unsupported features', data: e);
+    } catch (e) {
+      DebugConfig.error('ChatMessagesList: email send failed', data: e);
+      if (!mounted) return;
       AppMessenger.showError(context, greek
-          ? 'Δεν βρέθηκε εφαρμογή email'
-          : 'No email app found');
+          ? 'Αποτυχία αποστολής email'
+          : 'Failed to send email');
     }
   }
 

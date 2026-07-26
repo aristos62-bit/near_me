@@ -7,6 +7,7 @@ import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
+import '../../../core/utils/error_messages.dart';
 import '../../../core/utils/lock_screen.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../requests/providers/requests_provider.dart';
@@ -68,8 +69,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     } catch (e) {
       DebugConfig.error('SettingsScreen: sign out failed', exception: e);
       if (!context.mounted) return;
-      AppMessenger.showError(context,
-          L10n.localizedMessage(context, 'Αποτυχία αποσύνδεσης / Sign out failed'));
+      AppMessenger.showError(context, ErrorMessages.get('auth/sign-out-failed', L10n.isGreek(context)));
     }
   }
 
@@ -98,13 +98,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         _authUser = updatedUser;
         _phoneVerified = _computePhoneVerified(updatedUser);
       });
-      AppMessenger.showSuccess(context,
-          L10n.localizedMessage(context, 'Το τηλέφωνο αφαιρέθηκε / Phone removed'));
+      AppMessenger.showSuccess(context, ErrorMessages.get('auth/phone-removed', L10n.isGreek(context)));
     } catch (e) {
       DebugConfig.error('SettingsScreen: unlink phone failed', exception: e);
       if (!mounted) return;
-      AppMessenger.showError(context,
-          L10n.localizedMessage(context, 'Αποτυχία αφαίρεσης / Remove failed'));
+      AppMessenger.showError(context, ErrorMessages.get('auth/phone-remove-failed', L10n.isGreek(context)));
     } finally {
       if (mounted) setState(() => _isUnlinking = false);
     }
@@ -270,9 +268,7 @@ class _DeviceSecuritySection extends ConsumerWidget {
                     '_DeviceSecuritySection: screenshotPreventionEnabled=$v');
                 ref.read(appSettingsProvider.notifier).setScreenshotPrevention(v);
                 AppMessenger.showInfo(context,
-                  v
-                      ? (isGreek ? 'Η προστασία ενεργοποιήθηκε' : 'Protection enabled')
-                      : (isGreek ? 'Η προστασία απενεργοποιήθηκε' : 'Protection disabled'),
+                  ErrorMessages.get(v ? 'settings/screenshot-protection-on' : 'settings/screenshot-protection-off', isGreek),
                 );
               },
             ),
@@ -290,11 +286,7 @@ class _DeviceSecuritySection extends ConsumerWidget {
                   final canUse = await LockScreen.canUseBiometric();
                   if (!canUse) {
                     if (context.mounted) {
-                      AppMessenger.showError(context,
-                        isGreek
-                            ? 'Δεν υπάρχει διαθέσιμο βιομετρικό στη συσκευή'
-                            : 'No biometric available on this device',
-                      );
+                      AppMessenger.showError(context, ErrorMessages.get('settings/no-biometric', isGreek));
                     }
                     return;
                   }
@@ -302,9 +294,7 @@ class _DeviceSecuritySection extends ConsumerWidget {
                 await ref.read(appSettingsProvider.notifier).setBiometricLock(v);
                 if (context.mounted) {
                   AppMessenger.showInfo(context,
-                    v
-                        ? (isGreek ? 'Biometric Lock ενεργοποιήθηκε' : 'Biometric Lock enabled')
-                        : (isGreek ? 'Biometric Lock απενεργοποιήθηκε' : 'Biometric Lock disabled'),
+                    ErrorMessages.get(v ? 'settings/biometric-lock-on' : 'settings/biometric-lock-off', isGreek),
                   );
                 }
               },

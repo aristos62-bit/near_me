@@ -5,6 +5,7 @@ import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
+import '../../../core/utils/error_messages.dart';
 import '../../../repositories/chat_repository.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../providers/chat_provider.dart';
@@ -67,23 +68,19 @@ class _JoinConfirmationScreenState extends ConsumerState<JoinConfirmationScreen>
           .redeemInviteLink(widget.token);
       if (!mounted) return;
       if (chatId != null && chatId.isNotEmpty) {
-        AppMessenger.showSuccess(context, greek
-            ? 'Εντάχθηκες στην ομάδα'
-            : 'Joined the group');
+        AppMessenger.showSuccess(context, ErrorMessages.get('group/joined', greek));
         context.go('/chat/$chatId');
       } else {
         final state = ref.read(chatActionsProvider);
         AppMessenger.showError(context, state.errorMessage ??
-            (greek ? 'Αποτυχία εγγραφής' : 'Failed to join'));
+            ErrorMessages.get('group/join-failed', greek));
         setState(() => _isJoining = false);
       }
     } catch (e, s) {
       DebugConfig.error('JoinConfirmation redeem failed', data: e, exception: s);
       if (mounted) {
         setState(() => _isJoining = false);
-        AppMessenger.showError(context, greek
-            ? 'Αποτυχία εγγραφής στην ομάδα'
-            : 'Failed to join group');
+        AppMessenger.showError(context, ErrorMessages.get('group/join-failed', greek));
       }
     }
   }

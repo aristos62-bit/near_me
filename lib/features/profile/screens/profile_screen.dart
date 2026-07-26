@@ -7,6 +7,7 @@ import '../../../core/l10n/l10n.dart';
 import '../../../repositories/auth_repository.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
+import '../../../core/utils/error_messages.dart';
 import '../../../data/local/database.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../../../shared/widgets/gradient_header.dart';
@@ -281,13 +282,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       }
       if (mounted) {
         AppMessenger.showSuccess(context, target
-            ? L10n.localizedMessage(context, 'Το προφίλ δημοσιεύτηκε / Profile published')
-            : L10n.localizedMessage(context, 'Το προφίλ αποσύρθηκε / Profile unpublished'));
+            ? ErrorMessages.get('profile/published', L10n.isGreek(context))
+            : ErrorMessages.get('profile/unpublished', L10n.isGreek(context)));
       }
     } catch (e, s) {
       DebugConfig.error('ProfileScreen togglePublish failed', data: e, exception: s);
       if (mounted) {
-        AppMessenger.showError(context, L10n.localizedMessage(context, 'Αποτυχία αλλαγής κατάστασης / Failed to update status'));
+        AppMessenger.showError(context, ErrorMessages.get('profile/publish-toggle-failed', L10n.isGreek(context)));
       }
     } finally {
       if (mounted) setState(() => _isTogglingPublish = false);

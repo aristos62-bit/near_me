@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/utils/app_messenger.dart';
+import '../../../core/utils/error_messages.dart';
 import '../../profile/providers/profile_provider.dart';
 import '../providers/requests_provider.dart';
 
@@ -210,16 +211,16 @@ class RequestCardState extends ConsumerState<RequestCard> {
       final chatId = await ref.read(requestRepositoryProvider).respondToRequest(requestId, status);
       if (!mounted) return;
       if (chatId != null) {
-        AppMessenger.showSuccess(context, L10n.localizedMessage(context, 'Αίτημα αποδέκτηκε / Request accepted'));
+        AppMessenger.showSuccess(context, ErrorMessages.get('request/accepted', L10n.isGreek(context)));
         Future.microtask(() { if (mounted) context.push('/chat/$chatId'); });
       } else {
         AppMessenger.showSuccess(context,
             status == 'accepted'
-                ? L10n.localizedMessage(context, 'Αίτημα αποδέκτηκε / Request accepted')
-                : L10n.localizedMessage(context, 'Αίτημα απορρίφθηκε / Request declined'));
+                ? ErrorMessages.get('request/accepted', L10n.isGreek(context))
+                : ErrorMessages.get('request/declined', L10n.isGreek(context)));
       }
     } catch (e) {
-      if (mounted) AppMessenger.showError(context, L10n.localizedMessage(context, 'Απέτυχε / Failed'));
+      if (mounted) AppMessenger.showError(context, ErrorMessages.get('request/failed', L10n.isGreek(context)));
     } finally {
       if (mounted) setState(() => _isResponding = false);
     }

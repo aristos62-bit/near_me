@@ -7,6 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
+import '../../../core/utils/error_messages.dart';
 import '../../../data/local/database.dart';
 import '../../../shared/widgets/form_section.dart';
 import '../../../shared/widgets/form_toggle.dart';
@@ -102,6 +103,7 @@ class _PrivacyEditorScreenState extends ConsumerState<PrivacyEditorScreen> {
 
   Future<void> _save() async {
     DebugConfig.log(DebugConfig.uiInteraction, 'PrivacyEditorScreen save');
+    final greek = L10n.isGreek(context);
     setState(() => _isSaving = true);
     try {
       final repo = ref.read(profileRepositoryProvider);
@@ -109,7 +111,6 @@ class _PrivacyEditorScreenState extends ConsumerState<PrivacyEditorScreen> {
       ref.invalidate(privacySettingsProvider);
 
       if (await repo.isPublished && mounted) {
-        final greek = L10n.isGreek(context);
         final apply = await AppMessenger.showConfirmDialog(
           context,
           title: L10n.localizedMessage(context, 'Εφαρμογή Αλλαγών / Apply Changes'),
@@ -120,19 +121,19 @@ class _PrivacyEditorScreenState extends ConsumerState<PrivacyEditorScreen> {
         if (apply && mounted) {
           await repo.publish();
           if (mounted) {
-            AppMessenger.showSuccess(context, L10n.localizedMessage(context, 'Οι αλλαγές εφαρμόστηκαν στο δημόσιο προφίλ σου / Changes applied to your public profile'));
+            AppMessenger.showSuccess(context, ErrorMessages.get('privacy/changes-applied-public', greek));
           }
         }
       }
 
       if (mounted) {
         _originalSettings = _settings;
-        AppMessenger.showSuccess(context, L10n.localizedMessage(context, 'Οι ρυθμίσεις απορρήτου αποθηκεύτηκαν / Privacy settings saved'));
+        AppMessenger.showSuccess(context, ErrorMessages.get('privacy/settings-saved', greek));
         context.pop();
       }
     } catch (e, s) {
       DebugConfig.error('PrivacyEditor save failed', data: e, exception: s);
-      if (mounted) AppMessenger.showError(context, L10n.localizedMessage(context, 'Αποτυχία αποθήκευσης / Failed to save'));
+      if (mounted) AppMessenger.showError(context, ErrorMessages.get('privacy/save-failed', greek));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }

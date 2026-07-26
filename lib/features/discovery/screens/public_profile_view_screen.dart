@@ -387,9 +387,7 @@ class _PublicProfileViewScreenState extends ConsumerState<PublicProfileViewScree
     final groupChats = chats.where((c) => c.isGroupChat).toList();
 
     if (groupChats.isEmpty) {
-      AppMessenger.showInfo(context, isGreek
-          ? 'Δεν έχεις ομάδες για πρόσκληση'
-          : 'No groups to invite to');
+      AppMessenger.showInfo(context, ErrorMessages.get('profile/no-groups-to-invite', isGreek));
       return;
     }
 
@@ -424,13 +422,11 @@ class _PublicProfileViewScreenState extends ConsumerState<PublicProfileViewScree
         .addParticipant(result, uidToInvite);
     if (!mounted) return;
     if (success) {
-      AppMessenger.showSuccess(context, isGreek
-          ? 'Προστέθηκε στην ομάδα'
-          : 'Invited to group');
+      AppMessenger.showSuccess(context, ErrorMessages.get('profile/invited-to-group', isGreek));
     } else {
       final state = ref.read(chatActionsProvider);
       AppMessenger.showError(context, state.errorMessage ??
-          (isGreek ? 'Αποτυχία πρόσκλησης' : 'Failed to invite'));
+          ErrorMessages.get('profile/invite-failed', isGreek));
     }
   }
 
@@ -496,13 +492,13 @@ class _PublicProfileViewScreenState extends ConsumerState<PublicProfileViewScree
       );
       if (mounted) {
         AppMessenger.showSuccess(context,
-            L10n.localizedMessage(context, 'Η αναφορά υποβλήθηκε / Report submitted'));
+            ErrorMessages.get('report/submitted', L10n.isGreek(context)));
       }
     } catch (e, s) {
       DebugConfig.error('Report submission failed', data: e, exception: s);
       if (mounted) {
         AppMessenger.showError(context,
-            L10n.localizedMessage(context, 'Αποτυχία υποβολής αναφοράς / Failed to submit report'));
+            ErrorMessages.get('report/submit-failed', L10n.isGreek(context)));
       }
     }
   }
@@ -531,7 +527,7 @@ class _PublicProfileViewScreenState extends ConsumerState<PublicProfileViewScree
                 await ref.read(blockActionsProvider).unblock(user.uid, _uid!);
               if (mounted) {
                 AppMessenger.showSuccess(context,
-                    L10n.localizedMessage(context, 'Ξεμπλοκαρίστηκε / Unblocked'));
+                    ErrorMessages.get('block/unblocked', L10n.isGreek(context)));
               }
             } else {
               final confirm = await AppMessenger.showConfirmDialog(
@@ -547,7 +543,7 @@ class _PublicProfileViewScreenState extends ConsumerState<PublicProfileViewScree
                 await ref.read(blockActionsProvider).block(user.uid, _uid!);
                 if (mounted) {
                   AppMessenger.showSuccess(context,
-                      L10n.localizedMessage(context, 'Μπλοκαρίστηκε / Blocked'));
+                      ErrorMessages.get('block/blocked', L10n.isGreek(context)));
                 }
               }
             }

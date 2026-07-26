@@ -5,6 +5,7 @@ import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
+import '../../../core/utils/error_messages.dart';
 import '../../../repositories/chat_repository.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../providers/chat_provider.dart';
@@ -80,13 +81,11 @@ class GroupInviteScreen extends ConsumerWidget {
               final uses = int.tryParse(usesCtrl.text);
               final ctx = context;
               if (days == null || days < 1 || days > 365) {
-                AppMessenger.showError(ctx,
-                    greek ? 'Οι ημέρες πρέπει να είναι 1-365' : 'Days must be 1-365');
+                AppMessenger.showError(ctx, ErrorMessages.get('group/invite-days-invalid', greek));
                 return;
               }
               if (uses == null || uses < 1 || uses > 1000) {
-                AppMessenger.showError(ctx,
-                    greek ? 'Οι χρήσεις πρέπει να είναι 1-1000' : 'Uses must be 1-1000');
+                AppMessenger.showError(ctx, ErrorMessages.get('group/invite-uses-invalid', greek));
                 return;
               }
               Navigator.pop(context, _CreateResult(days: days, maxUses: uses));
@@ -102,9 +101,7 @@ class GroupInviteScreen extends ConsumerWidget {
     if (token != null && context.mounted) {
       await Clipboard.setData(ClipboardData(text: token));
       if (context.mounted) {
-        AppMessenger.showSuccess(context, greek
-            ? 'Το invite token αντιγράφηκε στο clipboard'
-            : 'Invite token copied to clipboard');
+        AppMessenger.showSuccess(context, ErrorMessages.get('group/invite-token-copied', greek));
       }
     }
   }
@@ -195,8 +192,7 @@ class _InviteTile extends ConsumerWidget {
                   child: OutlinedButton.icon(
                     onPressed: () {
                       Clipboard.setData(ClipboardData(text: invite.token));
-                      AppMessenger.showSuccess(context, greek
-                          ? 'Αντιγράφηκε' : 'Copied');
+                      AppMessenger.showSuccess(context, ErrorMessages.get('group/invite-copied', greek));
                     },
                     icon: const Icon(Icons.copy, size: 16),
                     label: Text(greek ? 'Αντιγραφή' : 'Copy'),

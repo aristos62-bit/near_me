@@ -6,6 +6,7 @@ import '../../../core/l10n/l10n.dart';
 import '../../../repositories/auth_repository.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
+import '../../../core/utils/error_messages.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/requests_provider.dart';
@@ -147,7 +148,7 @@ class _RequestsDashboardScreenState extends ConsumerState<RequestsDashboardScree
       } else {
         AppMessenger.showError(
           context,
-          L10n.localizedMessage(context, 'Ορισμένα αιτήματα δεν διαγράφηκαν / Some requests failed to delete'),
+          ErrorMessages.get('request/some-deletes-failed', L10n.isGreek(context)),
         );
       }
     }

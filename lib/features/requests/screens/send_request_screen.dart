@@ -304,8 +304,7 @@ class _SendRequestScreenState extends ConsumerState<SendRequestScreen> {
         message: message.isNotEmpty ? message : null,
       );
       if (mounted) {
-        AppMessenger.showSuccess(context, L10n.localizedMessage(context,
-            'Το αίτημα στάλθηκε / Request sent'));
+        AppMessenger.showSuccess(context, ErrorMessages.get('request/sent', L10n.isGreek(context)));
         ref.invalidate(outgoingRequestsProvider);
         context.pop();
       }

@@ -6,6 +6,7 @@ import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
+import '../../../core/utils/error_messages.dart';
 import '../../../shared/widgets/chip_selector.dart';
 import '../../../shared/widgets/form_section.dart';
 import '../../../shared/widgets/form_toggle.dart';
@@ -202,7 +203,7 @@ class _SearchFiltersScreenState extends ConsumerState<SearchFiltersScreen> {
     await ref.read(savedSearchActionsProvider).save(filters, label);
     if (context.mounted) {
       AppMessenger.showSuccess(context,
-          L10n.localizedMessage(context, 'Αποθηκεύτηκε / Saved'));
+          ErrorMessages.get('search/filters-saved', L10n.isGreek(context)));
     }
   }
 

@@ -342,3 +342,48 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 ### Σημείωση
 - `DebugConfig` import αφαιρέθηκε από `message_bubble.dart` και `text_message_bubble.dart`
 - Όλα τα debug logs (`BUILD`, `TextBubble`, `BUBBLE_W`) και στατικές μεταβλητές (`_bubbleKeys`, `_loggedW`) αφαιρέθηκαν
+
+---
+
+## Session 202+ — SPoT Error Messages Fix (100%) — 26 Ιουλ 2026
+
+### Σκοπός
+Αντικατάσταση όλων των inline bilingual strings σε `AppMessenger.showSuccess/Error/Info` calls με `ErrorMessages.get(code, isGreek)` — Ενιαίο SPoT για error/status/success messages.
+
+### Τι έγινε
+- **Backup:** `backups/spot_fix_20260726_120756/` (error_messages.dart + chat_messages_list.dart)
+- **error_messages.dart:** ~85 static codes (52 original + 33 νέα) organized by feature
+- **19 αρχεία** edited:
+  - `error_messages.dart` — όλα τα codes
+  - `chat_messages_list.dart` (6 fixes)
+  - `chat_screen.dart` (2 fixes)
+  - `group_settings_screen.dart` (7 fixes)
+  - `group_info_screen.dart` (5 fixes)
+  - `create_group_screen.dart` (3 fixes)
+  - `profile_editor_screen.dart` (8 fixes)
+  - `privacy_editor_screen.dart` (3 fixes + scope fix)
+  - `settings_screen.dart` (6 fixes)
+  - `profile_screen.dart` (2 fixes)
+  - `add_participant_screen.dart` (2 fixes)
+  - `permissions_editor_screen.dart` (8 fixes)
+  - `group_invite_screen.dart` (4 fixes)
+  - `join_confirmation_screen.dart` (3 fixes)
+  - `public_profile_view_screen.dart` (7 fixes)
+  - `delete_account_screen.dart` (1 fix)
+  - `saved_searches_screen.dart` (1 fix)
+  - `search_filters_screen.dart` (1 fix)
+  - `blocked_users_screen.dart` (1 fix)
+  - `verify_account_screen.dart` (2 fixes)
+  - `requests_dashboard_screen.dart` (1 fix)
+  - `send_request_screen.dart` (1 fix)
+  - `request_card_widgets.dart` (3 fixes)
+  - `phone_verify_screen.dart` (1 fix)
+
+**Σύνολο:** ~90 static violations fixed, 63/63 AppMessenger calls → `ErrorMessages.get()`
+
+### Δεν πειράχθηκαν
+- **Dynamic messages** (με `$nickname`, `$count`, `$label`, `$_maxParticipants`, `$_accuracyMeters`) — deferred για template `%s` pattern
+- **UI labels** σε dialogs (`confirmLabel`/`cancelLabel`), titles, menu items, Text widgets — παραμένουν inline bilingual
+- **Clickable-links feature** — deferred
+
+### `flutter analyze`: clean ✅ (0 issues)

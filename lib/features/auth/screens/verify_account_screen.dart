@@ -73,8 +73,7 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
     final email = _emailCtrl.text.trim();
     final password = _passwordCtrl.text.trim();
     if (email.isEmpty || password.isEmpty) {
-      AppMessenger.showError(context, L10n.localizedMessage(context,
-          'Συμπλήρωσε όλα τα πεδία / Fill in all fields'));
+      AppMessenger.showError(context, ErrorMessages.get('auth/fill-all-fields', L10n.isGreek(context)));
       return;
     }
     DebugConfig.log(DebugConfig.authFlow, 'VerifyAccountScreen: verify tapped');
@@ -127,7 +126,7 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
               DebugConfig.log(DebugConfig.authFlow, 'VerifyAccountScreen: password reset for $email');
               ref.read(verifyAccountProvider.notifier).sendPasswordReset(email);
               AppMessenger.showSuccess(context,
-                  L10n.localizedMessage(context, 'Στάλθηκε email επαναφοράς / Reset email sent'));
+                  ErrorMessages.get('auth/reset-email-sent', L10n.isGreek(context)));
             },
             child: Text(isGreek ? 'Αποστολή' : 'Send'),
           ),

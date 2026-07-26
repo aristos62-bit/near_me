@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/utils/app_messenger.dart';
+import '../../../core/utils/error_messages.dart';
 import '../../../data/local/database.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../providers/saved_search_provider.dart';
@@ -155,7 +156,7 @@ class _SearchCard extends ConsumerWidget {
                       await ref.read(savedSearchActionsProvider).delete(search.id);
                       if (context.mounted) {
                         AppMessenger.showSuccess(context,
-                            L10n.localizedMessage(context, 'Διαγράφηκε / Deleted'));
+                            ErrorMessages.get('search/saved-search-deleted', L10n.isGreek(context)));
                       }
                     },
                   ),

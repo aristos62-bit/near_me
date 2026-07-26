@@ -8,6 +8,7 @@ import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
+import '../../../core/utils/error_messages.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../providers/chat_provider.dart';
 import 'chat_screen.dart';
@@ -134,9 +135,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   Future<void> _createGroup() async {
     final greek = L10n.isGreek(context);
     if (_selected.isEmpty) {
-      AppMessenger.showError(context, greek
-          ? 'Επίλεξε τουλάχιστον 1 άτομο'
-          : 'Select at least 1 person');
+      AppMessenger.showError(context, ErrorMessages.get('group/select-min-members', greek));
       return;
     }
     setState(() => _isCreating = true);
@@ -152,18 +151,14 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
       final chatId = await ref.read(chatActionsProvider.notifier)
           .createGroupChat(_selected.keys.toList(), groupName: groupName.isNotEmpty ? groupName : null, isPublic: _isPublic, description: description.isNotEmpty ? description : null, tags: tags.isNotEmpty ? tags : null, city: city.isNotEmpty ? city : null);
       if (!mounted) return;
-      AppMessenger.showSuccess(context, greek
-          ? 'Η ομάδα δημιουργήθηκε'
-          : 'Group created');
+      AppMessenger.showSuccess(context, ErrorMessages.get('group/created', greek));
       context.replace('/chat/$chatId',
           extra: ChatNavExtra(isGroupChat: true, groupName: groupName.isNotEmpty ? groupName : null));
     } catch (e, s) {
       DebugConfig.error('CreateGroup failed', data: e, exception: s);
       if (mounted) {
         setState(() => _isCreating = false);
-        AppMessenger.showError(context, greek
-            ? 'Αποτυχία δημιουργίας ομάδας'
-            : 'Failed to create group');
+        AppMessenger.showError(context, ErrorMessages.get('group/create-failed', greek));
       }
     }
   }

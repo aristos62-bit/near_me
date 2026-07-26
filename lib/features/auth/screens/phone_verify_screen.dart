@@ -75,8 +75,7 @@ class _PhoneVerifyScreenState extends ConsumerState<PhoneVerifyScreen> {
   Future<void> _verifyOtp() async {
     final code = _otpCtrl.text.trim();
     if (code.isEmpty) {
-      final g = L10n.isGreek(context);
-      AppMessenger.showError(context, g ? 'Συμπλήρωσε τον κωδικό' : 'Enter the verification code');
+      AppMessenger.showError(context, ErrorMessages.get('auth/enter-verification-code', L10n.isGreek(context)));
       return;
     }
     DebugConfig.log(DebugConfig.authPhone, 'PhoneVerifyScreen: verifyOtp');

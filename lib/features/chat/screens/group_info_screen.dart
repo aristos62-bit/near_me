@@ -8,6 +8,7 @@ import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
+import '../../../core/utils/error_messages.dart';
 import '../../../repositories/chat_repository.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -94,16 +95,12 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
         _isEditingName = false;
         _isSaving = false;
       });
-      AppMessenger.showSuccess(context, L10n.isGreek(context)
-          ? 'Το όνομα ενημερώθηκε'
-          : 'Name updated');
+      AppMessenger.showSuccess(context, ErrorMessages.get('group/name-updated', L10n.isGreek(context)));
     } catch (e, s) {
       DebugConfig.error('GroupInfo: rename failed', data: e, exception: s);
       if (!mounted) return;
       setState(() => _isSaving = false);
-      AppMessenger.showError(context, L10n.isGreek(context)
-          ? 'Αποτυχία ενημέρωσης'
-          : 'Failed to update');
+      AppMessenger.showError(context, ErrorMessages.get('group/name-update-failed', L10n.isGreek(context)));
     }
   }
 
@@ -112,15 +109,11 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
     try {
       await ref.read(chatActionsProvider.notifier).updateParticipantRole(widget.chatId, uid, newRole);
       if (!mounted) return;
-      AppMessenger.showSuccess(context, L10n.isGreek(context)
-          ? 'Ο ρόλος ενημερώθηκε'
-          : 'Role updated');
+      AppMessenger.showSuccess(context, ErrorMessages.get('group/role-updated', L10n.isGreek(context)));
     } catch (e, s) {
       DebugConfig.error('GroupInfo: role change failed', data: e, exception: s);
       if (!mounted) return;
-      AppMessenger.showError(context, L10n.isGreek(context)
-          ? 'Αποτυχία αλλαγής ρόλου'
-          : 'Failed to change role');
+      AppMessenger.showError(context, ErrorMessages.get('group/role-change-failed', L10n.isGreek(context)));
     }
   }
 
@@ -161,9 +154,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
     } catch (e, s) {
       DebugConfig.error('GroupInfo: delete group failed', data: e, exception: s);
       if (!mounted) return;
-      AppMessenger.showError(context, greek
-          ? 'Αποτυχία διαγραφής ομάδας'
-          : 'Failed to delete group');
+      AppMessenger.showError(context, ErrorMessages.get('group/delete-failed', greek));
     }
   }
 

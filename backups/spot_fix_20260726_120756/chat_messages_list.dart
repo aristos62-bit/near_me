@@ -285,14 +285,17 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
           if (!mounted) return;
           if (shared) return;
         }
-        AppMessenger.showInfo(context, ErrorMessages.get('chat/share-file-failed', greek));
+        AppMessenger.showInfo(context, greek
+            ? 'Δεν ήταν δυνατή η κοινοποίηση αρχείου — θα σταλεί ο σύνδεσμος'
+            : 'Could not share file — sending link instead');
       }
       try {
         await SharePlus.instance.share(ShareParams(text: content));
       } catch (e) {
         DebugConfig.error('ChatMessagesList: share failed', data: e);
         if (!mounted) return;
-        AppMessenger.showError(context, ErrorMessages.get('chat/share-failed', greek));
+        AppMessenger.showError(context,
+            greek ? 'Αποτυχία κοινοποίησης' : 'Failed to share');
       }
       return;
     }
@@ -305,7 +308,9 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
         .toList();
     if (chats.isEmpty) {
       if (!mounted) return;
-      AppMessenger.showInfo(context, ErrorMessages.get('chat/no-chats-forward', greek));
+      AppMessenger.showInfo(context, greek
+          ? 'Δεν υπάρχουν συνομιλίες για προώθηση'
+          : 'No chats available to forward to');
       return;
     }
 
@@ -346,11 +351,11 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
         .sendMessage(targetChatId, content);
     if (!mounted) return;
     if (success) {
-      AppMessenger.showSuccess(context, ErrorMessages.get('chat/forwarded', greek));
+      AppMessenger.showSuccess(context, greek ? 'Προωθήθηκε' : 'Forwarded');
     } else {
       final state = ref.read(chatActionsProvider);
       AppMessenger.showError(context, state.errorMessage ??
-          ErrorMessages.get('chat/forward-failed', greek));
+          (greek ? 'Αποτυχία προώθησης' : 'Failed to forward'));
     }
   }
 
@@ -412,7 +417,12 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     final ts = rawTs is Timestamp ? rawTs.toDate() : null;
     if (ts != null && DateTime.now().difference(ts) > _editWindow) {
       final greek = L10n.isGreek(context);
-      AppMessenger.showInfo(context, ErrorMessages.get('chat/edit-timeout', greek));
+      AppMessenger.showInfo(
+        context,
+        greek
+            ? 'Το χρονικό όριο επεξεργασίας (15 λεπτά) έχει λήξει'
+            : 'The 15-minute edit window has expired',
+      );
       return;
     }
     ref.read(editingMessageProvider.notifier).setEdit(msg);

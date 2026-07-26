@@ -7,6 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
+import '../../../core/utils/error_messages.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/block_provider.dart';
@@ -111,7 +112,7 @@ class _BlockedUserTile extends ConsumerWidget {
               await ref.read(blockActionsProvider).unblock(uid, blockedUid);
               if (context.mounted) {
                 AppMessenger.showSuccess(context,
-                    L10n.localizedMessage(context, 'Ξεμπλοκαρίστηκε / Unblocked'));
+                    ErrorMessages.get('block/unblocked', L10n.isGreek(context)));
               }
             },
             icon: const Icon(Icons.lock_open_outlined, size: 18),

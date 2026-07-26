@@ -9,6 +9,7 @@ import '../../../core/l10n/l10n.dart';
 import '../../../repositories/chat_repository.dart';
 import '../../../core/notifications/fcm_service.dart';
 import '../../../core/utils/app_messenger.dart';
+import '../../../core/utils/error_messages.dart';
 import '../../../shared/widgets/avatar_stack.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
@@ -109,7 +110,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     AppMessenger.showInfoDialog(
       context,
       icon: Icons.lock,
-      title: greek ? 'E2E Κρυπτογράφηση' : 'E2E Encryption',
+      title: ErrorMessages.get('chat/e2e-info-title', greek),
       message: greek
           ? 'Τα μηνύματά σου προστατεύονται με κρυπτογράφηση AES-256 από άκρο σε άκρο. '
               'Μόνο εσύ και η ομάδα "$label" μπορείτε να τα διαβάσετε.'
@@ -328,7 +329,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   await ref.read(chatActionsProvider.notifier).clearMessages(widget.chatId);
                   if (context.mounted) {
                     AppMessenger.showSuccess(context,
-                        L10n.localizedMessage(context, 'Τα μηνύματα διαγράφηκαν / Messages cleared'));
+                        ErrorMessages.get('chat/messages-cleared', greek));
                   }
                 }
               } else if (v == 'group_info') {

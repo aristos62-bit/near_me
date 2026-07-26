@@ -12,6 +12,7 @@ import '../../../core/theme/app_typography.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
+import '../../../core/utils/error_messages.dart';
 import '../../../data/local/database.dart';
 import '../../../features/chat/providers/chat_provider.dart';
 import '../../../shared/utils/image_utils.dart';
@@ -184,7 +185,7 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
     } else {
       setState(() => _isDetectingLocation = false);
       if (!mounted) return;
-      AppMessenger.showInfo(context, L10n.localizedMessage(context, 'Δεν δόθηκε άδεια GPS. Μπορείς να συμπληρώσεις χειροκίνητα την πόλη. / GPS permission denied. You can enter the city manually.'));
+      AppMessenger.showInfo(context, ErrorMessages.get('profile/gps-manual-entry', L10n.isGreek(context)));
     }
   }
 
@@ -280,10 +281,10 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
       final url = await ref.read(profileRepositoryProvider).saveAvatar(bytes);
       setState(() { _avatarUrl = url; _avatarErrorShown = false; });
       if (!context.mounted) return;
-      if (mounted) AppMessenger.showSuccess(ctx, L10n.localizedMessage(ctx, 'Η φωτογραφία αποθηκεύτηκε! / Photo saved!'));
+      if (mounted) AppMessenger.showSuccess(ctx, ErrorMessages.get('profile/photo-saved', L10n.isGreek(ctx)));
     } catch (e, s) {
       DebugConfig.error('Avatar upload failed', data: e, exception: s);
-      if (mounted) AppMessenger.showError(ctx, L10n.localizedMessage(ctx, 'Αποτυχία μεταφόρτωσης / Upload failed'));
+      if (mounted) AppMessenger.showError(ctx, ErrorMessages.get('profile/upload-failed', L10n.isGreek(ctx)));
     } finally {
       if (mounted) setState(() => _isUploadingAvatar = false);
     }
@@ -348,7 +349,7 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
     } catch (e, s) {
       DebugConfig.error('Photo upload failed', data: e, exception: s);
       if (!context.mounted) return;
-      if (mounted) AppMessenger.showError(ctx, L10n.localizedMessage(ctx, 'Αποτυχία μεταφόρτωσης φωτογραφίας / Photo upload failed'));
+      if (mounted) AppMessenger.showError(ctx, ErrorMessages.get('profile/photo-upload-failed', L10n.isGreek(ctx)));
     } finally {
       if (mounted) setState(() => _uploadingPhotoIndex = null);
     }
@@ -396,7 +397,7 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
     try {
       final name = _nicknameCtrl.text.trim();
       if (name.isEmpty) {
-        if (mounted) AppMessenger.showError(context, L10n.localizedMessage(context, 'Το ψευδώνυμο είναι υποχρεωτικό / Nickname is required'));
+        if (mounted) AppMessenger.showError(context, ErrorMessages.get('profile/nickname-required', L10n.isGreek(context)));
         setState(() => _isSaving = false);
         return;
       }
@@ -466,12 +467,12 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
         // autoDispose stream race — data already saved, ignore
       }
       if (mounted) {
-        AppMessenger.showSuccess(context, L10n.localizedMessage(context, 'Το προφίλ αποθηκεύτηκε! / Profile saved!'));
+        AppMessenger.showSuccess(context, ErrorMessages.get('profile/saved-success', L10n.isGreek(context)));
         context.pop();
       }
     } catch (e, s) {
       DebugConfig.error('ProfileEditor save failed', data: e, exception: s);
-      if (mounted) AppMessenger.showError(context, L10n.localizedMessage(context, 'Αποτυχία αποθήκευσης προφίλ / Failed to save profile'));
+      if (mounted) AppMessenger.showError(context, ErrorMessages.get('profile/save-profile-failed', L10n.isGreek(context)));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -599,7 +600,7 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
                       WidgetsBinding.instance.addPostFrameCallback((_) {
                         if (ctx.mounted && !_avatarErrorShown) {
                           _avatarErrorShown = true;
-                          AppMessenger.showError(ctx, g ? 'Αποτυχία φόρτωσης φωτογραφίας προφίλ' : 'Failed to load profile photo');
+                          AppMessenger.showError(ctx, ErrorMessages.get('profile/photo-load-failed', g));
                         }
                       });
                       return _buildAvatarPlaceholder(g);

@@ -159,7 +159,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
 
     ref.listen<DeleteAccountState>(deleteAccountProvider, (_, next) {
       if (next.status == DeleteState.success) {
-        AppMessenger.showSuccess(context, L10n.localizedMessage(context, 'Ο λογαριασμός διαγράφηκε / Account deleted'));
+        AppMessenger.showSuccess(context, ErrorMessages.get('delete/account-deleted', L10n.isGreek(context)));
         context.go('/auth');
       } else if (next.status == DeleteState.error) {
         AppMessenger.showError(context, ErrorMessages.get(next.errorMessage ?? 'delete/unknown-error', L10n.isGreek(context)));

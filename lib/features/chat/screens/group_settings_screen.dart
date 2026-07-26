@@ -5,6 +5,7 @@ import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
+import '../../../core/utils/error_messages.dart';
 import '../../../repositories/chat_repository.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -49,13 +50,13 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
       setState(() => _isUploadingAvatar = false);
       if (success) {
         ref.invalidate(chatDocProvider(widget.chatId));
-        AppMessenger.showSuccess(context, greek ? 'Το avatar ενημερώθηκε' : 'Avatar updated');
+        AppMessenger.showSuccess(context, ErrorMessages.get('group/avatar-updated', greek));
       }
     } catch (e, s) {
       DebugConfig.error('GroupSettings: pickAndUploadAvatar failed', data: e, exception: s);
       if (!mounted) return;
       setState(() => _isUploadingAvatar = false);
-      AppMessenger.showError(context, greek ? 'Αποτυχία αλλαγής avatar' : 'Failed to update avatar');
+      AppMessenger.showError(context, ErrorMessages.get('group/avatar-update-failed', greek));
     }
   }
 
@@ -68,12 +69,12 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
       setState(() => _isUploadingAvatar = false);
       ref.invalidate(chatDocProvider(widget.chatId));
       DebugConfig.log(DebugConfig.repositoryResult, 'GroupSettings: removeAvatar success ${widget.chatId}');
-      AppMessenger.showSuccess(context, greek ? 'Το avatar αφαιρέθηκε' : 'Avatar removed');
+      AppMessenger.showSuccess(context, ErrorMessages.get('group/avatar-removed', greek));
     } catch (e, s) {
       DebugConfig.error('GroupSettings: removeAvatar failed', data: e, exception: s);
       if (!mounted) return;
       setState(() => _isUploadingAvatar = false);
-      AppMessenger.showError(context, greek ? 'Αποτυχία αφαίρεσης avatar' : 'Failed to remove avatar');
+      AppMessenger.showError(context, ErrorMessages.get('group/avatar-remove-failed', greek));
     }
   }
 
@@ -81,9 +82,7 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
     final greek = L10n.isGreek(context);
     final newMax = int.tryParse(_maxPController.text.trim());
     if (newMax == null || newMax < 2 || newMax > 100) {
-      AppMessenger.showError(context, greek
-          ? 'Επιτρέπονται 2-100 συμμετέχοντες'
-          : 'Allowed 2-100 participants');
+      AppMessenger.showError(context, ErrorMessages.get('group/invalid-participant-count', greek));
       return;
     }
     if (newMax == _currentMax) return;
@@ -94,13 +93,13 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
       setState(() => _isSavingMax = false);
       if (success) {
         setState(() => _currentMax = newMax);
-        AppMessenger.showSuccess(context, greek ? 'Ενημερώθηκε' : 'Updated');
+        AppMessenger.showSuccess(context, ErrorMessages.get('group/max-participants-updated', greek));
       }
     } catch (e, s) {
       DebugConfig.error('GroupSettings: saveMaxParticipants failed', data: e, exception: s);
       if (!mounted) return;
       setState(() => _isSavingMax = false);
-      AppMessenger.showError(context, greek ? 'Αποτυχία ενημέρωσης' : 'Failed to update');
+      AppMessenger.showError(context, ErrorMessages.get('group/max-participants-update-failed', greek));
     }
   }
 

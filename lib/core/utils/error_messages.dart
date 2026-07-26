@@ -92,6 +92,20 @@ class ErrorMessages {
         return isGreek ? 'Μέγιστη διάρκεια 60 δευτερόλεπτα' : 'Maximum duration 60 seconds';
       case 'chat/reply-send-failed':
         return isGreek ? 'Αποτυχία αποστολής απάντησης' : 'Failed to send reply';
+      case 'chat/link-invalid':
+        return isGreek ? 'Μη έγκυρος σύνδεσμος' : 'Invalid link';
+      case 'chat/link-open-failed':
+        return isGreek ? 'Δεν ήταν δυνατό το άνοιγμα του συνδέσμου' : 'Could not open the link';
+        case 'chat/email-no-app':
+        return isGreek ? 'Δεν βρέθηκε εφαρμογή email' : 'No email app found';
+      case 'chat/email-not-configured':
+        return isGreek ? 'Δεν βρέθηκε ρυθμισμένη εφαρμογή email' : 'No configured email app found';
+      case 'chat/email-attach-failed':
+        return isGreek ? 'Δεν ήταν δυνατή η επισύναψη — θα σταλεί ο σύνδεσμος' : 'Could not attach file — sending link instead';
+      case 'chat/email-not-available':
+        return isGreek ? 'Η εφαρμογή email δεν είναι διαθέσιμη αυτή τη στιγμή' : 'Email composer is unavailable right now';
+      case 'chat/email-send-failed':
+        return isGreek ? 'Αποτυχία αποστολής email' : 'Failed to send email';
       case 'delete/unknown-error':
         return isGreek ? 'Σφάλμα διαγραφής λογαριασμού. Δοκίμασε ξανά.' : 'Account deletion error. Try again.';
       case 'stream/load-error':

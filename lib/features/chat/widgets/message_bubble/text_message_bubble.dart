@@ -6,6 +6,7 @@ import 'bubble_long_press_wrapper.dart';
 import 'message_reactions_row.dart';
 import 'read_receipt_footer.dart';
 import '../../../../core/theme/app_colors.dart';
+import 'package:flutter/gestures.dart';
 
 class TextMessageBubble extends StatelessWidget {
   final String content;
@@ -34,6 +35,7 @@ class TextMessageBubble extends StatelessWidget {
   final VoidCallback? onInfo;
   final VoidCallback? onEmail;
   final VoidCallback? onShare;
+  final void Function(String url)? onLinkTap;
 
   const TextMessageBubble({
     super.key,
@@ -63,6 +65,7 @@ class TextMessageBubble extends StatelessWidget {
     this.onInfo,
     this.onEmail,
     this.onShare,
+    this.onLinkTap,
   });
 
   static const double _bubbleRadius = 20;
@@ -70,39 +73,67 @@ class TextMessageBubble extends StatelessWidget {
   static const Color _sentColor = AppColors.chatBubbleSent;
   static const Color _sentTextColor = Colors.white;
 
+  static final RegExp _linkDetector = RegExp(r'https?://|www\.');
+
   Widget _buildRichContent(
       BuildContext context, String content, List<String> mentions, bool isMe) {
     final theme = Theme.of(context);
     final baseColor = isMe
-        ? theme.colorScheme.onPrimary
+        ? _sentTextColor
         : theme.colorScheme.onSurface;
     final highlightColor = isMe
         ? theme.colorScheme.onPrimary.withAlpha(200)
         : theme.colorScheme.primary;
+    final linkColor = isMe
+        ? _sentTextColor
+        : theme.colorScheme.primary;
 
-    final spans = <TextSpan>[];
+    final spans = <InlineSpan>[];
     final mentionSet = mentions.toSet();
     final nicknameToUid = participantNicknames != null
         ? {for (final e in participantNicknames!.entries) e.value: e.key}
         : <String, String>{};
-    final regex = RegExp(r'@(\S+)');
+    final regex = RegExp(r'(@\S+)|((?:https?://|www\.)\S+)');
+    final trailingPunct = RegExp(r'''[.,!?;:)\]"']+$''');
     int lastEnd = 0;
 
     for (final match in regex.allMatches(content)) {
       if (match.start > lastEnd) {
         spans.add(TextSpan(text: content.substring(lastEnd, match.start)));
       }
-      final nickname = match.group(1);
-      final mentionedUid = nickname != null ? nicknameToUid[nickname] : null;
-      final isMentioned = mentionedUid != null && mentionSet.contains(mentionedUid);
+
+      final mentionText = match.group(1);
+      if (mentionText != null) {
+        final nickname = mentionText.substring(1);
+        final mentionedUid = nicknameToUid[nickname];
+        final isMentioned = mentionedUid != null && mentionSet.contains(mentionedUid);
+        spans.add(TextSpan(
+          text: mentionText,
+          style: TextStyle(
+            color: isMentioned ? highlightColor : baseColor,
+            fontWeight: isMentioned ? FontWeight.w600 : FontWeight.normal,
+          ),
+        ));
+        lastEnd = match.end;
+        continue;
+      }
+
+      final rawUrl = match.group(2)!;
+      var urlText = rawUrl;
+      var urlEnd = match.end;
+      final trailMatch = trailingPunct.firstMatch(rawUrl);
+      if (trailMatch != null) {
+        urlText = rawUrl.substring(0, trailMatch.start);
+        urlEnd -= (rawUrl.length - urlText.length);
+      }
+      final linkTarget = urlText;
       spans.add(TextSpan(
-        text: match.group(0),
-        style: TextStyle(
-          color: isMentioned ? highlightColor : baseColor,
-          fontWeight: isMentioned ? FontWeight.w600 : FontWeight.normal,
-        ),
+        text: urlText,
+        style: TextStyle(color: linkColor, decoration: TextDecoration.underline),
+        recognizer: TapGestureRecognizer()
+          ..onTap = () => onLinkTap?.call(linkTarget),
       ));
-      lastEnd = match.end;
+      lastEnd = urlEnd;
     }
 
     if (lastEnd < content.length) {
@@ -185,7 +216,7 @@ class TextMessageBubble extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  mentions.isEmpty
+                                  (mentions.isEmpty && !_linkDetector.hasMatch(content))
                                       ? Text(content, style: TextStyle(color: textColor), textAlign: TextAlign.start)
                                       : _buildRichContent(context, content, mentions, isMe),
                                   if (timeStr.isNotEmpty)

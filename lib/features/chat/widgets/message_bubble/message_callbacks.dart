@@ -11,6 +11,7 @@ class MessageCallbacks {
   final void Function()? onInfo;
   final void Function()? onEmail;
   final void Function()? onShare;
+  final void Function(String url)? onLinkTap;
   final Future<void> Function(String url)? onPlayVideo;
 
   const MessageCallbacks({
@@ -26,6 +27,7 @@ class MessageCallbacks {
     this.onInfo,
     this.onEmail,
     this.onShare,
+    this.onLinkTap,
     this.onPlayVideo,
   });
 }

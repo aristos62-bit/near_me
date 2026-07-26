@@ -20,6 +20,7 @@ import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_email_sender/flutter_email_sender.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class _MessageReadProps {
   final bool effectiveIsRead;
@@ -194,16 +195,12 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     } catch (e) {
       DebugConfig.error('ChatMessagesList: getCapabilities failed', data: e);
       if (!mounted) return;
-      AppMessenger.showError(context, greek
-          ? 'Δεν βρέθηκε εφαρμογή email'
-          : 'No email app found');
+      AppMessenger.showError(context, ErrorMessages.get('chat/email-no-app', greek));
       return;
     }
     if (!mounted) return;
     if (!capabilities.canSend) {
-      AppMessenger.showError(context, greek
-          ? 'Δεν βρέθηκε ρυθμισμένη εφαρμογή email'
-          : 'No configured email app found');
+      AppMessenger.showError(context, ErrorMessages.get('chat/email-not-configured', greek));
       return;
     }
 
@@ -213,9 +210,7 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
       if (!mounted) return;
       attachmentPath = file?.path;
       if (attachmentPath == null) {
-        AppMessenger.showInfo(context, greek
-            ? 'Δεν ήταν δυνατή η επισύναψη — θα σταλεί ο σύνδεσμος'
-            : 'Could not attach file — sending link instead');
+        AppMessenger.showInfo(context, ErrorMessages.get('chat/email-attach-failed', greek));
       }
     }
 
@@ -237,17 +232,13 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
       await FlutterEmailSender.send(email);
     } on FlutterEmailSenderNotAvailableException {
       if (!mounted) return;
-      AppMessenger.showError(context, greek
-          ? 'Η εφαρμογή email δεν είναι διαθέσιμη αυτή τη στιγμή'
-          : 'Email composer is unavailable right now');
+      AppMessenger.showError(context, ErrorMessages.get('chat/email-not-available', greek));
     } on FlutterEmailSenderUnsupportedFeatureException catch (e) {
       DebugConfig.warn('ChatMessagesList: email unsupported features', data: e);
     } catch (e) {
       DebugConfig.error('ChatMessagesList: email send failed', data: e);
       if (!mounted) return;
-      AppMessenger.showError(context, greek
-          ? 'Αποτυχία αποστολής email'
-          : 'Failed to send email');
+      AppMessenger.showError(context, ErrorMessages.get('chat/email-send-failed', greek));
     }
   }
 
@@ -368,6 +359,29 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     }
   }
 
+  Future<void> _onLinkTap(String url) async {
+    final greek = L10n.isGreek(context);
+    DebugConfig.log(DebugConfig.uiInteraction, 'ChatMessagesList: link tap url=$url');
+    final normalized = (url.startsWith('http://') || url.startsWith('https://'))
+        ? url
+        : 'https://$url';
+    final uri = Uri.tryParse(normalized);
+    if (uri == null) {
+      AppMessenger.showError(context, ErrorMessages.get('chat/link-invalid', greek));
+      return;
+    }
+    try {
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!mounted) return;
+      if (!launched) {
+        AppMessenger.showError(context, ErrorMessages.get('chat/link-open-failed', greek));
+      }
+    } catch (e) {
+      DebugConfig.error('ChatMessagesList: link launch failed', data: e);
+      if (!mounted) return;
+      AppMessenger.showError(context, ErrorMessages.get('chat/link-open-failed', greek));
+    }
+  }
 
   Future<void> _onKeepChat(String chatId) async {
     DebugConfig.log(DebugConfig.uiInteraction, 'ChatMessagesList: keepChat chat=$chatId');
@@ -651,6 +665,7 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
                 ),
                 onEmail: () => _onEmail(msg),
                 onShare: () => _onShare(msg),
+                onLinkTap: _onLinkTap,
                 onPlayVideo: widget.onPlayVideo,
               ),
             );

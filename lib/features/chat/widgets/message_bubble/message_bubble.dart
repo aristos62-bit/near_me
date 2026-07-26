@@ -215,6 +215,7 @@ class MessageBubble extends StatelessWidget {
         onInfo: callbacks.onInfo,
         onEmail: callbacks.onEmail,
         onShare: callbacks.onShare,
+        onLinkTap: callbacks.onLinkTap,
       ),
     };
   }

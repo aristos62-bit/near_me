@@ -6,7 +6,6 @@ import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
-import '../../../core/utils/connectivity_guard.dart';
 import '../../../core/utils/error_messages.dart';
 import '../../../repositories/chat_repository.dart';
 import '../../../shared/widgets/app_state_widget.dart';
@@ -119,7 +118,6 @@ class _PermissionsEditorScreenState
   Future<void> _togglePermission(
       GroupPermission p, bool newValue, String role) async {
     if (_savingPermissions.contains(p.name)) return;
-    if (!await ConnectivityGuard.ensure(context)) return;
     setState(() => _savingPermissions.add(p.name));
     try {
       final ok = await ref
@@ -153,7 +151,6 @@ class _PermissionsEditorScreenState
       isDestructive: true,
     );
     if (!confirmed || !mounted) return;
-    if (!await ConnectivityGuard.ensure(context)) return;
     final ok = await ref
         .read(chatActionsProvider.notifier)
         .deletePermissionOverrides(widget.chatId, widget.targetUid);
@@ -190,7 +187,6 @@ class _PermissionsEditorScreenState
       isDestructive: !isPromote,
     );
     if (!confirmed || !mounted) return;
-    if (!await ConnectivityGuard.ensure(context)) return;
     try {
       await ref.read(chatActionsProvider.notifier).updateParticipantRole(
             widget.chatId,
@@ -225,7 +221,6 @@ class _PermissionsEditorScreenState
       isDestructive: true,
     );
     if (!confirmed || !mounted) return;
-    if (!await ConnectivityGuard.ensure(context)) return;
     try {
       await ref.read(chatActionsProvider.notifier).removeParticipant(
             widget.chatId,

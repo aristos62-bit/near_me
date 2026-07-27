@@ -8,7 +8,6 @@ import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
-import '../../../core/utils/connectivity_guard.dart';
 import '../../../core/utils/error_messages.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../providers/chat_provider.dart';
@@ -65,7 +64,6 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   }
 
   Future<void> _search(String query) async {
-    if (!await ConnectivityGuard.ensure(context)) return;
     setState(() => _isSearching = true);
     try {
       final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
@@ -140,7 +138,6 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
       AppMessenger.showError(context, ErrorMessages.get('group/select-min-members', greek));
       return;
     }
-    if (!await ConnectivityGuard.ensure(context)) return;
     setState(() => _isCreating = true);
     final groupName = _groupNameCtrl.text.trim();
     final description = _descriptionCtrl.text.trim();

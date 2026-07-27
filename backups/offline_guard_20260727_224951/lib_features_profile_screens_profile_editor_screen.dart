@@ -12,7 +12,6 @@ import '../../../core/theme/app_typography.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
-import '../../../core/utils/connectivity_guard.dart';
 import '../../../core/utils/error_messages.dart';
 import '../../../data/local/database.dart';
 import '../../../features/chat/providers/chat_provider.dart';
@@ -393,7 +392,6 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-    if (!await ConnectivityGuard.ensure(context)) return;
     DebugConfig.log(DebugConfig.uiInteraction, 'ProfileEditorScreen save');
     setState(() => _isSaving = true);
     try {

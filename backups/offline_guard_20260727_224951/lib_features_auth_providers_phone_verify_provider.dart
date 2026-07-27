@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/utils/app_exception.dart';
-import '../../../core/utils/connectivity_guard.dart';
 import '../../../repositories/auth_repository.dart';
 import 'auth_provider.dart';
 
@@ -41,11 +40,6 @@ class PhoneVerifyNotifier extends Notifier<PhoneVerifyState> {
   }
 
   Future<void> sendOtp(String phoneNumber) async {
-    if (!await ConnectivityGuard.isOnline()) {
-      state = const PhoneVerifyState(
-          status: PhoneVerifyStatus.error, errorMessage: 'network/no-connectivity');
-      return;
-    }
     DebugConfig.log(DebugConfig.authPhone, 'PhoneVerify: sendOtp $phoneNumber');
     state = const PhoneVerifyState(status: PhoneVerifyStatus.loading);
     try {
@@ -74,11 +68,6 @@ class PhoneVerifyNotifier extends Notifier<PhoneVerifyState> {
     if (currentState.verificationId == null || currentState.verificationId!.isEmpty) {
       DebugConfig.warn('PhoneVerify: verifyOtp called without verificationId');
       state = PhoneVerifyState(status: PhoneVerifyStatus.error, errorMessage: 'auth/invalid-verification');
-      return;
-    }
-    if (!await ConnectivityGuard.isOnline()) {
-      state = const PhoneVerifyState(
-          status: PhoneVerifyStatus.error, errorMessage: 'network/no-connectivity');
       return;
     }
     DebugConfig.log(DebugConfig.authPhone, 'PhoneVerify: verifyOtp');

@@ -242,10 +242,7 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 | 200 | **_MessageBubbleSignature + _obtainBubble cache** — MessageBubble instances cached by signature (chat_messages_list.dart) |
 | 201 | **EmojiOnlyBubble _buildCounts cleanup** — remove static debug map (memory leak, misleading cascade counters) |
 | 201 | **markAsRead guard** — skip serverTimestamp write when unreadCount==0 via local Drift cache (prevents group chat cascade) |
-| | |
-| **206** | **Server-side authoritative geoHash** — computeGeoHash CF (πιστό GeoHashUtils port), Firestore SPoT geoPrecision, update rule blocks client geoHash write, auto-publish σε κάθε save, live distance από geoHash αντί searchState.distances, 5 files changed |
-| **207** | **Mock-location detection** — `position.isMocked` check σε GPS + lastKnown, LocationFailure.mockLocationDetected, discovery_screen μήνυμα fake GPS, 2 files changed |
-
+ 
 ## Current State
 
 | Μέτρο | Τιμή |
@@ -253,7 +250,7 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 | Completion | ~99.9% (Phases 1-3 100%, MultiChat 100%, Media 100%, Chat Redesign 100%, Audio Messages 100%) |
 | `.dart` files | ~122 (non-generated) |
 | Firestore indexes | 21 composite deployed |
-| Cloud Functions | 7 deployed (+ computeGeoHash) + `fcm-utils.ts` helper |
+| Cloud Functions | 6 deployed + `fcm-utils.ts` helper |
 | Build | `flutter analyze` clean, release APK ~15.8MB |
 | Tests | 30/30 passed |
 | Schema | Drift v12, 7 tables |

@@ -7,7 +7,6 @@ import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
-import '../../../core/utils/connectivity_guard.dart';
 import '../../../core/utils/error_messages.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../providers/chat_provider.dart';
@@ -95,7 +94,6 @@ class _AddParticipantScreenState extends ConsumerState<AddParticipantScreen> {
   Future<void> _search(String query) async {
     await _ensureDataLoaded();
     if (!mounted) return;
-    if (!await ConnectivityGuard.ensure(context)) return;
     setState(() => _isSearching = true);
     try {
       final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
@@ -163,7 +161,7 @@ class _AddParticipantScreenState extends ConsumerState<AddParticipantScreen> {
           : 'Max members ($_maxParticipants) reached');
       return;
     }
-    if (!await ConnectivityGuard.ensure(context)) return;
+
     setState(() => _isAdding = true);
     try {
       final success = await ref.read(chatActionsProvider.notifier)

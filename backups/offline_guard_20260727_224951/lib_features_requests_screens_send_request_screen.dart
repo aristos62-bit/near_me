@@ -5,7 +5,6 @@ import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../repositories/auth_repository.dart';
 import '../../../core/utils/app_exception.dart';
-import '../../../core/utils/connectivity_guard.dart';
 import '../../../core/utils/error_messages.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
@@ -293,7 +292,6 @@ class _SendRequestScreenState extends ConsumerState<SendRequestScreen> {
   }
 
   Future<void> _sendRequest() async {
-    if (!await ConnectivityGuard.ensure(context)) return;
     final type = _selectedType!;
     final message = _messageController.text.trim();
     DebugConfig.log(DebugConfig.uiInteraction, 'SendRequestScreen send: to=${widget.uid} type=$type message=${message.length}chars');

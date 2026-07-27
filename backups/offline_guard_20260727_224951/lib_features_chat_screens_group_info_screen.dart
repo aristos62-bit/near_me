@@ -8,7 +8,6 @@ import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
-import '../../../core/utils/connectivity_guard.dart';
 import '../../../core/utils/error_messages.dart';
 import '../../../repositories/chat_repository.dart';
 import '../../../shared/widgets/app_state_widget.dart';
@@ -83,7 +82,6 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
   }
 
   Future<void> _saveGroupName() async {
-    if (!await ConnectivityGuard.ensure(context)) return;
     final name = _nameCtrl.text.trim();
     if (name.isEmpty || name == _groupName) {
       setState(() => _isEditingName = false);
@@ -107,7 +105,6 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
   }
 
   Future<void> _changeRole(String uid, String newRole) async {
-    if (!await ConnectivityGuard.ensure(context)) return;
     DebugConfig.log(DebugConfig.uiInteraction, 'GroupInfoScreen: changeRole $uid -> $newRole in ${widget.chatId}');
     try {
       await ref.read(chatActionsProvider.notifier).updateParticipantRole(widget.chatId, uid, newRole);
@@ -131,8 +128,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
       cancelLabel: greek ? 'Ακύρωση' : 'Cancel',
       isDestructive: true,
     );
-    if (confirmed && mounted) {
-      if (!await ConnectivityGuard.ensure(context)) return;
+    if (confirmed && context.mounted) {
       DebugConfig.log(DebugConfig.uiInteraction, 'GroupInfoScreen: removeParticipant $uid from ${widget.chatId}');
       await ref.read(chatActionsProvider.notifier).removeParticipant(widget.chatId, uid);
     }
@@ -150,7 +146,6 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
       isDestructive: true,
     );
     if (!confirmed || !mounted) return;
-    if (!await ConnectivityGuard.ensure(context)) return;
     DebugConfig.log(DebugConfig.uiInteraction, 'GroupInfoScreen: deleteGroup ${widget.chatId}');
     try {
       await ref.read(chatActionsProvider.notifier).deleteGroup(widget.chatId);

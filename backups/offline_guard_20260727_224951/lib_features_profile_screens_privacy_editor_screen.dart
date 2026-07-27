@@ -7,7 +7,6 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
-import '../../../core/utils/connectivity_guard.dart';
 import '../../../core/utils/error_messages.dart';
 import '../../../data/local/database.dart';
 import '../../../shared/widgets/form_section.dart';
@@ -105,7 +104,6 @@ class _PrivacyEditorScreenState extends ConsumerState<PrivacyEditorScreen> {
   Future<void> _save() async {
     DebugConfig.log(DebugConfig.uiInteraction, 'PrivacyEditorScreen save');
     final greek = L10n.isGreek(context);
-    if (!await ConnectivityGuard.ensure(context)) return;
     setState(() => _isSaving = true);
     try {
       final repo = ref.read(profileRepositoryProvider);

@@ -1,7 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/debug/debug_config.dart';
-import '../../../core/utils/connectivity_guard.dart';
 import '../../../repositories/auth_repository.dart';
 import '../../auth/providers/auth_provider.dart';
 
@@ -24,11 +23,6 @@ class DeleteAccountNotifier extends Notifier<DeleteAccountState> {
   AuthRepository get _authRepo => ref.read(authRepositoryProvider);
 
   Future<void> delete() async {
-    if (!await ConnectivityGuard.isOnline()) {
-      state = const DeleteAccountState(
-          status: DeleteState.error, errorMessage: 'network/no-connectivity');
-      return;
-    }
     DebugConfig.log(DebugConfig.repositoryCall, 'deleteAccountNotifier.delete started');
     state = const DeleteAccountState(status: DeleteState.loading);
     try {
@@ -54,11 +48,6 @@ class DeleteAccountNotifier extends Notifier<DeleteAccountState> {
   }
 
   Future<void> deleteWithPassword(String password) async {
-    if (!await ConnectivityGuard.isOnline()) {
-      state = const DeleteAccountState(
-          status: DeleteState.error, errorMessage: 'network/no-connectivity');
-      return;
-    }
     DebugConfig.log(DebugConfig.repositoryCall, 'deleteAccountNotifier.deleteWithPassword');
     state = const DeleteAccountState(status: DeleteState.loading);
     try {

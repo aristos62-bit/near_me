@@ -5,7 +5,6 @@ import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
-import '../../../core/utils/connectivity_guard.dart';
 import '../../../core/utils/error_messages.dart';
 import '../../../repositories/chat_repository.dart';
 import '../../../shared/widgets/app_state_widget.dart';
@@ -40,7 +39,6 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
 
   Future<void> _pickAndUploadAvatar() async {
     final greek = L10n.isGreek(context);
-    if (!await ConnectivityGuard.ensure(context)) return;
     try {
       final picker = ImagePicker();
       final xFile = await picker.pickImage(source: ImageSource.gallery, maxWidth: 512, maxHeight: 512);
@@ -64,7 +62,6 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
 
   Future<void> _removeAvatar() async {
     final greek = L10n.isGreek(context);
-    if (!await ConnectivityGuard.ensure(context)) return;
     try {
       setState(() => _isUploadingAvatar = true);
       await ref.read(chatActionsProvider.notifier).removeGroupAvatar(widget.chatId);
@@ -89,7 +86,6 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
       return;
     }
     if (newMax == _currentMax) return;
-    if (!await ConnectivityGuard.ensure(context)) return;
     setState(() => _isSavingMax = true);
     try {
       final success = await ref.read(chatActionsProvider.notifier).updateMaxParticipants(widget.chatId, newMax);

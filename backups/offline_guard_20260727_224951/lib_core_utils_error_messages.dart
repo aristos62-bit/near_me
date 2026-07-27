@@ -52,8 +52,6 @@ class ErrorMessages {
         return isGreek ? 'Δεν βρέθηκαν χρήστες. Δοκίμασε άλλα φίλτρα.' : 'No users found. Try different filters.';
       case 'search/no-connectivity':
         return isGreek ? 'Δεν υπάρχει σύνδεση στο διαδίκτυο' : 'No internet connection';
-      case 'network/no-connectivity':
-        return isGreek ? 'Δεν υπάρχει σύνδεση στο διαδίκτυο' : 'No internet connection';
       case 'search/unknown-error':
         return isGreek ? 'Σφάλμα αναζήτησης. Δοκίμασε ξανά.' : 'Search error. Try again.';
       case 'chat/encryption-error':

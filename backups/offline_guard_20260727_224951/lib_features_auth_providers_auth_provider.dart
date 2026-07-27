@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:riverpod/riverpod.dart';
 import '../../../core/debug/debug_config.dart';
-import '../../../core/utils/connectivity_guard.dart';
 import '../../../data/local/database_service.dart';
 import '../../../repositories/auth_repository.dart';
 import '../../../repositories/auth_repository_impl.dart';
@@ -43,11 +42,6 @@ class VerifyAccountNotifier extends Notifier<VerifyAccountState> {
   AuthRepository get _auth => ref.read(authRepositoryProvider);
 
   Future<void> verify(String email, String password) async {
-    if (!await ConnectivityGuard.isOnline()) {
-      state = VerifyAccountState(
-          status: VerifyStatus.error, errorMessage: 'network/no-connectivity');
-      return;
-    }
     DebugConfig.log(DebugConfig.authFlow, 'VerifyAccount: starting');
     state = VerifyAccountState(status: VerifyStatus.loading);
     try {
@@ -90,11 +84,6 @@ class VerifyAccountNotifier extends Notifier<VerifyAccountState> {
   }
 
   Future<void> checkVerification() async {
-    if (!await ConnectivityGuard.isOnline()) {
-      state = VerifyAccountState(
-          status: VerifyStatus.error, errorMessage: 'network/no-connectivity');
-      return;
-    }
     DebugConfig.log(DebugConfig.authFlow, 'VerifyAccount: checking verification');
     state = VerifyAccountState(status: VerifyStatus.loading);
     try {
@@ -113,11 +102,6 @@ class VerifyAccountNotifier extends Notifier<VerifyAccountState> {
   }
 
   Future<void> sendPasswordReset(String email) async {
-    if (!await ConnectivityGuard.isOnline()) {
-      state = VerifyAccountState(
-          status: VerifyStatus.error, errorMessage: 'network/no-connectivity');
-      return;
-    }
     DebugConfig.log(DebugConfig.authFlow, 'VerifyAccount: password reset for $email');
     state = VerifyAccountState(status: VerifyStatus.loading);
     try {
@@ -186,11 +170,6 @@ class WelcomeNotifier extends Notifier<WelcomeState> {
   AuthRepository get _auth => ref.read(authRepositoryProvider);
 
   Future<void> signIn(String email, String password) async {
-    if (!await ConnectivityGuard.isOnline()) {
-      state = WelcomeState(
-          status: WelcomeStatus.error, errorMessage: 'network/no-connectivity');
-      return;
-    }
     DebugConfig.log(DebugConfig.authFlow, 'Welcome: signIn started');
     state = WelcomeState(status: WelcomeStatus.loading);
     try {
@@ -204,11 +183,6 @@ class WelcomeNotifier extends Notifier<WelcomeState> {
   }
 
   Future<void> signUp(String email, String password) async {
-    if (!await ConnectivityGuard.isOnline()) {
-      state = WelcomeState(
-          status: WelcomeStatus.error, errorMessage: 'network/no-connectivity');
-      return;
-    }
     DebugConfig.log(DebugConfig.authFlow, 'Welcome: signUp started');
     state = WelcomeState(status: WelcomeStatus.loading);
     try {
@@ -224,11 +198,6 @@ class WelcomeNotifier extends Notifier<WelcomeState> {
   }
 
   Future<void> browseAnonymously() async {
-    if (!await ConnectivityGuard.isOnline()) {
-      state = WelcomeState(
-          status: WelcomeStatus.error, errorMessage: 'network/no-connectivity');
-      return;
-    }
     DebugConfig.log(DebugConfig.authFlow, 'Welcome: browseAnonymously');
     state = WelcomeState(status: WelcomeStatus.loading);
     try {

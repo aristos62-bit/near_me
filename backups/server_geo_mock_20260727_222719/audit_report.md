@@ -1,6 +1,6 @@
 # NearMe — Αναλυτική Αναφορά Ελέγχου & Προτάσεων
 
-> Ημερομηνία: 27 Ιουλίου 2026 — Sessions 1-207
+> Ημερομηνία: 24 Ιουλίου 2026 — Sessions 1-205
 > Πηγή: nearme_blueprint.md, oldsessions.md, sound_message.md, πλήρης ανάλυση codebase (~122 .dart files)
 > `flutter analyze`: clean ✅ (0 issues)
 
@@ -226,9 +226,7 @@ Routing logic: `hasGeoSearch && (!hasLocationFilter || hasRadiusFilter)` → `_g
 | 16 | **markAsRead PERMISSION_DENIED** — CEL string interpolation + nested affectedKeys() fix | 160 | ✅ |
 | 17 | **joinPublicGroup crash** — rules read/update fix + isPublic self-join OR rule | 169 | ✅ |
 | 18 | **notBanned() gaps** — 17 chat/request rules missing ban check — isGroupMember() helper + memberCount OR rule | 170 | ✅ |
-| 19 | **Server-side authoritative geoHash** — computeGeoHash CF, update rule blocks client geoHash write, privacy subcollection SPoT | 206 | ✅ |
-| 20 | **Mock-location detection** — isMocked check, GPS rejection + user message | 207 | ✅ |
- 
+
 ---
 
 # Δοκιμές
@@ -326,18 +324,16 @@ Routing logic: `hasGeoSearch && (!hasLocationFilter || hasRadiusFilter)` → `_g
 | **201** | EmojiOnlyBubble _buildCounts cleanup + markAsRead guard (unreadCount==0 skip) |
 | **201+** | **Bubble Width Bug fix** — IntrinsicWidth wrapper (text_message_bubble.dart) |
 | **204-205** | **Audio Messages (Voice Messages)** — 22 SPoTs, record+audioplayers packages, AudioRecorderSheet, AudioMessageBubble, flutter analyze clean ✅ |
-| **206** | **Server-side authoritative geoHash** — computeGeoHash CF (πιστό GeoHashUtils port), Firestore SPoT geoPrecision, update rule blocks client geoHash write, auto-publish σε κάθε save, live distance από geoHash αντί searchState.distances |
-| **207** | **Mock-location detection** — `position.isMocked` check σε GPS + lastKnown, LocationFailure.mockLocationDetected, εμφάνιση μηνύματος fake GPS |
 
 ---
 
-# Τρέχουσα Κατάσταση (Session 207)
+# Τρέχουσα Κατάσταση (Session 205)
 
 | Μέτρο | Τιμή |
 |---|---|
 | Σύνολο `.dart` files | ~122 (μη generated) |
 | Firestore indexes | 21 composite deployed |
-| Cloud Functions | 7 deployed (+ computeGeoHash) + `fcm-utils.ts` helper |
+| Cloud Functions | 6 deployed + `fcm-utils.ts` helper |
 | Build | `flutter analyze` clean ✅, release APK ~15.8MB |
 | Tests | 30/30 passed ✅ |
 | Backup files | `backups/sound_message_20260724_130843/` |
@@ -352,6 +348,7 @@ Routing logic: `hasGeoSearch && (!hasLocationFilter || hasRadiusFilter)` → `_g
 
 ### Tech Debt
 - Riverpod scheduler race (debug-only) — `Only one task can be scheduled at a time` σε respondToRequest. Deferred.
+- Mock location detection — Pending.
 
 ## Key Conventions
 - File size ≤ 500 lines (exceptions: profile_repository_impl ~570, chat_repository_impl ~590, group_chat_mixin ~971 with user permission)

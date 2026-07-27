@@ -4,7 +4,6 @@ import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/utils/app_exception.dart';
-import '../../../core/utils/connectivity_guard.dart';
 import '../../../data/local/database.dart';
 import '../../../repositories/chat_repository.dart';
 import '../../../repositories/chat_repository_impl.dart';
@@ -115,7 +114,6 @@ class OlderMessagesByChat extends Notifier<Map<String, OlderMessagesState>> {
   Future<void> loadMore(String chatId, DateTime beforeTimestamp) async {
     final current = stateFor(chatId);
     if (current.isLoading || !current.hasMore) return;
-    if (!await ConnectivityGuard.isOnline()) return;
 
     DebugConfig.log(DebugConfig.repositoryCall, 'OlderMessagesByChat: loadMore chat=$chatId before=$beforeTimestamp');
     state = {...state, chatId: current.copyWith(isLoading: true)};
@@ -220,17 +218,7 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
 
   ChatRepository get _chatRepo => ref.read(chatRepositoryProvider);
 
-  Future<bool> _checkOnline() async {
-    if (!await ConnectivityGuard.isOnline()) {
-      state = const ChatActionState(
-          status: ChatActionStatus.error, errorMessage: 'network/no-connectivity');
-      return false;
-    }
-    return true;
-  }
-
   Future<String?> createChat(String otherUid) async {
-    if (!await _checkOnline()) return null;
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: createChat with $otherUid');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
@@ -247,7 +235,6 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
   }
 
   Future<bool> sendMessage(String chatId, String content, {Map<String, dynamic>? replyTo}) async {
-    if (!await _checkOnline()) return false;
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: sendMessage chat=$chatId replyTo=${replyTo?['messageId']}');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
@@ -272,7 +259,6 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
     Uint8List? thumbnailBytes,
     int? duration,
   }) async {
-    if (!await _checkOnline()) return false;
     DebugConfig.log(DebugConfig.repositoryCall,
         'ChatActions: sendMediaMessage chat=$chatId type=$type replyTo=${replyTo?['messageId']}');
     state = const ChatActionState(status: ChatActionStatus.loading);
@@ -299,7 +285,6 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
   }
 
   Future<void> deleteChat(String chatId) async {
-    if (!await _checkOnline()) return;
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: deleteChat chat=$chatId');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
@@ -313,7 +298,6 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
   }
 
   Future<void> approveDeleteChat(String chatId) async {
-    if (!await _checkOnline()) return;
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: approveDeleteChat chat=$chatId');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
@@ -327,7 +311,6 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
   }
 
   Future<void> rejectDeleteChat(String chatId) async {
-    if (!await _checkOnline()) return;
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: rejectDeleteChat chat=$chatId');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
@@ -340,7 +323,6 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
   }
 
   Future<void> cancelDeleteRequest(String chatId) async {
-    if (!await _checkOnline()) return;
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: cancelDeleteRequest chat=$chatId');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
@@ -353,7 +335,6 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
   }
 
   Future<void> deleteChatForMe(String chatId) async {
-    if (!await _checkOnline()) return;
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: deleteChatForMe chat=$chatId');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
@@ -367,7 +348,6 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
   }
 
   Future<void> deleteGroup(String chatId) async {
-    if (!await _checkOnline()) return;
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: deleteGroup chat=$chatId');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
@@ -381,7 +361,6 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
   }
 
   Future<void> clearMessages(String chatId) async {
-    if (!await _checkOnline()) return;
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: clearMessages chat=$chatId');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
@@ -394,7 +373,6 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
   }
 
   Future<void> reactToMessage(String chatId, String messageId, String emoji) async {
-    if (!await _checkOnline()) return;
     DebugConfig.log(DebugConfig.chatReactions, 'ChatActions: reactToMessage chat=$chatId msg=$messageId');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
@@ -407,7 +385,6 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
   }
 
   Future<void> removeReaction(String chatId, String messageId) async {
-    if (!await _checkOnline()) return;
     DebugConfig.log(DebugConfig.chatReactions, 'ChatActions: removeReaction chat=$chatId msg=$messageId');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
@@ -420,7 +397,6 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
   }
 
   Future<bool> editMessage(String chatId, String messageId, String newContent) async {
-    if (!await _checkOnline()) return false;
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: editMessage chat=$chatId msg=$messageId');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
@@ -437,7 +413,6 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
   }
 
   Future<bool> deleteMessage(String chatId, String messageId) async {
-    if (!await _checkOnline()) return false;
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: deleteMessage chat=$chatId msg=$messageId');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
@@ -473,7 +448,6 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
   // --- Group Chat Actions ---
 
   Future<String?> createGroupChat(List<String> participantUids, {String? groupName, bool isPublic = false, String? description, List<String>? tags, String? city}) async {
-    if (!await _checkOnline()) return null;
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: createGroupChat (public=$isPublic)');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
@@ -489,7 +463,6 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
   }
 
   Future<bool> addParticipant(String chatId, String newUid) async {
-    if (!await _checkOnline()) return false;
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: addParticipant chat=$chatId');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
@@ -505,7 +478,6 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
   }
 
   Future<bool> removeParticipant(String chatId, String targetUid) async {
-    if (!await _checkOnline()) return false;
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: removeParticipant chat=$chatId');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
@@ -521,7 +493,6 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
   }
 
   Future<bool> updateGroupName(String chatId, String name) async {
-    if (!await _checkOnline()) return false;
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: updateGroupName chat=$chatId');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
@@ -536,7 +507,6 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
   }
 
   Future<bool> updateGroupAvatar(String chatId, dynamic image) async {
-    if (!await _checkOnline()) return false;
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: updateGroupAvatar chat=$chatId');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
@@ -551,7 +521,6 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
   }
 
   Future<bool> removeGroupAvatar(String chatId) async {
-    if (!await _checkOnline()) return false;
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: removeGroupAvatar chat=$chatId');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
@@ -566,7 +535,6 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
   }
 
   Future<bool> updateMaxParticipants(String chatId, int newMax) async {
-    if (!await _checkOnline()) return false;
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: updateMaxParticipants chat=$chatId -> $newMax');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
@@ -581,7 +549,6 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
   }
 
   Future<bool> updateParticipantRole(String chatId, String uid, String newRole) async {
-    if (!await _checkOnline()) return false;
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: updateParticipantRole chat=$chatId');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
@@ -597,7 +564,6 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
   }
 
   Future<bool> updatePermissionOverride(String chatId, String uid, GroupPermission permission, bool value) async {
-    if (!await _checkOnline()) return false;
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: updatePermissionOverride chat=$chatId');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
@@ -613,7 +579,6 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
   }
 
   Future<bool> deletePermissionOverrides(String chatId, String targetUid) async {
-    if (!await _checkOnline()) return false;
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: deletePermissionOverrides chat=$chatId');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
@@ -629,7 +594,6 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
   }
 
   Future<String?> createInviteLink(String chatId, {Duration expiresIn = const Duration(days: 7), int? maxUses}) async {
-    if (!await _checkOnline()) return null;
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: createInviteLink chat=$chatId');
     try {
       final token = await _chatRepo.createInviteLink(chatId, expiresIn: expiresIn, maxUses: maxUses);
@@ -644,7 +608,6 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
   }
 
   Future<String?> redeemInviteLink(String token) async {
-    if (!await _checkOnline()) return null;
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: redeemInviteLink');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
@@ -664,7 +627,6 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
   }
 
   Future<InviteInfo?> getInviteInfo(String token) async {
-    if (!await _checkOnline()) return null;
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: getInviteInfo');
     try {
       final info = await _chatRepo.getInviteInfo(token);
@@ -677,7 +639,6 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
   }
 
   Future<bool> revokeInvite(String chatId, String inviteId) async {
-    if (!await _checkOnline()) return false;
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: revokeInvite chat=$chatId');
     try {
       await _chatRepo.revokeInvite(chatId, inviteId);
@@ -690,7 +651,6 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
   }
 
   Future<bool> joinPublicGroup(String chatId) async {
-    if (!await _checkOnline()) return false;
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: joinPublicGroup chat=$chatId');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {

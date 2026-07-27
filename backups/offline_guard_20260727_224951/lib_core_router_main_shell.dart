@@ -1,20 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../providers/connectivity_provider.dart';
 import '../debug/debug_config.dart';
 import '../l10n/l10n.dart';
 
-class MainShell extends ConsumerStatefulWidget {
+class MainShell extends StatefulWidget {
   final StatefulNavigationShell navigationShell;
 
   const MainShell({super.key, required this.navigationShell});
 
   @override
-  ConsumerState<MainShell> createState() => _MainShellState();
+  State<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends ConsumerState<MainShell> {
+class _MainShellState extends State<MainShell> {
   bool? _cachedIsWide;
   double _lastWidth = -1;
 
@@ -30,18 +28,11 @@ class _MainShellState extends ConsumerState<MainShell> {
     }
     return Scaffold(
       resizeToAvoidBottomInset: false,
-      body: Column(
+      body: Row(
         children: [
-          _ConnectivityBanner(),
-          Expanded(
-            child: Row(
-              children: [
-                if (isWide) _navRail(context),
-                if (isWide) const VerticalDivider(width: 1),
-                Expanded(child: widget.navigationShell),
-              ],
-            ),
-          ),
+          if (isWide) _navRail(context),
+          if (isWide) const VerticalDivider(width: 1),
+          Expanded(child: widget.navigationShell),
         ],
       ),
       bottomNavigationBar: isWide ? null : _navBar(context),
@@ -101,35 +92,6 @@ class _MainShellState extends ConsumerState<MainShell> {
         NavigationDestination(
           icon: const Icon(Icons.person_outline),
           label: greek ? 'Προφίλ' : 'Profile',
-        ),
-      ],
-    );
-  }
-}
-
-class _ConnectivityBanner extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final isOnline = ref.watch(connectivityProvider).asData?.value ?? true;
-    if (isOnline) return const SizedBox.shrink();
-    DebugConfig.log(DebugConfig.networkConnectivity,
-        '_ConnectivityBanner: SHOWING offline banner');
-    final isGreek = L10n.isGreek(context);
-    return MaterialBanner(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      content: Text(
-        isGreek ? 'Εκτός σύνδεσης' : 'Offline',
-        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
-      ),
-      leading: const Icon(Icons.wifi_off, color: Colors.white, size: 20),
-      backgroundColor: Colors.orange.shade800,
-      actions: [
-        TextButton(
-          onPressed: () {},
-          child: Text(
-            'OK',
-            style: TextStyle(color: Colors.orange.shade200),
-          ),
         ),
       ],
     );

@@ -7,7 +7,6 @@ import '../../../core/l10n/l10n.dart';
 import '../../../repositories/auth_repository.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
-import '../../../core/utils/connectivity_guard.dart';
 import '../../../core/utils/error_messages.dart';
 import '../../../data/local/database.dart';
 import '../../../shared/widgets/app_state_widget.dart';
@@ -272,7 +271,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _togglePublish(bool target, UserProfileTableData profile, bool isGreek) async {
-    if (!await ConnectivityGuard.ensure(context)) return;
     setState(() => _isTogglingPublish = true);
     DebugConfig.log(DebugConfig.uiInteraction, 'ProfileScreen togglePublish: target=$target');
     try {

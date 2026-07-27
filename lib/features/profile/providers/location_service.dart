@@ -11,8 +11,8 @@ enum LocationFailure {
   timeout,
   staleData,
   error,
+  mockLocationDetected,
 }
-
 class LocationResult {
   final double? latitude;
   final double? longitude;
@@ -127,6 +127,18 @@ class LocationService {
           ),
         ).timeout(const Duration(seconds: 12));
 
+        // Έλεγχος fake-GPS (Android only — στο iOS το isMocked είναι πάντα
+        // false, δεν είναι ανιχνεύσιμο εκεί). Δεν χρησιμοποιούμε ούτε
+        // κρατάμε καθόλου mocked θέση.
+        if (position.isMocked) {
+          DebugConfig.warn(
+              'getCurrentLocation: mock location detected, rejecting position');
+          return const LocationResult(
+            isFromGps: false,
+            failure: LocationFailure.mockLocationDetected,
+          );
+        }
+
         DebugConfig.log(DebugConfig.gpsLocation,
             'Position: ${position.latitude}, ${position.longitude} (±${position.accuracy}m)');
         _lastAccuracy = position.accuracy;
@@ -147,10 +159,18 @@ class LocationService {
       // 2. Fallback to last known position
       final last = await Geolocator.getLastKnownPosition();
       if (last != null) {
+        if (last.isMocked) {
+          DebugConfig.warn(
+              'getCurrentLocation: mock location detected in last-known, rejecting');
+          return const LocationResult(
+            isFromGps: false,
+            failure: LocationFailure.mockLocationDetected,
+          );
+        }
         final age = DateTime.now().difference(last.timestamp);
         DebugConfig.log(DebugConfig.gpsLocation,
             'Fallback (last known): ${last.latitude}, ${last.longitude}, '
-            'age=${age.inMinutes}min, acc=${last.accuracy}m');
+                'age=${age.inMinutes}min, acc=${last.accuracy}m');
         if (age > _staleThreshold) {
           DebugConfig.warn(
               'Fallback position too old: ${age.inMinutes}min, rejecting');

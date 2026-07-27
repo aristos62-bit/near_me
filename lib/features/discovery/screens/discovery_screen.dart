@@ -177,6 +177,10 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
         return isGreek
             ? 'Σφάλμα κατά τον εντοπισμό τοποθεσίας'
             : 'Error detecting location';
+      case LocationFailure.mockLocationDetected:
+        return isGreek
+            ? 'Εντοπίστηκε ψεύτικη τοποθεσία (fake GPS). Απενεργοποίησέ την για να συνεχίσεις'
+            : 'Fake GPS location detected. Disable it to continue';
       default:
         return null;
     }

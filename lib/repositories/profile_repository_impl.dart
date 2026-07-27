@@ -1,10 +1,10 @@
 import 'dart:ui' show PlatformDispatcher;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:drift/drift.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../core/debug/debug_config.dart';
 import '../core/utils/app_exception.dart';
-import '../core/utils/geohash_utils.dart';
 import '../data/local/database.dart';
 import '../data/local/database_service.dart';
 import '../shared/models/public_profile.dart';
@@ -245,14 +245,32 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
         DebugConfig.log(DebugConfig.databaseLocal, 'savePrivacySettings updated');
       } else {
         await _db.into(_db.privacySettingsTable).insert(
-              data.toCompanion(true).copyWith(id: const Value.absent()),
-            );
+          data.toCompanion(true).copyWith(id: const Value.absent()),
+        );
         DebugConfig.log(DebugConfig.databaseLocal, 'savePrivacySettings inserted');
       }
       DebugConfig.log(DebugConfig.repositoryResult, 'savePrivacySettings OK');
     } catch (e, s) {
       DebugConfig.error('savePrivacySettings failed', data: e, exception: s);
       throw AppException.database('savePrivacySettings', e, s);
+    }
+
+    // Sync στο Firestore SPoT — η computeGeoHash function το διαβάζει
+    // server-side. Best-effort: δεν σπάει το topical save αν αποτύχει,
+    // ίδιο σκεπτικό με το deleteAccount (μη-κρίσιμο cleanup βήμα).
+    try {
+      await _firestore
+          .collection('users')
+          .doc(uid)
+          .collection('privacy')
+          .doc('settings')
+          .set({'geoPrecision': settings.geoPrecision});
+      DebugConfig.log(DebugConfig.firestoreWrite,
+          'savePrivacySettings: geoPrecision synced to Firestore: ${settings.geoPrecision}');
+    } catch (e, s) {
+      DebugConfig.error(
+          'savePrivacySettings: Firestore geoPrecision sync failed (non-fatal)',
+          data: e, exception: s);
     }
   }
 
@@ -274,21 +292,11 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
       await _ensurePrivacySettings(uid);
       final privacy = await getPrivacySettings();
 
-      String? geoHash;
-      if (privacy != null &&
-          privacy.geoPrecision != 'hidden' &&
-          profile.latitudeExact != null &&
-          profile.longitudeExact != null) {
-        final precision =
-            GeoHashUtils.precisionFromSetting(privacy.geoPrecision);
-        if (precision > 0) {
-          geoHash = GeoHashUtils.encode(
-            profile.latitudeExact!,
-            profile.longitudeExact!,
-            precision: precision,
-          );
-        }
-      }
+      // Το geoHash δεν υπολογίζεται πλέον εδώ — server-side authoritative
+      // μέσω computeGeoHash (μετά το set παρακάτω), βάσει του geoPrecision
+      // στο /users/{uid}/privacy/settings (Firestore SPoT).
+      final hasLocation =
+          profile.latitudeExact != null && profile.longitudeExact != null;
 
       final now = DateTime.now();
       final publicProfile = PublicProfile(
@@ -310,7 +318,6 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
         phone: privacy?.showPhone == true ? profile.phone : null,
         allowVideoCall: profile.allowVideoCall,
         allowDirectChat: profile.allowDirectChat,
-        geoHash: geoHash,
         isManualLocation: profile.latitudeExact == null && profile.longitudeExact == null,
         isVisible: true,
         lang: PlatformDispatcher.instance.locale.languageCode == 'el' ? 'el' : 'en',
@@ -333,10 +340,10 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
       }
       DebugConfig.log(DebugConfig.firestoreWrite,
           'publish JSON: nicknameLowercase=${json['nicknameLowercase']}, '
-          'city=${json['city']}, country=${json['country']}, '
-          'geoHash=${json['geoHash']}, isManualLocation=${json['isManualLocation']}, '
-          'showPhotos=${privacy?.showPhotos}, showCity=${privacy?.showCity}, showCountry=${privacy?.showCountry}, '
-          'avatarUrl=${json['avatarUrl'] != null ? "present (${json['avatarUrl'].toString().length} chars)" : "absent"}');
+              'city=${json['city']}, country=${json['country']}, '
+              'isManualLocation=${json['isManualLocation']}, '
+              'showPhotos=${privacy?.showPhotos}, showCity=${privacy?.showCity}, showCountry=${privacy?.showCountry}, '
+              'avatarUrl=${json['avatarUrl'] != null ? "present (${json['avatarUrl'].toString().length} chars)" : "absent"}');
       try {
         final existingDoc = await _firestore
             .collection('users')
@@ -345,13 +352,21 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
             .doc('profile')
             .get();
         if (existingDoc.exists) {
-          final existingIsOnline = existingDoc.data()?['isOnline'];
+          final existingData = existingDoc.data();
+          final existingIsOnline = existingData?['isOnline'];
           if (existingIsOnline != null) {
             json['isOnline'] = existingIsOnline as bool;
           }
+          // Preserve το υπάρχον geoHash (ίδιο idiom με isOnline παραπάνω) —
+          // αποφεύγει flicker/κενό στο discovery search μέχρι να τρέξει η
+          // computeGeoHash function παρακάτω.
+          final existingGeoHash = existingData?['geoHash'];
+          if (existingGeoHash != null) {
+            json['geoHash'] = existingGeoHash as String;
+          }
         }
       } catch (e) {
-        DebugConfig.warn('publish: failed to read existing isOnline', data: e);
+        DebugConfig.warn('publish: failed to read existing isOnline/geoHash', data: e);
       }
       await _firestore
           .collection('users')
@@ -371,9 +386,9 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
             final rawData = verifyDoc.data()!;
             DebugConfig.log(DebugConfig.firestoreWrite,
                 'publish VERIFY doc after set: isVisible=${rawData['isVisible']}, '
-                'city="${rawData['city']}", country="${rawData['country']}", '
-                'geoHash="${rawData['geoHash']}", isManualLocation=${rawData['isManualLocation']}, '
-                'isOnline=${rawData['isOnline']}, keys=${rawData.keys.join(", ")}');
+                    'city="${rawData['city']}", country="${rawData['country']}", '
+                    'geoHash="${rawData['geoHash']}", isManualLocation=${rawData['isManualLocation']}, '
+                    'isOnline=${rawData['isOnline']}, keys=${rawData.keys.join(", ")}');
           } else {
             DebugConfig.warn('publish VERIFY: doc not found after set');
           }
@@ -385,8 +400,28 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
       await _db.logConsent(uid, 'publish', 'profile');
       DebugConfig.log(DebugConfig.firestoreWrite,
           'publish: $uid, city=${profile.city}, country=${profile.country}, '
-          'lat=${profile.latitudeExact}, lng=${profile.longitudeExact}, '
-          'geoHash=$geoHash, isManualLocation=${profile.latitudeExact == null && profile.longitudeExact == null}');
+              'lat=${profile.latitudeExact}, lng=${profile.longitudeExact}, '
+              'isManualLocation=${profile.latitudeExact == null && profile.longitudeExact == null}');
+
+      // Server-side authoritative geoHash. Best-effort: αν αποτύχει, το
+      // preserve pattern παραπάνω κρατάει το προηγούμενο geoHash — δεν
+      // σπάει το publish (ίδιο σκεπτικό με deleteAccount CF call).
+      if (hasLocation) {
+        try {
+          final result = await FirebaseFunctions.instance
+              .httpsCallable('computeGeoHash')
+              .call({
+            'latitude': profile.latitudeExact,
+            'longitude': profile.longitudeExact,
+          });
+          DebugConfig.log(DebugConfig.cloudFunctions,
+              'publish: CF computeGeoHash success: ${result.data}');
+        } catch (e) {
+          DebugConfig.warn(
+              'publish: CF computeGeoHash failed, keeping previous geoHash',
+              data: e);
+        }
+      }
     } catch (e, s) {
       DebugConfig.error('publish failed', data: e, exception: s);
       if (e is AppException) rethrow;

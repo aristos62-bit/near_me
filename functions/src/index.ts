@@ -694,8 +694,124 @@ export const deleteUserData = functions.https.onCall(async (data, context) => {
   }
 
   return { success: true, errors: errors.length > 0 ? errors : undefined };
-});
-export const addGroupParticipant = functions.https.onCall(async (data, context) => {
+  });
+
+  // ─────────────────────────────────────────────────────────
+  // computeGeoHash — server-side authoritative geoHash.
+  // Πηγή αλήθειας: users/{uid}/privacy/settings.geoPrecision (SPoT).
+  // Ο client στέλνει μόνο lat/lng· ποτέ το geoPrecision ή το geoHash.
+  // ─────────────────────────────────────────────────────────
+
+  const GEOHASH_BASE32 = '0123456789bcdefghjkmnpqrstuvwxyz';
+
+  // Πιστό port του GeoHashUtils.encode (lib/core/utils/geohash_utils.dart).
+  function encodeGeoHash(latitude: number, longitude: number, precision: number): string {
+    precision = Math.max(1, Math.min(12, precision));
+    let latMin = -90;
+    let latMax = 90;
+    let lonMin = -180;
+    let lonMax = 180;
+    let result = '';
+    let hash = 0;
+    let bits = 0;
+    let isLon = true;
+
+    while (result.length < precision) {
+      if (isLon) {
+        const mid = (lonMin + lonMax) / 2;
+        if (longitude >= mid) {
+          hash = (hash << 1) | 1;
+          lonMin = mid;
+        } else {
+          hash = hash << 1;
+          lonMax = mid;
+        }
+      } else {
+        const mid = (latMin + latMax) / 2;
+        if (latitude >= mid) {
+          hash = (hash << 1) | 1;
+          latMin = mid;
+        } else {
+          hash = hash << 1;
+          latMax = mid;
+        }
+      }
+      bits++;
+      isLon = !isLon;
+      if (bits === 5) {
+        result += GEOHASH_BASE32[hash];
+        hash = 0;
+        bits = 0;
+      }
+    }
+    return result;
+  }
+
+  // Πιστό port του GeoHashUtils.precisionFromSetting.
+  function precisionFromSetting(geoPrecision: string): number {
+    switch (geoPrecision) {
+      case 'city':
+        return 3;
+      case 'neighborhood':
+        return 5;
+      case 'street':
+        return 7;
+      case 'hidden':
+        return 0;
+      default:
+        return 5;
+    }
+  }
+
+  export const computeGeoHash = functions.https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+    }
+    const uid = context.auth.uid;
+    const { latitude, longitude } = data;
+
+    if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+      throw new functions.https.HttpsError('invalid-argument', 'latitude/longitude must be numbers');
+    }
+    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+      throw new functions.https.HttpsError('invalid-argument', 'latitude/longitude out of range');
+    }
+
+    try {
+      const privacySnap = await db.doc(`users/${uid}/privacy/settings`).get();
+      const geoPrecision =
+        (privacySnap.exists && (privacySnap.data()?.geoPrecision as string)) || 'neighborhood';
+      const precision = precisionFromSetting(geoPrecision);
+
+      const publicRef = db.doc(`users/${uid}/public/profile`);
+      const publicSnap = await publicRef.get();
+      if (!publicSnap.exists) {
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          'Public profile must exist before computing geoHash',
+        );
+      }
+
+      if (precision > 0) {
+        const geoHash = encodeGeoHash(latitude, longitude, precision);
+        await publicRef.set({ geoHash }, { merge: true });
+        functions.logger.info(
+          `computeGeoHash: uid=${uid} precision=${geoPrecision}(${precision}) → geoHash=${geoHash}`,
+        );
+        return { geoHash };
+      } else {
+        await publicRef.set({ geoHash: admin.firestore.FieldValue.delete() }, { merge: true });
+        functions.logger.info(`computeGeoHash: uid=${uid} precision=hidden → geoHash removed`);
+        return { geoHash: null };
+      }
+    } catch (e) {
+      if (e instanceof functions.https.HttpsError) throw e;
+      functions.logger.error(`computeGeoHash failed for uid=${uid}`, e);
+      throw new functions.https.HttpsError('internal', 'Failed to compute geoHash');
+    }
+  });
+
+  export const addGroupParticipant = functions.https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
   }

@@ -18,7 +18,7 @@ import '../../block/providers/block_provider.dart';
 import '../../profile/providers/profile_provider.dart';
 import '../../report/providers/report_provider.dart';
 import '../../chat/providers/chat_provider.dart';
-
+import '../../../core/utils/geohash_utils.dart';
 
 class PublicProfileViewScreen extends ConsumerStatefulWidget {
   const PublicProfileViewScreen({super.key});
@@ -88,9 +88,27 @@ class _PublicProfileViewScreenState extends ConsumerState<PublicProfileViewScree
         }
         final theme = Theme.of(context);
         final searchState = ref.read(searchProvider);
-        final distanceKm = searchState.status == SearchStatus.success
-            ? searchState.distances[uid]
-            : null;
+        // Ζωντανός υπολογισμός από το τρέχον geoHash του προφίλ (live stream)
+        // αντί για το "παγωμένο" searchState.distances — ενημερώνεται αμέσως
+        // αν ο άλλος χρήστης αλλάξει Ακρίβεια Τοποθεσίας, χωρίς να χρειάζεται
+        // νέο search.
+        double? distanceKm;
+        if (profile.geoHash != null) {
+          if (searchState.searchCenterLat != null &&
+              searchState.searchCenterLng != null) {
+            distanceKm = GeoHashUtils.distanceToPoint(
+              profile.geoHash!,
+              searchState.searchCenterLat!,
+              searchState.searchCenterLng!,
+            );
+          } else if (searchState.status == SearchStatus.success) {
+            // Fallback ΜΟΝΟ όταν υπάρχει πραγματικό geoHash αλλά δεν έχουμε
+            // ακόμα live search center σε αυτό το session.
+            distanceKm = searchState.distances[uid];
+          }
+        }
+        // Αν profile.geoHash == null (Κρυφό), distanceKm μένει null —
+        // ποτέ δεν δείχνουμε παλιά/stale απόσταση για κρυφό προφίλ.
         if (distanceKm != null) {
           DebugConfig.log(DebugConfig.repositoryResult,
               'PublicProfileView uid=$uid distance=${distanceKm.toStringAsFixed(1)}km');

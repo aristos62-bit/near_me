@@ -447,12 +447,13 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
         DebugConfig.warn('syncMyProfileAcrossChats failed', data: '$e\n$s');
       }
 
-      final commSettingsChanged = _loadedProfile != null && (
-          _allowVideoCall != _loadedProfile!.allowVideoCall ||
-          _allowDirectChat != _loadedProfile!.allowDirectChat);
-      if (commSettingsChanged || (locationChanged && _loadedProfile!.isPublished)) {
+      // Αν το προφίλ είναι ήδη δημοσιευμένο, κάθε αποθήκευση το
+      // ξανα-δημοσιεύει αυτόματα — ώστε οι άλλοι χρήστες να βλέπουν πάντα
+      // την τελευταία εκδοχή (bio, nickname, ενδιαφέροντα, κλπ.), όχι μόνο
+      // όταν αλλάζει τοποθεσία ή ρυθμίσεις επικοινωνίας.
+      if (_loadedProfile != null && _loadedProfile!.isPublished) {
         DebugConfig.log(DebugConfig.repositoryCall,
-            'ProfileEditor: comm settings or location changed, auto-publishing');
+            'ProfileEditor: profile is published, auto-publishing changes');
         try {
           await repo.publish();
           DebugConfig.log(DebugConfig.repositoryResult,

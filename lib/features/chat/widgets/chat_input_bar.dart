@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -11,7 +12,6 @@ import 'package:get_thumbnail_video/video_thumbnail.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
-import '../../../core/utils/app_messenger.dart';
 import '../../../core/utils/error_messages.dart';
 import '../../../shared/utils/image_utils.dart';
 import '../../../repositories/auth_repository.dart';
@@ -49,6 +49,8 @@ class ChatInputBar extends ConsumerStatefulWidget {
 class _ChatInputBarState extends ConsumerState<ChatInputBar> {
   final _focusNode = FocusNode();
   bool _isLoading = false;
+  String? _errorMessage;
+  Timer? _errorTimer;
   int _buildCount = 0;
 
   @override
@@ -63,9 +65,26 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
   void dispose() {
     _focusNode.removeListener(_onFocusChange);
     _focusNode.dispose();
+    _errorTimer?.cancel();
     DebugConfig.log(DebugConfig.uiInteraction,
         'ChatInputBar dispose: ${widget.chatId}');
     super.dispose();
+  }
+
+  void _clearError() {
+    _errorTimer?.cancel();
+    if (_errorMessage != null) {
+      setState(() => _errorMessage = null);
+    }
+  }
+
+  void _showInlineError(String code) {
+    final msg = ErrorMessages.get(code, L10n.isGreek(context));
+    _errorTimer?.cancel();
+    setState(() => _errorMessage = msg);
+    _errorTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) setState(() => _errorMessage = null);
+    });
   }
 
   void _onFocusChange() {
@@ -78,6 +97,7 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     final text = widget.textController.text.trim();
     if (text.isEmpty || _isLoading) return;
     final editingMsg = ref.read(editingMessageProvider);
+    _clearError();
     setState(() => _isLoading = true);
     if (editingMsg != null) {
       final msgId = editingMsg['id'] as String? ?? '';
@@ -93,12 +113,7 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
       } else {
         widget.textController.text = text;
         final chatState = ref.read(chatActionsProvider);
-        AppMessenger.showError(
-          context,
-          ErrorMessages.get(
-              chatState.errorMessage ?? 'chat/edit-failed',
-              L10n.isGreek(context)),
-        );
+        _showInlineError(chatState.errorMessage ?? 'chat/edit-failed');
       }
     } else {
       final replyToData = _buildReplyData();
@@ -114,12 +129,7 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
       } else {
         widget.textController.text = text;
         final chatState = ref.read(chatActionsProvider);
-        AppMessenger.showError(
-          context,
-          ErrorMessages.get(
-              chatState.errorMessage ?? 'chat/send-failed',
-              L10n.isGreek(context)),
-        );
+        _showInlineError(chatState.errorMessage ?? 'chat/send-failed');
       }
     }
   }
@@ -170,19 +180,18 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
   Future<void> _pickGif() async {
     DebugConfig.log(DebugConfig.uiInteraction, 'ChatInputBar: GIF picker shown');
     if (widget.emojiPickerVisible) widget.onEmojiDismiss();
-    final greek = L10n.isGreek(context);
     await showGifPickerSheet(context, onSelected: (url) async {
       if (!mounted) return;
       final replyToData = _buildReplyData();
       _clearReply();
+      _clearError();
       setState(() => _isLoading = true);
       final ok = await ref.read(chatActionsProvider.notifier)
           .sendMediaMessage(widget.chatId, content: url, type: 'gif', replyTo: replyToData);
       if (!mounted) return;
       setState(() => _isLoading = false);
       if (!ok) {
-        AppMessenger.showError(context, ErrorMessages.get(
-            'chat/gif-send-failed', greek));
+        _showInlineError('chat/gif-send-failed');
       }
     });
   }
@@ -194,7 +203,6 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
   Future<void> _pickImage(ImageSource source, String debugLabel) async {
     DebugConfig.log(DebugConfig.uiInteraction, 'ChatInputBar: $debugLabel picker shown');
     if (widget.emojiPickerVisible) widget.onEmojiDismiss();
-    final greek = L10n.isGreek(context);
     try {
       final picker = ImagePicker();
       final picked = await picker.pickImage(
@@ -214,29 +222,30 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
           await File(cropped.path).readAsBytes());
       final replyToData = _buildReplyData();
       _clearReply();
+      _clearError();
       setState(() => _isLoading = true);
       final ok = await ref.read(chatActionsProvider.notifier)
           .sendMediaMessage(widget.chatId, content: '', type: 'image', replyTo: replyToData, imageBytes: bytes);
       if (!mounted) return;
       setState(() => _isLoading = false);
       if (!ok) {
-        AppMessenger.showError(context, ErrorMessages.get('chat/image-send-failed', greek));
+        _showInlineError('chat/image-send-failed');
       }
     } catch (e, s) {
       DebugConfig.error('ChatInputBar: _$debugLabel pick failed', data: e, exception: s);
       if (mounted) {
-        AppMessenger.showError(context, ErrorMessages.get('chat/image-send-failed', greek));
+        _showInlineError('chat/image-send-failed');
       }
     }
   }
 
   Future<void> _recordAndSend() async {
     if (widget.emojiPickerVisible) widget.onEmojiDismiss();
-    final greek = L10n.isGreek(context);
     final result = await showAudioRecorderSheet(context);
     if (!mounted || result == null) return;
     final replyToData = _buildReplyData();
     _clearReply();
+    _clearError();
     setState(() => _isLoading = true);
     final ok = await ref.read(chatActionsProvider.notifier)
         .sendMediaMessage(widget.chatId,
@@ -247,8 +256,7 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     if (!mounted) return;
     setState(() => _isLoading = false);
     if (!ok) {
-      AppMessenger.showError(context,
-          ErrorMessages.get('chat/audio-send-failed', greek));
+      _showInlineError('chat/audio-send-failed');
     }
   }
 
@@ -262,7 +270,6 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     DebugConfig.log(DebugConfig.chatVideo,
         'ChatInputBar: $debugLabel picker shown');
     if (widget.emojiPickerVisible) widget.onEmojiDismiss();
-    final greek = L10n.isGreek(context);
 
     try {
       final picker = ImagePicker();
@@ -275,8 +282,7 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
       final fileSize = await picked.length();
       if (fileSize >= 50 * 1024 * 1024) {
         if (!mounted) return;
-        AppMessenger.showError(context,
-            ErrorMessages.get('chat/video-too-large', greek));
+        _showInlineError('chat/video-too-large');
         return;
       }
 
@@ -292,13 +298,11 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
 
       if (!mounted) return;
       if (durationSeconds > 30) {
-        AppMessenger.showError(context,
-            ErrorMessages.get('chat/video-too-long', greek));
+        _showInlineError('chat/video-too-long');
         return;
       }
       if (durationSeconds < 1) {
-        AppMessenger.showError(context,
-            ErrorMessages.get('chat/video-too-short', greek));
+        _showInlineError('chat/video-too-short');
         return;
       }
 
@@ -317,6 +321,7 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
       if (!mounted) return;
       final replyToData = _buildReplyData();
       _clearReply();
+      _clearError();
       setState(() => _isLoading = true);
       final ok = await ref.read(chatActionsProvider.notifier)
           .sendMediaMessage(widget.chatId,
@@ -328,15 +333,13 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
       if (!mounted) return;
       setState(() => _isLoading = false);
       if (!ok) {
-        AppMessenger.showError(context,
-            ErrorMessages.get('chat/video-send-failed', greek));
+        _showInlineError('chat/video-send-failed');
       }
     } catch (e, s) {
       DebugConfig.error('ChatInputBar: $debugLabel pick failed', data: e,
           exception: s);
       if (mounted) {
-        AppMessenger.showError(context,
-            ErrorMessages.get('chat/video-send-failed', greek));
+        _showInlineError('chat/video-send-failed');
       }
     }
   }
@@ -549,6 +552,24 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
                 _buildEditBanner(context, theme, greek, editingMsg)
               else if (replyToMsg != null)
                 _buildReplyBanner(context, theme, greek, replyToMsg),
+              if (_errorMessage != null)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  margin: const EdgeInsets.only(bottom: 4),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.errorContainer,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _errorMessage!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onErrorContainer,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               if (!canComm)
                 Row(children: [
                   const SizedBox(width: 12),

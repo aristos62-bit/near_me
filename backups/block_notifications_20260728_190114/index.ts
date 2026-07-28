@@ -1234,57 +1234,6 @@ export const sendReactionNotification = functions.firestore
     return null;
   });
 
-export const sendBlockNotification = functions.firestore
-  .document('users/{uid}/blocked/{blockedUid}')
-  .onWrite(async (change, context) => {
-    const { uid, blockedUid } = context.params;
-
-    if (!uid || !blockedUid || uid === blockedUid) return null;
-
-    const isBlock = change.after.exists; // create = block, delete = unblock
-
-    // Διάβασε nickname του blocker και γλώσσα του blocked
-    const [blockerSnap, langSnap] = await Promise.all([
-      db.doc(`users/${uid}/public/profile`).get(),
-      db.doc(`users/${blockedUid}/public/profile`).get().catch(() => null),
-    ]);
-
-    const blockerName = blockerSnap.data()?.nickname ?? 'Someone';
-    const lang = langSnap?.data()?.lang ?? 'en';
-    const strings = getNotificationStrings(lang);
-    const body = isBlock ? `${blockerName} ${strings.blocked}` : `${blockerName} ${strings.unblocked}`;
-    const title = blockerName;
-
-    const { allTokens, tokenRefMap } = await fetchTokensForUids([blockedUid]);
-    if (allTokens.length === 0) return null;
-
-    const payload: admin.messaging.MulticastMessage = {
-      tokens: allTokens,
-      notification: { title, body },
-      data: {
-        type: 'block',
-        action: isBlock ? 'blocked' : 'unblocked',
-        blockerUid: uid,
-      },
-      android: { priority: 'high' },
-      apns: { payload: { aps: { sound: 'default' } } },
-    };
-
-    try {
-      const response = await sendWithRetry(payload);
-      if (response.failureCount > 0) {
-        cleanupInvalidTokens(response.responses, allTokens, tokenRefMap, db);
-      }
-      functions.logger.info(
-        `sendBlockNotification: ${isBlock ? 'block' : 'unblock'} ${uid} → ${blockedUid} (${response.successCount} sent, ${response.failureCount} failed)`,
-      );
-    } catch (error) {
-      functions.logger.error(`sendBlockNotification failed for ${uid}→${blockedUid}`, error);
-    }
-
-    return null;
-  });
-
 function getNotificationStrings(lang: string) {
   const isGreek = lang === 'el';
   return {
@@ -1298,8 +1247,6 @@ function getNotificationStrings(lang: string) {
     accept_default: isGreek ? 'Αποδοχή αιτήματος' : 'Request accepted',
     declined: isGreek ? 'Απόρριψη αιτήματος' : 'Request declined',
     reaction: isGreek ? 'Αντέδρασε' : 'Reacted',
-    blocked: isGreek ? 'Σε μπλόκαρε' : 'Blocked you',
-    unblocked: isGreek ? 'Σε ξεμπλόκαρε' : 'Unblocked you',
   };
 }
 

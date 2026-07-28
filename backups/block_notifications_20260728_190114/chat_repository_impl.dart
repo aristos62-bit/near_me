@@ -1002,34 +1002,12 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
     DebugConfig.log(DebugConfig.chatReactions, 'addReaction: chat=$chatId msg=$messageId emoji=$emoji uid=$uid');
 
     try {
-      // ── Block check (ίδιο pattern με sendMessage) ──────────────
-      final chatDoc = await firestore.collection('chats').doc(chatId).get();
-      if (chatDoc.exists) {
-        final data = chatDoc.data()!;
-        final participants = List<String>.from(data['participants'] ?? []);
-        if (data['isGroupChat'] != true) {
-          final otherUid = participants.where((p) => p != uid).firstOrNull;
-          if (otherUid != null) {
-            final blockedDoc = await firestore
-                .collection('users').doc(otherUid).collection('blocked').doc(uid)
-                .get();
-            if (blockedDoc.exists) {
-              DebugConfig.log(DebugConfig.chatReactions, 'addReaction: blocked by $otherUid');
-              throw AppException.auth('add_reaction',
-                  'Δεν μπορείς να αντιδράσεις σε αυτό το μήνυμα / You cannot react to this message');
-            }
-          }
-        }
-      }
-      // ───────────────────────────────────────────────────────────
-
       await firestore
           .collection('chats').doc(chatId)
           .collection('messages').doc(messageId)
           .update({'reactions.$uid': emoji});
       DebugConfig.log(DebugConfig.firestoreWrite, 'addReaction: success chat=$chatId msg=$messageId');
     } catch (e) {
-      if (e is AppException) rethrow;
       DebugConfig.error('addReaction failed', data: e);
       throw AppException.firestore('add_reaction', 'Αποτυχία αποθήκευσης / Failed to save reaction');
     }

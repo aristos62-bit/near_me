@@ -234,6 +234,8 @@ class ErrorMessages {
         return isGreek ? 'Το προφίλ αποσύρθηκε' : 'Profile unpublished';
       case 'profile/publish-toggle-failed':
         return isGreek ? 'Αποτυχία αλλαγής κατάστασης δημοσίευσης' : 'Failed to toggle publish state';
+      case 'profile/changes-applied-public':
+        return isGreek ? 'Οι αλλαγές εφαρμόστηκαν στο δημόσιο προφίλ σου' : 'Changes applied to your public profile';
       case 'privacy/unsaved-changes-title':
         return isGreek ? 'Μη αποθηκευμένες αλλαγές' : 'Unsaved changes';
       case 'privacy/unsaved-changes-body':

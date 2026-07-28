@@ -470,3 +470,11 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 - `backups/message_expiry_fixes_20260728_154514/` (chat_provider.dart, firestore.indexes.json)
 
 ### `flutter analyze`: clean ✅ (0 issues)
+
+---
+
+## Εκκρεμότητες
+
+| # | Θέμα | Προτεινόμενη Λύση |
+|---|---|---|
+| 1 | **collectionGroup scraping** — οποιοσδήποτε authenticated χρήστης (ακόμα και anonymous) μπορεί να κάνει bulk collectionGroup queries σε όλα τα ορατά προφίλ, χωρίς server-side rate limit | App Check + server-side rate limit (π.χ. Firestore rules στο `rateLimits/{uid}` ή quota μέσω CF, όχι μόνο client-side) |

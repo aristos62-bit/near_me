@@ -149,6 +149,7 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
     final isCreator = chatData?['createdBy'] == currentUid;
     final permsInfo = permissionsAsync.asData?.value;
     final canChangeAvatar = permsInfo?.hasPermission(currentUid, GroupPermission.changeGroupAvatar) ?? false;
+    final participantNicknames = Map<String, String>.from(chatData?['participantNicknames'] as Map? ?? {});
     DebugConfig.log(DebugConfig.authGuard,
         'GroupSettingsScreen: isCreator=$isCreator canChangeAvatar=$canChangeAvatar');
 
@@ -318,7 +319,7 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
                             ...perms.overrides.entries.map((e) => Padding(
                               padding: const EdgeInsets.only(top: 4),
                               child: Text(
-                                '${e.key}: ${e.value.entries.where((ee) => ee.value).map((ee) => ee.key).join(", ")}',
+                                '${participantNicknames[e.key] ?? e.key}: ${e.value.entries.where((ee) => ee.value).map((ee) => ee.key).join(", ")}',
                                 style: theme.textTheme.bodySmall,
                               ),
                             )),

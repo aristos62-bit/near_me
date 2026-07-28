@@ -449,26 +449,19 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
         DebugConfig.warn('syncMyProfileAcrossChats failed', data: '$e\n$s');
       }
 
-      if (_loadedProfile != null && _loadedProfile!.isPublished && mounted) {
-        final g = L10n.isGreek(context);
-        final apply = await AppMessenger.showConfirmDialog(
-          context,
-          title: g ? 'Εφαρμογή Αλλαγών' : 'Apply Changes',
-          message: g
-              ? 'Το προφίλ σου είναι δημοσιευμένο. Θες να εφαρμοστούν οι αλλαγές τώρα;'
-              : 'Your profile is published. Apply changes now?',
-          confirmLabel: g ? 'Εφαρμογή' : 'Apply',
-          cancelLabel: g ? 'Αργότερα' : 'Later',
-        );
-        if (apply && mounted) {
-          try {
-            await repo.publish();
-            if (mounted) {
-              AppMessenger.showSuccess(context, ErrorMessages.get('profile/changes-applied-public', g));
-            }
-          } catch (e, s) {
-            DebugConfig.warn('ProfileEditor: publish after save failed', data: '$e\n$s');
-          }
+      // Αν το προφίλ είναι ήδη δημοσιευμένο, κάθε αποθήκευση το
+      // ξανα-δημοσιεύει αυτόματα — ώστε οι άλλοι χρήστες να βλέπουν πάντα
+      // την τελευταία εκδοχή (bio, nickname, ενδιαφέροντα, κλπ.), όχι μόνο
+      // όταν αλλάζει τοποθεσία ή ρυθμίσεις επικοινωνίας.
+      if (_loadedProfile != null && _loadedProfile!.isPublished) {
+        DebugConfig.log(DebugConfig.repositoryCall,
+            'ProfileEditor: profile is published, auto-publishing changes');
+        try {
+          await repo.publish();
+          DebugConfig.log(DebugConfig.repositoryResult,
+              'ProfileEditor: auto-publish success');
+        } catch (e, s) {
+          DebugConfig.warn('ProfileEditor: auto-publish failed', data: '$e\n$s');
         }
       }
       try {

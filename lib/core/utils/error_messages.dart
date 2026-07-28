@@ -54,6 +54,8 @@ class ErrorMessages {
         return isGreek ? 'Δεν υπάρχει σύνδεση στο διαδίκτυο' : 'No internet connection';
       case 'network/no-connectivity':
         return isGreek ? 'Δεν υπάρχει σύνδεση στο διαδίκτυο' : 'No internet connection';
+      case 'search/rate-limited':
+        return isGreek ? 'Πολλές αναζητήσεις. Δοκίμασε ξανά σε λίγο.' : 'Too many searches. Try again shortly.';
       case 'search/unknown-error':
         return isGreek ? 'Σφάλμα αναζήτησης. Δοκίμασε ξανά.' : 'Search error. Try again.';
       case 'chat/encryption-error':

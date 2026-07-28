@@ -1,3 +1,4 @@
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -110,6 +111,37 @@ class SearchNotifier extends Notifier<SearchState> {
     state = SearchState(status: SearchStatus.error, errorMessage: code);
   }
 
+  /// Πύλη ρυθμού πριν από κάθε ΝΕΟ search (όχι loadMore — απλή
+  /// σελιδοποίηση, όχι νέο lat/lng probing). Fail-open: αν η ίδια η
+  /// function αποτύχει (δίκτυο, cold start), επιτρέπουμε το search —
+  /// ίδιο best-effort σκεπτικό με το computeGeoHash στο profile publish.
+  Future<bool> _checkRateLimit() async {
+    try {
+      DebugConfig.log(DebugConfig.cloudFunctions,
+          'SearchNotifier: calling checkSearchRateLimit');
+      await FirebaseFunctions.instance
+          .httpsCallable('checkSearchRateLimit')
+          .call();
+      return true;
+    } on FirebaseFunctionsException catch (e) {
+      final code = e.code.replaceFirst('functions/', '');
+      if (code == 'resource-exhausted') {
+        DebugConfig.log(DebugConfig.repositoryCall,
+            'SearchNotifier: rate limit exceeded');
+        state = const SearchState(
+            status: SearchStatus.error, errorMessage: 'search/rate-limited');
+        return false;
+      }
+      DebugConfig.warn(
+          'SearchNotifier: rate limit check failed (fail-open)', data: e);
+      return true;
+    } catch (e) {
+      DebugConfig.warn(
+          'SearchNotifier: rate limit check failed (fail-open)', data: e);
+      return true;
+    }
+  }
+
   Future<void> search() async {
     try {
       final connectivity = await Connectivity().checkConnectivity();
@@ -121,6 +153,8 @@ class SearchNotifier extends Notifier<SearchState> {
         return;
       }
     } catch (_) {}
+
+    if (!await _checkRateLimit()) return;
 
     final filters = ref.read(searchFiltersProvider);
     DebugConfig.log(DebugConfig.repositoryCall, 'SearchNotifier.search: $filters');
@@ -166,6 +200,8 @@ class SearchNotifier extends Notifier<SearchState> {
         return;
       }
     } catch (_) {}
+
+    if (!await _checkRateLimit()) return;
 
     DebugConfig.log(DebugConfig.repositoryCall,
         'SearchNotifier.searchNearby: ($lat, $lng) r=$radiusKm');

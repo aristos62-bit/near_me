@@ -8,6 +8,8 @@ const db = admin.firestore();
 
 const REPORT_LIMIT = 10;
 const BAN_THRESHOLD = 5;
+const SEARCH_RATE_LIMIT = 30;
+const SEARCH_RATE_WINDOW_MS = 5 * 60 * 1000; // 5 λεπτά
 
 interface TokenEntry {
   uid: string;
@@ -810,6 +812,57 @@ export const deleteUserData = functions.https.onCall(async (data, context) => {
       throw new functions.https.HttpsError('internal', 'Failed to compute geoHash');
     }
   });
+
+// ─────────────────────────────────────────────────────────
+// checkSearchRateLimit — fixed-window rate limit πάνω σε geo-search.
+// Πηγή αλήθειας: users/{uid}/rateLimits/search (server-only, transaction).
+// Καλείται ΠΡΙΝ από κάθε νέο search()/searchNearby() στο client — όχι
+// στο loadMore() (απλή σελιδοποίηση, όχι νέο lat/lng probing).
+// ─────────────────────────────────────────────────────────
+
+export const checkSearchRateLimit = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+  }
+  const uid = context.auth.uid;
+  const ref = db.doc(`users/${uid}/rateLimits/search`);
+
+  try {
+    const allowed = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const now = Date.now();
+      const existing = snap.exists ? snap.data() : null;
+      const windowStart = existing?.windowStart as number | undefined;
+      const withinWindow =
+        windowStart != null && now - windowStart < SEARCH_RATE_WINDOW_MS;
+      const count = withinWindow ? ((existing?.count as number) ?? 0) : 0;
+
+      if (withinWindow && count >= SEARCH_RATE_LIMIT) {
+        return false;
+      }
+
+      tx.set(ref, {
+        windowStart: withinWindow ? windowStart : now,
+        count: count + 1,
+      });
+      return true;
+    });
+
+    functions.logger.info(`checkSearchRateLimit: uid=${uid} allowed=${allowed}`);
+    if (!allowed) {
+      throw new functions.https.HttpsError(
+        'resource-exhausted',
+        'search_rate_limited',
+      );
+    }
+    return { allowed: true };
+  } catch (e) {
+    if (e instanceof functions.https.HttpsError) throw e;
+    functions.logger.error(`checkSearchRateLimit failed for uid=${uid}`, e);
+    // Fail-open: αν δεν μπορούμε να προσδιορίσουμε το limit, δεν μπλοκάρουμε.
+    throw new functions.https.HttpsError('internal', 'Failed to check rate limit');
+  }
+});
 
   export const addGroupParticipant = functions.https.onCall(async (data, context) => {
   if (!context.auth) {

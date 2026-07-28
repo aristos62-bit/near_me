@@ -1,6 +1,6 @@
 # NearMe — Αναλυτική Αναφορά Ελέγχου & Προτάσεων
 
-> Ημερομηνία: 28 Ιουλίου 2026 — Sessions 1-208
+> Ημερομηνία: 27 Ιουλίου 2026 — Sessions 1-207
 > Πηγή: nearme_blueprint.md, oldsessions.md, sound_message.md, πλήρης ανάλυση codebase (~122 .dart files)
 > `flutter analyze`: clean ✅ (0 issues)
 
@@ -328,17 +328,16 @@ Routing logic: `hasGeoSearch && (!hasLocationFilter || hasRadiusFilter)` → `_g
 | **204-205** | **Audio Messages (Voice Messages)** — 22 SPoTs, record+audioplayers packages, AudioRecorderSheet, AudioMessageBubble, flutter analyze clean ✅ |
 | **206** | **Server-side authoritative geoHash** — computeGeoHash CF (πιστό GeoHashUtils port), Firestore SPoT geoPrecision, update rule blocks client geoHash write, auto-publish σε κάθε save, live distance από geoHash αντί searchState.distances |
 | **207** | **Mock-location detection** — `position.isMocked` check σε GPS + lastKnown, LocationFailure.mockLocationDetected, εμφάνιση μηνύματος fake GPS |
-| **208** | **Client-side search rate limiting** — `_checkRateLimit()` στο SearchNotifier (search_provider.dart:118-143), CF `checkSearchRateLimit` (fixed-window 30/5min, transaction σε `users/{uid}/rateLimits/search`), firestore.rules rateLimits write:false, fail-open σε network/CF error |
 
 ---
 
-# Τρέχουσα Κατάσταση (Session 208)
+# Τρέχουσα Κατάσταση (Session 207)
 
 | Μέτρο | Τιμή |
 |---|---|
 | Σύνολο `.dart` files | ~122 (μη generated) |
 | Firestore indexes | 21 composite deployed |
-| Cloud Functions | 8 deployed (+ computeGeoHash, + checkSearchRateLimit) + `fcm-utils.ts` helper |
+| Cloud Functions | 7 deployed (+ computeGeoHash) + `fcm-utils.ts` helper |
 | Build | `flutter analyze` clean ✅, release APK ~15.8MB |
 | Tests | 30/30 passed ✅ |
 | Backup files | `backups/sound_message_20260724_130843/` |

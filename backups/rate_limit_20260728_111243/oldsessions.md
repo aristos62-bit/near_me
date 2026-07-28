@@ -245,7 +245,6 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 | | |
 | **206** | **Server-side authoritative geoHash** — computeGeoHash CF (πιστό GeoHashUtils port), Firestore SPoT geoPrecision, update rule blocks client geoHash write, auto-publish σε κάθε save, live distance από geoHash αντί searchState.distances, 5 files changed |
 | **207** | **Mock-location detection** — `position.isMocked` check σε GPS + lastKnown, LocationFailure.mockLocationDetected, discovery_screen μήνυμα fake GPS, 2 files changed |
-| **208** | **Client-side search rate limiting** — `_checkRateLimit()` στο SearchNotifier (search_provider.dart:118), fixed-window 30 queries/5min, CF `checkSearchRateLimit` με transaction, firestore.rules rateLimits write:false, fail-open σε network/CF failure |
 
 ## Current State
 
@@ -254,7 +253,7 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 | Completion | ~99.9% (Phases 1-3 100%, MultiChat 100%, Media 100%, Chat Redesign 100%, Audio Messages 100%) |
 | `.dart` files | ~122 (non-generated) |
 | Firestore indexes | 21 composite deployed |
-| Cloud Functions | 8 deployed (+ computeGeoHash, + checkSearchRateLimit) + `fcm-utils.ts` helper |
+| Cloud Functions | 7 deployed (+ computeGeoHash) + `fcm-utils.ts` helper |
 | Build | `flutter analyze` clean, release APK ~15.8MB |
 | Tests | 30/30 passed |
 | Schema | Drift v12, 7 tables |

@@ -10,7 +10,6 @@ import '../../../core/utils/app_messenger.dart';
 import '../../../core/utils/connectivity_guard.dart';
 import '../../../core/utils/error_messages.dart';
 import '../../../data/local/database.dart';
-import '../../../providers/unread_badge_provider.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../../../shared/widgets/gradient_header.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -161,7 +160,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   _buildVerifyBanner(theme, isGreek, canComm),
                 const SizedBox(height: 8),
                 _buildMenu(theme, isGreek, unreadRequests: unreadRequests),
-                _buildSignOut(theme, isGreek),
                 const SizedBox(height: 32),
               ],
             ));
@@ -306,6 +304,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       _MenuItem(Icons.history_outlined, 'Ιστορικό', 'Consent Log', '/profile/consent-log'),
       _MenuItem(Icons.mail_outline, 'Αιτήματα', 'Requests', '/requests'),
       _MenuItem(Icons.block_outlined, 'Αποκλεισμένοι', 'Blocked', '/profile/blocked'),
+      _MenuItem(Icons.delete_forever_outlined, 'Διαγραφή', 'Delete', '/profile/delete'),
     ];
 
     return Padding(
@@ -349,50 +348,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         ),
       ),
     );
-  }
-
-  Widget _buildSignOut(ThemeData theme, bool isGreek) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-      child: Card(
-        margin: EdgeInsets.zero,
-        child: ListTile(
-          leading: const Icon(Icons.logout_outlined),
-          title: Text(isGreek ? 'Αποσύνδεση' : 'Sign Out'),
-          subtitle: Text(isGreek ? 'Αποσύνδεση από τον λογαριασμό' : 'Sign out of your account'),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => _signOut(),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _signOut() async {
-    final isGreek = L10n.isGreek(context);
-    final confirmed = await AppMessenger.showConfirmDialog(
-      context,
-      title: L10n.localizedMessage(context, 'Αποσύνδεση / Sign Out'),
-      message: L10n.localizedMessage(context, 'Θέλεις σίγουρα να αποσυνδεθείς; / Are you sure you want to sign out?'),
-      confirmLabel: isGreek ? 'Αποσύνδεση' : 'Sign Out',
-      cancelLabel: isGreek ? 'Ακύρωση' : 'Cancel',
-      isDestructive: false,
-    );
-    if (!confirmed) return;
-    if (!mounted) return;
-    DebugConfig.log(DebugConfig.authFlow, 'ProfileScreen: sign out');
-    DebugConfig.log(DebugConfig.providerDispose,
-        '_signOut: invalidating Firestore stream providers');
-    ref.invalidate(incomingRequestsProvider);
-    ref.invalidate(outgoingRequestsProvider);
-    ref.invalidate(unreadBadgeProvider);
-    try {
-      await ref.read(authRepositoryProvider).signOut();
-      DebugConfig.log(DebugConfig.authFlow, 'ProfileScreen: signed out');
-    } catch (e) {
-      DebugConfig.error('ProfileScreen: sign out failed', exception: e);
-      if (!mounted) return;
-      AppMessenger.showError(context, ErrorMessages.get('auth/sign-out-failed', L10n.isGreek(context)));
-    }
   }
 }
 

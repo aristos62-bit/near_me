@@ -24,11 +24,7 @@ class BlockedUsersScreen extends ConsumerWidget {
     if (uid == null) {
       return Scaffold(
         appBar: AppBar(title: Text(isGreek ? 'Μπλοκαρισμένοι' : 'Blocked')),
-        body: const EmptyView(
-          icon: Icons.person_off_outlined,
-          message: 'Δεν έχεις συνδεθεί / Not logged in',
-          actionLabel: null,
-        ),
+        body: const Center(child: Text('')),
       );
     }
 

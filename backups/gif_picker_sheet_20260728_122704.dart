@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/debug/debug_config.dart';
-import '../../../shared/widgets/app_state_widget.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../shared/utils/giphy_service.dart';
 
@@ -131,7 +130,7 @@ class _GifPickerSheetContentState extends State<_GifPickerSheetContent> {
 
   Widget _buildContent(bool greek, ThemeData theme) {
     if (_loading) {
-      return const LoadingView();
+      return const Center(child: CircularProgressIndicator());
     }
 
     if (_error) {

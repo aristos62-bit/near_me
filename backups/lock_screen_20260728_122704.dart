@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
 import '../debug/debug_config.dart';
-import '../utils/app_messenger.dart';
 
 class LockScreen extends StatelessWidget {
   final VoidCallback onUnlock;
@@ -102,8 +101,15 @@ class LockScreen extends StatelessWidget {
                       } else {
                         DebugConfig.warn('LockScreen: unlock failed');
                         if (context.mounted) {
-                          AppMessenger.showError(context,
-                              'Αποτυχία ταυτοποίησης. Προσπάθησε ξανά. / Authentication failed. Try again.');
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                isGreek
+                                    ? 'Αποτυχία ταυτοποίησης. Προσπάθησε ξανά.'
+                                    : 'Authentication failed. Try again.',
+                              ),
+                            ),
+                          );
                         }
                       }
                     },

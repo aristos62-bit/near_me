@@ -12,7 +12,6 @@ import '../../../core/utils/error_messages.dart';
 import '../../../data/local/database.dart';
 import '../../../shared/widgets/form_section.dart';
 import '../../../shared/widgets/form_toggle.dart';
-import '../../../shared/widgets/app_state_widget.dart';
 import '../../../shared/widgets/gradient_header.dart';
 import '../../../shared/widgets/save_button.dart';
 import '../providers/profile_provider.dart';
@@ -153,7 +152,7 @@ class _PrivacyEditorScreenState extends ConsumerState<PrivacyEditorScreen> {
         },
         child: Scaffold(
           appBar: AppBar(leading: IconButton(icon: const Icon(Icons.close), onPressed: _onBack), title: Text(greek ? 'Απόρρητο' : 'Privacy')),
-          body: const LoadingView(),
+          body: const Center(child: CircularProgressIndicator()),
         ),
       );
     }

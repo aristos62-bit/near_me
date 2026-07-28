@@ -390,3 +390,47 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 - **Clickable-links feature** — deferred
 
 ### `flutter analyze`: clean ✅ (0 issues)
+
+---
+
+## Session 203+ — Offline Handling System (100%) — 27 Ιουλ 2026
+
+### Σκοπός
+Προσθήκη offline handling: global banner + active connectivity guard σε όλες τις network κλήσεις, χωρίς νέα dependencies (υπάρχον `connectivity_plus`).
+
+### Τι έγινε
+- **Backup:** `backups/offline_guard_20260727_224951/` (17 αρχεία)
+- **Νέα αρχεία (2):**
+  - `lib/providers/connectivity_provider.dart` — StreamProvider<bool> από connectivity_plus
+  - `lib/core/utils/connectivity_guard.dart` — `isOnline()` (no context) + `ensure(context)` (showError + return false)
+- **Τροποποιημένα (16):**
+  - `error_messages.dart` — +case `'network/no-connectivity'`
+  - `main_shell.dart` — +`_ConnectivityBanner` ConsumerWidget
+  - `auth_provider.dart` — +6 guards (verify, checkVerification, sendPasswordReset, signIn, signUp, browseAnonymously)
+  - `phone_verify_provider.dart` — +2 guards (sendOtp, verifyOtp)
+  - `chat_provider.dart` — +`_checkOnline()` helper + ~25 guards (όλες οι network methods)
+  - `delete_account_provider.dart` — +2 guards (delete, deleteWithPassword)
+  - `profile_editor_screen.dart` — +guard σε `_save()`
+  - `privacy_editor_screen.dart` — +guard σε `_save()`
+  - `profile_screen.dart` — +guard σε `_togglePublish()`
+  - `send_request_screen.dart` — +guard σε `_sendRequest()`
+  - `create_group_screen.dart` — +2 guards (`_search`, `_createGroup`)
+  - `group_info_screen.dart` — +4 guards (`_saveGroupName`, `_changeRole`, `_removeParticipant`, `_deleteGroup`)
+  - `group_settings_screen.dart` — +3 guards (`_pickAndUploadAvatar`, `_removeAvatar`, `_saveMaxParticipants`)
+  - `permissions_editor_screen.dart` — +4 guards (`_togglePermission`, `_resetOverrides`, `_changeRole`, `_removeMember`)
+  - `add_participant_screen.dart` — +2 guards (`_search`, `_addUser`)
+- **Δεν πειράχθηκαν:** background services (PresenceService, FcmService, LocationService), report_provider, block_provider (οι κλήσεις γίνονται από screens που ήδη ελέγχθηκαν)
+
+### Μηχανισμός
+- **Passive banner:** `_ConnectivityBanner` στην MainShell — `connectivityProvider.asData?.value ?? true`
+- **Active guard (screens):** `ConnectivityGuard.ensure(context)` — showError snackbar + return false
+- **Active guard (providers):** `ConnectivityGuard.isOnline()` / `_checkOnline()` — set error state + return false
+- **Layer:** 2-layer (global passive + active πριν κάθε network call)
+- **Background services:** Χωρίς guard (σχεδιασμένο)
+
+### Fixes
+- `main_shell.dart` — `valueOrNull` → `asData?.value` (Riverpod API)
+- `privacy_editor_screen.dart` — `greek` μεταφορά πριν το await (use_build_context_synchronously)
+- `group_info_screen.dart` — `context.mounted` → `mounted` (use_build_context_synchronously)
+
+### `flutter analyze`: clean ✅ (0 issues)

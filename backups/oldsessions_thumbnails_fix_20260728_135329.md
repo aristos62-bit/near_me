@@ -313,13 +313,10 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 **Backup:** — (in-place edits, `git` pending)
 **`flutter analyze`:** clean ✅ (0 issues)
 
-### Video Thumbnails (v2.2) — **100%** (ενσωματώθηκε στο Video Messages v2.1)
+### Video Thumbnails (v2.2) — **ΕΚΚΡΕΜΟΤΗΤΑ** (pending approval)
 **Αρχείο πρότασης:** `video_message.md` §35
 
-7 SPoTs, 1 new package (`get_thumbnail_video ^0.7.3`), 0 new files, 12 edge cases, 3-layer equality cache ✅
-- Thumbnail generation: `chat_input_bar.dart:307` (VideoThumbnail.thumbnailData)
-- Upload: `chat_repository_impl.dart:861-867` (Storage chat_media)
-- Display: `video_message_bubble.dart:275-281` (thumbnailUrl preview)
+7 SPoTs, 1 new package (`video_thumbnail`), 0 new files, 12 edge cases, 3-layer equality cache ✅
 
 ---
 
@@ -392,8 +389,7 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 ### Δεν πειράχθηκαν
 - **Dynamic messages** (με `$nickname`, `$count`, `$label`, `$_maxParticipants`, `$_accuracyMeters`) — deferred για template `%s` pattern
 - **UI labels** σε dialogs (`confirmLabel`/`cancelLabel`), titles, menu items, Text widgets — παραμένουν inline bilingual
-
-> **Σημείωση:** Το **clickable-links feature** αναφερόταν ως deferred στο Session 202, αλλά έχει έκτοτε υλοποιηθεί: `_linkDetector` regex (`text_message_bubble.dart:76`) + `url_launcher` (`chat_messages_list.dart:23`). Αφαιρέθηκε από εκκρεμότητες.
+- **Clickable-links feature** — deferred
 
 ### `flutter analyze`: clean ✅ (0 issues)
 

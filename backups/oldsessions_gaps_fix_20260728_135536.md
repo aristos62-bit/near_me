@@ -392,8 +392,7 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 ### Δεν πειράχθηκαν
 - **Dynamic messages** (με `$nickname`, `$count`, `$label`, `$_maxParticipants`, `$_accuracyMeters`) — deferred για template `%s` pattern
 - **UI labels** σε dialogs (`confirmLabel`/`cancelLabel`), titles, menu items, Text widgets — παραμένουν inline bilingual
-
-> **Σημείωση:** Το **clickable-links feature** αναφερόταν ως deferred στο Session 202, αλλά έχει έκτοτε υλοποιηθεί: `_linkDetector` regex (`text_message_bubble.dart:76`) + `url_launcher` (`chat_messages_list.dart:23`). Αφαιρέθηκε από εκκρεμότητες.
+- **Clickable-links feature** — deferred
 
 ### `flutter analyze`: clean ✅ (0 issues)
 

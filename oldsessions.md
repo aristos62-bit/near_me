@@ -246,6 +246,7 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 | **206** | **Server-side authoritative geoHash** — computeGeoHash CF (πιστό GeoHashUtils port), Firestore SPoT geoPrecision, update rule blocks client geoHash write, auto-publish σε κάθε save, live distance από geoHash αντί searchState.distances, 5 files changed |
 | **207** | **Mock-location detection** — `position.isMocked` check σε GPS + lastKnown, LocationFailure.mockLocationDetected, discovery_screen μήνυμα fake GPS, 2 files changed |
 | **208** | **Client-side search rate limiting** — `_checkRateLimit()` στο SearchNotifier (search_provider.dart:118), fixed-window 30 queries/5min, CF `checkSearchRateLimit` με transaction, firestore.rules rateLimits write:false, fail-open σε network/CF failure |
+| **209** | **deleteUserData orphaned subcollections fix** — +3 subcollection deletes (privacy/settings, blocked/, rateLimits/search) σε CF `deleteUserData` (index.ts) + client-side defense-in-depth (`auth_repository_impl.dart:76-89`) + UI list update (`delete_account_screen.dart:213-221`). backup: `backups/deleteUserData_fix_20260728_*` |
 
 ## Current State
 

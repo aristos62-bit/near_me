@@ -213,11 +213,9 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
       children: [
         _deleteItem(theme, Icons.cloud_off, greek ? 'Δημόσιο προφίλ (Firestore)' : 'Public profile (Firestore)'),
         _deleteItem(theme, Icons.photo_library_outlined, greek ? 'Φωτογραφίες (Storage)' : 'Photos (Storage)'),
-        _deleteItem(theme, Icons.send_outlined, greek ? 'Αιτήματα γνωριμίας' : 'Connection requests'),
+        _deleteItem(theme, Icons.send_outlined, greek ? 'Αιτήματα γνωριμίας / Requests' : 'Connection requests'),
         _deleteItem(theme, Icons.chat_bubble_outline, greek ? 'Μηνύματα συνομιλιών (απόκρυψη)' : 'Chat messages (anonymized)'),
-        _deleteItem(theme, Icons.block, greek ? 'Αποκλεισμοί' : 'Blocked users'),
-        _deleteItem(theme, Icons.privacy_tip_outlined, greek ? 'Ρυθμίσεις απορρήτου' : 'Privacy settings'),
-        _deleteItem(theme, Icons.storage, greek ? 'Τοπικά δεδομένα (Drift)' : 'Local data (Drift)'),
+        _deleteItem(theme, Icons.storage, greek ? 'Τοπικά δεδομένα (Isar)' : 'Local data (Isar)'),
         _deleteItem(theme, Icons.person_off, greek ? 'Λογαριασμός (Firebase Auth)' : 'Account (Firebase Auth)'),
       ],
     );

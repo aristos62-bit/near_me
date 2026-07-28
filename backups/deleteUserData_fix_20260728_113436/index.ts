@@ -668,38 +668,6 @@ export const deleteUserData = functions.https.onCall(async (data, context) => {
     errors.push('status');
   }
 
-  // ── privacy/settings (orphan prevention) ──────────────────────
-  try {
-    await db.doc(`users/${uid}/privacy/settings`).delete();
-    functions.logger.info(`deleteUserData: deleted privacy/settings for ${uid}`);
-  } catch (e) {
-    functions.logger.warn(`deleteUserData: failed to delete privacy/settings for ${uid}`, e);
-    errors.push('privacy');
-  }
-
-  // ── blocked/ collection (orphan prevention) ───────────────────
-  try {
-    const blockedSnap = await db.collection(`users/${uid}/blocked`).get();
-    if (blockedSnap.size > 0) {
-      const blockedBatch = db.batch();
-      blockedSnap.docs.forEach((doc) => blockedBatch.delete(doc.ref));
-      await blockedBatch.commit();
-      functions.logger.info(`deleteUserData: deleted ${blockedSnap.size} blocked docs for ${uid}`);
-    }
-  } catch (e) {
-    functions.logger.warn(`deleteUserData: failed to delete blocked for ${uid}`, e);
-    errors.push('blocked');
-  }
-
-  // ── rateLimits/search (orphan prevention) ─────────────────────
-  try {
-    await db.doc(`users/${uid}/rateLimits/search`).delete();
-    functions.logger.info(`deleteUserData: deleted rateLimits/search for ${uid}`);
-  } catch (e) {
-    functions.logger.warn(`deleteUserData: failed to delete rateLimits/search for ${uid}`, e);
-    errors.push('rateLimits');
-  }
-
   try {
     const tokensSnap = await db.collection(`users/${uid}/fcm_tokens`).get();
     if (tokensSnap.size > 0) {

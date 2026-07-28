@@ -329,6 +329,7 @@ Routing logic: `hasGeoSearch && (!hasLocationFilter || hasRadiusFilter)` → `_g
 | **206** | **Server-side authoritative geoHash** — computeGeoHash CF (πιστό GeoHashUtils port), Firestore SPoT geoPrecision, update rule blocks client geoHash write, auto-publish σε κάθε save, live distance από geoHash αντί searchState.distances |
 | **207** | **Mock-location detection** — `position.isMocked` check σε GPS + lastKnown, LocationFailure.mockLocationDetected, εμφάνιση μηνύματος fake GPS |
 | **208** | **Client-side search rate limiting** — `_checkRateLimit()` στο SearchNotifier (search_provider.dart:118-143), CF `checkSearchRateLimit` (fixed-window 30/5min, transaction σε `users/{uid}/rateLimits/search`), firestore.rules rateLimits write:false, fail-open σε network/CF error |
+| **209** | **deleteUserData orphaned subcollections fix** — +3 subcollection deletes σε CF `deleteUserData` (index.ts): privacy/settings (single doc), blocked/ (collection batch), rateLimits/search (single doc). + Client-side defense-in-depth (`auth_repository_impl.dart:76-89`): 3 subcollection deletes στη best-effort Firestore cleanup. + UI list update (`delete_account_screen.dart:213-221`): Blocked users + Privacy settings + "Isar"→"Drift". Backup: `backups/deleteUserData_fix_20260728_*` |
 
 ---
 

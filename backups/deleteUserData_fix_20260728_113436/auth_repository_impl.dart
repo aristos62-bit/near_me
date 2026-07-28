@@ -76,14 +76,7 @@ class AuthRepositoryImpl implements AuthRepository {
     try {
       await _firestore.collection('users').doc(uid).collection('public').doc('profile').delete();
       await _firestore.collection('users').doc(uid).collection('status').doc('status').delete();
-      // Defense-in-depth: orphaned subcollections
-      await _firestore.collection('users').doc(uid).collection('privacy').doc('settings').delete();
-      await _firestore.collection('users').doc(uid).collection('rateLimits').doc('search').delete();
-      final blockedSnap = await _firestore.collection('users').doc(uid).collection('blocked').get();
-      for (final doc in blockedSnap.docs) {
-        await doc.reference.delete();
-      }
-      DebugConfig.log(DebugConfig.firestoreWrite, 'deleteAccount: Firestore data cleared (incl. privacy, rateLimits, blocked)');
+      DebugConfig.log(DebugConfig.firestoreWrite, 'deleteAccount: Firestore data cleared');
     } catch (e) {
       DebugConfig.warn('deleteAccount: Firestore cleanup failed', data: e);
     }

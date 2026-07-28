@@ -9,7 +9,6 @@ void main() {
     await tester.pumpWidget(
       const ProviderScope(child: NearMeApp(dbReady: true, firebaseReady: true)),
     );
-    await tester.pump(const Duration(seconds: 7));
     await tester.pump();
     expect(find.byType(MaterialApp), findsOneWidget);
   });
@@ -36,7 +35,6 @@ void main() {
 
     // 2. Show snackbar via AppMessenger using builder context (like _onFcmForeground does)
     AppMessenger.showInfo(builderCtx!, 'Test FCM notification');
-    await tester.pump(const Duration(seconds: 2));
     await tester.pump();
 
     // 3. Verify snackbar is visible (no "skipping snackbar" warn)

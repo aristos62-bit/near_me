@@ -121,7 +121,6 @@ class DebugConfig {
   static const bool chatBubbleDesign = true;      // bubble tails, date separators, message grouping
   static const bool chatAudio = true;              // voice message recording & playback
   static const bool chatVideo = true;              // video message recording & playback
-  static const bool chatMessageExpiry = true;       // message expiry operations
 
   /// ─────────────────────────────────────────────────────────────
   /// FILE STORAGE — Firebase Storage operations (Φάση 2+)

@@ -270,6 +270,12 @@ class _ChatTile extends ConsumerWidget {
     final sender = chat.lastMessageSender;
     final type = chat.lastMessageType ?? 'text';
 
+    if (type == 'system') {
+      if (msg == null) return null;
+      final truncated = msg.length > 50 ? '${msg.substring(0, 50)}...' : msg;
+      return truncated;
+    }
+
     if (type != 'text') {
       if (type == 'image') return greek ? '📷 Φωτογραφία' : '📷 Photo';
       if (type == 'gif') return '🎞️ GIF';

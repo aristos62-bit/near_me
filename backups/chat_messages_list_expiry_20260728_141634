@@ -16,7 +16,6 @@ import '../utils/chat_ui_utils.dart';
 import 'date_separator.dart';
 import 'message_bubble/message_bubble.dart';
 import 'message_bubble/message_callbacks.dart';
-import 'dart:async';
 import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:path_provider/path_provider.dart';
@@ -551,136 +550,116 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
         // ώστε το auto-scroll-to-bottom να ενεργοποιείται ΜΟΝΟ από νέα μηνύματα
         // και όχι από τη φόρτωση παλιότερων (που δεν πρέπει να προκαλεί scroll).
         _onMessagesChanged(messages);
-        return Column(
-          children: [
-            Expanded(
-              child: combinedMessages.isEmpty
-                  ? EmptyView(
-                      icon: Icons.chat_bubble_outline,
-                      message: greek ? 'Καμία συνομιλία' : 'No messages',
-                    )
-                  : _buildMessagesList(combinedMessages, currentUid, lastReadTimestamps, isGroupChat,
-                      participantNicknames, participantAvatarUrls, participantUids, otherUid, isLoadingOlder, greek),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildMessagesList(
-    List<Map<String, dynamic>> combinedMessages,
-    String currentUid,
-    Map<String, DateTime> lastReadTimestamps,
-    bool isGroupChat,
-    Map<String, String> participantNicknames,
-    Map<String, String> participantAvatarUrls,
-    List<String> participantUids,
-    String? otherUid,
-    bool isLoadingOlder,
-    bool greek,
-  ) {
-    final renderItems = ChatGroupingCalculator.calculate(widget.chatId, combinedMessages, currentUid);
-    final readProps = _precomputeReadProps(
-      combinedMessages,
-      currentUid,
-      otherUid,
-      lastReadTimestamps,
-      isGroupChat,
-    );
-    final totalWithReactions = combinedMessages.where((m) {
-      final r = m['reactions'] as Map<String, dynamic>?;
-      return r != null && r.isNotEmpty;
-    }).length;
-    final totalRead = readProps.values.where((p) => p.effectiveIsRead).length;
-    final totalWithSeenBy = readProps.values.where((p) => p.seenBy.isNotEmpty).length;
-    DebugConfig.log(DebugConfig.chatBubbleDesign,
-        'MSG_LIST: ${renderItems.length} items, '
-        '${combinedMessages.length} msgs, '
-        '$totalWithReactions with reactions, '
-        '$totalRead read, '
-        '$totalWithSeenBy with seenBy');
-    final itemCount = renderItems.length + (isLoadingOlder ? 1 : 0);
-    return ListView.builder(
-      controller: _scrollCtrl,
-      reverse: true,
-      padding: EdgeInsets.symmetric(
-        horizontal: ResponsiveUtils.paddingValueFromWidth(
-            MediaQuery.sizeOf(context).width),
-        vertical: 8,
-      ),
-      itemCount: itemCount,
-      itemBuilder: (_, i) {
-        if (isLoadingOlder && i == itemCount - 1) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Center(
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ),
+        if (combinedMessages.isEmpty) {
+          return EmptyView(
+            icon: Icons.chat_bubble_outline,
+            message: greek ? 'Καμία συνομιλία' : 'No messages',
           );
         }
-        final item = renderItems[renderItems.length - 1 - i];
-        if (item.type == RenderItemType.dateSeparator) {
-          return DateSeparator(key: ValueKey('ds_${item.date}'), date: item.date!);
-        }
-
-        final msg = item.message!;
-        final senderId = msg['senderId'] as String? ?? '';
-        final senderNickname = participantNicknames[senderId];
-        final senderAvatarUrl = participantAvatarUrls[senderId];
-        if (senderNickname == null) {
-          DebugConfig.warn(
-              'ChatMessagesList: senderNickname null for senderId=$senderId '
-                  'chat=${widget.chatId} nicknameMapSize=${participantNicknames.length}');
-        }
-
-        final msgId = msg['id'] as String? ?? '';
-        final props = readProps[msgId] ??
-            const _MessageReadProps(effectiveIsRead: false, seenBy: []);
-
-        return MessageBubble(
-          key: ValueKey(msgId),
-          message: msg,
-          currentUid: currentUid,
-          isGroupChat: isGroupChat,
-          isRead: props.effectiveIsRead,
-          isGrouped: item.isGrouped,
-          isLastInGroup: item.isLastInGroup,
-          showAvatar: item.showAvatar,
-          senderNickname: senderNickname,
-          senderAvatarUrl: senderAvatarUrl,
-          participantNicknames: isGroupChat ? participantNicknames : null,
-          seenBy: props.seenBy,
-          chatId: widget.chatId,
-          audioPlayer: widget.audioPlayer,
-          videoPlayer: widget.videoPlayer,
-          videoLoadingUrl: widget.videoLoadingUrl,
-          callbacks: MessageCallbacks(
-            onApproveDelete: _onApproveDelete,
-            onRejectDelete: _onRejectDelete,
-            onDeleteForMe: _onDeleteForMe,
-            onKeepChat: _onKeepChat,
-            onReact: _onReact,
-            onRemove: _onRemove,
-            onReply: () => _onReply(msg),
-            onEdit: () => _onEdit(msg),
-            onDelete: () => _onDelete(msg),
-            onInfo: () => _onInfo(
-              msg,
-              props,
-              isGroupChat,
-              participantNicknames,
-              participantAvatarUrls,
-            ),
-            onEmail: () => _onEmail(msg),
-            onShare: () => _onShare(msg),
-            onLinkTap: _onLinkTap,
-            onPlayVideo: widget.onPlayVideo,
+        final renderItems = ChatGroupingCalculator.calculate(widget.chatId, combinedMessages, currentUid);
+        final readProps = _precomputeReadProps(
+          combinedMessages,
+          currentUid,
+          otherUid,
+          lastReadTimestamps,
+          isGroupChat,
+        );
+        final totalWithReactions = combinedMessages.where((m) {
+          final r = m['reactions'] as Map<String, dynamic>?;
+          return r != null && r.isNotEmpty;
+        }).length;
+        final totalRead = readProps.values.where((p) => p.effectiveIsRead).length;
+        final totalWithSeenBy = readProps.values.where((p) => p.seenBy.isNotEmpty).length;
+        DebugConfig.log(DebugConfig.chatBubbleDesign,
+            'MSG_LIST: ${renderItems.length} items, '
+            '${combinedMessages.length} msgs, '
+            '$totalWithReactions with reactions, '
+            '$totalRead read, '
+            '$totalWithSeenBy with seenBy');
+        // --- ΝΕΟ: +1 item στην κορυφή (μεγαλύτερο index, λόγω reverse:true) όσο φορτώνονται παλιά μηνύματα ---
+        final itemCount = renderItems.length + (isLoadingOlder ? 1 : 0);
+        return ListView.builder(
+          controller: _scrollCtrl,
+          reverse: true,
+          padding: EdgeInsets.symmetric(
+            horizontal: ResponsiveUtils.paddingValueFromWidth(
+                MediaQuery.sizeOf(context).width),
+            vertical: 8,
           ),
+          itemCount: itemCount,
+          itemBuilder: (_, i) {
+            if (isLoadingOlder && i == itemCount - 1) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              );
+            }
+            final item = renderItems[renderItems.length - 1 - i];
+            if (item.type == RenderItemType.dateSeparator) {
+              return DateSeparator(key: ValueKey('ds_${item.date}'), date: item.date!);
+            }
+
+            final msg = item.message!;
+            final senderId = msg['senderId'] as String? ?? '';
+            final senderNickname = participantNicknames[senderId];
+            final senderAvatarUrl = participantAvatarUrls[senderId];
+            if (senderNickname == null) {
+              DebugConfig.warn(
+                  'ChatMessagesList: senderNickname null for senderId=$senderId '
+                      'chat=${widget.chatId} nicknameMapSize=${participantNicknames.length}');
+            }
+
+            final msgId = msg['id'] as String? ?? '';
+            final props = readProps[msgId] ??
+                const _MessageReadProps(effectiveIsRead: false, seenBy: []);
+
+            return MessageBubble(
+              key: ValueKey(msgId),
+              message: msg,
+              currentUid: currentUid,
+              isGroupChat: isGroupChat,
+              isRead: props.effectiveIsRead,
+              isGrouped: item.isGrouped,
+              isLastInGroup: item.isLastInGroup,
+              showAvatar: item.showAvatar,
+              senderNickname: senderNickname,
+              senderAvatarUrl: senderAvatarUrl,
+              participantNicknames: isGroupChat ? participantNicknames : null,
+              seenBy: props.seenBy,
+              chatId: widget.chatId,
+              audioPlayer: widget.audioPlayer,
+              videoPlayer: widget.videoPlayer,
+              videoLoadingUrl: widget.videoLoadingUrl,
+              callbacks: MessageCallbacks(
+                onApproveDelete: _onApproveDelete,
+                onRejectDelete: _onRejectDelete,
+                onDeleteForMe: _onDeleteForMe,
+                onKeepChat: _onKeepChat,
+                onReact: _onReact,
+                onRemove: _onRemove,
+                onReply: () => _onReply(msg),
+                onEdit: () => _onEdit(msg),
+                onDelete: () => _onDelete(msg),
+                onInfo: () => _onInfo(
+                  msg,
+                  props,
+                  isGroupChat,
+                  participantNicknames,
+                  participantAvatarUrls,
+                ),
+                onEmail: () => _onEmail(msg),
+                onShare: () => _onShare(msg),
+                onLinkTap: _onLinkTap,
+                onPlayVideo: widget.onPlayVideo,
+              ),
+            );
+          },
         );
       },
     );

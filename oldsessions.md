@@ -259,7 +259,7 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 | Build | `flutter analyze` clean, release APK ~15.8MB |
 | Tests | 30/30 passed |
 | Schema | Drift v12, 7 tables |
-| Feature Flags | 11 (audioMessagesEnabled, typesenseEnabled, videoCallEnabled, groupChatEnabled, gifSupportEnabled, mediaMessagesEnabled, messageReactionsEnabled, replyToMessageEnabled, groupEventsEnabled, webVersionEnabled, aiMatchingEnabled, verifiedBadgeEnabled, premiumTierEnabled) |
+| Feature Flags | 14 (audioMessagesEnabled, typesenseEnabled, videoCallEnabled, groupChatEnabled, gifSupportEnabled, mediaMessagesEnabled, messageReactionsEnabled, replyToMessageEnabled, groupEventsEnabled, webVersionEnabled, aiMatchingEnabled, verifiedBadgeEnabled, premiumTierEnabled, messageExpiryEnabled) |
 
 ## Key Conventions
 - File size ≤ 500 lines (exceptions: profile_repository_impl ~570, chat_repository_impl ~590 with user permission)
@@ -438,5 +438,35 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 - `main_shell.dart` — `valueOrNull` → `asData?.value` (Riverpod API)
 - `privacy_editor_screen.dart` — `greek` μεταφορά πριν το await (use_build_context_synchronously)
 - `group_info_screen.dart` — `context.mounted` → `mounted` (use_build_context_synchronously)
+
+### `flutter analyze`: clean ✅ (0 issues)
+
+---
+
+## Session P3.2 — Message Expiry Feature (100%) — 28 Ιουλ 2026
+
+### Σκοπός
+Αυτόματη διαγραφή μηνυμάτων σε group chats μετά από configurable χρονικό διάστημα (1min, 5min, 30min, 6h, 12h, 24h). Feature flag: `FeatureFlags.messageExpiryEnabled`.
+
+### Τι έγινε
+- **Πρόταση/Ανάλυση:** `message_expiry.md` — 17 SPoTs (schema, UI, Cloud Function, permissions, indexes)
+- **Νέο config field:** `chats/{chatId}.messageExpiry` (string, default `'off'`)
+- **group_chat_mixin.dart:** `updateMessageExpiry(chatId, value)` με creator-only guard + validation
+- **Cloud Function:** `expireStaleMessages` — every 5min, `collectionGroup('messages').where('expiresAt', '<', now).get()` → batch delete
+- **SystemMessageFormatter:** +`'message_expiry_changed'` case
+- **GroupSettingsScreen:** +Message Auto-Delete section (DropdownButtonFormField), creator-only
+- **ChatScreen:** `_ExpiryBanner` widget — animated banner "Messages auto-delete after X" (5sec auto-dismiss)
+- **indexes:** `fieldOverrides` για `expiresAt` (ASC + DESC, COLLECTION_GROUP) στο `firestore.indexes.json`
+
+### Bugs Found & Fixed
+
+| # | Issue | Fix |
+|---|---|---|
+| 1 | GroupSettingsScreen: `groupPermissionsProvider` with `autoDispose` — Permissions section invisible on navigation | Remove `autoDispose` from `groupPermissionsProvider` |
+| 2 | `updateMessageExpiry` in ChatActionsNotifier returned `Future<void>` (inconsistent with all other methods) | Changed to `Future<bool>`, `return false;` on offline, `return true;` on success |
+| 3 | `_ExpiryBanner` placed inside `chat_messages_list.dart` (wrong architectural layer) | Moved to `chat_screen.dart` as independent widget between Expanded list and SafeInputArea |
+
+### Backups
+- `backups/message_expiry_fixes_20260728_154514/` (chat_provider.dart, firestore.indexes.json)
 
 ### `flutter analyze`: clean ✅ (0 issues)

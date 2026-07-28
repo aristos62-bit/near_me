@@ -210,7 +210,7 @@ service cloud.firestore {
                       ||
                       // Roles, permissions, limits (creator or admin)
                       (request.resource.data.diff(resource.data).affectedKeys()
-                          .hasOnly(['participantRoles', 'permissionOverrides', 'maxParticipants', 'messageExpiry'])
+                         .hasOnly(['participantRoles', 'permissionOverrides', 'maxParticipants'])
                         && (resource.data.participantRoles[request.auth.uid] == 'creator'
                          || resource.data.participantRoles[request.auth.uid] == 'admin'))
                       ||

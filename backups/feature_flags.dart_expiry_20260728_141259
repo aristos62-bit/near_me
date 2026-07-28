@@ -25,9 +25,6 @@ class FeatureFlags {
   static const bool audioMessagesEnabled = true;
   static const bool videoMessagesEnabled = true;
 
-  // Message Expiry (P3.2)
-  static const bool messageExpiryEnabled = true;
-
   // Reactions
   static const bool messageReactionsEnabled = true;
 

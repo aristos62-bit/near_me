@@ -142,14 +142,6 @@ class ErrorMessages {
         return isGreek ? 'Αποτυχία ενημέρωσης ορίου συμμετεχόντων' : 'Failed to update max participants';
       case 'group/min-members':
         return isGreek ? 'Η ομάδα χρειάζεται τουλάχιστον 2 μέλη' : 'Group needs at least 2 members';
-      case 'chat/message-expiry-creator-only':
-        return isGreek ? 'Μόνο ο δημιουργός μπορεί να αλλάξει αυτήν τη ρύθμιση' : 'Only the creator can change this setting';
-      case 'chat/message-expiry-invalid-value':
-        return isGreek ? 'Μη έγκυρη τιμή αυτόματης διαγραφής' : 'Invalid message expiry value';
-      case 'chat/message-expiry-updated':
-        return isGreek ? 'Η αυτόματη διαγραφή ενημερώθηκε' : 'Auto-delete updated';
-      case 'chat/message-expiry-update-failed':
-        return isGreek ? 'Αποτυχία ενημέρωσης αυτόματης διαγραφής' : 'Failed to update auto-delete';
       case 'group/created':
         return isGreek ? 'Η ομάδα δημιουργήθηκε' : 'Group created';
       case 'group/create-failed':

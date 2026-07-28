@@ -219,7 +219,6 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
     List<String>? validMentions;
     List<String> participants = [];
     bool isGroupChat = false;
-    String messageExpiry = 'off';
     try {
       final chatDoc = await firestore.collection('chats').doc(chatId).get();
       if (!chatDoc.exists) {
@@ -228,7 +227,6 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
       final data = chatDoc.data()!;
       participants = List<String>.from(data['participants'] ?? []);
       isGroupChat = data['isGroupChat'] == true;
-      messageExpiry = data['messageExpiry'] as String? ?? 'off';
 
       if (isGroupChat) {
         final nicknames = Map<String, String>.from(data['participantNicknames'] ?? {});
@@ -280,12 +278,6 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
       }
       if (replyTo != null) {
         msgData['replyTo'] = replyTo;
-      }
-      if (messageExpiry != 'off') {
-        final duration = _expiryDuration(messageExpiry);
-        if (duration != null) {
-          msgData['expiresAt'] = Timestamp.fromDate(DateTime.now().add(duration));
-        }
       }
       batch.set(msgRef, msgData);
       final updateData = <String, dynamic>{
@@ -806,7 +798,6 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
 
     List<String> participants = [];
     bool isGroupChat = false;
-    String messageExpiry = 'off';
     try {
       final chatDoc = await firestore.collection('chats').doc(chatId).get();
       if (!chatDoc.exists) {
@@ -815,7 +806,6 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
       final data = chatDoc.data()!;
       participants = List<String>.from(data['participants'] ?? []);
       isGroupChat = data['isGroupChat'] == true;
-      messageExpiry = data['messageExpiry'] as String? ?? 'off';
 
       if (!isGroupChat) {
         final otherUid = participants.where((p) => p != user.uid).firstOrNull;
@@ -892,12 +882,6 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
       };
       if (replyTo != null) {
         msgData['replyTo'] = replyTo;
-      }
-      if (messageExpiry != 'off') {
-        final duration = _expiryDuration(messageExpiry);
-        if (duration != null) {
-          msgData['expiresAt'] = Timestamp.fromDate(DateTime.now().add(duration));
-        }
       }
       batch.set(msgRef, msgData);
 
@@ -1062,18 +1046,6 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
     } catch (e, s) {
       DebugConfig.error('createChat consent log failed', data: e, exception: s);
     }
-  }
-
-  Duration? _expiryDuration(String value) {
-    return switch (value) {
-      '1min' => const Duration(minutes: 1),
-      '5min' => const Duration(minutes: 5),
-      '30min' => const Duration(minutes: 30),
-      '6h' => const Duration(hours: 6),
-      '12h' => const Duration(hours: 12),
-      '24h' => const Duration(hours: 24),
-      _ => null,
-    };
   }
 }
 

@@ -1145,29 +1145,6 @@ export const expireStaleRequests = functions.pubsub
     return null;
   });
 
-export const expireStaleMessages = functions.pubsub
-  .schedule('*/5 * * * *')
-  .timeZone('Europe/Athens')
-  .onRun(async () => {
-    const now = admin.firestore.Timestamp.now();
-    const expired = await db
-      .collectionGroup('messages')
-      .where('expiresAt', '<', now)
-      .get();
-
-    if (expired.size === 0) {
-      functions.logger.info('expireStaleMessages: no stale messages found');
-      return null;
-    }
-
-    const batch = db.batch();
-    expired.docs.forEach((doc) => batch.delete(doc.ref));
-    await batch.commit();
-
-    functions.logger.info(`expireStaleMessages: deleted ${expired.size} stale messages`);
-    return null;
-  });
-
 export const sendReactionNotification = functions.firestore
   .document('chats/{chatId}/messages/{messageId}')
   .onUpdate(async (change, context) => {

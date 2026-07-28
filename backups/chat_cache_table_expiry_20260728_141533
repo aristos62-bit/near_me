@@ -36,8 +36,4 @@ class ChatCacheTable extends Table {
 
   /// Group creator UID (schema v11)
   TextColumn get groupCreatedBy => text().nullable()();
-
-  /// Message expiry setting (schema v13)
-  TextColumn get messageExpiry =>
-      text().withDefault(const Constant('off'))();
 }

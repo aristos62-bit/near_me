@@ -380,19 +380,17 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
     }
   }
 
-  Future<bool> updateMessageExpiry(String chatId, String value) async {
-    if (!await _checkOnline()) return false;
+  Future<void> updateMessageExpiry(String chatId, String value) async {
+    if (!await _checkOnline()) return;
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: updateMessageExpiry chat=$chatId value=$value');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
       await _chatRepo.updateMessageExpiry(chatId, value);
       state = const ChatActionState(status: ChatActionStatus.success);
       ref.invalidate(chatsProvider);
-      return true;
     } catch (e, s) {
       DebugConfig.error('ChatActions: updateMessageExpiry failed', data: e, exception: s);
       state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
-      return false;
     }
   }
 

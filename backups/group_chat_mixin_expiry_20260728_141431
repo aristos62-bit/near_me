@@ -147,7 +147,6 @@ mixin GroupChatMixin {
     final groupName = data['groupName'] as String?;
     final groupAvatarUrl = data['groupAvatarUrl'] as String?;
     final groupCreatedBy = data['createdBy'] as String?;
-    final messageExpiry = data['messageExpiry'] as String? ?? 'off';
     final participants = List<String>.from(data['participants'] ?? []);
     final nicknamesRaw = data['participantNicknames'] as Map<String, dynamic>?;
     DebugConfig.log(DebugConfig.repositoryResult,
@@ -205,7 +204,6 @@ mixin GroupChatMixin {
             participantUids: participantUidsStr != null ? Value(participantUidsStr) : const Value(null),
             isGroupChat: const Value(true),
             groupCreatedBy: groupCreatedBy != null ? Value(groupCreatedBy) : Value.absent(),
-            messageExpiry: Value(messageExpiry),
           ));
     } else {
       await db.into(db.chatCacheTable).insert(
@@ -229,7 +227,6 @@ mixin GroupChatMixin {
           participantUids: participantUidsStr != null ? Value(participantUidsStr) : const Value(null),
           isGroupChat: const Value(true),
           groupCreatedBy: groupCreatedBy != null ? Value(groupCreatedBy) : const Value(null),
-          messageExpiry: Value(messageExpiry),
         ),
       );
     }
@@ -326,7 +323,6 @@ mixin GroupChatMixin {
         'createdAt': FieldValue.serverTimestamp(),
         'isActive': true,
         'createdBy': uid,
-        'messageExpiry': 'off',
         'unreadCount': {for (final p in allUids) p: 0},
         if (isPublic) 'isPublic': true,
       });
@@ -635,43 +631,6 @@ mixin GroupChatMixin {
       if (e is AppException) rethrow;
       DebugConfig.error('updateMaxParticipants failed', data: e, exception: s);
       throw AppException.firestore('update_max', 'Αποτυχία αλλαγής ορίου / Failed to update limit');
-    }
-  }
-
-  Future<void> updateMessageExpiry(String chatId, String value) async {
-    DebugConfig.log(DebugConfig.chatMessageExpiry,
-        'updateMessageExpiry: chat=$chatId value=$value');
-
-    final uid = _currentUid;
-    final chatSnap = await firestore.collection('chats').doc(chatId).get();
-    final roles = Map<String, String>.from(chatSnap.data()?['participantRoles'] as Map? ?? {});
-    if (roles[uid] != 'creator') {
-      throw AppException(
-        code: 'chat/message-expiry-creator-only',
-        message: 'Μόνο ο δημιουργός μπορεί να αλλάξει αυτήν τη ρύθμιση / Only the creator can change this setting',
-      );
-    }
-
-    final validValues = {'off', '1min', '5min', '30min', '6h', '12h', '24h'};
-    if (!validValues.contains(value)) {
-      throw AppException(
-        code: 'chat/message-expiry-invalid-value',
-        message: 'Μη έγκυρη τιμή / Invalid value',
-      );
-    }
-
-    try {
-      await firestore.collection('chats').doc(chatId).update({'messageExpiry': value});
-      await _logAudit(chatId, 'message_expiry_changed', _currentUid,
-          details: {'value': value});
-      await _sendSystemMessage(chatId, 'message_expiry_changed', _currentUid);
-      DebugConfig.log(DebugConfig.chatMessageExpiry,
-          'updateMessageExpiry: done chat=$chatId value=$value');
-    } catch (e, s) {
-      if (e is AppException) rethrow;
-      DebugConfig.error('updateMessageExpiry failed', data: e, exception: s);
-      throw AppException.firestore('update_expiry',
-          'Αποτυχία αλλαγής αυτόματης διαγραφής / Failed to update expiry');
     }
   }
 

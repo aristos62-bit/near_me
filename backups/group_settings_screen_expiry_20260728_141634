@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-import '../../../core/config/feature_flags.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
@@ -24,7 +23,6 @@ class GroupSettingsScreen extends ConsumerStatefulWidget {
 class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
   final _maxPController = TextEditingController();
   bool _isSavingMax = false;
-  bool _isSavingExpiry = false;
   bool _isUploadingAvatar = false;
   int? _currentMax;
 
@@ -81,27 +79,6 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
       setState(() => _isUploadingAvatar = false);
       AppMessenger.showError(context, ErrorMessages.get('group/avatar-remove-failed', greek));
     }
-  }
-
-  Future<void> _saveMessageExpiry(String value) async {
-    final greek = L10n.isGreek(context);
-    if (!await ConnectivityGuard.ensure(context)) return;
-    setState(() => _isSavingExpiry = true);
-    try {
-      await ref.read(chatActionsProvider.notifier).updateMessageExpiry(widget.chatId, value);
-      if (!mounted) return;
-      setState(() => _isSavingExpiry = false);
-      AppMessenger.showSuccess(context, ErrorMessages.get('chat/message-expiry-updated', greek));
-    } catch (e, s) {
-      DebugConfig.error('GroupSettings: saveMessageExpiry failed', data: e, exception: s);
-      if (!mounted) return;
-      setState(() => _isSavingExpiry = false);
-      AppMessenger.showError(context, ErrorMessages.get('chat/message-expiry-update-failed', greek));
-    }
-  }
-
-  DropdownMenuItem<String> _expiryDropdownItem(String value, String label) {
-    return DropdownMenuItem(value: value, child: Text(label));
   }
 
   Future<void> _saveMaxParticipants() async {
@@ -235,47 +212,6 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
                     ]),
                   ),
                 ),
-                if (FeatureFlags.messageExpiryEnabled && isCreator) ...[
-                  const SizedBox(height: 16),
-                  _sectionHeader(context, greek ? 'Αυτόματη Διαγραφή Μηνυμάτων' : 'Message Auto-Delete'),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(children: [
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            key: ValueKey(chatData?['messageExpiry'] ?? 'off'),
-                            initialValue: chatData?['messageExpiry'] as String? ?? 'off',
-                            decoration: InputDecoration(
-                              labelText: greek ? 'Διαγραφή μετά από' : 'Delete after',
-                              isDense: true,
-                              border: InputBorder.none,
-                            ),
-                            items: [
-                              _expiryDropdownItem('off', greek ? 'Απενεργοποιημένο' : 'Off'),
-                              _expiryDropdownItem('1min', greek ? '1 λεπτό' : '1 minute'),
-                              _expiryDropdownItem('5min', greek ? '5 λεπτά' : '5 minutes'),
-                              _expiryDropdownItem('30min', greek ? '30 λεπτά' : '30 minutes'),
-                              _expiryDropdownItem('6h', greek ? '6 ώρες' : '6 hours'),
-                              _expiryDropdownItem('12h', greek ? '12 ώρες' : '12 hours'),
-                              _expiryDropdownItem('24h', greek ? '24 ώρες' : '24 hours'),
-                            ],
-                            onChanged: _isSavingExpiry ? null : (value) {
-                              if (value != null && value != chatData?['messageExpiry']) {
-                                _saveMessageExpiry(value);
-                              }
-                            },
-                          ),
-                        ),
-                        if (_isSavingExpiry)
-                          const Padding(
-                            padding: EdgeInsets.only(left: 12),
-                            child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
-                          ),
-                      ]),
-                    ),
-                  ),
-                ],
                 const SizedBox(height: 16),
                 _sectionHeader(context, greek ? 'Δικαιώματα' : 'Permissions'),
                 permissionsAsync.when(

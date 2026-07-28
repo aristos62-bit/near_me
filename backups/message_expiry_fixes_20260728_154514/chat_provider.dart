@@ -179,7 +179,7 @@ final participantUidsProvider = Provider.family<List<String>, String>((ref, chat
   return result;
 });
 
-final groupPermissionsProvider = FutureProvider.family<GroupPermissionsInfo, String>((ref, chatId) {
+final groupPermissionsProvider = FutureProvider.autoDispose.family<GroupPermissionsInfo, String>((ref, chatId) {
   DebugConfig.log(DebugConfig.providerCreate, 'groupPermissionsProvider created for chat: $chatId');
   ref.onDispose(() => DebugConfig.log(DebugConfig.providerDispose, 'groupPermissionsProvider disposed for chat: $chatId'));
   final chatRepo = ref.watch(chatRepositoryProvider);
@@ -380,19 +380,17 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
     }
   }
 
-  Future<bool> updateMessageExpiry(String chatId, String value) async {
-    if (!await _checkOnline()) return false;
+  Future<void> updateMessageExpiry(String chatId, String value) async {
+    if (!await _checkOnline()) return;
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: updateMessageExpiry chat=$chatId value=$value');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
       await _chatRepo.updateMessageExpiry(chatId, value);
       state = const ChatActionState(status: ChatActionStatus.success);
       ref.invalidate(chatsProvider);
-      return true;
     } catch (e, s) {
       DebugConfig.error('ChatActions: updateMessageExpiry failed', data: e, exception: s);
       state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
-      return false;
     }
   }
 

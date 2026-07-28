@@ -3090,6 +3090,18 @@ class $ChatCacheTableTable extends ChatCacheTable
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _messageExpiryMeta = const VerificationMeta(
+    'messageExpiry',
+  );
+  @override
+  late final GeneratedColumn<String> messageExpiry = GeneratedColumn<String>(
+    'message_expiry',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('off'),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -3110,6 +3122,7 @@ class $ChatCacheTableTable extends ChatCacheTable
     groupName,
     groupAvatarUrl,
     groupCreatedBy,
+    messageExpiry,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3264,6 +3277,15 @@ class $ChatCacheTableTable extends ChatCacheTable
         ),
       );
     }
+    if (data.containsKey('message_expiry')) {
+      context.handle(
+        _messageExpiryMeta,
+        messageExpiry.isAcceptableOrUnknown(
+          data['message_expiry']!,
+          _messageExpiryMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -3345,6 +3367,10 @@ class $ChatCacheTableTable extends ChatCacheTable
         DriftSqlType.string,
         data['${effectivePrefix}group_created_by'],
       ),
+      messageExpiry: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}message_expiry'],
+      )!,
     );
   }
 
@@ -3386,6 +3412,9 @@ class ChatCacheTableData extends DataClass
 
   /// Group creator UID (schema v11)
   final String? groupCreatedBy;
+
+  /// Message expiry setting (schema v13)
+  final String messageExpiry;
   const ChatCacheTableData({
     required this.id,
     this.ownerUid,
@@ -3405,6 +3434,7 @@ class ChatCacheTableData extends DataClass
     this.groupName,
     this.groupAvatarUrl,
     this.groupCreatedBy,
+    required this.messageExpiry,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -3453,6 +3483,7 @@ class ChatCacheTableData extends DataClass
     if (!nullToAbsent || groupCreatedBy != null) {
       map['group_created_by'] = Variable<String>(groupCreatedBy);
     }
+    map['message_expiry'] = Variable<String>(messageExpiry);
     return map;
   }
 
@@ -3502,6 +3533,7 @@ class ChatCacheTableData extends DataClass
       groupCreatedBy: groupCreatedBy == null && nullToAbsent
           ? const Value.absent()
           : Value(groupCreatedBy),
+      messageExpiry: Value(messageExpiry),
     );
   }
 
@@ -3531,6 +3563,7 @@ class ChatCacheTableData extends DataClass
       groupName: serializer.fromJson<String?>(json['groupName']),
       groupAvatarUrl: serializer.fromJson<String?>(json['groupAvatarUrl']),
       groupCreatedBy: serializer.fromJson<String?>(json['groupCreatedBy']),
+      messageExpiry: serializer.fromJson<String>(json['messageExpiry']),
     );
   }
   @override
@@ -3555,6 +3588,7 @@ class ChatCacheTableData extends DataClass
       'groupName': serializer.toJson<String?>(groupName),
       'groupAvatarUrl': serializer.toJson<String?>(groupAvatarUrl),
       'groupCreatedBy': serializer.toJson<String?>(groupCreatedBy),
+      'messageExpiry': serializer.toJson<String>(messageExpiry),
     };
   }
 
@@ -3577,6 +3611,7 @@ class ChatCacheTableData extends DataClass
     Value<String?> groupName = const Value.absent(),
     Value<String?> groupAvatarUrl = const Value.absent(),
     Value<String?> groupCreatedBy = const Value.absent(),
+    String? messageExpiry,
   }) => ChatCacheTableData(
     id: id ?? this.id,
     ownerUid: ownerUid.present ? ownerUid.value : this.ownerUid,
@@ -3612,6 +3647,7 @@ class ChatCacheTableData extends DataClass
     groupCreatedBy: groupCreatedBy.present
         ? groupCreatedBy.value
         : this.groupCreatedBy,
+    messageExpiry: messageExpiry ?? this.messageExpiry,
   );
   ChatCacheTableData copyWithCompanion(ChatCacheTableCompanion data) {
     return ChatCacheTableData(
@@ -3657,6 +3693,9 @@ class ChatCacheTableData extends DataClass
       groupCreatedBy: data.groupCreatedBy.present
           ? data.groupCreatedBy.value
           : this.groupCreatedBy,
+      messageExpiry: data.messageExpiry.present
+          ? data.messageExpiry.value
+          : this.messageExpiry,
     );
   }
 
@@ -3680,7 +3719,8 @@ class ChatCacheTableData extends DataClass
           ..write('participantUids: $participantUids, ')
           ..write('groupName: $groupName, ')
           ..write('groupAvatarUrl: $groupAvatarUrl, ')
-          ..write('groupCreatedBy: $groupCreatedBy')
+          ..write('groupCreatedBy: $groupCreatedBy, ')
+          ..write('messageExpiry: $messageExpiry')
           ..write(')'))
         .toString();
   }
@@ -3705,6 +3745,7 @@ class ChatCacheTableData extends DataClass
     groupName,
     groupAvatarUrl,
     groupCreatedBy,
+    messageExpiry,
   );
   @override
   bool operator ==(Object other) =>
@@ -3727,7 +3768,8 @@ class ChatCacheTableData extends DataClass
           other.participantUids == this.participantUids &&
           other.groupName == this.groupName &&
           other.groupAvatarUrl == this.groupAvatarUrl &&
-          other.groupCreatedBy == this.groupCreatedBy);
+          other.groupCreatedBy == this.groupCreatedBy &&
+          other.messageExpiry == this.messageExpiry);
 }
 
 class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
@@ -3749,6 +3791,7 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
   final Value<String?> groupName;
   final Value<String?> groupAvatarUrl;
   final Value<String?> groupCreatedBy;
+  final Value<String> messageExpiry;
   const ChatCacheTableCompanion({
     this.id = const Value.absent(),
     this.ownerUid = const Value.absent(),
@@ -3768,6 +3811,7 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
     this.groupName = const Value.absent(),
     this.groupAvatarUrl = const Value.absent(),
     this.groupCreatedBy = const Value.absent(),
+    this.messageExpiry = const Value.absent(),
   });
   ChatCacheTableCompanion.insert({
     this.id = const Value.absent(),
@@ -3788,6 +3832,7 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
     this.groupName = const Value.absent(),
     this.groupAvatarUrl = const Value.absent(),
     this.groupCreatedBy = const Value.absent(),
+    this.messageExpiry = const Value.absent(),
   });
   static Insertable<ChatCacheTableData> custom({
     Expression<int>? id,
@@ -3808,6 +3853,7 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
     Expression<String>? groupName,
     Expression<String>? groupAvatarUrl,
     Expression<String>? groupCreatedBy,
+    Expression<String>? messageExpiry,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -3828,6 +3874,7 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
       if (groupName != null) 'group_name': groupName,
       if (groupAvatarUrl != null) 'group_avatar_url': groupAvatarUrl,
       if (groupCreatedBy != null) 'group_created_by': groupCreatedBy,
+      if (messageExpiry != null) 'message_expiry': messageExpiry,
     });
   }
 
@@ -3850,6 +3897,7 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
     Value<String?>? groupName,
     Value<String?>? groupAvatarUrl,
     Value<String?>? groupCreatedBy,
+    Value<String>? messageExpiry,
   }) {
     return ChatCacheTableCompanion(
       id: id ?? this.id,
@@ -3870,6 +3918,7 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
       groupName: groupName ?? this.groupName,
       groupAvatarUrl: groupAvatarUrl ?? this.groupAvatarUrl,
       groupCreatedBy: groupCreatedBy ?? this.groupCreatedBy,
+      messageExpiry: messageExpiry ?? this.messageExpiry,
     );
   }
 
@@ -3930,6 +3979,9 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
     if (groupCreatedBy.present) {
       map['group_created_by'] = Variable<String>(groupCreatedBy.value);
     }
+    if (messageExpiry.present) {
+      map['message_expiry'] = Variable<String>(messageExpiry.value);
+    }
     return map;
   }
 
@@ -3953,7 +4005,8 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
           ..write('participantUids: $participantUids, ')
           ..write('groupName: $groupName, ')
           ..write('groupAvatarUrl: $groupAvatarUrl, ')
-          ..write('groupCreatedBy: $groupCreatedBy')
+          ..write('groupCreatedBy: $groupCreatedBy, ')
+          ..write('messageExpiry: $messageExpiry')
           ..write(')'))
         .toString();
   }
@@ -7103,6 +7156,7 @@ typedef $$ChatCacheTableTableCreateCompanionBuilder =
       Value<String?> groupName,
       Value<String?> groupAvatarUrl,
       Value<String?> groupCreatedBy,
+      Value<String> messageExpiry,
     });
 typedef $$ChatCacheTableTableUpdateCompanionBuilder =
     ChatCacheTableCompanion Function({
@@ -7124,6 +7178,7 @@ typedef $$ChatCacheTableTableUpdateCompanionBuilder =
       Value<String?> groupName,
       Value<String?> groupAvatarUrl,
       Value<String?> groupCreatedBy,
+      Value<String> messageExpiry,
     });
 
 class $$ChatCacheTableTableFilterComposer
@@ -7222,6 +7277,11 @@ class $$ChatCacheTableTableFilterComposer
 
   ColumnFilters<String> get groupCreatedBy => $composableBuilder(
     column: $table.groupCreatedBy,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get messageExpiry => $composableBuilder(
+    column: $table.messageExpiry,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -7324,6 +7384,11 @@ class $$ChatCacheTableTableOrderingComposer
     column: $table.groupCreatedBy,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get messageExpiry => $composableBuilder(
+    column: $table.messageExpiry,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ChatCacheTableTableAnnotationComposer
@@ -7412,6 +7477,11 @@ class $$ChatCacheTableTableAnnotationComposer
     column: $table.groupCreatedBy,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get messageExpiry => $composableBuilder(
+    column: $table.messageExpiry,
+    builder: (column) => column,
+  );
 }
 
 class $$ChatCacheTableTableTableManager
@@ -7469,6 +7539,7 @@ class $$ChatCacheTableTableTableManager
                 Value<String?> groupName = const Value.absent(),
                 Value<String?> groupAvatarUrl = const Value.absent(),
                 Value<String?> groupCreatedBy = const Value.absent(),
+                Value<String> messageExpiry = const Value.absent(),
               }) => ChatCacheTableCompanion(
                 id: id,
                 ownerUid: ownerUid,
@@ -7488,6 +7559,7 @@ class $$ChatCacheTableTableTableManager
                 groupName: groupName,
                 groupAvatarUrl: groupAvatarUrl,
                 groupCreatedBy: groupCreatedBy,
+                messageExpiry: messageExpiry,
               ),
           createCompanionCallback:
               ({
@@ -7509,6 +7581,7 @@ class $$ChatCacheTableTableTableManager
                 Value<String?> groupName = const Value.absent(),
                 Value<String?> groupAvatarUrl = const Value.absent(),
                 Value<String?> groupCreatedBy = const Value.absent(),
+                Value<String> messageExpiry = const Value.absent(),
               }) => ChatCacheTableCompanion.insert(
                 id: id,
                 ownerUid: ownerUid,
@@ -7528,6 +7601,7 @@ class $$ChatCacheTableTableTableManager
                 groupName: groupName,
                 groupAvatarUrl: groupAvatarUrl,
                 groupCreatedBy: groupCreatedBy,
+                messageExpiry: messageExpiry,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))

@@ -31,7 +31,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 13;
+  int get schemaVersion => 12;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -99,11 +99,6 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(privacySettingsTable, privacySettingsTable.showAvatar);
         DebugConfig.log(DebugConfig.databaseLocal,
             'Migration v11->v12: added showAvatar column to PrivacySettingsTable');
-      }
-      if (from < 13) {
-        await m.addColumn(chatCacheTable, chatCacheTable.messageExpiry);
-        DebugConfig.log(DebugConfig.databaseLocal,
-            'Migration v12->v13: added messageExpiry column to ChatCacheTable');
       }
     },
   );

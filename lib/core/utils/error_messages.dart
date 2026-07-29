@@ -28,6 +28,8 @@ class ErrorMessages {
         return isGreek ? 'Πολλές προσπάθειες. Δοκίμασε αργότερα.' : 'Too many attempts. Try again later.';
       case 'auth/network-error':
         return isGreek ? 'Πρόβλημα δικτύου. Δοκίμασε ξανά.' : 'Network error. Try again.';
+      case 'auth/invalid-credential':
+        return isGreek ? 'Λάθος email ή κωδικός' : 'Wrong email or password';
       case 'auth/unknown-error':
       case 'auth_required':
       case 'auth_error':

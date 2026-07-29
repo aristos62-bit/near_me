@@ -130,6 +130,11 @@ class DebugConfig {
   static const bool storageDownload = true;     // file downloads
 
   /// ─────────────────────────────────────────────────────────────
+  /// ERROR HANDLING — Error classification & logging
+  /// ─────────────────────────────────────────────────────────────
+  static const bool errorHandler = true;           // error classification logs
+
+  /// ─────────────────────────────────────────────────────────────
   /// Εκτυπώνει debug μήνυμα ΜΟΝΟ αν [flag] == true ΚΑΙ debugMode == true.
   /// ─────────────────────────────────────────────────────────────
   static void log(bool flag, String message, {Object? data}) {

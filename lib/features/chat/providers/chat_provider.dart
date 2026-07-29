@@ -239,7 +239,7 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
       return chatId;
     } catch (e, s) {
       DebugConfig.error('ChatActions: createChat failed', data: e, exception: s);
-      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'chat'));
       return null;
     }
   }
@@ -255,7 +255,7 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
       return true;
     } catch (e, s) {
       DebugConfig.error('ChatActions: sendMessage failed', data: e, exception: s);
-      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'chat'));
       return false;
     }
   }
@@ -283,7 +283,7 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
     } catch (e, s) {
       DebugConfig.error('ChatActions: sendMediaMessage failed', data: e, exception: s);
       state = ChatActionState(status: ChatActionStatus.error,
-          errorMessage: _friendlyError(e));
+          errorMessage: AppException.toFriendlyMessage(e, domain: 'chat'));
       return false;
     }
   }
@@ -306,7 +306,7 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
       ref.invalidate(chatsProvider);
     } catch (e, s) {
       DebugConfig.error('ChatActions: deleteChat failed', data: e, exception: s);
-      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'chat'));
     }
   }
 
@@ -320,7 +320,7 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
       ref.invalidate(chatsProvider);
     } catch (e, s) {
       DebugConfig.error('ChatActions: approveDeleteChat failed', data: e, exception: s);
-      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'chat'));
     }
   }
 
@@ -333,7 +333,7 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
       state = const ChatActionState(status: ChatActionStatus.success);
     } catch (e, s) {
       DebugConfig.error('ChatActions: rejectDeleteChat failed', data: e, exception: s);
-      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'chat'));
     }
   }
 
@@ -346,7 +346,7 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
       state = const ChatActionState(status: ChatActionStatus.success);
     } catch (e, s) {
       DebugConfig.error('ChatActions: cancelDeleteRequest failed', data: e, exception: s);
-      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'chat'));
     }
   }
 
@@ -360,7 +360,7 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
       ref.invalidate(chatsProvider);
     } catch (e, s) {
       DebugConfig.error('ChatActions: deleteChatForMe failed', data: e, exception: s);
-      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'chat'));
     }
   }
 
@@ -374,7 +374,7 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
       ref.invalidate(chatsProvider);
     } catch (e, s) {
       DebugConfig.error('ChatActions: deleteGroup failed', data: e, exception: s);
-      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'chat'));
     }
   }
 
@@ -389,7 +389,7 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
       return true;
     } catch (e, s) {
       DebugConfig.error('ChatActions: updateMessageExpiry failed', data: e, exception: s);
-      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'chat'));
       return false;
     }
   }
@@ -403,7 +403,7 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
       state = const ChatActionState(status: ChatActionStatus.success);
     } catch (e, s) {
       DebugConfig.error('ChatActions: clearMessages failed', data: e, exception: s);
-      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'chat'));
     }
   }
 
@@ -416,7 +416,7 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
       state = const ChatActionState(status: ChatActionStatus.success);
     } catch (e, s) {
       DebugConfig.error('ChatActions: reactToMessage failed', data: e, exception: s);
-      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'chat'));
     }
   }
 
@@ -429,7 +429,7 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
       state = const ChatActionState(status: ChatActionStatus.success);
     } catch (e, s) {
       DebugConfig.error('ChatActions: removeReaction failed', data: e, exception: s);
-      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'chat'));
     }
   }
 
@@ -445,7 +445,7 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
       return true;
     } catch (e, s) {
       DebugConfig.error('ChatActions: editMessage failed', data: e, exception: s);
-      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'chat'));
       return false;
     }
   }
@@ -462,24 +462,9 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
       return true;
     } catch (e, s) {
       DebugConfig.error('ChatActions: deleteMessage failed', data: e, exception: s);
-      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'chat'));
       return false;
     }
-  }
-
-  String _friendlyError(Object error) {
-    if (error is AppException) {
-      if (error.message.contains(' / ')) return error.message;
-      return error.code;
-    }
-    if (error.toString().contains('encryption_key_missing')) {
-      return 'chat/encryption-error';
-    }
-    if (error.toString().contains('firestore_error') || error.toString().contains('Firestore')) {
-      return 'chat/network-error';
-    }
-    DebugConfig.warn('chat _friendlyError unhandled: ${error.toString()}');
-    return 'chat/unknown-error';
   }
 
   void reset() => state = const ChatActionState();
@@ -497,7 +482,7 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
       return chatId;
     } catch (e, s) {
       DebugConfig.error('ChatActions: createGroupChat failed', data: e, exception: s);
-      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'chat'));
       return null;
     }
   }
@@ -513,7 +498,7 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
       return true;
     } catch (e, s) {
       DebugConfig.error('ChatActions: addParticipant failed', data: e, exception: s);
-      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'chat'));
       return false;
     }
   }
@@ -529,7 +514,7 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
       return true;
     } catch (e, s) {
       DebugConfig.error('ChatActions: removeParticipant failed', data: e, exception: s);
-      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'chat'));
       return false;
     }
   }
@@ -544,7 +529,7 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
       return true;
     } catch (e, s) {
       DebugConfig.error('ChatActions: updateGroupName failed', data: e, exception: s);
-      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'chat'));
       return false;
     }
   }
@@ -559,7 +544,7 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
       return true;
     } catch (e, s) {
       DebugConfig.error('ChatActions: updateGroupAvatar failed', data: e, exception: s);
-      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'chat'));
       return false;
     }
   }
@@ -574,7 +559,7 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
       return true;
     } catch (e, s) {
       DebugConfig.error('ChatActions: removeGroupAvatar failed', data: e, exception: s);
-      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'chat'));
       return false;
     }
   }
@@ -589,7 +574,7 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
       return true;
     } catch (e, s) {
       DebugConfig.error('ChatActions: updateMaxParticipants failed', data: e, exception: s);
-      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'chat'));
       return false;
     }
   }
@@ -605,7 +590,7 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
       return true;
     } catch (e, s) {
       DebugConfig.error('ChatActions: updateParticipantRole failed', data: e, exception: s);
-      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'chat'));
       return false;
     }
   }
@@ -621,7 +606,7 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
       return true;
     } catch (e, s) {
       DebugConfig.error('ChatActions: updatePermissionOverride failed', data: e, exception: s);
-      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'chat'));
       return false;
     }
   }
@@ -637,7 +622,7 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
       return true;
     } catch (e, s) {
       DebugConfig.error('ChatActions: deletePermissionOverrides failed', data: e, exception: s);
-      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'chat'));
       return false;
     }
   }
@@ -652,7 +637,7 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
       return token;
     } catch (e, s) {
       DebugConfig.error('ChatActions: createInviteLink failed', data: e, exception: s);
-      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'chat'));
       return null;
     }
   }
@@ -672,7 +657,7 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
       return chatId;
     } catch (e, s) {
       DebugConfig.error('ChatActions: redeemInviteLink failed', data: e, exception: s);
-      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'chat'));
       return null;
     }
   }
@@ -714,7 +699,7 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
       return true;
     } catch (e, s) {
       DebugConfig.error('ChatActions: joinPublicGroup failed', data: e, exception: s);
-      state = ChatActionState(status: ChatActionStatus.error, errorMessage: _friendlyError(e));
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'chat'));
       return false;
     }
   }

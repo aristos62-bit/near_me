@@ -65,7 +65,7 @@ class PhoneVerifyNotifier extends Notifier<PhoneVerifyState> {
         return;
       }
       DebugConfig.warn('PhoneVerify: sendOtp failed', data: e);
-      state = PhoneVerifyState(status: PhoneVerifyStatus.error, errorMessage: _friendlyError(e));
+      state = PhoneVerifyState(status: PhoneVerifyStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'auth'));
     }
   }
 
@@ -95,7 +95,7 @@ class PhoneVerifyNotifier extends Notifier<PhoneVerifyState> {
         return;
       }
       DebugConfig.warn('PhoneVerify: verifyOtp failed', data: e);
-      state = PhoneVerifyState(status: PhoneVerifyStatus.error, errorMessage: _friendlyError(e));
+      state = PhoneVerifyState(status: PhoneVerifyStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'auth'));
     }
   }
 
@@ -104,10 +104,6 @@ class PhoneVerifyNotifier extends Notifier<PhoneVerifyState> {
     state = const PhoneVerifyState();
   }
 
-  String _friendlyError(Object error) {
-    if (error is AppException) return error.code;
-    return 'auth/unknown-error';
-  }
 }
 
 final phoneVerifyProvider = NotifierProvider<PhoneVerifyNotifier, PhoneVerifyState>(

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:riverpod/riverpod.dart';
 import '../../../core/debug/debug_config.dart';
+import '../../../core/utils/app_exception.dart';
 import '../../../core/utils/connectivity_guard.dart';
 import '../../../data/local/database_service.dart';
 import '../../../repositories/auth_repository.dart';
@@ -80,7 +81,7 @@ class VerifyAccountNotifier extends Notifier<VerifyAccountState> {
       state = const VerifyAccountState(status: VerifyStatus.emailSent);
     } catch (e) {
       DebugConfig.warn('VerifyAccount: failed', data: e);
-      state = VerifyAccountState(status: VerifyStatus.error, errorMessage: _friendlyError(e));
+      state = VerifyAccountState(status: VerifyStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'auth'));
     }
   }
 
@@ -126,7 +127,7 @@ class VerifyAccountNotifier extends Notifier<VerifyAccountState> {
       DebugConfig.log(DebugConfig.authFlow, 'VerifyAccount: reset email sent');
     } catch (e) {
       DebugConfig.warn('VerifyAccount: password reset failed', data: e);
-      state = VerifyAccountState(status: VerifyStatus.error, errorMessage: _friendlyError(e));
+      state = VerifyAccountState(status: VerifyStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'auth'));
     }
   }
 
@@ -140,18 +141,6 @@ class VerifyAccountNotifier extends Notifier<VerifyAccountState> {
     } catch (e) {
       DebugConfig.warn('checkVerificationSilent: failed', data: e);
     }
-  }
-
-  String _friendlyError(Object error) {
-    final msg = error.toString();
-    if (msg.contains('email-already-in-use')) return 'auth/email-already-in-use';
-    if (msg.contains('invalid-email')) return 'auth/invalid-email';
-    if (msg.contains('weak-password')) return 'auth/weak-password';
-    if (msg.contains('user-not-found')) return 'auth/user-not-found';
-    if (msg.contains('wrong-password')) return 'auth/wrong-password';
-    if (msg.contains('too-many-requests')) return 'auth/too-many-requests';
-    if (msg.contains('network-request-failed')) return 'auth/network-error';
-    return 'auth/unknown-error';
   }
 
   void reset() {
@@ -199,7 +188,7 @@ class WelcomeNotifier extends Notifier<WelcomeState> {
       state = const WelcomeState(status: WelcomeStatus.success, isSignedIn: true);
     } catch (e) {
       DebugConfig.warn('Welcome: signIn failed', data: e);
-      state = WelcomeState(status: WelcomeStatus.error, errorMessage: _friendlyError(e));
+      state = WelcomeState(status: WelcomeStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'auth'));
     }
   }
 
@@ -219,7 +208,7 @@ class WelcomeNotifier extends Notifier<WelcomeState> {
       state = const WelcomeState(status: WelcomeStatus.success, isSignedIn: true);
     } catch (e) {
       DebugConfig.warn('Welcome: signUp failed', data: e);
-      state = WelcomeState(status: WelcomeStatus.error, errorMessage: _friendlyError(e));
+      state = WelcomeState(status: WelcomeStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'auth'));
     }
   }
 
@@ -237,20 +226,8 @@ class WelcomeNotifier extends Notifier<WelcomeState> {
       state = const WelcomeState(status: WelcomeStatus.success, isSignedIn: true);
     } catch (e) {
       DebugConfig.warn('Welcome: anonymous sign-in failed', data: e);
-      state = WelcomeState(status: WelcomeStatus.error, errorMessage: _friendlyError(e));
+      state = WelcomeState(status: WelcomeStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'auth'));
     }
-  }
-
-  String _friendlyError(Object error) {
-    final msg = error.toString();
-    if (msg.contains('email-already-in-use')) return 'auth/email-already-in-use';
-    if (msg.contains('invalid-email')) return 'auth/invalid-email';
-    if (msg.contains('weak-password')) return 'auth/weak-password';
-    if (msg.contains('user-not-found')) return 'auth/user-not-found';
-    if (msg.contains('wrong-password')) return 'auth/wrong-password';
-    if (msg.contains('too-many-requests')) return 'auth/too-many-requests';
-    if (msg.contains('network-request-failed')) return 'auth/network-error';
-    return 'auth/unknown-error';
   }
 
   void reset() {

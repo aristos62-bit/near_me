@@ -185,7 +185,7 @@ class SearchNotifier extends Notifier<SearchState> {
       );
     } catch (e, s) {
       DebugConfig.error('SearchNotifier.search failed', data: e, exception: s);
-      state = SearchState(status: SearchStatus.error, errorMessage: _friendlyError(e));
+      state = SearchState(status: SearchStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'search'));
     }
   }
 
@@ -230,7 +230,7 @@ class SearchNotifier extends Notifier<SearchState> {
       );
     } catch (e, s) {
       DebugConfig.error('SearchNotifier.searchNearby failed', data: e, exception: s);
-      state = SearchState(status: SearchStatus.error, errorMessage: _friendlyError(e));
+      state = SearchState(status: SearchStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'search'));
     }
   }
 
@@ -301,7 +301,7 @@ class SearchNotifier extends Notifier<SearchState> {
         status: SearchStatus.success,
         results: state.results,
         hasMore: state.hasMore,
-        errorMessage: _friendlyError(e),
+        errorMessage: AppException.toFriendlyMessage(e, domain: 'search'),
         distances: state.distances,
         searchCenterLat: state.searchCenterLat,
         searchCenterLng: state.searchCenterLng,
@@ -316,18 +316,6 @@ class SearchNotifier extends Notifier<SearchState> {
     _lastLat = null;
     _lastLng = null;
     _lastRadius = null;
-  }
-
-  String _friendlyError(Object error) {
-    final raw = error.toString();
-    if (raw.contains('permission-denied')) {
-      return 'search/permission-denied';
-    }
-    if (error is AppException) {
-      return error.code;
-    }
-    DebugConfig.warn('search _friendlyError unhandled: $raw');
-    return 'search/unknown-error';
   }
 
   void clearResults() {

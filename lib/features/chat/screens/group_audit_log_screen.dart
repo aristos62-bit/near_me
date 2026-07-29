@@ -29,17 +29,16 @@ class AuditLogEntry {
     this.timestamp,
   });
 
-  factory AuditLogEntry.fromDoc(String chatId, DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>? ?? {};
-    final ts = data['timestamp'];
-    final rawDetails = data['details'];
+  factory AuditLogEntry.fromMap(String chatId, Map<String, dynamic> map) {
+    final ts = map['timestamp'];
+    final rawDetails = map['details'];
     return AuditLogEntry(
-      id: doc.id,
+      id: map['id'] as String? ?? '',
       chatId: chatId,
-      action: data['action'] as String? ?? 'unknown',
-      actor: data['actorUid'] as String? ?? '',
-      actorName: data['actorName'] as String?,
-      targetUid: data['targetUid'] as String?,
+      action: map['action'] as String? ?? 'unknown',
+      actor: map['actorUid'] as String? ?? '',
+      actorName: map['actorName'] as String?,
+      targetUid: map['targetUid'] as String?,
       details: rawDetails is Map ? Map<String, dynamic>.from(rawDetails) : null,
       timestamp: ts is Timestamp ? ts.toDate() : null,
     );
@@ -49,14 +48,9 @@ class AuditLogEntry {
 final auditLogStreamProvider = StreamProvider.autoDispose.family<List<AuditLogEntry>, String>((ref, chatId) {
   DebugConfig.log(DebugConfig.providerCreate, 'auditLogStreamProvider created for chat: $chatId');
   ref.onDispose(() => DebugConfig.log(DebugConfig.providerDispose, 'auditLogStreamProvider disposed for chat: $chatId'));
-  return FirebaseFirestore.instance
-      .collection('chats')
-      .doc(chatId)
-      .collection('audit_log')
-      .orderBy('timestamp', descending: true)
-      .limit(100)
-      .snapshots()
-      .map((snap) => snap.docs.map((doc) => AuditLogEntry.fromDoc(chatId, doc)).toList());
+  final chatRepo = ref.watch(chatRepositoryProvider);
+  return chatRepo.auditLogStream(chatId).map(
+          (docs) => docs.map((m) => AuditLogEntry.fromMap(chatId, m)).toList());
 });
 
 String _actionIcon(String action) {

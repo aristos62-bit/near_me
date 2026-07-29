@@ -714,10 +714,26 @@ mixin GroupChatMixin {
     final roles = Map<String, String>.from(doc.data()?['participantRoles'] ?? {});
     final overrides = Map<String, Map<String, bool>>.from(
       (doc.data()?['permissionOverrides'] as Map?)?.map(
-        (k, v) => MapEntry(k, Map<String, bool>.from(v as Map)),
+            (k, v) => MapEntry(k, Map<String, bool>.from(v as Map)),
       ) ?? {},
     );
     return GroupPermissionsInfo(roles: roles, overrides: overrides);
+  }
+
+  Stream<List<Map<String, dynamic>>> auditLogStream(String chatId, {int limit = 100}) {
+    DebugConfig.log(DebugConfig.chatStream, 'auditLogStream: starting $chatId (limit=$limit)');
+    return firestore
+        .collection('chats')
+        .doc(chatId)
+        .collection('audit_log')
+        .orderBy('timestamp', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((snap) {
+      DebugConfig.log(DebugConfig.chatStream,
+          'auditLogStream: ${snap.docs.length} docs chat=$chatId');
+      return snap.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
+    });
   }
 
   // ── Group Avatar ───────────────────────────────────────────

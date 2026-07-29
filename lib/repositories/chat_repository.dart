@@ -98,6 +98,9 @@ abstract class ChatRepository {
   Future<void> deletePermissionOverrides(String chatId, String targetUid);
   Future<bool> hasPermission(String chatId, GroupPermission permission);
   Future<GroupPermissionsInfo> getPermissionsInfo(String chatId);
+  Stream<List<Map<String, dynamic>>> auditLogStream(String chatId, {int limit = 100});
+
+  // Group avatar
 
   // Group avatar
   Future<void> updateGroupAvatar(String chatId, dynamic image);

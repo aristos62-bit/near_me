@@ -8,8 +8,13 @@ import '../core/utils/app_exception.dart';
 import '../data/local/database.dart';
 import '../data/local/database_service.dart';
 import '../shared/models/public_profile.dart';
+import '../shared/models/user_status.dart';
 import 'profile_repository.dart';
 import 'profile_storage_mixin.dart';
+
+// TTL safety net: αν το lastSeen είναι παλιότερο από 2 heartbeats, θεωρείται offline.
+// Ίδια τιμή με το προηγούμενο _presenceTTL στο status_provider.dart.
+const Duration _presenceTTL = Duration(seconds: 120);
 
 class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepository {
   final AppDatabase _db;
@@ -592,6 +597,41 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
         DebugConfig.error('streamPublicProfile parse error', data: e, exception: s);
         return null;
       }
+    });
+  }
+
+  @override
+  Stream<UserStatus> streamUserStatus(String uid) {
+    DebugConfig.log(DebugConfig.firestoreStream, 'streamUserStatus: $uid');
+    if (uid.isEmpty) {
+      DebugConfig.warn('streamUserStatus: empty uid');
+      return Stream.value(const UserStatus(isOnline: false));
+    }
+    return _firestore
+        .doc('users/$uid/status/status')
+        .snapshots()
+        .map((snap) {
+      if (!snap.exists) return const UserStatus(isOnline: false);
+      final data = snap.data()!;
+      final isOnline = data['isOnline'] as bool? ?? false;
+      final lastSeen = (data['lastSeen'] as Timestamp?)?.toDate();
+
+      // TTL safety net: αν το lastSeen είναι παλιότερο από 2 heartbeats, θεωρείται offline
+      final effectiveOnline = isOnline &&
+          lastSeen != null &&
+          DateTime.now().difference(lastSeen) < _presenceTTL;
+
+      DebugConfig.log(DebugConfig.presence,
+          'streamUserStatus uid=$uid isOnline=$isOnline lastSeen=$lastSeen effective=$effectiveOnline');
+
+      return UserStatus(
+        isOnline: effectiveOnline,
+        lastSeen: lastSeen,
+      );
+    }).handleError((e) {
+      DebugConfig.log(DebugConfig.presence,
+          'streamUserStatus: uid=$uid error=$e (non-fatal)');
+      return const UserStatus(isOnline: false);
     });
   }
 

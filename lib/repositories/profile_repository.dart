@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import '../data/local/database.dart';
 import '../shared/models/public_profile.dart';
+import '../shared/models/user_status.dart';
 
 abstract class ProfileRepository {
   Future<UserProfileTableData?> getProfile();
@@ -20,6 +21,7 @@ abstract class ProfileRepository {
   Stream<PublicProfile?> publicProfileStream();
   Future<PublicProfile?> getPublicProfile(String uid);
   Stream<PublicProfile?> streamPublicProfile(String uid);
+  Stream<UserStatus> streamUserStatus(String uid);
   Stream<UserProfileTableData?> streamProfile();
 
   Future<String> saveAvatar(Uint8List bytes);

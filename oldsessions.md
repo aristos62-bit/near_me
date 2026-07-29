@@ -478,3 +478,33 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 | # | Θέμα | Προτεινόμενη Λύση |
 |---|---|---|
 | 1 | **collectionGroup scraping** — οποιοσδήποτε authenticated χρήστης (ακόμα και anonymous) μπορεί να κάνει bulk collectionGroup queries σε όλα τα ορατά προφίλ, χωρίς server-side rate limit | App Check + server-side rate limit (π.χ. Firestore rules στο `rateLimits/{uid}` ή quota μέσω CF, όχι μόνο client-side) |
+
+---
+
+## Session 208 — EditorScaffold shared widget (100%) — 29 Ιουλίου 2026
+
+### Σκοπός
+Εξαγωγή του duplicated unsaved-changes PopScope pattern από ProfileEditorScreen και PrivacyEditorScreen σε shared widget `EditorScaffold`, εξαλείφοντας ~90 γραμμές πανομοιότυπου κώδικα.
+
+### Τι έγινε
+- **Νέο αρχείο:** `lib/shared/widgets/editor_scaffold.dart` — StatelessWidget με PopScope + AppBar(close) + unsaved-changes dialog + responsive body wrapper + loading state
+- **profile_editor_screen.dart:** -47 γραμμές (αφαίρεση `_onBack()` + PopScope/Scaffold/LayoutBuilder → EditorScaffold)
+- **privacy_editor_screen.dart:** -48 γραμμές (αφαίρεση `_onBack()` + PopScope×2 → EditorScaffold με `isLoading` flag)
+- **Unused imports:** `responsive_utils.dart` + `app_state_widget.dart` αφαιρέθηκαν
+
+### Key Design Decisions
+- **`ValueGetter<bool>`** για `isDirty` και `isSaving` (όχι `bool`) — ώστε να διαβάζονται την ώρα του callback, όχι του build. Κρίσιμο για TextFormField που αλλάζει controller.text χωρίς setState.
+- **`onSave` required** — και τα 2 editors έχουν `_save()`
+- **`screenName` prop** — για DebugConfig.log με σωστό prefix
+- **StatelessWidget** — καμία internal state, const constructor, καμία νέα reactive dependency (χωρίς rebuild storm risk)
+
+### Bug found
+| # | Issue | Fix |
+|---|---|---|
+| 1 | `isDirty`/`isSaving` ως `bool` — σταθερά values από build(), όχι live από State. Όταν ο χρήστης πληκτρολογούσε (controller.text χωρίς setState), το × δεν εμφάνιζε dialog. | `bool` → `ValueGetter<bool>` |
+
+### Backups
+- `backups/profile_editor_screen_20260729_230421.dart`
+- `backups/privacy_editor_screen_20260729_230421.dart`
+
+### `flutter analyze`: clean ✅ (0 issues)

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -68,9 +69,11 @@ class _AddParticipantScreenState extends ConsumerState<AddParticipantScreen> {
     if (_dataLoaded && _participantUids.isNotEmpty) return;
     try {
       final uids = ref.read(participantUidsProvider(widget.chatId));
-      final chatAsync = ref.read(chatDocProvider(widget.chatId));
-      final chatData = chatAsync.asData?.value?.data() as Map<String, dynamic>?;
-      final maxPart = chatData?['maxParticipants'] as int? ?? widget.maxParticipants;
+      final chatSnap = await FirebaseFirestore.instance
+          .collection('chats')
+          .doc(widget.chatId)
+          .get();
+      final maxPart = chatSnap.data()?['maxParticipants'] as int? ?? 8;
       if (!mounted) return;
       setState(() {
         _participantUids = uids.isNotEmpty ? uids : widget.currentParticipantUids;
@@ -98,13 +101,20 @@ class _AddParticipantScreenState extends ConsumerState<AddParticipantScreen> {
       final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
       final lowerQuery = query.toLowerCase();
       final currentUids = _participantUids.toSet();
-      DebugConfig.log(DebugConfig.repositoryCall, 'AddParticipant search: query=$query');
-      final snap = await ref.read(chatRepositoryProvider).searchUsersByNickname(query);
+      final snap = await FirebaseFirestore.instance
+          .collectionGroup('public')
+          .where('isVisible', isEqualTo: true)
+          .where('nicknameLowercase', isGreaterThanOrEqualTo: lowerQuery)
+          .where('nicknameLowercase', isLessThanOrEqualTo: '$lowerQuery\uf8ff')
+          .orderBy('nicknameLowercase')
+          .limit(50)
+          .get();
 
       if (!mounted) return;
-      final results = snap
-          .map((data) {
-            final uid = data['uid'] as String? ?? '';
+      final results = snap.docs
+          .map((doc) {
+            final data = doc.data();
+            final uid = data['uid'] as String? ?? doc.id;
             final nickname = data['nickname'] as String? ?? uid;
             final isMember = currentUids.contains(uid);
             DebugConfig.log(DebugConfig.repositoryFilter,

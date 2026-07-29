@@ -1097,39 +1097,6 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
       _ => null,
     };
   }
-
-  @override
-  Future<List<Map<String, dynamic>>> searchUsersByNickname(String query, {int limit = 50}) async {
-    DebugConfig.log(DebugConfig.repositoryCall, 'searchUsersByNickname: query=$query');
-    try {
-      final lowerQuery = query.trim().toLowerCase();
-      if (lowerQuery.isEmpty) return [];
-      final snap = await firestore
-          .collectionGroup('public')
-          .where('isVisible', isEqualTo: true)
-          .where('nicknameLowercase', isGreaterThanOrEqualTo: lowerQuery)
-          .where('nicknameLowercase', isLessThanOrEqualTo: '$lowerQuery\uf8ff')
-          .orderBy('nicknameLowercase')
-          .limit(limit)
-          .get();
-      final results = snap.docs.map((doc) {
-        final data = doc.data();
-        data['uid'] = data['uid'] ?? doc.id;
-        return data;
-      }).toList();
-      DebugConfig.log(DebugConfig.repositoryResult, 'searchUsersByNickname: ${results.length} results');
-      return results;
-    } on FirebaseException catch (e) {
-      DebugConfig.error('searchUsersByNickname failed', data: e.message ?? e.code);
-      throw AppException.firestore('search_users', e);
-    }
-  }
-
-  @override
-  Stream<DocumentSnapshot?> chatDocStream(String chatId) {
-    DebugConfig.log(DebugConfig.firestoreStream, 'chatDocStream created: $chatId');
-    return firestore.collection('chats').doc(chatId).snapshots();
-  }
 }
 
 Future<void> deleteAllChatMedia(String chatId) async {

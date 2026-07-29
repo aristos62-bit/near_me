@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -69,13 +70,20 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
     try {
       final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
       final lowerQuery = query.toLowerCase();
-      DebugConfig.log(DebugConfig.repositoryCall, 'CreateGroup search: query=$query');
-      final snap = await ref.read(chatRepositoryProvider).searchUsersByNickname(query);
+      final snap = await FirebaseFirestore.instance
+          .collectionGroup('public')
+          .where('isVisible', isEqualTo: true)
+          .where('nicknameLowercase', isGreaterThanOrEqualTo: lowerQuery)
+          .where('nicknameLowercase', isLessThanOrEqualTo: '$lowerQuery\uf8ff')
+          .orderBy('nicknameLowercase')
+          .limit(50)
+          .get();
 
       if (!mounted) return;
-      final results = snap
-          .map((data) {
-            final uid = data['uid'] as String? ?? '';
+      final results = snap.docs
+          .map((doc) {
+            final data = doc.data();
+            final uid = data['uid'] as String? ?? doc.id;
             final nickname = data['nickname'] as String? ?? uid;
             return <String, dynamic>{
               'uid': uid,

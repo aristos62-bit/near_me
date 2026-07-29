@@ -19,29 +19,31 @@ final chatDocProvider = StreamProvider.autoDispose.family<DocumentSnapshot?, Str
     _chatDocSnapCaches.remove(chatId);
     _participantUidCaches.remove(chatId);
   });
-  final chatRepo = ref.watch(chatRepositoryProvider);
-  return chatRepo.chatDocStream(chatId).map((snap) {
-    if (snap == null) return null;
-    final previous = _chatDocSnapCaches[chatId];
-    DebugConfig.log(DebugConfig.firestoreStream,
-        'chatDocProvider emit: $chatId exists=${snap.exists} pending=${snap.metadata.hasPendingWrites}');
-    if (previous != null && snap.metadata.hasPendingWrites) {
-      DebugConfig.log(DebugConfig.firestoreStream,
-          'chatDocProvider suppressed (pending): $chatId');
-      return previous;
-    }
-    if (previous != null && snap.exists && previous.exists) {
-      final prevData = previous.data();
-      final currData = snap.data();
-      if (const DeepCollectionEquality().equals(prevData, currData)) {
+  return FirebaseFirestore.instance
+      .collection('chats')
+      .doc(chatId)
+      .snapshots()
+      .map((snap) {
+        final previous = _chatDocSnapCaches[chatId];
         DebugConfig.log(DebugConfig.firestoreStream,
-            'chatDocProvider suppressed: $chatId data unchanged');
-        return previous;
-      }
-    }
-    _chatDocSnapCaches[chatId] = snap;
-    return snap;
-  });
+            'chatDocProvider emit: $chatId exists=${snap.exists} pending=${snap.metadata.hasPendingWrites}');
+        if (previous != null && snap.metadata.hasPendingWrites) {
+          DebugConfig.log(DebugConfig.firestoreStream,
+              'chatDocProvider suppressed (pending): $chatId');
+          return previous;
+        }
+        if (previous != null && snap.exists && previous.exists) {
+          final prevData = previous.data();
+          final currData = snap.data();
+          if (const DeepCollectionEquality().equals(prevData, currData)) {
+            DebugConfig.log(DebugConfig.firestoreStream,
+                'chatDocProvider suppressed: $chatId data unchanged');
+            return previous;
+          }
+        }
+        _chatDocSnapCaches[chatId] = snap;
+        return snap;
+      });
 });
 
 final chatRepositoryProvider = Provider<ChatRepository>((ref) {

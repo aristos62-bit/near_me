@@ -1,5 +1,4 @@
 import 'dart:typed_data';
-import 'package:cloud_firestore/cloud_firestore.dart' show DocumentSnapshot;
 import '../data/local/database.dart';
 
 // ── Group Chat Types ─────────────────────────────────────────
@@ -100,13 +99,6 @@ abstract class ChatRepository {
   Future<bool> hasPermission(String chatId, GroupPermission permission);
   Future<GroupPermissionsInfo> getPermissionsInfo(String chatId);
   Stream<List<Map<String, dynamic>>> auditLogStream(String chatId, {int limit = 100});
-
-  // User search for add participant
-  Future<List<Map<String, dynamic>>> searchUsersByNickname(String query, {int limit = 50});
-
-  /// Stream του chat document. Επιστρέφει DocumentSnapshot για backward compatibility
-  /// με chatDocProvider. TODO: Replace with domain model.
-  Stream<DocumentSnapshot?> chatDocStream(String chatId);
 
   // Group avatar
 

@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/debug/debug_config.dart';
@@ -8,6 +7,8 @@ import '../../../core/theme/app_typography.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
 import '../../../core/utils/error_messages.dart';
+import '../../../features/profile/providers/profile_provider.dart';
+import '../../../shared/models/public_profile.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/block_provider.dart';
@@ -43,38 +44,38 @@ class BlockedUsersScreen extends ConsumerWidget {
             child: SizedBox(
               width: ResponsiveUtils.maxContentWidthFromWidth(w),
               child: blockedAsync.when(
-            loading: () => const LoadingView(),
-            error: (e, _) => ErrorView(
-              message: L10n.localizedMessage(context, 'Σφάλμα φόρτωσης / Failed to load'),
-              onRetry: () => ref.invalidate(blockedUidsProvider(uid)),
-            ),
-            data: (blockedUids) {
-              if (blockedUids.isEmpty) {
-                return EmptyView(
-                  icon: Icons.block_outlined,
-                  message: L10n.localizedMessage(context, 'Δεν έχεις μπλοκάρει κανέναν χρήστη / No blocked users'),
-                  actionLabel: null,
-                );
-              }
-
-              return RefreshIndicator(
-                onRefresh: () async => ref.invalidate(blockedUidsProvider(uid)),
-                child: ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-                  itemCount: blockedUids.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final blockedUid = blockedUids.elementAt(index);
-                    return _BlockedUserTile(blockedUid: blockedUid, isGreek: isGreek);
-                  },
+                loading: () => const LoadingView(),
+                error: (e, _) => ErrorView(
+                  message: L10n.localizedMessage(context, 'Σφάλμα φόρτωσης / Failed to load'),
+                  onRetry: () => ref.invalidate(blockedUidsProvider(uid)),
                 ),
-              );
-            },
+                data: (blockedUids) {
+                  if (blockedUids.isEmpty) {
+                    return EmptyView(
+                      icon: Icons.block_outlined,
+                      message: L10n.localizedMessage(context, 'Δεν έχεις μπλοκάρει κανέναν χρήστη / No blocked users'),
+                      actionLabel: null,
+                    );
+                  }
+
+                  return RefreshIndicator(
+                    onRefresh: () async => ref.invalidate(blockedUidsProvider(uid)),
+                    child: ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+                      itemCount: blockedUids.length,
+                      separatorBuilder: (_, _) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final blockedUid = blockedUids.elementAt(index);
+                        return _BlockedUserTile(blockedUid: blockedUid, isGreek: isGreek);
+                      },
+                    ),
+                  );
+                },
+              ),
             ),
-          ),
-        );
-      },
-    ),
+          );
+        },
+      ),
     );
   }
 }
@@ -90,14 +91,12 @@ class _BlockedUserTile extends ConsumerWidget {
     final uid = ref.watch(authStateProvider).value?.uid;
     DebugConfig.log(DebugConfig.uiInteraction, '_BlockedUserTile build: $blockedUid');
 
-    return FutureBuilder<DocumentSnapshot>(
-      future: FirebaseFirestore.instance
-          .collection('users').doc(blockedUid).collection('public').doc('profile')
-          .get(),
+    return FutureBuilder<PublicProfile?>(
+      future: ref.read(profileRepositoryProvider).getPublicProfile(blockedUid),
       builder: (context, snapshot) {
-        final data = snapshot.data?.data() as Map<String, dynamic>?;
-        final nickname = data?['nickname'] as String? ?? blockedUid;
-        final city = data?['city'] as String?;
+        final profile = snapshot.data;
+        final nickname = profile?.nickname ?? blockedUid;
+        final city = profile?.city;
 
         return ListTile(
           leading: CircleAvatar(

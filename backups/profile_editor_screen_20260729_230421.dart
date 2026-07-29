@@ -10,6 +10,7 @@ import '../../../core/debug/debug_config.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
 import '../../../core/utils/connectivity_guard.dart';
 import '../../../core/utils/error_messages.dart';
@@ -17,7 +18,6 @@ import '../../../data/local/database.dart';
 import '../../../features/chat/providers/chat_provider.dart';
 import '../../../shared/utils/image_utils.dart';
 import '../../../shared/widgets/chip_selector.dart';
-import '../../../shared/widgets/editor_scaffold.dart';
 import '../../../shared/widgets/form_section.dart';
 import '../../../shared/widgets/form_toggle.dart';
 import '../../../shared/widgets/gradient_header.dart';
@@ -366,6 +366,31 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
     }
   }
 
+  Future<void> _onBack() async {
+    DebugConfig.log(DebugConfig.uiInteraction, 'ProfileEditorScreen onBack, dirty=$_isDirty, saving=$_isSaving');
+    if (_isSaving) return;
+    if (!_isDirty) {
+      if (context.mounted) context.pop();
+      return;
+    }
+    final g = L10n.isGreek(context);
+    final save = await AppMessenger.showConfirmDialog(
+      context,
+      title: g ? 'Αποθήκευση αλλαγών;' : 'Save changes?',
+      message: g
+          ? 'Έχεις μη αποθηκευμένες αλλαγές. Θες να αποθηκευτούν;'
+          : 'You have unsaved changes. Save them?',
+      confirmLabel: g ? 'Αποθήκευση' : 'Save',
+      cancelLabel: g ? 'Απόρριψη' : 'Discard',
+    );
+    if (save == true) {
+      await _save();
+    } else if (save == false && context.mounted) {
+      if (!mounted)return;
+      context.pop();
+    }
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     if (!await ConnectivityGuard.ensure(context)) return;
@@ -466,87 +491,97 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
   @override
   Widget build(BuildContext context) {
     final g = L10n.isGreek(context);
-    return EditorScaffold(
-      title: g ? 'Επεξεργασία Προφίλ' : 'Edit Profile',
-      screenName: 'ProfileEditorScreen',
-      isDirty: () => _isDirty,
-      isSaving: () => _isSaving,
-      isLoading: false,
-      onSave: _save,
-      body: Form(key: _formKey, child: ListView(padding: const EdgeInsets.only(bottom: 32), children: [
-        _buildAvatarHeader(),
-        FormSection(title: g ? 'Βασικά Στοιχεία' : 'Basic Info', children: [
-          _buildTextField(icon: Icons.person, label: g ? 'Ψευδώνυμο' : 'Nickname', ctrl: _nicknameCtrl, required: true),
-          _buildTextField(icon: Icons.badge_outlined, label: g ? 'Πλήρες Όνομα' : 'Full Name', ctrl: _fullNameCtrl),
-          _buildTextField(icon: Icons.article_outlined, label: g ? 'Βιογραφικό' : 'Bio', ctrl: _bioCtrl, maxLines: 3),
-        ]),
-        FormSection(title: g ? 'Προσωπικά' : 'Personal', children: [
-          _buildTextField(icon: Icons.cake_outlined, label: g ? 'Έτος Γέννησης' : 'Birth Year', ctrl: _birthYearCtrl, keyboardType: TextInputType.number),
-          const SizedBox(height: 8),
-          ChipSelector(options: _genders, selectedValue: _gender, onSelected: (v) => setState(() => _gender = v), labels: _genderLabels(g)),
-        ]),
-        FormSection(title: g ? 'Τοποθεσία' : 'Location', children: [
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            TextFormField(
-              controller: _cityCtrl, focusNode: _cityFocusNode,
-              onChanged: _onCityChanged,
-              decoration: InputDecoration(
-                labelText: g ? 'Πόλη' : 'City',
-                prefixIcon: const Icon(Icons.location_city_outlined, size: 20),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              ),
-            ),
-            if (_citySuggestions.isNotEmpty)
-              _buildSuggestionDropdown(_citySuggestions, _selectCity),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _onBack();
+      },
+      child: Scaffold(
+      appBar: AppBar(leading: IconButton(icon: const Icon(Icons.close), onPressed: _onBack), title: Text(g ? 'Επεξεργασία Προφίλ' : 'Edit Profile')),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final w = ResponsiveUtils.resolveWidth(context, constraints);
+          return Center(child: SizedBox(width: ResponsiveUtils.maxContentWidthFromWidth(w),
+        child: Form(key: _formKey, child: ListView(padding: const EdgeInsets.only(bottom: 32), children: [
+          _buildAvatarHeader(),
+          FormSection(title: g ? 'Βασικά Στοιχεία' : 'Basic Info', children: [
+            _buildTextField(icon: Icons.person, label: g ? 'Ψευδώνυμο' : 'Nickname', ctrl: _nicknameCtrl, required: true),
+            _buildTextField(icon: Icons.badge_outlined, label: g ? 'Πλήρες Όνομα' : 'Full Name', ctrl: _fullNameCtrl),
+            _buildTextField(icon: Icons.article_outlined, label: g ? 'Βιογραφικό' : 'Bio', ctrl: _bioCtrl, maxLines: 3),
           ]),
-          const SizedBox(height: 12),
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            TextFormField(
-              controller: _countryCtrl, focusNode: _countryFocusNode,
-              onChanged: _onCountryChanged,
-              decoration: InputDecoration(
-                labelText: g ? 'Χώρα' : 'Country',
-                prefixIcon: const Icon(Icons.public_outlined, size: 20),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              ),
-            ),
-            if (_countrySuggestions.isNotEmpty)
-              _buildSuggestionDropdown(_countrySuggestions, _selectCountry),
+          FormSection(title: g ? 'Προσωπικά' : 'Personal', children: [
+            _buildTextField(icon: Icons.cake_outlined, label: g ? 'Έτος Γέννησης' : 'Birth Year', ctrl: _birthYearCtrl, keyboardType: TextInputType.number),
+            const SizedBox(height: 8),
+            ChipSelector(options: _genders, selectedValue: _gender, onSelected: (v) => setState(() => _gender = v), labels: _genderLabels(g)),
           ]),
-          const SizedBox(height: 4),
-          if (_latitude != null && _longitude != null)
-            Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
-              Icon(Icons.gps_fixed, size: 14, color: AppColors.success), const SizedBox(width: 6),
-              Text('GPS: ${_latitude!.toStringAsFixed(4)}, ${_longitude!.toStringAsFixed(4)}', style: AppTypography.caption.copyWith(color: AppColors.success)),
-            ])),
-          OutlinedButton.icon(onPressed: _isDetectingLocation ? null : _detectLocation,
-            icon: _isDetectingLocation ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.gps_fixed, size: 18),
-            label: Text(_isDetectingLocation ? (g ? 'Ανίχνευση...' : 'Detecting...') : (g ? 'Ανίχνευση τοποθεσίας' : 'Detect Location')),
-            style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)))),
-          if (_latitude == null)
-            Padding(padding: const EdgeInsets.only(top: 4), child: Row(children: [
-              Icon(Icons.info_outline, size: 14, color: AppColors.textSecondaryLight), const SizedBox(width: 6),
-              Text(g ? 'Πάτα για αυτόματη ανίχνευση ή γράψε την πόλη χειροκίνητα' : 'Tap to auto-detect or type city manually',
-                style: AppTypography.caption.copyWith(color: AppColors.textSecondaryLight)),
-            ])),
+          FormSection(title: g ? 'Τοποθεσία' : 'Location', children: [
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              TextFormField(
+                controller: _cityCtrl, focusNode: _cityFocusNode,
+                onChanged: _onCityChanged,
+                decoration: InputDecoration(
+                  labelText: g ? 'Πόλη' : 'City',
+                  prefixIcon: const Icon(Icons.location_city_outlined, size: 20),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                ),
+              ),
+              if (_citySuggestions.isNotEmpty)
+                _buildSuggestionDropdown(_citySuggestions, _selectCity),
+            ]),
+            const SizedBox(height: 12),
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              TextFormField(
+                controller: _countryCtrl, focusNode: _countryFocusNode,
+                onChanged: _onCountryChanged,
+                decoration: InputDecoration(
+                  labelText: g ? 'Χώρα' : 'Country',
+                  prefixIcon: const Icon(Icons.public_outlined, size: 20),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                ),
+              ),
+              if (_countrySuggestions.isNotEmpty)
+                _buildSuggestionDropdown(_countrySuggestions, _selectCountry),
+            ]),
+            const SizedBox(height: 4),
+            if (_latitude != null && _longitude != null)
+              Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
+                Icon(Icons.gps_fixed, size: 14, color: AppColors.success), const SizedBox(width: 6),
+                Text('GPS: ${_latitude!.toStringAsFixed(4)}, ${_longitude!.toStringAsFixed(4)}', style: AppTypography.caption.copyWith(color: AppColors.success)),
+              ])),
+            OutlinedButton.icon(onPressed: _isDetectingLocation ? null : _detectLocation,
+              icon: _isDetectingLocation ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.gps_fixed, size: 18),
+              label: Text(_isDetectingLocation ? (g ? 'Ανίχνευση...' : 'Detecting...') : (g ? 'Ανίχνευση τοποθεσίας' : 'Detect Location')),
+              style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)))),
+            if (_latitude == null)
+              Padding(padding: const EdgeInsets.only(top: 4), child: Row(children: [
+                Icon(Icons.info_outline, size: 14, color: AppColors.textSecondaryLight), const SizedBox(width: 6),
+                Text(g ? 'Πάτα για αυτόματη ανίχνευση ή γράψε την πόλη χειροκίνητα' : 'Tap to auto-detect or type city manually',
+                  style: AppTypography.caption.copyWith(color: AppColors.textSecondaryLight)),
+              ])),
+          ]),
+          FormSection(title: g ? 'Ενδιαφέροντα' : 'Interests', children: [_buildInterestChips()]),
+          FormSection(title: g ? 'Αναζητώ' : 'Looking For', children: [
+            ChipSelector(options: _lookingForOptions, selectedValue: _lookingFor, onSelected: (v) => setState(() => _lookingFor = v), labels: _lookingForLabels(g)),
+          ]),
+          FormSection(title: g ? 'Φωτογραφίες' : 'Photos', children: [_buildPhotoGallery(g)]),
+          FormSection(title: g ? 'Επικοινωνία' : 'Communication', children: [
+            _buildTextField(icon: Icons.email_outlined, label: g ? 'Ηλ. Ταχυδρομείο' : 'Email', ctrl: _emailCtrl, keyboardType: TextInputType.emailAddress),
+            _buildTextField(icon: Icons.phone_outlined, label: g ? 'Τηλέφωνο' : 'Phone', ctrl: _phoneCtrl, keyboardType: TextInputType.phone),
+            const SizedBox(height: 4),
+            FormToggle(icon: Icons.videocam_outlined, title: g ? 'Βιντεοκλήση' : 'Video Call', subtitle: g ? 'Να επιτρέπονται αιτήματα βιντεοκλήσης' : 'Allow video call requests', value: _allowVideoCall, onChanged: (v) => setState(() => _allowVideoCall = v)),
+            FormToggle(icon: Icons.chat_outlined, title: g ? 'Άμεσο Chat' : 'Direct Chat', subtitle: g ? 'Να επιτρέπονται άμεσα μηνύματα' : 'Allow direct messages', value: _allowDirectChat, onChanged: (v) => setState(() => _allowDirectChat = v)),
+          ]),
+          Padding(padding: const EdgeInsets.fromLTRB(16, 16, 16, 8), child: SaveButton(isSaving: _isSaving, label: g ? 'Αποθήκευση' : 'Save', onPressed: _save)),
         ]),
-        FormSection(title: g ? 'Ενδιαφέροντα' : 'Interests', children: [_buildInterestChips()]),
-        FormSection(title: g ? 'Αναζητώ' : 'Looking For', children: [
-          ChipSelector(options: _lookingForOptions, selectedValue: _lookingFor, onSelected: (v) => setState(() => _lookingFor = v), labels: _lookingForLabels(g)),
-        ]),
-        FormSection(title: g ? 'Φωτογραφίες' : 'Photos', children: [_buildPhotoGallery(g)]),
-        FormSection(title: g ? 'Επικοινωνία' : 'Communication', children: [
-          _buildTextField(icon: Icons.email_outlined, label: g ? 'Ηλ. Ταχυδρομείο' : 'Email', ctrl: _emailCtrl, keyboardType: TextInputType.emailAddress),
-          _buildTextField(icon: Icons.phone_outlined, label: g ? 'Τηλέφωνο' : 'Phone', ctrl: _phoneCtrl, keyboardType: TextInputType.phone),
-          const SizedBox(height: 4),
-          FormToggle(icon: Icons.videocam_outlined, title: g ? 'Βιντεοκλήση' : 'Video Call', subtitle: g ? 'Να επιτρέπονται αιτήματα βιντεοκλήσης' : 'Allow video call requests', value: _allowVideoCall, onChanged: (v) => setState(() => _allowVideoCall = v)),
-          FormToggle(icon: Icons.chat_outlined, title: g ? 'Άμεσο Chat' : 'Direct Chat', subtitle: g ? 'Να επιτρέπονται άμεσα μηνύματα' : 'Allow direct messages', value: _allowDirectChat, onChanged: (v) => setState(() => _allowDirectChat = v)),
-        ]),
-        Padding(padding: const EdgeInsets.fromLTRB(16, 16, 16, 8), child: SaveButton(isSaving: _isSaving, label: g ? 'Αποθήκευση' : 'Save', onPressed: _save)),
-      ])),
+      ),
+    ),
     );
+    },
+  ),
+  ),
+);
   }
 
   Widget _buildAvatarPlaceholder(bool g) {

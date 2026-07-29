@@ -5,13 +5,14 @@ import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
 import '../../../core/utils/connectivity_guard.dart';
 import '../../../core/utils/error_messages.dart';
 import '../../../data/local/database.dart';
-import '../../../shared/widgets/editor_scaffold.dart';
 import '../../../shared/widgets/form_section.dart';
 import '../../../shared/widgets/form_toggle.dart';
+import '../../../shared/widgets/app_state_widget.dart';
 import '../../../shared/widgets/gradient_header.dart';
 import '../../../shared/widgets/save_button.dart';
 import '../providers/profile_provider.dart';
@@ -77,6 +78,31 @@ class _PrivacyEditorScreenState extends ConsumerState<PrivacyEditorScreen> {
     }
   }
 
+  Future<void> _onBack() async {
+    DebugConfig.log(DebugConfig.uiInteraction, 'PrivacyEditorScreen onBack, dirty=$_isDirty, saving=$_isSaving');
+    if (_isSaving) return;
+    if (!_isDirty) {
+      if (context.mounted) context.pop();
+      return;
+    }
+    final g = L10n.isGreek(context);
+    final save = await AppMessenger.showConfirmDialog(
+      context,
+      title: g ? 'Αποθήκευση αλλαγών;' : 'Save changes?',
+      message: g
+          ? 'Έχεις μη αποθηκευμένες αλλαγές. Θες να αποθηκευτούν;'
+          : 'You have unsaved changes. Save them?',
+      confirmLabel: g ? 'Αποθήκευση' : 'Save',
+      cancelLabel: g ? 'Απόρριψη' : 'Discard',
+    );
+    if (save == true) {
+      await _save();
+    } else if (save == false && context.mounted) {
+      if (!mounted) return;
+      context.pop();
+    }
+  }
+
   Future<void> _save() async {
     DebugConfig.log(DebugConfig.uiInteraction, 'PrivacyEditorScreen save');
     final greek = L10n.isGreek(context);
@@ -119,57 +145,81 @@ class _PrivacyEditorScreenState extends ConsumerState<PrivacyEditorScreen> {
   @override
   Widget build(BuildContext context) {
     final greek = L10n.isGreek(context);
-    return EditorScaffold(
-      title: greek ? 'Απόρρητο' : 'Privacy',
-      screenName: 'PrivacyEditorScreen',
-      isDirty: () => _isDirty,
-      isSaving: () => _isSaving,
-      isLoading: !_isLoaded,
-      onSave: _save,
-      body: ListView(
-        padding: const EdgeInsets.only(bottom: 32),
-        children: [
-          GradientHeader(
-            icon: Icons.shield_outlined,
-            title: greek ? 'Έλεγξε τι βλέπουν οι άλλοι' : 'Control what others see',
-            subtitle: greek ? 'Ποια πεδία του προφίλ σου εμφανίζονται δημόσια' : 'Which profile fields are visible publicly',
-          ),
-          FormSection(icon: Icons.lock_outline, title: greek ? 'Προσωπικά Στοιχεία' : 'Personal Info', children: [
-            FormToggle(title: greek ? 'Ψευδώνυμο' : 'Nickname', subtitle: greek ? 'Να εμφανίζεται το ψευδώνυμό σου' : 'Show your nickname', value: _settings.showNickname, onChanged: (v) => setState(() => _settings = _settings.copyWith(showNickname: v))),
-            FormToggle(title: greek ? 'Πλήρες Όνομα' : 'Full Name', subtitle: greek ? 'Να εμφανίζεται το πραγματικό σου όνομα' : 'Show your real name', value: _settings.showFullName, onChanged: (v) => setState(() => _settings = _settings.copyWith(showFullName: v))),
-            FormToggle(title: greek ? 'Ηλικία' : 'Age', subtitle: greek ? 'Να εμφανίζεται η ηλικία σου' : 'Show your age', value: _settings.showAge, onChanged: (v) => setState(() => _settings = _settings.copyWith(showAge: v))),
-            FormToggle(title: greek ? 'Φύλο' : 'Gender', subtitle: greek ? 'Να εμφανίζεται το φύλο σου' : 'Show your gender', value: _settings.showGender, onChanged: (v) => setState(() => _settings = _settings.copyWith(showGender: v))),
-          ]),
-          FormSection(icon: Icons.location_on_outlined, title: greek ? 'Τοποθεσία' : 'Location', children: [
-            FormToggle(title: greek ? 'Πόλη' : 'City', subtitle: greek ? 'Να εμφανίζεται η πόλη σου' : 'Show your city', value: _settings.showCity, onChanged: (v) => setState(() => _settings = _settings.copyWith(showCity: v))),
-            FormToggle(title: greek ? 'Χώρα' : 'Country', subtitle: greek ? 'Να εμφανίζεται η χώρα σου' : 'Show your country', value: _settings.showCountry, onChanged: (v) => setState(() => _settings = _settings.copyWith(showCountry: v))),
-            const SizedBox(height: 8),
-            _buildGeoPrecision(greek),
-          ]),
-          FormSection(icon: Icons.contact_phone_outlined, title: greek ? 'Επικοινωνία' : 'Contact', children: [
-            FormToggle(title: greek ? 'Τηλέφωνο' : 'Phone', subtitle: greek ? 'Να εμφανίζεται το τηλέφωνό σου' : 'Show your phone number', value: _settings.showPhone, onChanged: (v) => setState(() => _settings = _settings.copyWith(showPhone: v))),
-            FormToggle(title: greek ? 'Ηλ. Ταχυδρομείο' : 'Email', subtitle: greek ? 'Να εμφανίζεται το email σου' : 'Show your email', value: _settings.showEmail, onChanged: (v) => setState(() => _settings = _settings.copyWith(showEmail: v))),
-          ]),
-          FormSection(icon: Icons.article_outlined, title: greek ? 'Περιεχόμενο Προφίλ' : 'Profile Content', children: [
-            FormToggle(title: greek ? 'Βιογραφικό' : 'Bio', subtitle: greek ? 'Να εμφανίζεται η περιγραφή σου' : 'Show your bio', value: _settings.showBio, onChanged: (v) => setState(() => _settings = _settings.copyWith(showBio: v))),
-            FormToggle(title: greek ? 'Ενδιαφέροντα' : 'Interests', subtitle: greek ? 'Να εμφανίζονται τα ενδιαφέροντά σου' : 'Show your interests', value: _settings.showInterests, onChanged: (v) => setState(() => _settings = _settings.copyWith(showInterests: v))),
-            FormToggle(title: greek ? 'Απασχόληση' : 'Occupation', subtitle: greek ? 'Να εμφανίζεται η απασχόλησή σου' : 'Show your occupation', value: _settings.showOccupation, onChanged: (v) => setState(() => _settings = _settings.copyWith(showOccupation: v))),
-            FormToggle(title: greek ? 'Αναζητώ' : 'Looking For', subtitle: greek ? 'Να εμφανίζεται ο λόγος αναζήτησης' : 'Show what you are looking for', value: _settings.showLookingFor, onChanged: (v) => setState(() => _settings = _settings.copyWith(showLookingFor: v))),
-            FormToggle(title: greek ? 'Φωτογραφία Προφίλ' : 'Profile Photo', subtitle: greek ? 'Να εμφανίζεται η φωτογραφία προφίλ σου' : 'Show your profile photo', value: _settings.showAvatar, onChanged: (v) => setState(() => _settings = _settings.copyWith(showAvatar: v))),
-            FormToggle(title: greek ? 'Φωτογραφίες' : 'Photos', subtitle: greek ? 'Να εμφανίζονται οι υπόλοιπες φωτογραφίες σου' : 'Show your other photos', value: _settings.showPhotos, onChanged: (v) => setState(() => _settings = _settings.copyWith(showPhotos: v))),
-          ]),
+    if (!_isLoaded) {
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) _onBack();
+        },
+        child: Scaffold(
+          appBar: AppBar(leading: IconButton(icon: const Icon(Icons.close), onPressed: _onBack), title: Text(greek ? 'Απόρρητο' : 'Privacy')),
+          body: const LoadingView(),
+        ),
+      );
+    }
 
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: SaveButton(
-              isSaving: _isSaving,
-              label: greek ? 'Αποθήκευση' : 'Save',
-              icon: Icons.shield_outlined,
-              onPressed: _save,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _onBack();
+      },
+      child: Scaffold(
+        appBar: AppBar(leading: IconButton(icon: const Icon(Icons.close), onPressed: _onBack), title: Text(greek ? 'Απόρρητο' : 'Privacy')),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final w = ResponsiveUtils.resolveWidth(context, constraints);
+          return Center(
+            child: SizedBox(
+              width: ResponsiveUtils.maxContentWidthFromWidth(w),
+              child: ListView(
+            padding: const EdgeInsets.only(bottom: 32),
+            children: [
+              GradientHeader(
+                icon: Icons.shield_outlined,
+                title: greek ? 'Έλεγξε τι βλέπουν οι άλλοι' : 'Control what others see',
+                subtitle: greek ? 'Ποια πεδία του προφίλ σου εμφανίζονται δημόσια' : 'Which profile fields are visible publicly',
+              ),
+              FormSection(icon: Icons.lock_outline, title: greek ? 'Προσωπικά Στοιχεία' : 'Personal Info', children: [
+                FormToggle(title: greek ? 'Ψευδώνυμο' : 'Nickname', subtitle: greek ? 'Να εμφανίζεται το ψευδώνυμό σου' : 'Show your nickname', value: _settings.showNickname, onChanged: (v) => setState(() => _settings = _settings.copyWith(showNickname: v))),
+                FormToggle(title: greek ? 'Πλήρες Όνομα' : 'Full Name', subtitle: greek ? 'Να εμφανίζεται το πραγματικό σου όνομα' : 'Show your real name', value: _settings.showFullName, onChanged: (v) => setState(() => _settings = _settings.copyWith(showFullName: v))),
+                FormToggle(title: greek ? 'Ηλικία' : 'Age', subtitle: greek ? 'Να εμφανίζεται η ηλικία σου' : 'Show your age', value: _settings.showAge, onChanged: (v) => setState(() => _settings = _settings.copyWith(showAge: v))),
+                FormToggle(title: greek ? 'Φύλο' : 'Gender', subtitle: greek ? 'Να εμφανίζεται το φύλο σου' : 'Show your gender', value: _settings.showGender, onChanged: (v) => setState(() => _settings = _settings.copyWith(showGender: v))),
+              ]),
+              FormSection(icon: Icons.location_on_outlined, title: greek ? 'Τοποθεσία' : 'Location', children: [
+                FormToggle(title: greek ? 'Πόλη' : 'City', subtitle: greek ? 'Να εμφανίζεται η πόλη σου' : 'Show your city', value: _settings.showCity, onChanged: (v) => setState(() => _settings = _settings.copyWith(showCity: v))),
+                FormToggle(title: greek ? 'Χώρα' : 'Country', subtitle: greek ? 'Να εμφανίζεται η χώρα σου' : 'Show your country', value: _settings.showCountry, onChanged: (v) => setState(() => _settings = _settings.copyWith(showCountry: v))),
+                const SizedBox(height: 8),
+                _buildGeoPrecision(greek),
+              ]),
+              FormSection(icon: Icons.contact_phone_outlined, title: greek ? 'Επικοινωνία' : 'Contact', children: [
+                FormToggle(title: greek ? 'Τηλέφωνο' : 'Phone', subtitle: greek ? 'Να εμφανίζεται το τηλέφωνό σου' : 'Show your phone number', value: _settings.showPhone, onChanged: (v) => setState(() => _settings = _settings.copyWith(showPhone: v))),
+                FormToggle(title: greek ? 'Ηλ. Ταχυδρομείο' : 'Email', subtitle: greek ? 'Να εμφανίζεται το email σου' : 'Show your email', value: _settings.showEmail, onChanged: (v) => setState(() => _settings = _settings.copyWith(showEmail: v))),
+              ]),
+              FormSection(icon: Icons.article_outlined, title: greek ? 'Περιεχόμενο Προφίλ' : 'Profile Content', children: [
+                FormToggle(title: greek ? 'Βιογραφικό' : 'Bio', subtitle: greek ? 'Να εμφανίζεται η περιγραφή σου' : 'Show your bio', value: _settings.showBio, onChanged: (v) => setState(() => _settings = _settings.copyWith(showBio: v))),
+                FormToggle(title: greek ? 'Ενδιαφέροντα' : 'Interests', subtitle: greek ? 'Να εμφανίζονται τα ενδιαφέροντά σου' : 'Show your interests', value: _settings.showInterests, onChanged: (v) => setState(() => _settings = _settings.copyWith(showInterests: v))),
+                FormToggle(title: greek ? 'Απασχόληση' : 'Occupation', subtitle: greek ? 'Να εμφανίζεται η απασχόλησή σου' : 'Show your occupation', value: _settings.showOccupation, onChanged: (v) => setState(() => _settings = _settings.copyWith(showOccupation: v))),
+                FormToggle(title: greek ? 'Αναζητώ' : 'Looking For', subtitle: greek ? 'Να εμφανίζεται ο λόγος αναζήτησης' : 'Show what you are looking for', value: _settings.showLookingFor, onChanged: (v) => setState(() => _settings = _settings.copyWith(showLookingFor: v))),
+                FormToggle(title: greek ? 'Φωτογραφία Προφίλ' : 'Profile Photo', subtitle: greek ? 'Να εμφανίζεται η φωτογραφία προφίλ σου' : 'Show your profile photo', value: _settings.showAvatar, onChanged: (v) => setState(() => _settings = _settings.copyWith(showAvatar: v))),
+                FormToggle(title: greek ? 'Φωτογραφίες' : 'Photos', subtitle: greek ? 'Να εμφανίζονται οι υπόλοιπες φωτογραφίες σου' : 'Show your other photos', value: _settings.showPhotos, onChanged: (v) => setState(() => _settings = _settings.copyWith(showPhotos: v))),
+              ]),
+
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: SaveButton(
+                  isSaving: _isSaving,
+                  label: greek ? 'Αποθήκευση' : 'Save',
+                  icon: Icons.shield_outlined,
+                  onPressed: _save,
+                ),
+              ),
+                ],
+              ),
             ),
-          ),
-        ],
+          );
+        },
       ),
+    ),
     );
   }
 

@@ -10,6 +10,7 @@ import '../../../core/utils/error_messages.dart';
 import '../../../features/profile/providers/profile_provider.dart';
 import '../../../shared/models/public_profile.dart';
 import '../../../shared/widgets/app_state_widget.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/block_provider.dart';
 
@@ -99,11 +100,16 @@ class _BlockedUserTile extends ConsumerWidget {
         final city = profile?.city;
 
         return ListTile(
-          leading: CircleAvatar(
-            backgroundColor: AppColors.primary.withAlpha(25),
-            child: Text(nickname.isNotEmpty ? nickname[0].toUpperCase() : '?',
-                style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
-          ),
+            leading: CircleAvatar(
+              backgroundColor: AppColors.primary.withAlpha(25),
+              backgroundImage: (profile?.avatarUrl != null && profile!.avatarUrl!.isNotEmpty)
+                  ? CachedNetworkImageProvider(profile.avatarUrl!) as ImageProvider
+                  : null,
+              child: (profile?.avatarUrl == null || profile!.avatarUrl!.isEmpty)
+                  ? Text(nickname.isNotEmpty ? nickname[0].toUpperCase() : '?',
+                  style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold))
+                  : null,
+            ),
           title: Text(nickname, style: AppTypography.bodyMedium),
           subtitle: city != null && city.isNotEmpty
               ? Text(city, style: AppTypography.caption)

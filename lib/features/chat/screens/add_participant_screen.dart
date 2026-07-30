@@ -68,8 +68,10 @@ class _AddParticipantScreenState extends ConsumerState<AddParticipantScreen> {
     if (_dataLoaded && _participantUids.isNotEmpty) return;
     try {
       final uids = ref.read(participantUidsProvider(widget.chatId));
-      final chatAsync = ref.read(chatDocProvider(widget.chatId));
-      final chatData = chatAsync.asData?.value?.data() as Map<String, dynamic>?;
+      // .future περιμένει την πρώτη διαθέσιμη τιμή του stream (ή την ήδη cache-αρισμένη),
+      // αντί για ref.read που μπορεί να πιάσει AsyncLoading (null) στο πρώτο άνοιγμα.
+      final chatSnap = await ref.read(chatDocProvider(widget.chatId).future);
+      final chatData = chatSnap?.data() as Map<String, dynamic>?;
       final maxPart = chatData?['maxParticipants'] as int? ?? widget.maxParticipants;
       if (!mounted) return;
       setState(() {

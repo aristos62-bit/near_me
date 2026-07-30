@@ -1112,10 +1112,18 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
           .orderBy('nicknameLowercase')
           .limit(limit)
           .get();
+      // Curated πεδία μόνο — το 'public' doc μπορεί να περιέχει email/phone
+      // (αν showEmail/showPhone === true), δεν πρέπει να φεύγουν από το repository.
       final results = snap.docs.map((doc) {
         final data = doc.data();
-        data['uid'] = data['uid'] ?? doc.id;
-        return data;
+        final uid = data['uid'] as String? ?? doc.id;
+        return <String, dynamic>{
+          'uid': uid,
+          'nickname': data['nickname'] as String? ?? uid,
+          'avatarUrl': data['avatarUrl'] as String?,
+          'age': data['age'] as int?,
+          'city': data['city'] as String?,
+        };
       }).toList();
       DebugConfig.log(DebugConfig.repositoryResult, 'searchUsersByNickname: ${results.length} results');
       return results;

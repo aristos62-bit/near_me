@@ -594,12 +594,8 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
       final lastMessageType = data['lastMessageType'] as String? ?? 'text';
       final encryptedLastMessage = data['lastMessage'] as String?;
 
-      String? otherAvatarUrl;
-      try {
-        final otherProfile = await firestore
-            .collection('users').doc(otherUid).collection('public').doc('profile').get();
-        otherAvatarUrl = otherProfile.data()?['avatarUrl'] as String?;
-      } catch (_) {}
+      final avatarUrls = data['participantAvatarUrls'] as Map<String, dynamic>?;
+      final otherAvatarUrl = avatarUrls?[otherUid] as String?;
 
       String? decryptedLastMessage;
       if (encryptedLastMessage != null &&

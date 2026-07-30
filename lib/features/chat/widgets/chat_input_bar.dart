@@ -406,7 +406,7 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       child: Row(
         children: [
-          const Icon(Icons.reply, size: 18, color: Colors.grey),
+          Icon(Icons.reply, size: 18, color: theme.colorScheme.onSurfaceVariant),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -463,7 +463,7 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       child: Row(
         children: [
-          const Icon(Icons.edit, size: 18, color: Colors.grey),
+          Icon(Icons.edit, size: 18, color: theme.colorScheme.onSurfaceVariant),
           const SizedBox(width: 8),
           Expanded(
             child: Column(

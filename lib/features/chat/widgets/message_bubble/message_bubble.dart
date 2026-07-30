@@ -21,6 +21,8 @@ class MessageBubble extends StatelessWidget {
   final String? senderAvatarUrl;
   final Map<String, String>? participantNicknames;
   final List<String> seenBy;
+  final bool hasPendingDelete;
+  final bool hasDeleteResponseNeeded;
   final String? chatId;
   final dynamic audioPlayer;
   final dynamic videoPlayer;
@@ -40,6 +42,8 @@ class MessageBubble extends StatelessWidget {
     this.senderAvatarUrl,
     this.participantNicknames,
     this.seenBy = const [],
+    this.hasPendingDelete = true,
+    this.hasDeleteResponseNeeded = true,
     this.chatId,
     this.audioPlayer,
     this.videoPlayer,
@@ -99,6 +103,8 @@ class MessageBubble extends StatelessWidget {
         timeStr: timeStr,
         action: action,
         isRequester: isMe,
+        hasPendingDelete: hasPendingDelete,
+        hasDeleteResponseNeeded: hasDeleteResponseNeeded,
         chatId: chatId,
         onApproveDelete: callbacks.onApproveDelete,
         onRejectDelete: callbacks.onRejectDelete,

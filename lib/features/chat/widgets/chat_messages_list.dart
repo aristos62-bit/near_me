@@ -88,6 +88,18 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
   }
 
   Future<void> _onDeleteForMe(String chatId) async {
+    if (!mounted) return;
+    final confirmed = await AppMessenger.showConfirmDialog(
+      context,
+      title: L10n.localizedMessage(context, 'Διαγραφή συνομιλίας / Delete conversation'),
+      message: L10n.localizedMessage(context,
+          'Η συνομιλία θα διαγραφεί μόνιμα μόνο για εσένα. Αυτή η ενέργεια δεν αναιρείται. / '
+              'This chat will be permanently deleted for you only. This cannot be undone.'),
+      confirmLabel: L10n.localizedMessage(context, 'Διαγραφή / Delete'),
+      cancelLabel: L10n.localizedMessage(context, 'Ακύρωση / Cancel'),
+      isDestructive: true,
+    );
+    if (!mounted || !confirmed) return;
     DebugConfig.log(DebugConfig.uiInteraction, 'ChatMessagesList: deleteForMe chat=$chatId');
     await ref.read(chatActionsProvider.notifier).deleteChatForMe(chatId);
   }
@@ -522,6 +534,17 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
         return raw.map((k, v) => MapEntry(k, v as String? ?? ''));
       },
     ));
+    final hasPendingDelete = ref.watch(chatDocProvider(widget.chatId).select(
+      (a) => (a.asData?.value?.data() as Map<String, dynamic>?)
+          ?['pendingDelete'] == true,
+    ));
+    final hasDeleteResponseNeeded = ref.watch(chatDocProvider(widget.chatId).select(
+      (a) => (a.asData?.value?.data() as Map<String, dynamic>?)
+          ?['deleteResponseNeeded'] == true,
+    ));
+    DebugConfig.log(DebugConfig.chatDelete,
+        'ChatMessagesList: pendingDelete=$hasPendingDelete '
+        'deleteResponseNeeded=$hasDeleteResponseNeeded for ${widget.chatId}');
     final participantUids = ref.watch(participantUidsProvider(widget.chatId));
     final otherUid = isGroupChat ? null : participantUids.where((u) => u != currentUid).firstOrNull;
     // --- ΝΕΟ: combined (παλιά + live) λίστα για rendering + loading state παλιών μηνυμάτων ---
@@ -560,7 +583,8 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
                       message: greek ? 'Καμία συνομιλία' : 'No messages',
                     )
                   : _buildMessagesList(combinedMessages, currentUid, lastReadTimestamps, isGroupChat,
-                      participantNicknames, participantAvatarUrls, participantUids, otherUid, isLoadingOlder, greek),
+                      participantNicknames, participantAvatarUrls, participantUids, otherUid,
+                      hasPendingDelete, hasDeleteResponseNeeded, isLoadingOlder, greek),
             ),
           ],
         );
@@ -577,6 +601,8 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     Map<String, String> participantAvatarUrls,
     List<String> participantUids,
     String? otherUid,
+    bool hasPendingDelete,
+    bool hasDeleteResponseNeeded,
     bool isLoadingOlder,
     bool greek,
   ) {
@@ -655,6 +681,8 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
           senderAvatarUrl: senderAvatarUrl,
           participantNicknames: isGroupChat ? participantNicknames : null,
           seenBy: props.seenBy,
+          hasPendingDelete: hasPendingDelete,
+          hasDeleteResponseNeeded: hasDeleteResponseNeeded,
           chatId: widget.chatId,
           audioPlayer: widget.audioPlayer,
           videoPlayer: widget.videoPlayer,

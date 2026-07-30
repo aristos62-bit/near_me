@@ -122,6 +122,7 @@ class DebugConfig {
   static const bool chatAudio = true;              // voice message recording & playback
   static const bool chatVideo = true;              // video message recording & playback
   static const bool chatMessageExpiry = true;       // message expiry operations
+  static const bool chatDelete = true;               // delete chat flow (request/approve/reject/cancel)
 
   /// ─────────────────────────────────────────────────────────────
   /// FILE STORAGE — Firebase Storage operations (Φάση 2+)

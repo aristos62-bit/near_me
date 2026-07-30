@@ -152,7 +152,7 @@ service cloud.firestore {
                       request.resource.data.diff(resource.data).affectedKeys()
                         .hasOnly(['lastMessageAt', 'lastMessageBy', 'lastMessage',
                                   'lastMessageType', 'lastMessageSender', 'systemMessage',
-                                  'unreadCount'])
+                                  'unreadCount', 'pendingDelete', 'deleteResponseNeeded'])
                       ||
                       // Read receipts (own uid only — lastReadTimestamps.{uid})
                       (request.resource.data.diff(resource.data).affectedKeys()

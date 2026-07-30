@@ -7,6 +7,8 @@ class SystemMessageBubble extends StatelessWidget {
   final String timeStr;
   final String? action;
   final bool isRequester;
+  final bool hasPendingDelete;
+  final bool hasDeleteResponseNeeded;
   final String? chatId;
   final Future<void> Function(String chatId)? onApproveDelete;
   final Future<void> Function(String chatId)? onRejectDelete;
@@ -20,6 +22,8 @@ class SystemMessageBubble extends StatelessWidget {
     required this.timeStr,
     this.action,
     this.isRequester = false,
+    this.hasPendingDelete = true,
+    this.hasDeleteResponseNeeded = true,
     this.chatId,
     this.onApproveDelete,
     this.onRejectDelete,
@@ -32,7 +36,8 @@ class SystemMessageBubble extends StatelessWidget {
     final isGreek = L10n.isGreek(context);
     final displayContent = isGreek ? content : (contentEn ?? content);
     final showActions = chatId != null && !isRequester && (
-        action == 'delete_request' || action == 'delete_rejected'
+        (action == 'delete_request' && hasPendingDelete) ||
+        (action == 'delete_rejected' && hasDeleteResponseNeeded)
     );
 
     return Padding(

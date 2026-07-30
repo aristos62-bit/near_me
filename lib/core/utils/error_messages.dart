@@ -102,6 +102,10 @@ class ErrorMessages {
         return isGreek ? 'Μη έγκυρος σύνδεσμος' : 'Invalid link';
       case 'chat/link-open-failed':
         return isGreek ? 'Δεν ήταν δυνατό το άνοιγμα του συνδέσμου' : 'Could not open the link';
+      case 'chat/delete-failed':
+        return isGreek ? 'Αποτυχία διαγραφής συνομιλίας' : 'Failed to delete chat';
+      case 'chat/delete-not-found':
+        return isGreek ? 'Η συνομιλία δεν βρέθηκε' : 'Chat not found';
         case 'chat/email-no-app':
         return isGreek ? 'Δεν βρέθηκε εφαρμογή email' : 'No email app found';
       case 'chat/email-not-configured':

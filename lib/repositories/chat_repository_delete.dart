@@ -18,14 +18,14 @@ mixin ChatDeleteMixin {
 
   Future<void> requestDeleteChat(String chatId) async {
     final uid = _deleteUid;
-    DebugConfig.log(DebugConfig.chatStream, 'requestDeleteChat: chat=$chatId uid=$uid');
+    DebugConfig.log(DebugConfig.chatDelete, 'requestDeleteChat: chat=$chatId uid=$uid');
 
     final chatSnap = await firestore.collection('chats').doc(chatId).get();
     if (!chatSnap.exists) return;
     final chatData = chatSnap.data()!;
 
     if (chatData['isGroupChat'] == true) {
-      DebugConfig.log(DebugConfig.chatStream, 'requestDeleteChat: isGroup → deleteGroup');
+      DebugConfig.log(DebugConfig.chatDelete, 'requestDeleteChat: isGroup → deleteGroup');
       await deleteGroup(chatId);
       return;
     }
@@ -35,7 +35,7 @@ mixin ChatDeleteMixin {
     final otherActive = participants.where((p) => p != uid && activeMap[p] != false).toList();
 
     if (otherActive.isEmpty) {
-      DebugConfig.log(DebugConfig.chatStream, 'requestDeleteChat: no active other participant, deleting immediately');
+      DebugConfig.log(DebugConfig.chatDelete, 'requestDeleteChat: no active other participant, deleting immediately');
       await _deleteChatForEveryone(chatId);
       return;
     }
@@ -46,14 +46,14 @@ mixin ChatDeleteMixin {
 
   Future<void> approveDeleteChat(String chatId) async {
     final uid = _deleteUid;
-    DebugConfig.log(DebugConfig.chatStream, 'approveDeleteChat: chat=$chatId uid=$uid');
+    DebugConfig.log(DebugConfig.chatDelete, 'approveDeleteChat: chat=$chatId uid=$uid');
     await _sendDeleteSystemMessage(chatId, 'delete_approved', uid);
     await _deleteChatForEveryone(chatId);
   }
 
   Future<void> rejectDeleteChat(String chatId) async {
     final uid = _deleteUid;
-    DebugConfig.log(DebugConfig.chatStream, 'rejectDeleteChat: chat=$chatId uid=$uid');
+    DebugConfig.log(DebugConfig.chatDelete, 'rejectDeleteChat: chat=$chatId uid=$uid');
 
     await _sendDeleteSystemMessage(chatId, 'delete_rejected', uid);
     DebugConfig.log(DebugConfig.repositoryResult, 'rejectDeleteChat: done chat=$chatId');
@@ -61,7 +61,7 @@ mixin ChatDeleteMixin {
 
   Future<void> cancelDeleteRequest(String chatId) async {
     final uid = _deleteUid;
-    DebugConfig.log(DebugConfig.chatStream, 'cancelDeleteRequest: chat=$chatId uid=$uid');
+    DebugConfig.log(DebugConfig.chatDelete, 'cancelDeleteRequest: chat=$chatId uid=$uid');
 
     await _sendDeleteSystemMessage(chatId, 'delete_cancelled', uid);
     DebugConfig.log(DebugConfig.repositoryResult, 'cancelDeleteRequest: done chat=$chatId');
@@ -69,12 +69,27 @@ mixin ChatDeleteMixin {
 
   Future<void> deleteChatForMe(String chatId) async {
     final uid = _deleteUid;
-    DebugConfig.log(DebugConfig.chatStream, 'deleteChatForMe: chat=$chatId uid=$uid');
+    DebugConfig.log(DebugConfig.chatDelete, 'deleteChatForMe: chat=$chatId uid=$uid');
+
+    final chatSnap = await firestore.collection('chats').doc(chatId).get();
+    if (chatSnap.exists) {
+      final data = chatSnap.data()!;
+      final participants = List<String>.from(data['participants'] ?? []);
+      final activeMap = Map<String, dynamic>.from(data['participantIsActive'] as Map? ?? {});
+      final otherActive = participants.where((p) => p != uid && activeMap[p] != false).toList();
+
+      if (otherActive.isEmpty) {
+        DebugConfig.log(DebugConfig.chatDelete, 'deleteChatForMe: last active participant, deleting whole chat');
+        await _deleteChatForEveryone(chatId);
+        return;
+      }
+    }
 
     await _sendDeleteSystemMessage(chatId, 'delete_local', uid);
 
     await firestore.collection('chats').doc(chatId).update({
       'participants': FieldValue.arrayRemove([uid]),
+      'participantIsActive.$uid': false,
     });
 
     await (db.delete(db.chatCacheTable)..where((t) => t.chatId.equals(chatId))).go();
@@ -156,13 +171,19 @@ mixin ChatDeleteMixin {
     final chatData = chatSnap.data()!;
     final nicknames = chatData['participantNicknames'] as Map<String, dynamic>? ?? {};
     final actorNickname = nicknames[actorUid] as String? ?? actorUid;
+    final participants = List<String>.from(chatData['participants'] ?? []);
+    final isGroupChat = chatData['isGroupChat'] == true;
 
     final formatted = SystemMessageFormatter.format(
       action: action,
       actorNickname: actorNickname,
     );
 
-    await firestore.collection('chats').doc(chatId).collection('messages').add({
+    final batch = firestore.batch();
+
+    final msgRef = firestore
+        .collection('chats').doc(chatId).collection('messages').doc();
+    batch.set(msgRef, {
       'senderId': actorUid,
       'type': 'system',
       'action': action,
@@ -171,7 +192,42 @@ mixin ChatDeleteMixin {
       'timestamp': FieldValue.serverTimestamp(),
     });
 
-    DebugConfig.log(DebugConfig.chatStream,
+    if (!isGroupChat) {
+      final updateData = <String, dynamic>{
+        'lastMessageAt': FieldValue.serverTimestamp(),
+        'lastMessageBy': actorUid,
+        'lastMessage': formatted.el,
+        'lastMessageType': 'system',
+        'systemMessage': action,
+      };
+      if (action == 'delete_request') {
+        updateData['pendingDelete'] = true;
+        updateData['deleteResponseNeeded'] = FieldValue.delete();
+      } else {
+        updateData['pendingDelete'] = FieldValue.delete();
+      }
+      if (action == 'delete_rejected') {
+        updateData['deleteResponseNeeded'] = true;
+      } else if (action == 'delete_cancelled' || action == 'delete_local') {
+        updateData['deleteResponseNeeded'] = FieldValue.delete();
+      }
+      for (final p in participants) {
+        if (p != actorUid) {
+          updateData['unreadCount.$p'] = FieldValue.increment(1);
+        }
+      }
+      batch.update(firestore.collection('chats').doc(chatId), updateData);
+    }
+
+    await batch.commit();
+
+    DebugConfig.log(DebugConfig.firestoreWrite,
         '_sendDeleteSystemMessage: chat=$chatId action=$action actor=$actorNickname');
+    if (!isGroupChat) {
+      DebugConfig.log(DebugConfig.chatDelete,
+          '_sendDeleteSystemMessage: pendingDelete=${action == "delete_request"} '
+          'deleteResponseNeeded=${action == "delete_rejected"} '
+          'action=$action chat=$chatId');
+    }
   }
 }

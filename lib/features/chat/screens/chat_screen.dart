@@ -424,7 +424,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 emojiPickerVisible: _emojiPickerVisible,
                 onEmojiToggle: _toggleEmojiPicker,
                 onEmojiDismiss: _dismissEmojiPicker,
-                participantNicknames: isGroupChat ? participantNicknames : const {},
+                participantNicknames: participantNicknames,
               ),
             ],
           ),

@@ -66,6 +66,11 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     _focusNode.removeListener(_onFocusChange);
     _focusNode.dispose();
     _errorTimer?.cancel();
+    if (ref.read(replyToMessageProvider) != null) {
+      DebugConfig.log(DebugConfig.chatReply,
+          'ChatInputBar dispose: clearing stale reply state chat=${widget.chatId}');
+      ref.read(replyToMessageProvider.notifier).clear();
+    }
     DebugConfig.log(DebugConfig.uiInteraction,
         'ChatInputBar dispose: ${widget.chatId}');
     super.dispose();
@@ -165,9 +170,9 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
 
     final contentPreview = _mediaPreview(type, content, isEmoji);
 
-    final senderNickname = widget.isGroupChat
-        ? (widget.participantNicknames[senderId] ?? senderId)
-        : (senderId == currentUid ? '' : '');
+    final senderNickname = senderId == currentUid
+        ? ''
+        : (widget.participantNicknames[senderId] ?? senderId);
 
     return {
       'messageId': replyToMsg['id'] ?? '',

@@ -508,3 +508,33 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 - `backups/privacy_editor_screen_20260729_230421.dart`
 
 ### `flutter analyze`: clean ✅ (0 issues)
+
+---
+
+## Session 210 — 1-to-1 Delete Chat State Machine (100%) — 30 Ιουλ 2026
+
+### Σκοπός
+Ολοκλήρωση του 1-to-1 delete chat flow με state machine (pendingDelete + deleteResponseNeeded) — τα action buttons εμφανίζονται/εξαφανίζονται σωστά βάσει role και state.
+
+### Τι έγινε
+- **chat_repository_delete.dart** — `_sendDeleteSystemMessage`: γράφει `pendingDelete` (true/delete()) + `deleteResponseNeeded` (true/delete()) βάσει action
+- **firestore.rules (line 155)** — `pendingDelete` + `deleteResponseNeeded` στο `hasOnly` list. Deployed.
+- **system_message_bubble.dart** — `hasPendingDelete` + `hasDeleteResponseNeeded` props (default true). `showActions` gated: delete_request → `hasPendingDelete && !isRequester`, delete_rejected → `hasDeleteResponseNeeded && !isRequester`
+- **message_bubble.dart** — pass-through props
+- **chat_messages_list.dart** — `.select()` watch σε `pendingDelete` + `deleteResponseNeeded` από `chatDocProvider`, πέρασμα σε MessageBubble
+
+### Device test (2 devices, real-time)
+```
+pendingDelete=false deleteResponseNeeded=false  → initial
+pendingDelete=true  deleteResponseNeeded=false  → requestDeleteChat
+pendingDelete=false deleteResponseNeeded=true   → after reject (Aris62)
+pendingDelete=false deleteResponseNeeded=false  → after keepChat (Yahooman) ✓
+```
+- delete_request buttons disappear after reject ✅
+- delete_rejected buttons disappear after keepChat ✅
+- `chatDocProvider suppressed (pending)` observed during batch writes (rebuild storm prevention works)
+
+### Backups
+- (in-place edits, backup από προηγούμενο session)
+
+### `flutter analyze`: clean ✅ (0 issues)

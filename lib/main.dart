@@ -372,6 +372,15 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
           if (emailVerifiedChanged) {
             DebugConfig.log(DebugConfig.authFlow,
                 'main: emailVerified changed ${prevUser?.emailVerified} → ${nextUser?.emailVerified}');
+            if (nextUser != null && nextUser.emailVerified) {
+              nextUser.getIdToken(true).then((_) {
+                DebugConfig.log(DebugConfig.authFlow,
+                    'main: ID token force-refreshed after email verification uid=${nextUser.uid}');
+              }).catchError((Object e, StackTrace s) {
+                DebugConfig.error('main: getIdToken(true) failed after email verification',
+                    data: e, exception: s);
+              });
+            }
           }
           DebugConfig.log(DebugConfig.providerDispose,
               'main: invalidated chatsProvider (auth change)');

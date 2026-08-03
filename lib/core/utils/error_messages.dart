@@ -126,6 +126,9 @@ class ErrorMessages {
         return isGreek ? 'Προωθήθηκε' : 'Forwarded';
       case 'chat/forward-failed':
         return isGreek ? 'Αποτυχία προώθησης' : 'Failed to forward';
+      case 'chat/reply-privately-failed':
+        return isGreek ? 'Δεν ήταν δυνατό το άνοιγμα προσωπικής συνομιλίας'
+            : 'Could not open private chat';
       case 'chat/edit-timeout':
         return isGreek ? 'Το χρονικό όριο επεξεργασίας (15 λεπτά) έχει λήξει' : 'The 15-minute edit window has expired';
       case 'chat/messages-cleared':

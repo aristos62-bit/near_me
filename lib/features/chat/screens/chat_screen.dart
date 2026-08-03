@@ -72,7 +72,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _initTime = DateTime.now();
     _messagesList = ChatMessagesList(chatId: widget.chatId, audioPlayer: _audioPlayer, videoPlayer: _videoController, onPlayVideo: _playVideo, videoLoadingUrl: null);
     FcmService.registerActiveChat(widget.chatId);
-    ref.read(replyToMessageProvider.notifier).clear();
+    ref.read(replyToMessageProvider.notifier).clear(widget.chatId);
+    ref.read(editingMessageProvider.notifier).clear(widget.chatId);
+    DebugConfig.log(DebugConfig.chatReply,
+        'ChatScreen: composer state cleared chat=${widget.chatId}');
     DebugConfig.log(DebugConfig.uiInteraction,
         'ChatScreen init #$_instanceId: ${widget.chatId}');
     WidgetsBinding.instance.addPostFrameCallback((_) {

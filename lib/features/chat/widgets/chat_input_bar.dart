@@ -53,10 +53,22 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
   Timer? _errorTimer;
   int _buildCount = 0;
 
+  // Κρατάμε το notifier σε πεδίο από το initState, ώστε να μπορούμε να
+  // καθαρίσουμε το stale quote στο dispose ΧΩΡΙΣ ref.read (απαγορεύεται στο
+  // Riverpod 3 κατά το unmount — crash "Using ref when unmounted").
+  late final ReplyToMessageNotifier _replyNotifier;
+
   @override
   void initState() {
     super.initState();
     _focusNode.addListener(_onFocusChange);
+    _replyNotifier = ref.read(replyToMessageProvider.notifier);
+    final pending = ref.read(pendingPrivateReplyProvider.notifier).consumeFor(widget.chatId);
+    if (pending != null) {
+      DebugConfig.log(DebugConfig.chatReply,
+          'ChatInputBar: applying pending private-reply quote chat=${widget.chatId}');
+      _replyNotifier.setReply(widget.chatId, pending);
+    }
     DebugConfig.log(DebugConfig.uiInteraction,
         'ChatInputBar init: ${widget.chatId}');
   }
@@ -66,11 +78,11 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     _focusNode.removeListener(_onFocusChange);
     _focusNode.dispose();
     _errorTimer?.cancel();
-    if (ref.read(replyToMessageProvider) != null) {
-      DebugConfig.log(DebugConfig.chatReply,
-          'ChatInputBar dispose: clearing stale reply state chat=${widget.chatId}');
-      ref.read(replyToMessageProvider.notifier).clear();
-    }
+    // Ασφαλές cleanup: χρησιμοποιούμε το captured notifier, όχι ref.read.
+    // Το clear() είναι idempotent (no-op αν δεν υπάρχει ήδη quote).
+    _replyNotifier.clear(widget.chatId);
+    DebugConfig.log(DebugConfig.chatReply,
+        'ChatInputBar dispose: cleared reply state chat=${widget.chatId}');
     DebugConfig.log(DebugConfig.uiInteraction,
         'ChatInputBar dispose: ${widget.chatId}');
     super.dispose();
@@ -101,7 +113,7 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
   Future<void> _send() async {
     final text = widget.textController.text.trim();
     if (text.isEmpty || _isLoading) return;
-    final editingMsg = ref.read(editingMessageProvider);
+    final editingMsg = ref.read(editingMessageProvider.select((s) => s[widget.chatId]));
     _clearError();
     setState(() => _isLoading = true);
     if (editingMsg != null) {
@@ -141,12 +153,12 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
 
   void _clearReply() {
     DebugConfig.log(DebugConfig.chatReply, 'ChatInputBar: clear reply');
-    ref.read(replyToMessageProvider.notifier).clear();
+    ref.read(replyToMessageProvider.notifier).clear(widget.chatId);
   }
 
   void _clearEdit() {
     DebugConfig.log(DebugConfig.chatReply, 'ChatInputBar: clear edit');
-    ref.read(editingMessageProvider.notifier).clear();
+    ref.read(editingMessageProvider.notifier).clear(widget.chatId);
   }
 
   String _mediaPreview(String type, String content, bool isEmoji, {bool greek = false}) {
@@ -159,7 +171,7 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
   }
 
   Map<String, dynamic>? _buildReplyData() {
-    final replyToMsg = ref.read(replyToMessageProvider);
+    final replyToMsg = ref.read(replyToMessageProvider.select((s) => s[widget.chatId]));
     if (replyToMsg == null) return null;
 
     final content = replyToMsg['content'] as String? ?? '';
@@ -395,9 +407,9 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
 
     final preview = _mediaPreview(type, content, isEmoji, greek: greek);
 
-    final senderNickname = widget.isGroupChat
-        ? (widget.participantNicknames[senderId] ?? senderId)
-        : (senderId == currentUid ? '' : '');
+    final senderNickname = senderId == currentUid
+        ? ''
+        : (widget.participantNicknames[senderId] ?? senderId);
 
     DebugConfig.log(DebugConfig.chatReply,
         'ChatInputBar: reply banner for @$senderNickname: $preview');
@@ -515,14 +527,14 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     final currentUser =
         ref.watch(authStateProvider).value ?? FirebaseAuth.instance.currentUser;
     final canComm = AuthRepository.canUserCommunicate(currentUser);
-    final replyToMsg = ref.watch(replyToMessageProvider);
-    final editingMsg = ref.watch(editingMessageProvider);
+    final replyToMsg = ref.watch(replyToMessageProvider.select((s) => s[widget.chatId]));
+    final editingMsg = ref.watch(editingMessageProvider.select((s) => s[widget.chatId]));
     _buildCount++;
     DebugConfig.log(DebugConfig.uiInteraction,
         'ChatInputBar build#$_buildCount: canComm=$canComm '
         'emojiVisible=${widget.emojiPickerVisible}');
 
-    ref.listen(editingMessageProvider, (prev, next) {
+    ref.listen(editingMessageProvider.select((s) => s[widget.chatId]), (prev, next) {
       if (next != null && prev != next) {
         final content = next['content'] as String? ?? '';
         widget.textController.text = content;

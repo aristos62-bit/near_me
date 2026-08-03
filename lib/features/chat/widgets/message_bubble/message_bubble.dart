@@ -13,6 +13,7 @@ class MessageBubble extends StatelessWidget {
   final Map<String, dynamic> message;
   final String currentUid;
   final bool isGroupChat;
+  final bool isSenderBlockedByMe;
   final bool isRead;
   final bool isGrouped;
   final bool isLastInGroup;
@@ -34,6 +35,7 @@ class MessageBubble extends StatelessWidget {
     required this.message,
     required this.currentUid,
     this.isGroupChat = false,
+    this.isSenderBlockedByMe = false,
     this.isRead = false,
     this.isGrouped = false,
     this.isLastInGroup = true,
@@ -76,6 +78,7 @@ class MessageBubble extends StatelessWidget {
         timeStr: timeStr,
         isMe: isMe,
         isGroupChat: isGroupChat,
+        isSenderBlockedByMe: isSenderBlockedByMe,
         isGrouped: isGrouped,
         isLastInGroup: isLastInGroup,
         showAvatar: showAvatar,
@@ -91,6 +94,7 @@ class MessageBubble extends StatelessWidget {
         onRemove: callbacks.onRemove,
         replyTo: replyTo,
         onReply: callbacks.onReply,
+        onReplyPrivately: callbacks.onReplyPrivately,
         onDelete: callbacks.onDelete,
         onInfo: callbacks.onInfo,
         onEmail: callbacks.onEmail,
@@ -118,6 +122,7 @@ class MessageBubble extends StatelessWidget {
         timeStr: timeStr,
         isMe: isMe,
         isGroupChat: isGroupChat,
+        isSenderBlockedByMe: isSenderBlockedByMe,
         isGrouped: isGrouped,
         isLastInGroup: isLastInGroup,
         showAvatar: showAvatar,
@@ -133,6 +138,7 @@ class MessageBubble extends StatelessWidget {
         onRemove: callbacks.onRemove,
         replyTo: replyTo,
         onReply: callbacks.onReply,
+        onReplyPrivately: callbacks.onReplyPrivately,
         onDelete: callbacks.onDelete,
         onInfo: callbacks.onInfo,
         onEmail: callbacks.onEmail,
@@ -146,6 +152,7 @@ class MessageBubble extends StatelessWidget {
         timeStr: timeStr,
         isMe: isMe,
         isGroupChat: isGroupChat,
+        isSenderBlockedByMe: isSenderBlockedByMe,
         isGrouped: isGrouped,
         isLastInGroup: isLastInGroup,
         showAvatar: showAvatar,
@@ -162,6 +169,7 @@ class MessageBubble extends StatelessWidget {
         onRemove: callbacks.onRemove,
         replyTo: replyTo,
         onReply: callbacks.onReply,
+        onReplyPrivately: callbacks.onReplyPrivately,
         onEdit: callbacks.onEdit,
         onDelete: callbacks.onDelete,
         onInfo: callbacks.onInfo,
@@ -199,6 +207,7 @@ class MessageBubble extends StatelessWidget {
         timeStr: timeStr,
         isMe: isMe,
         isGroupChat: isGroupChat,
+        isSenderBlockedByMe: isSenderBlockedByMe,
         isGrouped: isGrouped,
         isLastInGroup: isLastInGroup,
         showAvatar: showAvatar,
@@ -216,6 +225,7 @@ class MessageBubble extends StatelessWidget {
         mentions: mentions,
         participantNicknames: participantNicknames,
         onReply: callbacks.onReply,
+        onReplyPrivately: callbacks.onReplyPrivately,
         onEdit: callbacks.onEdit,
         onDelete: callbacks.onDelete,
         onInfo: callbacks.onInfo,

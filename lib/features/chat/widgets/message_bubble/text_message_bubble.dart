@@ -13,6 +13,7 @@ class TextMessageBubble extends StatelessWidget {
   final String timeStr;
   final bool isMe;
   final bool isGroupChat;
+  final bool isSenderBlockedByMe;
   final bool isGrouped;
   final bool isLastInGroup;
   final bool showAvatar;
@@ -30,6 +31,7 @@ class TextMessageBubble extends StatelessWidget {
   final List<String> mentions;
   final Map<String, String>? participantNicknames;
   final VoidCallback? onReply;
+  final VoidCallback? onReplyPrivately;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
   final VoidCallback? onInfo;
@@ -43,6 +45,7 @@ class TextMessageBubble extends StatelessWidget {
     required this.timeStr,
     required this.isMe,
     this.isGroupChat = false,
+    this.isSenderBlockedByMe = false,
     this.isGrouped = false,
     this.isLastInGroup = true,
     this.showAvatar = true,
@@ -60,6 +63,7 @@ class TextMessageBubble extends StatelessWidget {
     this.mentions = const [],
     this.participantNicknames,
     this.onReply,
+    this.onReplyPrivately,
     this.onEdit,
     this.onDelete,
     this.onInfo,
@@ -76,17 +80,17 @@ class TextMessageBubble extends StatelessWidget {
   static final RegExp _linkDetector = RegExp(r'https?://|www\.');
 
   Widget _buildRichContent(
-      BuildContext context, String content, List<String> mentions, bool isMe) {
+    BuildContext context,
+    String content,
+    List<String> mentions,
+    bool isMe,
+  ) {
     final theme = Theme.of(context);
-    final baseColor = isMe
-        ? _sentTextColor
-        : theme.colorScheme.onSurface;
+    final baseColor = isMe ? _sentTextColor : theme.colorScheme.onSurface;
     final highlightColor = isMe
         ? theme.colorScheme.onPrimary.withAlpha(200)
         : theme.colorScheme.primary;
-    final linkColor = isMe
-        ? _sentTextColor
-        : theme.colorScheme.primary;
+    final linkColor = isMe ? _sentTextColor : theme.colorScheme.primary;
 
     final spans = <InlineSpan>[];
     final mentionSet = mentions.toSet();
@@ -106,14 +110,17 @@ class TextMessageBubble extends StatelessWidget {
       if (mentionText != null) {
         final nickname = mentionText.substring(1);
         final mentionedUid = nicknameToUid[nickname];
-        final isMentioned = mentionedUid != null && mentionSet.contains(mentionedUid);
-        spans.add(TextSpan(
-          text: mentionText,
-          style: TextStyle(
-            color: isMentioned ? highlightColor : baseColor,
-            fontWeight: isMentioned ? FontWeight.w600 : FontWeight.normal,
+        final isMentioned =
+            mentionedUid != null && mentionSet.contains(mentionedUid);
+        spans.add(
+          TextSpan(
+            text: mentionText,
+            style: TextStyle(
+              color: isMentioned ? highlightColor : baseColor,
+              fontWeight: isMentioned ? FontWeight.w600 : FontWeight.normal,
+            ),
           ),
-        ));
+        );
         lastEnd = match.end;
         continue;
       }
@@ -127,12 +134,17 @@ class TextMessageBubble extends StatelessWidget {
         urlEnd -= (rawUrl.length - urlText.length);
       }
       final linkTarget = urlText;
-      spans.add(TextSpan(
-        text: urlText,
-        style: TextStyle(color: linkColor, decoration: TextDecoration.underline),
-        recognizer: TapGestureRecognizer()
-          ..onTap = () => onLinkTap?.call(linkTarget),
-      ));
+      spans.add(
+        TextSpan(
+          text: urlText,
+          style: TextStyle(
+            color: linkColor,
+            decoration: TextDecoration.underline,
+          ),
+          recognizer: TapGestureRecognizer()
+            ..onTap = () => onLinkTap?.call(linkTarget),
+        ),
+      );
       lastEnd = urlEnd;
     }
 
@@ -140,7 +152,13 @@ class TextMessageBubble extends StatelessWidget {
       spans.add(TextSpan(text: content.substring(lastEnd)));
     }
 
-    return Text.rich(TextSpan(children: spans, style: TextStyle(color: baseColor)), textAlign: TextAlign.start);
+    return Text.rich(
+      TextSpan(
+        children: spans,
+        style: TextStyle(color: baseColor),
+      ),
+      textAlign: TextAlign.start,
+    );
   }
 
   @override
@@ -156,35 +174,40 @@ class TextMessageBubble extends StatelessWidget {
       topLeft: const Radius.circular(_bubbleRadius),
       topRight: const Radius.circular(_bubbleRadius),
       bottomLeft: Radius.circular(
-          (!isMe && showTail) ? _tailRadius : _bubbleRadius),
+        (!isMe && showTail) ? _tailRadius : _bubbleRadius,
+      ),
       bottomRight: Radius.circular(
-          (isMe && showTail) ? _tailRadius : _bubbleRadius),
+        (isMe && showTail) ? _tailRadius : _bubbleRadius,
+      ),
     );
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Align(
-        alignment: isMe
-            ? Alignment.centerRight
-            : Alignment.centerLeft,
+        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
         child: LayoutBuilder(
           builder: (context, constraints) {
             final bubbleMaxWidth = constraints.maxWidth * 0.75;
             return Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment:
-                  isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              crossAxisAlignment: isMe
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
               children: [
-                if (!isMe && showAvatar
-                    && (senderAvatarUrl != null || senderNickname != null))
+                if (!isMe &&
+                    showAvatar &&
+                    (senderAvatarUrl != null || senderNickname != null))
                   SenderHeader(
                     senderAvatarUrl: senderAvatarUrl,
                     senderNickname: senderNickname,
                     isGroupChat: isGroupChat,
                   ),
                 BubbleLongPressWrapper(
+                  isGroupChat: isGroupChat,
+                  isSenderBlockedByMe: isSenderBlockedByMe,
                   isMe: isMe,
                   onReply: onReply,
+                  onReplyPrivately: onReplyPrivately,
                   onEdit: onEdit,
                   onDelete: onDelete,
                   onInfo: onInfo,
@@ -192,7 +215,9 @@ class TextMessageBubble extends StatelessWidget {
                   onShare: onShare,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                    crossAxisAlignment: isMe
+                        ? CrossAxisAlignment.end
+                        : CrossAxisAlignment.start,
                     children: [
                       if (replyTo != null)
                         ReplyPreview(
@@ -204,9 +229,13 @@ class TextMessageBubble extends StatelessWidget {
                         clipBehavior: Clip.none,
                         children: [
                           Container(
-                            constraints: BoxConstraints(maxWidth: bubbleMaxWidth),
+                            constraints: BoxConstraints(
+                              maxWidth: bubbleMaxWidth,
+                            ),
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 10),
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
                             decoration: BoxDecoration(
                               color: bubbleColor,
                               borderRadius: bubbleBorderRadius,
@@ -216,20 +245,35 @@ class TextMessageBubble extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  (mentions.isEmpty && !_linkDetector.hasMatch(content))
-                                      ? Text(content, style: TextStyle(color: textColor), textAlign: TextAlign.start)
-                                      : _buildRichContent(context, content, mentions, isMe),
+                                  (mentions.isEmpty &&
+                                          !_linkDetector.hasMatch(content))
+                                      ? Text(
+                                          content,
+                                          style: TextStyle(color: textColor),
+                                          textAlign: TextAlign.start,
+                                        )
+                                      : _buildRichContent(
+                                          context,
+                                          content,
+                                          mentions,
+                                          isMe,
+                                        ),
                                   if (timeStr.isNotEmpty)
                                     Padding(
                                       padding: const EdgeInsets.only(top: 4),
                                       child: Align(
-                                        alignment: AlignmentDirectional.bottomEnd,
-                                        child: Text(timeStr,
+                                        alignment:
+                                            AlignmentDirectional.bottomEnd,
+                                        child: Text(
+                                          timeStr,
                                           style: TextStyle(
                                             fontSize: 10,
                                             color: isMe
                                                 ? Colors.white.withAlpha(180)
-                                                : theme.colorScheme.onSurfaceVariant.withAlpha(180),
+                                                : theme
+                                                      .colorScheme
+                                                      .onSurfaceVariant
+                                                      .withAlpha(180),
                                           ),
                                         ),
                                       ),

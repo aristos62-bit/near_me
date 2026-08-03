@@ -6,6 +6,7 @@ class MessageCallbacks {
   final Future<void> Function(String messageId, String emoji)? onReact;
   final Future<void> Function(String messageId)? onRemove;
   final void Function()? onReply;
+  final void Function()? onReplyPrivately;
   final void Function()? onEdit;
   final void Function()? onDelete;
   final void Function()? onInfo;
@@ -22,6 +23,7 @@ class MessageCallbacks {
     this.onReact,
     this.onRemove,
     this.onReply,
+    this.onReplyPrivately,
     this.onEdit,
     this.onDelete,
     this.onInfo,

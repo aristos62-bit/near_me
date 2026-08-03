@@ -709,39 +709,91 @@ final chatActionsProvider = NotifierProvider<ChatActionsNotifier, ChatActionStat
   ChatActionsNotifier.new,
 );
 
-class ReplyToMessageNotifier extends Notifier<Map<String, dynamic>?> {
+class ReplyToMessageNotifier extends Notifier<Map<String, Map<String, dynamic>?>> {
   @override
-  Map<String, dynamic>? build() => null;
-
-  void setReply(Map<String, dynamic>? msg) {
-    DebugConfig.log(DebugConfig.chatReply, 'reply set for msg=${msg?['messageId']}');
-    state = msg;
+  Map<String, Map<String, dynamic>?> build() {
+    DebugConfig.log(DebugConfig.providerCreate, 'ReplyToMessageNotifier built');
+    return const {};
   }
 
-  void clear() {
-    state = null;
+  void setReply(String chatId, Map<String, dynamic>? msg) {
+    final next = Map<String, Map<String, dynamic>?>.from(state);
+    next[chatId] = msg;
+    state = next;
+    DebugConfig.log(DebugConfig.chatReply, 'reply set for chat=$chatId msg=${msg?['id']}');
+  }
+
+  void clear(String chatId) {
+    if (!state.containsKey(chatId)) return;
+    final next = Map<String, Map<String, dynamic>?>.from(state);
+    next.remove(chatId);
+    state = next;
+    DebugConfig.log(DebugConfig.chatReply, 'reply cleared for chat=$chatId');
   }
 }
 
-final replyToMessageProvider = NotifierProvider<ReplyToMessageNotifier, Map<String, dynamic>?>(
+final replyToMessageProvider = NotifierProvider<ReplyToMessageNotifier, Map<String, Map<String, dynamic>?>>(
   ReplyToMessageNotifier.new,
 );
 
-class EditingMessageNotifier extends Notifier<Map<String, dynamic>?> {
-  @override
-  Map<String, dynamic>? build() => null;
+class PendingPrivateReply {
+  final String targetChatId;
+  final Map<String, dynamic> quotedMessage;
+  const PendingPrivateReply({required this.targetChatId, required this.quotedMessage});
+}
 
-  void setEdit(Map<String, dynamic>? msg) {
-    DebugConfig.log(DebugConfig.chatReply, 'edit set for msg=${msg?['id']}');
-    state = msg;
+/// Κρατάει προσωρινά ένα quoted μήνυμα από ομαδικό chat μέχρι να ανοίξει/
+/// δημιουργηθεί το προσωπικό chat και το καταναλώσει το δικό του ChatInputBar.
+/// Global provider, αλλά αυτο-ασφαλισμένο: consumeFor() επιστρέφει κάτι μόνο
+/// αν το targetChatId ταιριάζει, οπότε δεν υπάρχει κίνδυνος leak σε άσχετο chat.
+class PendingPrivateReplyNotifier extends Notifier<PendingPrivateReply?> {
+  @override
+  PendingPrivateReply? build() => null;
+
+  void set(String targetChatId, Map<String, dynamic> quotedMessage) {
+    DebugConfig.log(DebugConfig.chatReply,
+        'pendingPrivateReply: set target=$targetChatId msgId=${quotedMessage['id']}');
+    state = PendingPrivateReply(targetChatId: targetChatId, quotedMessage: quotedMessage);
   }
 
-  void clear() {
-    DebugConfig.log(DebugConfig.chatReply, 'edit cleared');
+  Map<String, dynamic>? consumeFor(String chatId) {
+    final current = state;
+    if (current == null || current.targetChatId != chatId) return null;
+    DebugConfig.log(DebugConfig.chatReply,
+        'pendingPrivateReply: consumed for chat=$chatId msgId=${current.quotedMessage['id']}');
     state = null;
+    return current.quotedMessage;
   }
 }
 
-final editingMessageProvider = NotifierProvider<EditingMessageNotifier, Map<String, dynamic>?>(
+final pendingPrivateReplyProvider =
+    NotifierProvider<PendingPrivateReplyNotifier, PendingPrivateReply?>(
+  PendingPrivateReplyNotifier.new,
+);
+
+class EditingMessageNotifier extends Notifier<Map<String, Map<String, dynamic>?>> {
+  @override
+  Map<String, Map<String, dynamic>?> build() {
+    DebugConfig.log(DebugConfig.providerCreate, 'EditingMessageNotifier built');
+    return const {};
+  }
+
+  void setEdit(String chatId, Map<String, dynamic>? msg) {
+    final next = Map<String, Map<String, dynamic>?>.from(state);
+    next[chatId] = msg;
+    state = next;
+    DebugConfig.log(DebugConfig.chatReply, 'edit set for chat=$chatId msg=${msg?['id']}');
+  }
+
+  void clear(String chatId) {
+    if (!state.containsKey(chatId)) return;
+    final next = Map<String, Map<String, dynamic>?>.from(state);
+    next.remove(chatId);
+    state = next;
+    DebugConfig.log(DebugConfig.chatReply, 'edit cleared for chat=$chatId');
+  }
+}
+
+final editingMessageProvider = NotifierProvider<EditingMessageNotifier, Map<String, Map<String, dynamic>?>>(
   EditingMessageNotifier.new,
 );

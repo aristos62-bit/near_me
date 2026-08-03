@@ -1,18 +1,12 @@
 import 'package:flutter/material.dart';
 import '../message_action_bar.dart';
 
-/// Κοινό wrapper που ανοίγει το [MessageActionBar] σε long-press
-/// και προωθεί την επιλογή του χρήστη (reply/edit/delete/info/email/share)
-/// στα αντίστοιχα callbacks. Χρησιμοποιείται από όλα τα τύπου bubble
-/// (text, gif/image, emoji-only, audio, video) για να αποφευχθεί
-/// επανάληψη κώδικα.
-///
-/// Το menu ανοίγει πάντα σε σταθερή θέση σχετικά με το bubble
-/// (όχι στο ακριβές σημείο του tap): κέντρο-δεξιά για ξένα μηνύματα,
-/// κέντρο-αριστερά για δικά μας.
 class BubbleLongPressWrapper extends StatelessWidget {
   final bool isMe;
+  final bool isGroupChat;
+  final bool isSenderBlockedByMe;
   final VoidCallback? onReply;
+  final VoidCallback? onReplyPrivately;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
   final VoidCallback? onInfo;
@@ -25,7 +19,10 @@ class BubbleLongPressWrapper extends StatelessWidget {
     super.key,
     required this.isMe,
     required this.child,
+    this.isGroupChat = false,
+    this.isSenderBlockedByMe = false,
     this.onReply,
+    this.onReplyPrivately,
     this.onEdit,
     this.onDelete,
     this.onInfo,
@@ -52,8 +49,10 @@ class BubbleLongPressWrapper extends StatelessWidget {
           isOwn: isMe,
           globalPosition: anchor,
           showEdit: canEdit,
+          showReplyPrivately: isGroupChat && !isMe && !isSenderBlockedByMe,
         );
         if (result == 'reply') onReply?.call();
+        if (result == 'reply_private') onReplyPrivately?.call();
         if (result == 'edit') onEdit?.call();
         if (result == 'delete') onDelete?.call();
         if (result == 'info') onInfo?.call();

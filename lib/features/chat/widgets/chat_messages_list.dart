@@ -11,8 +11,10 @@ import '../../../core/utils/app_messenger.dart';
 import '../../../core/utils/error_messages.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../block/providers/block_provider.dart';
 import '../providers/chat_provider.dart';
 import '../utils/chat_ui_utils.dart';
+import 'package:go_router/go_router.dart';
 import 'date_separator.dart';
 import 'message_bubble/message_bubble.dart';
 import 'message_bubble/message_callbacks.dart';
@@ -55,6 +57,7 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
   bool _isFirstLoad = true;
   int _buildCount = 0;
   Map<String, DateTime>? _lastLastReadTimestamps;
+  bool _isOpeningPrivateChat = false;
 
   @override
   void initState() {
@@ -408,7 +411,38 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
 
   void _onReply(Map<String, dynamic> msg) {
     DebugConfig.log(DebugConfig.chatReply, 'ChatMessagesList: reply msg=${msg['id']}');
-    ref.read(replyToMessageProvider.notifier).setReply(msg);
+    ref.read(replyToMessageProvider.notifier).setReply(widget.chatId, msg);
+  }
+
+  Future<void> _onReplyPrivately(Map<String, dynamic> msg) async {
+    final greek = L10n.isGreek(context);
+    final senderId = msg['senderId'] as String? ?? '';
+    final currentUid = ref.read(authStateProvider).value?.uid ?? '';
+    if (senderId.isEmpty || senderId == currentUid) {
+      DebugConfig.warn('ChatMessagesList: replyPrivately invalid '
+          'senderId=$senderId currentUid=$currentUid');
+      return;
+    }
+    if (_isOpeningPrivateChat) return;
+    _isOpeningPrivateChat = true;
+    DebugConfig.log(DebugConfig.uiInteraction,
+        'ChatMessagesList: replyPrivately tap sender=$senderId msgId=${msg['id']}');
+    try {
+      final chatId = await ref.read(chatActionsProvider.notifier).createChat(senderId);
+      if (!mounted) return;
+      if (chatId == null) {
+        final state = ref.read(chatActionsProvider);
+        AppMessenger.showError(context, state.errorMessage ??
+            ErrorMessages.get('chat/reply-privately-failed', greek));
+        return;
+      }
+      ref.read(pendingPrivateReplyProvider.notifier).set(chatId, msg);
+      DebugConfig.log(DebugConfig.chatReply,
+          'ChatMessagesList: replyPrivately opening chat=$chatId');
+      context.push('/chat/$chatId');
+    } finally {
+      if (mounted) _isOpeningPrivateChat = false;
+    }
   }
 
   static const _editWindow = Duration(minutes: 15);
@@ -428,7 +462,7 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
       AppMessenger.showInfo(context, ErrorMessages.get('chat/edit-timeout', greek));
       return;
     }
-    ref.read(editingMessageProvider.notifier).setEdit(msg);
+    ref.read(editingMessageProvider.notifier).setEdit(widget.chatId, msg);
   }
 
   Future<void> _onDelete(Map<String, dynamic> msg) async {
@@ -518,6 +552,9 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
           (a.asData?.value?.data() as Map<String, dynamic>?)?['isGroupChat'] ==
           true,
     ));
+    final blockedByMe = isGroupChat
+        ? (ref.watch(blockedUidsProvider(currentUid)).asData?.value ?? const <String>{})
+        : const <String>{};
     final participantNicknames = ref.watch(chatDocProvider(widget.chatId).select(
       (a) {
         final raw = (a.asData?.value?.data() as Map<String, dynamic>?)
@@ -584,7 +621,7 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
                     )
                   : _buildMessagesList(combinedMessages, currentUid, lastReadTimestamps, isGroupChat,
                       participantNicknames, participantAvatarUrls, participantUids, otherUid,
-                      hasPendingDelete, hasDeleteResponseNeeded, isLoadingOlder, greek),
+                      hasPendingDelete, hasDeleteResponseNeeded, isLoadingOlder, blockedByMe, greek),
             ),
           ],
         );
@@ -604,6 +641,7 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     bool hasPendingDelete,
     bool hasDeleteResponseNeeded,
     bool isLoadingOlder,
+    Set<String> blockedByMe,
     bool greek,
   ) {
     final renderItems = ChatGroupingCalculator.calculate(widget.chatId, combinedMessages, currentUid);
@@ -656,6 +694,7 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
 
         final msg = item.message!;
         final senderId = msg['senderId'] as String? ?? '';
+        final isSenderBlockedByMe = blockedByMe.contains(senderId);
         final senderNickname = participantNicknames[senderId];
         final senderAvatarUrl = participantAvatarUrls[senderId];
         if (senderNickname == null) {
@@ -673,6 +712,7 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
           message: msg,
           currentUid: currentUid,
           isGroupChat: isGroupChat,
+          isSenderBlockedByMe: isSenderBlockedByMe,
           isRead: props.effectiveIsRead,
           isGrouped: item.isGrouped,
           isLastInGroup: item.isLastInGroup,
@@ -695,6 +735,7 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
             onReact: _onReact,
             onRemove: _onRemove,
             onReply: () => _onReply(msg),
+            onReplyPrivately: () => _onReplyPrivately(msg),
             onEdit: () => _onEdit(msg),
             onDelete: () => _onDelete(msg),
             onInfo: () => _onInfo(

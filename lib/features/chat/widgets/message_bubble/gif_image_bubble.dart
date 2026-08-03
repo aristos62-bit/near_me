@@ -13,6 +13,7 @@ class GifImageBubble extends StatelessWidget {
   final String timeStr;
   final bool isMe;
   final bool isGroupChat;
+  final bool isSenderBlockedByMe;
   final bool isGrouped;
   final bool isLastInGroup;
   final bool showAvatar;
@@ -29,6 +30,7 @@ class GifImageBubble extends StatelessWidget {
   final Future<void> Function(String messageId)? onRemove;
   final Map<String, dynamic>? replyTo;
   final VoidCallback? onReply;
+  final VoidCallback? onReplyPrivately;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
   final VoidCallback? onInfo;
@@ -41,6 +43,7 @@ class GifImageBubble extends StatelessWidget {
     required this.timeStr,
     required this.isMe,
     this.isGroupChat = false,
+    this.isSenderBlockedByMe = false,
     this.isGrouped = false,
     this.isLastInGroup = true,
     this.showAvatar = true,
@@ -57,6 +60,7 @@ class GifImageBubble extends StatelessWidget {
     this.onRemove,
     this.replyTo,
     this.onReply,
+    this.onReplyPrivately,
     this.onEdit,
     this.onDelete,
     this.onInfo,
@@ -141,7 +145,10 @@ class GifImageBubble extends StatelessWidget {
                 children: [
                   BubbleLongPressWrapper(
                     isMe: isMe,
+                    isGroupChat: isGroupChat,
+                    isSenderBlockedByMe: isSenderBlockedByMe,
                     onReply: onReply,
+                    onReplyPrivately: onReplyPrivately,
                     onEdit: onEdit,
                     onDelete: onDelete,
                     onInfo: onInfo,

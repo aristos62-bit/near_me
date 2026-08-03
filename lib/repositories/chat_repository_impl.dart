@@ -140,42 +140,41 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
   }
 
   Future<String?> _findExistingChat(String uid1, String uid2) async {
+    // Tier 1 — τοπικό Drift cache (άμεσο, offline, χωρίς Firestore rules).
+    // Το cache συμπληρώνεται από streamChats() → _syncChatFromFirestore
+    // (γράφει ownerUid + otherUid). Ταξινομούμε κατά lastMessageAt desc ώστε,
+    // αν από παλιό bug υπάρχουν duplicate chats με τον ίδιο άνθρωπο, να
+    // προτιμηθεί αυτό με δραστηριότητα (το κενό duplicate έχει null).
     try {
-      final pairKey = [uid1, uid2]..sort();
-      final pairStr = '${pairKey[0]}_${pairKey[1]}';
-
-      // Tier 2 — participantPair direct hit
-      DebugConfig.log(DebugConfig.repositoryCall,
-          '_findExistingChat: Tier 2 lookup pair=$pairStr');
-      final pairSnapshot = await firestore
-          .collection('chats')
-          .where('participantPair', isEqualTo: pairStr)
-          .where('isGroupChat', isEqualTo: false)
-          .limit(1)
-          .get();
-
-      if (pairSnapshot.docs.isNotEmpty) {
-        final doc = pairSnapshot.docs.first;
-        final participants = List<String>.from(doc.data()['participants'] ?? []);
-        if (participants.contains(uid1) && participants.contains(uid2)) {
-          DebugConfig.log(DebugConfig.repositoryResult,
-              '_findExistingChat: Tier 2 hit chat=${doc.id}');
-          return doc.id;
-        }
+      final cached = await (db.select(db.chatCacheTable)
+        ..where((t) =>
+            t.ownerUid.equals(uid1) &
+            t.otherUid.equals(uid2) &
+            t.isGroupChat.equals(false))
+        ..orderBy([(t) => OrderingTerm.desc(t.lastMessageAt)])
+        ..limit(1)).get();
+      if (cached.isNotEmpty && cached.first.chatId != null) {
         DebugConfig.log(DebugConfig.repositoryResult,
-            '_findExistingChat: Tier 2 hit but inactive, fall through');
+            '_findExistingChat: Tier 1 cache hit chat=${cached.first.chatId}');
+        return cached.first.chatId;
       }
+    } catch (e) {
+      DebugConfig.warn('_findExistingChat: Tier 1 (local cache) failed', data: e);
+    }
 
-      // Tier 3 — legacy fallback (old chats without participantPair)
+    // Tier 2 — Firestore scan με 'participants arrayContains' (rules-compatible,
+    // ίδιο pattern με το streamChats). Καλύπτει την περίπτωση που το cache είναι
+    // ακόμα άδειο (π.χ. νέα εγκατάσταση / άλλη συσκευή).
+    try {
       DebugConfig.log(DebugConfig.repositoryCall,
-          '_findExistingChat: Tier 3 legacy fallback uid1=$uid1');
-      final legacySnapshot = await firestore
+          '_findExistingChat: Tier 2 Firestore scan uid1=$uid1');
+      final snapshot = await firestore
           .collection('chats')
           .where('participants', arrayContains: uid1)
-          .limit(10)
+          .limit(150)
           .get();
 
-      for (final doc in legacySnapshot.docs) {
+      for (final doc in snapshot.docs) {
         final data = doc.data();
         if (data['isGroupChat'] == true) {
           DebugConfig.log(DebugConfig.repositoryResult,
@@ -183,24 +182,13 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
           continue;
         }
         final participants = List<String>.from(data['participants'] ?? []);
-        if (!participants.contains(uid2)) continue;
-        if (participants.length != 2) {
-          DebugConfig.log(DebugConfig.repositoryResult,
-              '_findExistingChat: skip multi-participant chat=${doc.id} (${participants.length} members)');
-          continue;
-        }
-
-        // Self-healing lazy backfill
-        await firestore.collection('chats').doc(doc.id).update({
-          'participantPair': pairStr,
-          'isGroupChat': false,
-        }).catchError((_) {});
+        if (participants.length != 2 || !participants.contains(uid2)) continue;
         DebugConfig.log(DebugConfig.repositoryResult,
-            '_findExistingChat: Tier 3 hit + backfill chat=${doc.id}');
+            '_findExistingChat: Tier 2 hit chat=${doc.id}');
         return doc.id;
       }
     } catch (e) {
-      DebugConfig.warn('_findExistingChat failed', data: e);
+      DebugConfig.warn('_findExistingChat: Tier 2 (Firestore scan) failed', data: e);
     }
     return null;
   }

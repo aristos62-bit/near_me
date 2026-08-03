@@ -8,6 +8,7 @@ class MessageActionBar {
     required bool isOwn,
     required Offset globalPosition,
     bool showEdit = true,
+    bool showReplyPrivately = false,
   }) {
     final greek = L10n.isGreek(context);
     final items = <PopupMenuEntry<String>>[
@@ -17,6 +18,16 @@ class MessageActionBar {
           child: ListTile(
             leading: const Icon(Icons.reply, size: 20),
             title: Text(greek ? 'Απάντηση' : 'Reply'),
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+      if (FeatureFlags.replyPrivatelyEnabled && showReplyPrivately)
+        PopupMenuItem(
+          value: 'reply_private',
+          child: ListTile(
+            leading: const Icon(Icons.forum_outlined, size: 20),
+            title: Text(greek ? 'Απάντηση ιδιωτικά' : 'Reply privately'),
             dense: true,
             contentPadding: EdgeInsets.zero,
           ),

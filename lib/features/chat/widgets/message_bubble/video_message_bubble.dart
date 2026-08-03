@@ -18,6 +18,7 @@ class VideoMessageBubble extends StatefulWidget {
   final String timeStr;
   final bool isMe;
   final bool isGroupChat;
+  final bool isSenderBlockedByMe;
   final bool isGrouped;
   final bool isLastInGroup;
   final bool showAvatar;
@@ -33,6 +34,7 @@ class VideoMessageBubble extends StatefulWidget {
   final Future<void> Function(String messageId)? onRemove;
   final Map<String, dynamic>? replyTo;
   final VoidCallback? onReply;
+  final VoidCallback? onReplyPrivately;
   final VoidCallback? onDelete;
   final VoidCallback? onInfo;
   final VoidCallback? onEmail;
@@ -49,6 +51,7 @@ class VideoMessageBubble extends StatefulWidget {
     required this.timeStr,
     required this.isMe,
     this.isGroupChat = false,
+    this.isSenderBlockedByMe = false,
     this.isGrouped = false,
     this.isLastInGroup = true,
     this.showAvatar = true,
@@ -64,6 +67,7 @@ class VideoMessageBubble extends StatefulWidget {
     this.onRemove,
     this.replyTo,
     this.onReply,
+    this.onReplyPrivately,
     this.onDelete,
     this.onInfo,
     this.onEmail,
@@ -244,8 +248,11 @@ class _VideoMessageBubbleState extends State<VideoMessageBubble> {
                 children: [
                   BubbleLongPressWrapper(
                     isMe: widget.isMe,
+                    isGroupChat: widget.isGroupChat,
+                    isSenderBlockedByMe: widget.isSenderBlockedByMe,
                     canEdit: false,
                     onReply: widget.onReply,
+                    onReplyPrivately: widget.onReplyPrivately,
                     onDelete: widget.onDelete,
                     onInfo: widget.onInfo,
                     onEmail: widget.onEmail,

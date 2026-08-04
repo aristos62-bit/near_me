@@ -54,6 +54,7 @@ class ChatMessagesList extends ConsumerStatefulWidget {
 class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
   final _scrollCtrl = ScrollController();
   int _lastMessageCount = 0;
+  String? _lastMessageId;
   bool _isFirstLoad = true;
   int _buildCount = 0;
   Map<String, DateTime>? _lastLastReadTimestamps;
@@ -491,10 +492,13 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     }
   }
 
-  void _onMessagesChanged(List<Map<String, dynamic>> messages) {
+  void _onMessagesChanged(List<Map<String, dynamic>> messages, String currentUid) {
     if (messages.isEmpty || !mounted) return;
-    if (messages.length == _lastMessageCount && !_isFirstLoad) return;
-    final isNewMessage = messages.length > _lastMessageCount;
+    final newLastId = messages.last['id'] as String?;
+    final hasNewLast = newLastId != null && newLastId != _lastMessageId;
+    final isNewMessage = hasNewLast && messages.length >= _lastMessageCount;
+    final isOwnNewMessage = isNewMessage && messages.last['senderId'] == currentUid;
+    _lastMessageId = newLastId ?? _lastMessageId;
     _lastMessageCount = messages.length;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scrollCtrl.hasClients) return;
@@ -505,6 +509,17 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
       }
       if (!isNewMessage) return;
       final currentScroll = _scrollCtrl.position.pixels;
+      if (isOwnNewMessage) {
+        DebugConfig.log(DebugConfig.uiInteraction,
+            'ChatMessagesList: own message -> scroll-to-bottom '
+            '(from ${currentScroll.toInt()}px)');
+        _scrollCtrl.animateTo(
+          0,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
+        return;
+      }
       if (currentScroll > 50.0) {
         DebugConfig.log(DebugConfig.uiInteraction,
             'auto-scroll: suppressed (user ${currentScroll.toInt()}px from bottom)');
@@ -613,7 +628,7 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
         // _onMessagesChanged οδηγείται από το live window (όχι το combined),
         // ώστε το auto-scroll-to-bottom να ενεργοποιείται ΜΟΝΟ από νέα μηνύματα
         // και όχι από τη φόρτωση παλιότερων (που δεν πρέπει να προκαλεί scroll).
-        _onMessagesChanged(messages);
+        _onMessagesChanged(messages, currentUid);
         return Column(
           children: [
             Expanded(

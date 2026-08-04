@@ -562,3 +562,65 @@ pendingDelete=false deleteResponseNeeded=false  → after keepChat (Yahooman) �
 - **Κανόνες:** feature flag ✅, bilingual ✅, `ErrorMessages.get('chat/reply-privately-failed')` ✅, `AppMessenger` ✅, connectivity guard `_checkOnline()` ✅, repository pattern ✅, `canUserCommunicate` + block check στο repository ✅
 - **Παρατηρήσεις (μη-blocking):** duplicate σχόλιο `// Reply to Message` στο `feature_flags.dart:34-35` · file sizes > 500 (chat_messages_list 804, chat_input_bar 650, chat_provider 799 — προϋπήρχαν) · edge case: αν ακυρωθεί η πλοήγηση, το pending μένει στον global provider (self-safe μέσω `targetChatId`)
 - **`flutter analyze`:** clean ✅ (0 issues)
+
+---
+
+## Session 212 — Photo Gallery Viewer + Double-tap Zoom (100%) — 4 Αυγ 2026
+
+### Σκοπός
+Full-screen gallery viewer με swipe ανάμεσα στις φωτογραφίες ενός chat (type='image') + smooth double-tap zoom. Αντικατέστησε το single-image preview του `_showImageFullScreen`.
+
+### Τι έγινε
+- **Μόνο `gif_image_bubble.dart`** άλλαξε (κανένα άλλο αρχείο, κανένα νέο αρχείο)
+- **`GifImageBubble`** → `extends ConsumerWidget` — στο tap χρησιμοποιεί **`ref.read(combinedMessagesProvider(chatId))`** (SPoT, όχι watch → zero rebuild cascade)
+- **`_PhotoGalleryViewer`** (νέο StatefulWidget):
+  - `PageView.builder` με `TransformationController` + counter AppBar «${_current+1} / ${urls.length}»
+  - `NeverScrollableScrollPhysics` όταν scale > 1 (zoom/swipe conflict protection)
+  - `onPageChanged` → reset zoom
+  - **Double-tap zoom:** `GestureDetector(onDoubleTap)` + `AnimationController` (250ms easeOut) μέσω `Matrix4Tween` — 2.5x στο κέντρο ↔ identity. `SingleTickerProviderStateMixin`
+  - vector_math deprecations → `translateByDouble`/`scaleByDouble`
+  - Debug logs: `image tap idx=... of ...`, `open idx=... of ...`, `page -> N`, `double-tap zoom -> in/out`
+
+### Έλεγχος (device logs, 4 Αυγ 2026)
+- Swipe pagination OK (50→100 messages, page 0↔1), zoom in/out OK, dispose clean ✅
+- **0 rebuilds κατά τη διάρκεια gallery** — κανένα `MSG_LIST BUILD` μετά το init (4 builds μόνο στο άνοιγμα) ✅
+- GIF χωρίς image tap logs (δεν ανοίγει gallery) ✅
+- `double-tap zoom -> in/out` με ίδιο timestamp σε γρήγορα back-to-back double-taps = φυσιολογικό (ο animation σε εξέλιξη)
+
+### Backups
+- `backups/photo_gallery_20260804_202542/`
+- `backups/photo_gallery_zoom_20260804_221620/`
+- `backups/oldsessions_20260804_223251.md`
+
+### `flutter analyze`: clean ✅ (0 issues)
+
+---
+
+## Session 212β — Auto-scroll Fix (100%) — 4 Αυγ 2026
+
+### Το πρόβλημα (πραγματική αιτία — 2 σημεία)
+Στο `chat_messages_list.dart` `_onMessagesChanged`: όταν ο χρήστης έστελνε δικό του μήνυμα ενώ ήταν scrolled στη μέση/πάνω της λίστας:
+1. **Το suppression** `currentScroll > 50.0` κρατούσε τη θέση (δεν κατέβαινε στο νέο του μήνυμα).
+2. **ΚΡΙΣΙΜΟ (αρχική διάγνωση λάθος):** ο εντοπισμός "νέου μηνύματος" βασιζόταν στο count (`messages.length > _lastMessageCount`). Με **γεμάτο live window** (`limitToLast(50)`) το snapshot έβγαινε πάλι 50 docs → `50 == 50` → **καμία ενέργεια ΠΟΤΕ** (ούτε για δικά του, ούτε για εισερχόμενα).
+
+### Η λύση — εντοπισμός με ID, όχι count
+- **Μόνο `chat_messages_list.dart`** (3 σημεία: state field + `_onMessagesChanged` + κλήση με uid)
+- **Νέο state:** `String? _lastMessageId` — το id του νεότερου μηνύματος που είδαμε
+- **Νέος εντοπισμός:** `hasNewLast = newLastId != null && newLastId != _lastMessageId` · `isNewMessage = hasNewLast && length >= _lastMessageCount` (guard για delete) · `isOwnNewMessage = isNewMessage && senderId == currentUid`
+- **`isOwnNewMessage`** → **πάντα scroll κάτω** · εισερχόμενα → παραμένει η suppression ως είχε
+- **`currentUid`** από το build (ήδη υπάρχει, χωρίς νέο watch)
+- Debug logs: `ChatMessagesList: own message -> scroll-to-bottom (from Npx)` + υπάρχον `auto-scroll: suppressed`
+- **Rebuild storm:** 0 νέο watch, 0 νέο setState, `_lastMessageId` ενημερώνεται πριν το postFrameCallback → κανένα cascade
+
+### Έλεγχος (device logs, 4 Αυγ 2026)
+- **Δικό σου send στη μέση:** `own message -> scroll-to-bottom (from 9480px)` και `(from 19499px)` → scroll κάτω ✅
+- **Εισερχόμενο ενώ πάνω:** `auto-scroll: suppressed (user 11033px / 6993px)` → δεν κουνιέται ✅
+- **Window γεμάτο (50):** `messagesProvider emitted 50` σε κάθε νέο μήνυμα, παρόλα αυτά ο εντοπισμός με ID δουλεύει (το παλιό count-based θα έκανε no-op) ✅
+- **Rebuilds:** 1 μόνο `MSG_LIST BUILD` ανά νέο μήνυμα, κανένα cascade · Pagination (50→100→181) δεν σκανδάλει scroll ✅
+- `ChatMessagesList dispose` clean ✅
+
+### Backups
+- `backups/autoscroll_fix_20260804_223849/`
+- `backups/oldsessions_20260804_224646.md`
+
+### `flutter analyze`: clean ✅ (0 issues)

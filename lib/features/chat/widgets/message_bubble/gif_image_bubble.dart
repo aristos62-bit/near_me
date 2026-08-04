@@ -1,14 +1,17 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/debug/debug_config.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/read_receipt_indicator.dart';
-import 'reply_preview.dart';
-import 'tail_painter.dart';
-import 'sender_header.dart';
+import '../../providers/chat_provider.dart';
 import 'bubble_long_press_wrapper.dart';
 import 'message_reactions_row.dart';
-import '../../../../core/theme/app_colors.dart';
+import 'reply_preview.dart';
+import 'sender_header.dart';
+import 'tail_painter.dart';
 
-class GifImageBubble extends StatelessWidget {
+class GifImageBubble extends ConsumerWidget {
   final String content;
   final String timeStr;
   final bool isMe;
@@ -97,8 +100,42 @@ class GifImageBubble extends StatelessWidget {
     );
   }
 
+  static void _showGallery(BuildContext context, List<String> urls, int initialIndex) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _PhotoGalleryViewer(
+          imageUrls: urls,
+          initialIndex: initialIndex,
+        ),
+      ),
+    );
+  }
+
+  void _openImagePreview(BuildContext context, WidgetRef ref) {
+    final chatId = this.chatId;
+    if (chatId == null || chatId.isEmpty) {
+      _showImageFullScreen(context, content);
+      return;
+    }
+    final msgs = ref.read(combinedMessagesProvider(chatId));
+    final urls = msgs
+        .where((m) =>
+            m['type'] == 'image' &&
+            ((m['content'] as String?) ?? '').isNotEmpty)
+        .map((m) => m['content'] as String)
+        .toList();
+    final idx = urls.indexOf(content);
+    DebugConfig.log(DebugConfig.uiInteraction,
+        'GifImageBubble: image tap idx=$idx of ${urls.length} chat=$chatId');
+    if (urls.isEmpty) {
+      _showImageFullScreen(context, content);
+      return;
+    }
+    _showGallery(context, urls, idx < 0 ? 0 : idx);
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final showTail = isLastInGroup;
     final sentColor = _sentColor;
@@ -155,7 +192,7 @@ class GifImageBubble extends StatelessWidget {
                     onEmail: onEmail,
                     onShare: onShare,
                       child: GestureDetector(
-                        onTap: isImage ? () => _showImageFullScreen(context, content) : null,
+                        onTap: isImage ? () => _openImagePreview(context, ref) : null,
                         child: Container(
                           constraints: BoxConstraints(
                               maxWidth: bubbleMaxWidth, maxHeight: 200),
@@ -241,6 +278,143 @@ class GifImageBubble extends StatelessWidget {
                 ),
               ),
             ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _PhotoGalleryViewer extends StatefulWidget {
+  final List<String> imageUrls;
+  final int initialIndex;
+
+  const _PhotoGalleryViewer({
+    required this.imageUrls,
+    required this.initialIndex,
+  });
+
+  @override
+  State<_PhotoGalleryViewer> createState() => _PhotoGalleryViewerState();
+}
+
+class _PhotoGalleryViewerState extends State<_PhotoGalleryViewer>
+    with SingleTickerProviderStateMixin {
+  late final PageController _pageCtrl;
+  final TransformationController _zoomCtrl = TransformationController();
+  late final AnimationController _zoomAnimCtrl;
+  late int _current;
+  bool _wasZoomed = false;
+  Size _viewport = Size.zero;
+  Matrix4? _zoomFrom;
+  Matrix4? _zoomTo;
+
+  @override
+  void initState() {
+    super.initState();
+    _current = widget.initialIndex;
+    _pageCtrl = PageController(initialPage: widget.initialIndex);
+    _zoomAnimCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 250),
+    )..addListener(_onZoomAnimTick);
+    _zoomCtrl.addListener(_onZoomChanged);
+    DebugConfig.log(DebugConfig.uiInteraction,
+        'PhotoGalleryViewer: open idx=${widget.initialIndex} of ${widget.imageUrls.length}');
+  }
+
+  @override
+  void dispose() {
+    _zoomAnimCtrl.removeListener(_onZoomAnimTick);
+    _zoomAnimCtrl.dispose();
+    _zoomCtrl.removeListener(_onZoomChanged);
+    _zoomCtrl.dispose();
+    _pageCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onZoomAnimTick() {
+    final from = _zoomFrom;
+    final to = _zoomTo;
+    if (from == null || to == null) return;
+    final t = Curves.easeOut.transform(_zoomAnimCtrl.value);
+    _zoomCtrl.value = Matrix4Tween(begin: from, end: to).transform(t);
+  }
+
+  static Matrix4 _centeredZoom(Size size, double scale) {
+    return Matrix4.identity()
+      ..translateByDouble(size.width / 2, size.height / 2, 0, 1)
+      ..scaleByDouble(scale, scale, scale, 1)
+      ..translateByDouble(-size.width / 2, -size.height / 2, 0, 1);
+  }
+
+  void _toggleZoom() {
+    final currentScale = _zoomCtrl.value.getMaxScaleOnAxis();
+    _zoomFrom = _zoomCtrl.value;
+    _zoomTo = currentScale > 1.0
+        ? Matrix4.identity()
+        : _centeredZoom(_viewport, 2.5);
+    _zoomAnimCtrl.forward(from: 0);
+    DebugConfig.log(DebugConfig.uiInteraction,
+        'PhotoGalleryViewer: double-tap zoom -> '
+        '${currentScale > 1.0 ? "out" : "in"}');
+  }
+
+  void _onZoomChanged() {
+    final zoomed = _zoomCtrl.value.getMaxScaleOnAxis() > 1.0;
+    if (zoomed != _wasZoomed) {
+      _wasZoomed = zoomed;
+      if (mounted) setState(() {});
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: Text(
+          '${_current + 1} / ${widget.imageUrls.length}',
+          style: const TextStyle(color: Colors.white),
+        ),
+      ),
+      body: LayoutBuilder(
+        builder: (ctx, constraints) {
+          _viewport = constraints.biggest;
+          return PageView.builder(
+            controller: _pageCtrl,
+            physics: _wasZoomed
+                ? const NeverScrollableScrollPhysics()
+                : const PageScrollPhysics(),
+            itemCount: widget.imageUrls.length,
+            onPageChanged: (i) {
+              setState(() => _current = i);
+              _zoomAnimCtrl.stop();
+              _zoomFrom = null;
+              _zoomTo = null;
+              _zoomCtrl.value = Matrix4.identity();
+              _wasZoomed = false;
+              DebugConfig.log(DebugConfig.uiInteraction,
+                  'PhotoGalleryViewer: page -> $i');
+            },
+            itemBuilder: (_, i) => GestureDetector(
+              onDoubleTap: _toggleZoom,
+              child: InteractiveViewer(
+                transformationController: _zoomCtrl,
+                maxScale: 5,
+                child: Center(
+                  child: CachedNetworkImage(
+                    imageUrl: widget.imageUrls[i],
+                    fit: BoxFit.contain,
+                    placeholder: (_, _) => const CircularProgressIndicator(),
+                    errorWidget: (_, _, _) =>
+                        const Icon(Icons.broken_image, color: Colors.white),
+                  ),
+                ),
+              ),
+            ),
           );
         },
       ),

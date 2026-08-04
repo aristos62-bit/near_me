@@ -365,8 +365,8 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
       AppMessenger.showSuccess(context, ErrorMessages.get('chat/forwarded', greek));
     } else {
       final state = ref.read(chatActionsProvider);
-      AppMessenger.showError(context, state.errorMessage ??
-          ErrorMessages.get('chat/forward-failed', greek));
+      AppMessenger.showError(context, ErrorMessages.get(
+          state.errorMessage ?? 'chat/forward-failed', greek));
     }
   }
 
@@ -414,7 +414,7 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     ref.read(replyToMessageProvider.notifier).setReply(widget.chatId, msg);
   }
 
-  Future<void> _onReplyPrivately(Map<String, dynamic> msg) async {
+  Future<void> _onReplyPrivately(Map<String, dynamic> msg, Map<String, String> participantNicknames) async {
     final greek = L10n.isGreek(context);
     final senderId = msg['senderId'] as String? ?? '';
     final currentUid = ref.read(authStateProvider).value?.uid ?? '';
@@ -431,12 +431,15 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
       final chatId = await ref.read(chatActionsProvider.notifier).createChat(senderId);
       if (!mounted) return;
       if (chatId == null) {
-        final state = ref.read(chatActionsProvider);
-        AppMessenger.showError(context, state.errorMessage ??
-            ErrorMessages.get('chat/reply-privately-failed', greek));
-        return;
+      final state = ref.read(chatActionsProvider);
+      AppMessenger.showError(context, ErrorMessages.get(
+          state.errorMessage ?? 'chat/reply-privately-failed', greek));
+      return;
       }
-      ref.read(pendingPrivateReplyProvider.notifier).set(chatId, msg);
+
+      final senderNicknameHint = participantNicknames[senderId] ?? senderId;
+      ref.read(pendingPrivateReplyProvider.notifier)
+          .set(chatId, msg, senderNicknameHint: senderNicknameHint);
       DebugConfig.log(DebugConfig.chatReply,
           'ChatMessagesList: replyPrivately opening chat=$chatId');
       context.push('/chat/$chatId');
@@ -735,7 +738,7 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
             onReact: _onReact,
             onRemove: _onRemove,
             onReply: () => _onReply(msg),
-            onReplyPrivately: () => _onReplyPrivately(msg),
+            onReplyPrivately: () => _onReplyPrivately(msg, participantNicknames),
             onEdit: () => _onEdit(msg),
             onDelete: () => _onDelete(msg),
             onInfo: () => _onInfo(

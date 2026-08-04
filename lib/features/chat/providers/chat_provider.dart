@@ -739,7 +739,12 @@ final replyToMessageProvider = NotifierProvider<ReplyToMessageNotifier, Map<Stri
 class PendingPrivateReply {
   final String targetChatId;
   final Map<String, dynamic> quotedMessage;
-  const PendingPrivateReply({required this.targetChatId, required this.quotedMessage});
+  final String? senderNicknameHint;
+  const PendingPrivateReply({
+    required this.targetChatId,
+    required this.quotedMessage,
+    this.senderNicknameHint,
+  });
 }
 
 /// Κρατάει προσωρινά ένα quoted μήνυμα από ομαδικό chat μέχρι να ανοίξει/
@@ -750,19 +755,24 @@ class PendingPrivateReplyNotifier extends Notifier<PendingPrivateReply?> {
   @override
   PendingPrivateReply? build() => null;
 
-  void set(String targetChatId, Map<String, dynamic> quotedMessage) {
+  void set(String targetChatId, Map<String, dynamic> quotedMessage, {String? senderNicknameHint}) {
     DebugConfig.log(DebugConfig.chatReply,
-        'pendingPrivateReply: set target=$targetChatId msgId=${quotedMessage['id']}');
-    state = PendingPrivateReply(targetChatId: targetChatId, quotedMessage: quotedMessage);
+        'pendingPrivateReply: set target=$targetChatId msgId=${quotedMessage['id']} '
+            'senderNicknameHint=$senderNicknameHint');
+    state = PendingPrivateReply(
+      targetChatId: targetChatId,
+      quotedMessage: quotedMessage,
+      senderNicknameHint: senderNicknameHint,
+    );
   }
 
-  Map<String, dynamic>? consumeFor(String chatId) {
+  PendingPrivateReply? consumeFor(String chatId) {
     final current = state;
     if (current == null || current.targetChatId != chatId) return null;
     DebugConfig.log(DebugConfig.chatReply,
         'pendingPrivateReply: consumed for chat=$chatId msgId=${current.quotedMessage['id']}');
     state = null;
-    return current.quotedMessage;
+    return current;
   }
 }
 

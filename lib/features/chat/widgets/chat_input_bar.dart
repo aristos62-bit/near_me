@@ -66,8 +66,12 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     final pending = ref.read(pendingPrivateReplyProvider.notifier).consumeFor(widget.chatId);
     if (pending != null) {
       DebugConfig.log(DebugConfig.chatReply,
-          'ChatInputBar: applying pending private-reply quote chat=${widget.chatId}');
-      _replyNotifier.setReply(widget.chatId, pending);
+          'ChatInputBar: applying pending private-reply quote chat=${widget.chatId} '
+              'senderNicknameHint=${pending.senderNicknameHint}');
+      final quoted = pending.senderNicknameHint != null
+          ? {...pending.quotedMessage, '_privateReplySenderNickname': pending.senderNicknameHint}
+          : pending.quotedMessage;
+      _replyNotifier.setReply(widget.chatId, quoted);
     }
     DebugConfig.log(DebugConfig.uiInteraction,
         'ChatInputBar init: ${widget.chatId}');
@@ -184,7 +188,9 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
 
     final senderNickname = senderId == currentUid
         ? ''
-        : (widget.participantNicknames[senderId] ?? senderId);
+        : (replyToMsg['_privateReplySenderNickname'] as String? ??
+        widget.participantNicknames[senderId] ??
+        senderId);
 
     return {
       'messageId': replyToMsg['id'] ?? '',
@@ -409,7 +415,9 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
 
     final senderNickname = senderId == currentUid
         ? ''
-        : (widget.participantNicknames[senderId] ?? senderId);
+        : (replyToMsg['_privateReplySenderNickname'] as String? ??
+        widget.participantNicknames[senderId] ??
+        senderId);
 
     DebugConfig.log(DebugConfig.chatReply,
         'ChatInputBar: reply banner for @$senderNickname: $preview');

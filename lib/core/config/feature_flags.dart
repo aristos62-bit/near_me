@@ -32,7 +32,6 @@ class FeatureFlags {
   static const bool messageReactionsEnabled = true;
 
   // Reply to Message
-  // Reply to Message
   static const bool replyToMessageEnabled = true;
   static const bool replyPrivatelyEnabled = true;
 

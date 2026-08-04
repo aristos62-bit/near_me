@@ -259,7 +259,7 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 | Build | `flutter analyze` clean, release APK ~15.8MB |
 | Tests | 30/30 passed |
 | Schema | Drift v12, 7 tables |
-| Feature Flags | 14 (audioMessagesEnabled, typesenseEnabled, videoCallEnabled, groupChatEnabled, gifSupportEnabled, mediaMessagesEnabled, messageReactionsEnabled, replyToMessageEnabled, groupEventsEnabled, webVersionEnabled, aiMatchingEnabled, verifiedBadgeEnabled, premiumTierEnabled, messageExpiryEnabled) |
+| Feature Flags | 21 (typesense, videoCall, groupChat, gifSupport, mediaMessages, audioMessages, videoMessages, messageExpiry, messageReactions, replyToMessage, **replyPrivately**, editMessage, deleteMessage, messageInfo, messageEmail, messageShare, groupEvents, webVersion, aiMatching, verifiedBadge, premiumTier) |
 
 ## Key Conventions
 - File size ≤ 500 lines (exceptions: profile_repository_impl ~570, chat_repository_impl ~590 with user permission)
@@ -538,3 +538,27 @@ pendingDelete=false deleteResponseNeeded=false  → after keepChat (Yahooman) �
 - (in-place edits, backup από προηγούμενο session)
 
 ### `flutter analyze`: clean ✅ (0 issues)
+
+---
+
+## Session 211 — Reply Privately (100%) — 3 Αυγ 2026
+
+### Σκοπός
+Επιλογή **"Απάντηση ιδιωτικά"** σε long-press ομαδικού chat: ανοίγει/δημιουργεί 1-to-1 chat με τον αποστολέα και φορτώνει αυτόματα το quoted μήνυμα ως quote banner στο ChatInputBar.
+
+### Τι έγινε
+- **`message_action_bar.dart`** — νέο menu item `reply_private` (bilingual "Απάντηση ιδιωτικά / Reply privately"), gated με `FeatureFlags.replyPrivatelyEnabled`
+- **`bubble_long_press_wrapper.dart`** — `showReplyPrivately: isGroupChat && !isMe && !isSenderBlockedByMe`, νέο callback `onReplyPrivately`
+- **`message_callbacks.dart` + `message_bubble.dart` + text/video/gif/audio bubbles** — pass-through `onReplyPrivately`
+- **`chat_messages_list.dart`** — `_onReplyPrivately(msg)`: `createChat(senderId)` → `pendingPrivateReply.set(chatId, msg)` → `context.push('/chat/$chatId')` + `_isOpeningPrivateChat` double-tap guard
+- **`chat_provider.dart`** — `PendingPrivateReply` model + `pendingPrivateReplyProvider` (global Notifier, self-safe `consumeFor` με `targetChatId` match)
+- **`chat_input_bar.dart`** — `consumeFor(chatId)` στο `initState` → `setReply(chatId, pending)` → εμφάνιση quote banner
+- **`feature_flags.dart`** — `replyPrivatelyEnabled = true`
+- **`error_messages.dart`** — `chat/reply-privately-failed`
+
+### Έλεγχος (4 Αυγ 2026)
+- **Flow:** σωστό — long-press → menu → createChat → pending set → push → ChatInputBar initState consume → banner ✅
+- **Rebuilds:** **0 από το feature** — κανείς δεν κάνει `watch` το `pendingPrivateReplyProvider` (μόνο `ref.read`). `setReply` rebuilds μόνο το ChatInputBar (επιθυμητό). `createChat` → `ref.invalidate(chatsProvider)` (αναμενόμενο)
+- **Κανόνες:** feature flag ✅, bilingual ✅, `ErrorMessages.get('chat/reply-privately-failed')` ✅, `AppMessenger` ✅, connectivity guard `_checkOnline()` ✅, repository pattern ✅, `canUserCommunicate` + block check στο repository ✅
+- **Παρατηρήσεις (μη-blocking):** duplicate σχόλιο `// Reply to Message` στο `feature_flags.dart:34-35` · file sizes > 500 (chat_messages_list 804, chat_input_bar 650, chat_provider 799 — προϋπήρχαν) · edge case: αν ακυρωθεί η πλοήγηση, το pending μένει στον global provider (self-safe μέσω `targetChatId`)
+- **`flutter analyze`:** clean ✅ (0 issues)

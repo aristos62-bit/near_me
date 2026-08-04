@@ -21,6 +21,7 @@ import 'audio_recorder_sheet.dart';
 import 'emoji_only_bubble.dart';
 import 'gif_picker_sheet.dart';
 import 'media_picker_sheet.dart';
+import 'message_bubble/reply_preview.dart';
 
 class ChatInputBar extends ConsumerStatefulWidget {
   final String chatId;
@@ -185,6 +186,11 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     final isEmoji = type == 'text' && isOnlyEmoji(content);
 
     final contentPreview = _mediaPreview(type, content, isEmoji);
+    final thumbnailUrl = replyToMsg['thumbnailUrl'] as String?;
+    final hasMediaUrl = (type == 'image' || type == 'gif') && content.isNotEmpty
+        || type == 'video' && thumbnailUrl != null && thumbnailUrl.isNotEmpty;
+    DebugConfig.log(DebugConfig.chatReply,
+        'ChatInputBar: reply data type=$type hasMediaUrl=$hasMediaUrl');
 
     final senderNickname = senderId == currentUid
         ? ''
@@ -197,6 +203,9 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
       'senderId': senderId,
       'contentPreview': contentPreview,
       'senderNickname': senderNickname,
+      'type': type,
+      if (type == 'image' || type == 'gif') 'content': content,
+      if (type == 'video' && thumbnailUrl != null) 'thumbnailUrl': thumbnailUrl,
     };
   }
 
@@ -411,7 +420,13 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     final currentUid = ref.read(authStateProvider).value?.uid ?? '';
     final isEmoji = type == 'text' && isOnlyEmoji(content);
 
-    final preview = _mediaPreview(type, content, isEmoji, greek: greek);
+    final preview = _mediaPreview(type, content, isEmoji);
+    final thumbnailUrl = replyToMsg['thumbnailUrl'] as String?;
+    final mediaUrl = (type == 'image' || type == 'gif') && content.isNotEmpty
+        ? content
+        : (type == 'video' && thumbnailUrl != null && thumbnailUrl.isNotEmpty
+            ? thumbnailUrl
+            : null);
 
     final senderNickname = senderId == currentUid
         ? ''
@@ -420,7 +435,8 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
         senderId);
 
     DebugConfig.log(DebugConfig.chatReply,
-        'ChatInputBar: reply banner for @$senderNickname: $preview');
+        'ChatInputBar: reply banner for @$senderNickname: $preview'
+        '${mediaUrl != null ? " (thumb)" : ""}');
 
     return Container(
       decoration: BoxDecoration(
@@ -433,6 +449,10 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
         children: [
           Icon(Icons.reply, size: 18, color: theme.colorScheme.onSurfaceVariant),
           const SizedBox(width: 8),
+          if (mediaUrl != null) ...[
+            ReplyMediaThumbnail(imageUrl: mediaUrl),
+            const SizedBox(width: 8),
+          ],
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

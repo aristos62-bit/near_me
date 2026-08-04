@@ -624,3 +624,34 @@ Full-screen gallery viewer με swipe ανάμεσα στις φωτογραφί
 - `backups/oldsessions_20260804_224646.md`
 
 ### `flutter analyze`: clean ✅ (0 issues)
+
+---
+
+## Session 213 — Reply Thumbnails για Media (100%) — 4 Αυγ 2026
+
+### Σκοπός
+Μικρογραφία (thumbnail) στις απαντήσεις (replies) σε media μηνύματα — τόσο στο quote banner του ChatInputBar όσο και στο quote preview μέσα στο chat.
+
+### Το πρόβλημα (πραγματική αιτία)
+Το `_onReply(msg)` (`chat_messages_list.dart:413`) κρατάει **ολόκληρο** το μήνυμα στο `replyToMessageProvider`, αλλά το `_buildReplyData` στο `chat_input_bar.dart` κρατούσε μόνο κείμενο (`msg`, `type=text`) → στο Firestore το `replyTo` έχανε το media URL → ο παραλήπτης έβλεπε quote χωρίς thumbnail.
+
+### Τι έγινε
+- **Μόνο 2 αρχεία** (κανένα νέο):
+- **`reply_preview.dart`** — νέο shared widget **`ReplyMediaThumbnail`** (44×44, `CachedNetworkImage`, ClipRRect, placeholder/errorWidget) με SPoT helper `ReplyMediaThumbnail.urlFor(replyTo)` (image/gif → `content`, video → `thumbnailUrl`, μόνο για media types με non-empty URL). `ReplyPreview` δείχνει Row(thumbnail + κείμενο) όταν `isMedia`· αλλιώς κείμενο (graceful για παλιά μηνύματα).
+- **`chat_input_bar.dart`** — `_buildReplyData` προσθέτει `'type'` + `'content'` (image/gif) ή `'thumbnailUrl'` (video) στο replyTo map· `_buildReplyBanner` εμφανίζει `ReplyMediaThumbnail` (reuse)· import `message_bubble/reply_preview.dart` προστέθηκε.
+
+### Έλεγχος (device logs, 4 Αυγ 2026)
+- **GIF:** `reply data type=gif hasMediaUrl=true` + `ReplyPreview: thumbnail=yes` ✅
+- **Φωτογραφία:** `reply data type=image hasMediaUrl=true` + `ReplyPreview: thumbnail=yes` ✅
+- **Βίντεο:** `reply data type=video hasMediaUrl=true` + `ReplyPreview: thumbnail=yes` ✅
+- **Group chat (My Team):** GIF → `thumbnail=yes` ✅
+- Banner στο input: `reply banner for @Yahooman: 🎞️ GIF / 📷 Photo / 🎬 Video (thumb)` ✅
+- **Rebuild storm:** 1-3 `MSG_LIST BUILD` ανά send (καθαρό) — τα `(×N)` στα logs είναι το DebugConfig 1-sec buffer (όχι rebuilds) ✅
+- **Graceful:** παλιά replies → `thumbnail=no` (ως είχε) ✅
+- **Παρατήρηση (unrelated):** 1ο GIF send απέτυχε με `blocked by scIChf...` — ο Yahooman έχει κάνει block στο 1-to-1 (δεν αφορά το fix)· 2ο send πέρασε ✅
+
+### Backups
+- `backups/reply_thumbnail_20260804_231356/`
+- `backups/oldsessions_20260804_232637.md`
+
+### `flutter analyze`: clean ✅ (0 issues)

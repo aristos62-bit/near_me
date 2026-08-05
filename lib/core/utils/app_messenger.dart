@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../debug/debug_config.dart';
 import '../l10n/l10n.dart';
+import '../theme/responsive_utils.dart';
 
 class AppMessenger {
   AppMessenger._();
@@ -31,6 +32,10 @@ class AppMessenger {
     }
     final theme = Theme.of(context);
     final colors = _colorsFor(type, theme);
+    final viewInsetsBottom = MediaQuery.viewInsetsOf(context).bottom;
+    DebugConfig.log(DebugConfig.uiInteraction,
+        'AppMessenger: snackbar bottom=${(viewInsetsBottom + 16).toInt()}px '
+        'keyboard=${ResponsiveUtils.isKeyboardVisible(context)}');
 
     messenger
       ..clearSnackBars()
@@ -52,7 +57,12 @@ class AppMessenger {
           backgroundColor: colors.bgColor,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          margin: const EdgeInsets.all(16),
+          margin: EdgeInsets.only(
+            left: 16,
+            top: 16,
+            right: 16,
+            bottom: viewInsetsBottom + 16,
+          ),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           duration: const Duration(seconds: 4),
           action: SnackBarAction(

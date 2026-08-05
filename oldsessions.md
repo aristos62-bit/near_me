@@ -743,3 +743,61 @@ Minimal οριζόντια κάρτα στη Discovery: κυκλικό avatar α
 - `backups/oldsessions_20260805_130541.md`
 
 ### `flutter analyze`: clean ✅ (0 issues)
+
+---
+
+## Session 217 — AppMessenger Snackbar Keyboard Fix (100%) — 5 Αυγ 2026
+
+### Σκοπός
+Τα error/success snackbars εμφανίζονταν κρυμμένα πίσω από το πληκτρολόγιο στα screens που κρατάνε `resizeToAvoidBottomInset: false` (main_shell:32, chat_screen:278, chat_list_screen:32, discovery_screen:269) — το Scaffold δεν υπολογίζει viewInsets → το floating snackbar έμενε κάτω από το keyboard.
+
+### Διάγνωση
+- Όλα τα snackbars περνούν **SPoT** από `AppMessenger` (grep: κανένα raw `SnackBar` στο project).
+- Σε screens με `resize:false` τα viewInsets διατίθενται μόνο μέσα από το body → εφαρμόζονται ως dynamic margin.
+
+### Η λύση (μόνο `lib/core/utils/app_messenger.dart`)
+- Snackbar `margin`: `EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.viewInsetsOf(context).bottom + 16)` → όταν το keyboard είναι ανοιχτό το snackbar ανεβαίνει πάνω του· όταν κλειστό margin=16 (όπως πριν, zero UI change).
+- `import 'core/theme/responsive_utils.dart'` + `DebugConfig.log(DebugConfig.uiInteraction, 'AppMessenger: showing ... margin-bottom=${...}')`.
+- **SPoT**: helper `ResponsiveUtils.isKeyboardVisible(context)` (responsive_utils:100-102) ήδη υπήρχε — δεν προστέθηκε νέο duplicated logic.
+
+### Επαλήθευση
+- `flutter analyze`: clean ✅ (0 issues)
+- `test/widget_test.dart:17-49` (AppMessenger tests) unaffected — viewInsets=0 σε test environment.
+- Όχι rebuild storm: event-driven, non-interceptive.
+- Backup: `backups/app_messenger_20260805_143321.dart`
+
+### Backups
+- `backups/app_messenger_20260805_143321.dart`
+
+### `flutter analyze`: clean ✅ (0 issues)
+
+---
+
+## Session 218 — Router `/groups` placeholders → real ChatScreen (100%) — 5 Αυγ 2026
+
+### Σκοπός
+Αντικατάσταση των placeholder routes `/groups` (→ `/chats` redirect) και `/groups/:chatId` (→ πραγματικό ChatScreen με `ChatNavExtra(isGroupChat: true)`) στο `app_router.dart`.
+
+### Διάγνωση
+- Όλα τα pushes του app περνούν `ChatNavExtra(isGroupChat, groupName)` (chat_list_screen:261-263, group_search_screen:279-283, create_group_screen:150-151) — κρίσιμο γιατί το `ChatScreen.initState` (γρ. 81-97) χρειάζεται το `isGroupChat` ΠΡΙΝ φορτώσει ο `chatDocProvider`.
+- Το πειραματικό `/groups/:chatId` με κενό Drift cache χωρίς `navExtra` → `isGroup=false` σε group → λάθος `markAsRead`/initial-state.
+
+### Η λύση (μόνο `lib/core/router/app_router.dart`, 2 routes)
+- `/groups` → `redirect: (_, _) => '/chats'` (lint: `(_, _)` not `(_, __)`).
+- `/groups/:chatId` → `_slideUp(ChatScreen(chatId, navExtra: ChatNavExtra(isGroupChat: true)))` (groupName έρχεται μόνο από το chatDocProvider) + `DebugConfig.log(DebugConfig.navigationRoute, ...)`.
+- Backup: `backups/app_router_20260805_184037.dart`
+
+### Επαλήθευση (device logs, 5 Αυγ 2026)
+- 1-1 chat `Sfh...KuY`: `isGroup=false`, `markAsRead isGroup=false`, BUILD #1+#2 ✅
+- Group "My Team" `Yz...J3`: `isGroup=true`, `markAsRead isGroupChat=true src=drift`, `canInvite` false→true load, BUILD #1-#3 ✅ (καθόλα φυσιολογικά, μακριά από cascade)
+- `chatsProvider emitted prev=null next=7` μία φορά → fix Session 216 ενεργό ✅ · `prev=7 next=7` once = νόμιμο (πραγματική content αλλαγή, πέρασε equality-check) ✅
+- `Redirect: location=/chat/...` σε όλα τα opens — το UI πάει πάντα `/chat/`, άρα το `/groups` route δεν δοκιμάστηκε άμεσα σήμερα (out-of-scope, προτείνεται widget test)
+
+### Γνωστά out-of-scope gaps (προτείνονται ως ξεχωριστό βήμα)
+- `join_confirmation_screen.dart:72` → `context.go('/chat/$chatId')` χωρίς `extra` (group-capable)
+- `fcm_service.dart:89,166` → deep links χωρίς `extra` (group-capable)
+
+### Backups
+- `backups/app_router_20260805_184037.dart`
+
+### `flutter analyze`: clean ✅ (0 issues)

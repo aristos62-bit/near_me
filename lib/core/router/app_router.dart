@@ -172,8 +172,7 @@ class AppRouter {
       // --- Group Chat Routes (Phase 7: replace Scaffold placeholders with real screens) ---
       GoRoute(
         path: '/groups',
-        pageBuilder: (context, state) =>
-            _slideUp(const Scaffold(body: Center(child: Text('Groups / GroupListScreen')))),
+        redirect: (_, _) => '/chats',
       ),
       GoRoute(
         path: '/groups/create',
@@ -212,9 +211,15 @@ class AppRouter {
       ),
       GoRoute(
         path: '/groups/:chatId',
-        pageBuilder: (context, state) => _slideUp(Scaffold(
-          body: Center(child: Text('GroupChatScreen: ${state.pathParameters['chatId']}')),
-        )),
+        pageBuilder: (context, state) {
+          final chatId = state.pathParameters['chatId']!;
+          DebugConfig.log(DebugConfig.navigationRoute,
+              'Router: /groups/:chatId → ChatScreen chat=$chatId isGroup=true');
+          return _slideUp(ChatScreen(
+            chatId: chatId,
+            navExtra: const ChatNavExtra(isGroupChat: true),
+          ));
+        },
       ),
       GoRoute(
         path: '/groups/:chatId/add',

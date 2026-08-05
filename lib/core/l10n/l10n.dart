@@ -283,6 +283,22 @@ class L10n {
       isGreek
           ? (count == 1 ? '$count νέο αίτημα' : '$count νέα αιτήματα')
           : '$count new request${count == 1 ? '' : 's'}';
+
+  static String ageLabel(int age, {required bool isGreek}) =>
+      isGreek ? '$age ετών' : '$age years';
+
+  static String unknownName({required bool isGreek}) =>
+      isGreek ? 'Άγνωστο' : 'Unknown';
+
+  /// SPoT για την απόσταση με πλαίσιο (Συνοικία / Πόλη).
+  /// Αντικαθιστά τα duplicated `_distanceLabel` σε profile_card και public_profile_header.
+  static String distanceLabel(double km, String? geoHash, {required bool isGreek}) {
+    final dist = distanceText(km, metric: true);
+    if (geoHash != null && geoHash.length >= 5) {
+      return isGreek ? 'Απόσταση Συνοικίας εντός: $dist' : 'Distance within Neighborhood: $dist';
+    }
+    return isGreek ? 'Απόσταση Πόλης εντός: $dist' : 'Distance within City: $dist';
+  }
 }
 
 enum TemperatureUnit { celsius, fahrenheit }

@@ -655,3 +655,91 @@ Full-screen gallery viewer με swipe ανάμεσα στις φωτογραφί
 - `backups/oldsessions_20260804_232637.md`
 
 ### `flutter analyze`: clean ✅ (0 issues)
+
+---
+
+## Session 214 — GeoHash Adaptive Precision Fix + Radius 500km (100%) — 5 Αυγ 2026
+
+### Το πρόβλημα (silent data loss)
+Στο `searchPrecision()` του `geohash_utils.dart`: ο βρόχος εύρεσης precision είχε κάτω όριο `p >= 3` → για radius > ~120-150km (Ελλάδα) κανένα κελί δεν ήταν αρκετά μεγάλο → **fallback=3** (κελί ~123km) ΑΝΕΞΑΡΤΗΤΑ από την πραγματική ακτίνα. Το 9-cell (3×3) grid ~470km δεν κάλυπτε κύκλο radius 500km → profiles στα άκρα ποτέ δεν έμπαιναν στο query. Όχι σφάλμα — σιωπηλή απώλεια.
+
+### Η λύση (μόνο `geohash_utils.dart` `searchPrecision` + `discovery_screen.dart`)
+- **Loop bound**: `p >= 3` → `p >= 1` (το `_cellDimensions` δίνει p=2 → min 626km, p=1 → min 5009km)
+- **Fallback**: `return 3` → `return 1` + `DebugConfig.error` (ΑΚΡΑΙΟ σενάριο, ορατό) αντί σιωπηλό
+- **`discovery_screen.dart`**: radius selector `[1..100]` → `[1..500]` +250, +500km · clamp 100→500 (2 γραμμές)
+- **Χωρίς επιπλέον Firestore reads**: ίδιο 9-cell pattern, ίδιος αριθμός queries
+
+### Επαλήθευση (πριν την εφαρμογή)
+- `_cellDimensions`: p=3 min 156km/123km (lat0/38°) · p=2 min 626km (lat-independent h, w=1252×cos) · p=1 min 5009/3947 (lat0/38°)
+- radius=500km → p=2 ✅ · radius=1000km → p=1 ✅ · radius=6000km → error fallback p=1 ✅
+- **Side effects**: callers μόνο `_geoSearch:69` + `searchNearby:255` (περνάνε sp στο `encode()` clamp 1-12, γραμμή 19) ✅ · `basePrecision > 3` block δεν τρέχει για p=1-2 (1-char/2-char cell καλύπτει ήδη τα city 3-char) ✅ · `getNeighbours` length 1-2 OK ✅ · haversine post-filter αμετάβλητο ✅ · κανένα test ✅
+- **SPoT/γλώσσα/resize**: static pure function, μηδέν rebuilds · το μόνο string είναι `DebugConfig.error` (developer-facing, όχι L10n) · δεν αφορά media/resize
+
+### Έλεγχος εφαρμογής
+- `searchPrecision` loop `p >= 1` + fallback `return 1` + `DebugConfig.error` ✅
+- discovery_screen values +250/500 + clamp 500 ✅
+- search_filters_screen slider **ήδη** max 500 (δεν χρειαζόταν αλλαγή) ✅
+- **`flutter analyze`: clean ✅ (0 issues)**
+
+### Backups
+- `backups/oldsessions_20260805_103404.md`
+
+---
+
+## Session 215 — ProfileCard Redesign (Horizontal/Μinimal) (100%) — 5 Αυγ 2026
+
+### Σκοπός
+Minimal οριζόντια κάρτα στη Discovery: κυκλικό avatar αριστερά (64px, ClipOval) + πληροφορίες δεξιά, με SPoT στα strings και πλήρη συμμόρφωση στους κανόνες (resize, debug flags, όχι rebuild storm).
+
+### Τι έγινε (3 αρχεία, backup: `backups/profile_card_redesign_20260805_105116/`)
+- **`l10n.dart`** — 3 νέες SPoT μέθοδοι:
+  - `L10n.ageLabel(int age, {required bool isGreek})` — «{age} ετών» / «{age} years»
+  - `L10n.unknownName({required bool isGreek})` — «Άγνωστο» / «Unknown»
+  - `L10n.distanceLabel(double km, String? geoHash, {required bool isGreek})` — «Συνοικία»/«Neighborhood» όταν `geoHash.length >= 5`, αλλιώς «{km} χλμ»/«{km} km»
+  - Εξάλειψε το duplicated `_distanceLabel` από profile_card.dart + public_profile_header.dart και τα inline `'${age} years'`/`'Unknown'`
+- **`profile_card.dart`** — διάταξη `Padding(10) > Row > [avatar 64px ClipOval + SizedBox(12) + Expanded(Column)]`:
+  - nickname + online dot, city/country (ellipsis), `Wrap` για distance·age (με `·` separator), chip lookingFor
+  - guards, debug logs (`presence` + `uiRebuild` `layout=horizontal`) και placeholder avatar διατηρήθηκαν
+  - `_distanceLabel` local αφαιρέθηκε → `L10n.distanceLabel` (SPoT)
+- **`public_profile_header.dart`** — `_distanceLabel` αντικαταστάθηκε με `L10n.distanceLabel(...)`, duplication εξαλείφθηκε, διάταξη αμετάβλητη
+
+### Rebuild analysis (device logs, 5 Αυγ 2026)
+- `ProfileCard build ... layout=horizontal width=Infinity` — νέο layout ενεργό (mobile → `double.infinity`, σωστό)
+- **`(×2)` ανά κάρτα = σχεδιασμένο #155**: build #1 `stream=null` (fallback `profile.isOnline`) + build #2 όταν φτάνει status stream. Όχι bug — ο μηχανισμός του online-status flicker fix
+- **ΔΕΝ εφαρμόστηκε `select()` στο grid**: θα εισήγαγε risk στο loadMore spinner (`_isLoadingMore || state.hasMore`) και δεν θα έλυνε το `(×2)` (προέρχεται από `userStatusProvider`, όχι από grid) — αναλύθηκε και απορρίφθηκε
+- `SearchResultsGrid built` 1× ανά search · `userStatusProvider` created/disposed σωστά (autoDispose, clean lifecycle) · placeholder avatar για `avatarUrl=null` ✅ · κανένα overflow error
+
+### Backups
+- `backups/profile_card_redesign_20260805_105116/`
+- `backups/oldsessions_20260805_110620.md`
+
+### `flutter analyze`: clean ✅ (0 issues)
+
+---
+
+## Session 216 — chatsProvider redundant emits elimination (100%) — 5 Αυγ 2026
+
+### Σκοπός
+Εξάλειψη των redundant `chatsProvider` emits στο startup: N sync writes → N Drift `.watch()` `controller.add` → N UI rebuilds + N native `setBadge` calls. Στόχος: 1 emit που αντανακλά πραγματική αλλαγή.
+
+### Root cause
+Στο startup ο Firestore listener φέρνει όλα τα chat docs ως `added` → `_syncChatFromFirestore`/`_syncGroupChatToCache` γράφουν πάντα (χωρίς σύγκριση) → `streamChats` `.watch()` κάνει `controller.add` σε κάθε write → redundancy (π.χ. `prev=5 next=5 ×5`).
+
+### Η λύση (μόνο `chat_repository_impl.dart`, 3 σημεία)
+- **New fields** `_lastChatsListCache` + `_lastChatsStreamUid` (δίπλα στα υπάρχοντα caches).
+- **Reset cache** στο `streamChats` start όταν αλλάζει `uid` (αποτρέπει stale equality ανάμεσα σε accounts).
+- **Equality-check** στο `.watch()` listen: αν `previous != null && DeepCollectionEquality.equals(previous, rows)` → `streamChats: suppressed (content unchanged)` (χωρίς emit)· αλλιώς cache + `controller.add(rows)`.
+
+Ίδιο pattern με `messagesStream`/`chatDocProvider`. Το `ChatCacheTableData` έχει ήδη generated `operator ==` (18 πεδία, `database.g.dart`), `package:collection` ήδη imported. **Απορρίφθηκαν:** A (skip-write — invasive, 4 σημεία, false-negative risk σε timestamps) και C (debounce — add latency στο live chat).
+
+### Επαλήθευση (device logs, 5 Αυγ, release)
+- Πριν: `chatsProvider emitted prev=5 next=5 (×5)` + `Badge set to 79 (×5)` + `unreadBadgeProvider (×5)`
+- Μετά: `chatsProvider emitted prev=null next=7` (ΜΟΝΟ το αρχικό) + `streamChats: suppressed (content unchanged) rows=7 (×7)` → ΚΑΝΕΝΑ redundant emit, ΚΑΝΕΝΑ redundant Badge set
+- Server-sync (Firestore→Drift) **δεν επηρεάστηκε**: το equality convergence το επιτρέπει όταν το content αλλάζει πραγματικά
+- **Bonus:** `(×7)` suppressed = τα 7 writes του sync μπλοκαρίστηκαν από το equality — απόδειξη ότι το cache ήταν ήδη σωστό
+
+### Backups
+- `backups/chat_repository_impl_20260805_125433.dart`
+- `backups/oldsessions_20260805_130541.md`
+
+### `flutter analyze`: clean ✅ (0 issues)

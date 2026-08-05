@@ -30,124 +30,147 @@ class ProfileCard extends ConsumerWidget {
     final isOnline = streamOnline ?? profile.isOnline;
     DebugConfig.log(DebugConfig.presence,
         'ProfileCard uid=${profile.uid} isOnline=$isOnline (stream=$streamOnline profile=${profile.isOnline})');
+    DebugConfig.log(DebugConfig.uiRebuild,
+        'ProfileCard build uid=${profile.uid} layout=horizontal width=${width ?? 160}');
     return SizedBox(
       width: width ?? 160,
       child: Card(
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildAvatar(theme),
-              Padding(
-                padding: const EdgeInsets.all(8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            profile.nickname ?? 'Unknown',
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        OnlineIndicator(isOnline: isOnline, size: 8),
-                        const SizedBox(width: 3),
-                        Text(
-                          L10n.onlineLabel(isOnline, isGreek: isGreek),
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: isOnline
-                                ? const Color(0xFF4CAF50)
-                                : Colors.grey,
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (profile.city != null && profile.city!.isNotEmpty
-                        || profile.country != null && profile.country!.isNotEmpty)
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildAvatar(theme),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
                       Row(
                         children: [
                           Flexible(
                             child: Text(
-                              [profile.city, profile.country]
-                                  .where((e) => e != null && e.isNotEmpty)
-                                  .join(', '),
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
+                              profile.nickname ?? L10n.unknownName(isGreek: isGreek),
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w600,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           const SizedBox(width: 4),
-                          Icon(
-                            profile.isManualLocation ? Icons.help : Icons.check_circle,
-                            size: 13,
-                            color: profile.isManualLocation
-                                ? theme.colorScheme.error
-                                : const Color(0xFF4CAF50),
+                          OnlineIndicator(isOnline: isOnline, size: 8),
+                          const SizedBox(width: 3),
+                          Text(
+                            L10n.onlineLabel(isOnline, isGreek: isGreek),
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: isOnline
+                                  ? const Color(0xFF4CAF50)
+                                  : Colors.grey,
+                            ),
                           ),
                         ],
                       ),
-                    if (distanceKm != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Text(
-                          _distanceLabel(distanceKm!, isGreek, profile.geoHash),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                    if (profile.age != null)
-                      Text(
-                        '${profile.age} years',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    if (profile.lookingFor != null && profile.lookingFor!.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.primary.withAlpha(25),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
+                      if (profile.city != null && profile.city!.isNotEmpty
+                          || profile.country != null && profile.country!.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
                           child: Row(
-                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.search, size: 12, color: theme.colorScheme.primary),
-                              const SizedBox(width: 4),
                               Flexible(
                                 child: Text(
-                                  L10n.lookingForLabel(profile.lookingFor!, isGreek: isGreek),
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    color: theme.colorScheme.primary,
-                                    fontWeight: FontWeight.w500,
+                                  [profile.city, profile.country]
+                                      .where((e) => e != null && e.isNotEmpty)
+                                      .join(', '),
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
+                              const SizedBox(width: 4),
+                              Icon(
+                                profile.isManualLocation ? Icons.help : Icons.check_circle,
+                                size: 13,
+                                color: profile.isManualLocation
+                                    ? theme.colorScheme.error
+                                    : const Color(0xFF4CAF50),
+                              ),
                             ],
                           ),
                         ),
-                      ),
-                  ],
+                      if (distanceKm != null || profile.age != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Wrap(
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: 6,
+                            runSpacing: 2,
+                            children: [
+                              if (distanceKm != null)
+                                Text(
+                                  L10n.distanceLabel(distanceKm!, profile.geoHash, isGreek: isGreek),
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              if (distanceKm != null && profile.age != null)
+                                Text(
+                                  '·',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              if (profile.age != null)
+                                Text(
+                                  L10n.ageLabel(profile.age!, isGreek: isGreek),
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      if (profile.lookingFor != null && profile.lookingFor!.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primary.withAlpha(25),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.search, size: 12, color: theme.colorScheme.primary),
+                                const SizedBox(width: 4),
+                                Flexible(
+                                  child: Text(
+                                    L10n.lookingForLabel(profile.lookingFor!, isGreek: isGreek),
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      color: theme.colorScheme.primary,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -158,37 +181,34 @@ class ProfileCard extends ConsumerWidget {
     final avatarUrl = profile.avatarUrl;
     DebugConfig.log(DebugConfig.uiRebuild,
         'ProfileCard._buildAvatar: uid=${profile.uid}, avatarUrl=${avatarUrl != null && avatarUrl.isNotEmpty ? "present (${avatarUrl.length} chars)" : "null or empty"}');
-    if (avatarUrl != null && avatarUrl.isNotEmpty) {
-      return CachedNetworkImage(
-        imageUrl: avatarUrl,
-        height: 120,
-        width: double.infinity,
-        fit: BoxFit.cover,
-        placeholder: (_, _) => _avatarPlaceholder(theme),
-        errorWidget: (_, _, _) => _avatarPlaceholder(theme),
-      );
-    }
-    return _avatarPlaceholder(theme);
-  }
-
-  Widget _avatarPlaceholder(ThemeData theme) {
     return Container(
-      height: 120,
-      width: double.infinity,
-      color: theme.colorScheme.surfaceContainerHighest,
-      child: Icon(
-        Icons.person,
-        size: 48,
-        color: theme.colorScheme.onSurfaceVariant,
+      width: 64,
+      height: 64,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: theme.colorScheme.surfaceContainerHighest,
+      ),
+      child: ClipOval(
+        child: (avatarUrl != null && avatarUrl.isNotEmpty)
+            ? CachedNetworkImage(
+                imageUrl: avatarUrl,
+                fit: BoxFit.cover,
+                placeholder: (_, _) => _avatarPlaceholder(theme),
+                errorWidget: (_, _, _) => _avatarPlaceholder(theme),
+              )
+            : _avatarPlaceholder(theme),
       ),
     );
   }
 
-  String _distanceLabel(double km, bool isGreek, String? geoHash) {
-    final dist = L10n.distanceText(km, metric: true);
-    if (geoHash != null && geoHash.length >= 5) {
-      return isGreek ? 'Απόσταση Συνοικίας εντός: $dist' : 'Distance within Neighborhood: $dist';
-    }
-    return isGreek ? 'Απόσταση Πόλης εντός: $dist' : 'Distance within City: $dist';
+  Widget _avatarPlaceholder(ThemeData theme) {
+    return Container(
+      color: theme.colorScheme.surfaceContainerHighest,
+      child: Icon(
+        Icons.person,
+        size: 32,
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
+    );
   }
 }

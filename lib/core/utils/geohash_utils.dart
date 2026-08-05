@@ -176,13 +176,21 @@ class GeoHashUtils {
   /// πλήρως κύκλο ακτίνας [radiusKm] στο γεωγραφικό πλάτος [latitude].
   /// Conservative bound: min(cellW, cellH) ≥ radiusKm (χρήστης στο χείλος
   /// του center cell → τουλάχιστον 1 full neighbor cell προς κάθε κατεύθυνση).
+  ///
+  /// ΣΗΜΕΙΩΣΗ (fix): το κάτω όριο άλλαξε από precision=3 σε precision=1.
+  /// Πριν, για radius > ~120-150km (Ελλάδα) ο βρόχος δεν έβρισκε κελί
+  /// αρκετά μεγάλο και έπεφτε σε fallback=3 ΑΝΕΞΑΡΤΗΤΑ από την πραγματική
+  /// ακτίνα — αποτέλεσμα: profiles πέρα από ~120-150km ποτέ δεν έμπαιναν
+  /// καν στο query (silent data loss, όχι σφάλμα). Το precision=2 δίνει
+  /// κελιά ~600-1250km — αρκετά για να καλύψουν έως 500km με το ΙΔΙΟ
+  /// 9-cell (3×3) query pattern, χωρίς επιπλέον Firestore reads.
   static int searchPrecision(double radiusKm, double latitude) {
     if (radiusKm <= 0) {
       DebugConfig.log(DebugConfig.gpsGeoHash,
           'searchPrecision: radius=$radiusKm ≤ 0 → default precision=4');
       return 4;
     }
-    for (int p = 7; p >= 3; p--) {
+    for (int p = 7; p >= 1; p--) {
       final d = _cellDimensions(p, latitude);
       if (d.hKm < radiusKm || d.wKm < radiusKm) {
         DebugConfig.log(DebugConfig.gpsGeoHash,
@@ -193,9 +201,18 @@ class GeoHashUtils {
           'searchPrecision: radius=${radiusKm}km lat=${latitude.toStringAsFixed(1)}° → precision=$p (${d.hKm.toStringAsFixed(2)}×${d.wKm.toStringAsFixed(2)} km/cell, 9 cells=${(d.hKm*3).toStringAsFixed(1)}×${(d.wKm*3).toStringAsFixed(1)} km)');
       return p;
     }
-    DebugConfig.log(DebugConfig.gpsGeoHash,
-        'searchPrecision: radius=${radiusKm}km lat=${latitude.toStringAsFixed(1)}° → precision=3 (fallback)');
-    return 3;
+    // Ακραία περίπτωση: ούτε precision=1 (~5000km/κελί καθ' ύψος) δεν αρκεί.
+    // Συμβαίνει ΜΟΝΟ πολύ κοντά στους πόλους (πλάτος >~85°) με πολύ μεγάλη
+    // ακτίνα, λόγω συστολής του γεωγραφικού μήκους (cos(lat)→0). Δεν είναι
+    // ρεαλιστικό σενάριο γι' αυτή την εφαρμογή, αλλά καταγράφεται ως error
+    // (όχι απλό log) ώστε να είναι ορατό αν συμβεί ποτέ.
+    DebugConfig.error(
+      'searchPrecision: ΑΚΡΑΙΟ σενάριο — precision=1 δεν επαρκεί για '
+          'radius=${radiusKm}km στο lat=${latitude.toStringAsFixed(1)}°. '
+          'Χρησιμοποιείται precision=1 ως πιο χοντρό διαθέσιμο (πιθανή '
+          'ελλιπής κάλυψη κοντά στους πόλους).',
+    );
+    return 1;
   }
 
   /// Decode a geohash to the center point of its cell.

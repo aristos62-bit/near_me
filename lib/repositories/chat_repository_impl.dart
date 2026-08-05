@@ -38,6 +38,11 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
   final Map<String, Map<String, String>> _messageDecryptCache = {};
   final Map<String, List<Map<String, dynamic>>> _lastMessagesListCache = {};
 
+  // Equality cache για streamChats — αποφυγή redundant emits όταν το Drift
+  // .watch() ξανα-εκπέμπει ίδια λίστα (π.χ. bulk sync στο startup).
+  List<ChatCacheTableData>? _lastChatsListCache;
+  String? _lastChatsStreamUid;
+
   @override
   Map<String, Map<String, String>> get messageEncryptCache => _messageEncryptCache;
   @override
@@ -677,6 +682,12 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
     final uid = user.uid;
     DebugConfig.log(DebugConfig.chatStream, 'streamChats: started for uid=$uid');
 
+    // Reset equality cache όταν αλλάζει ο χρήστης (αποφυγή stale equality)
+    if (_lastChatsStreamUid != uid) {
+      _lastChatsListCache = null;
+      _lastChatsStreamUid = uid;
+    }
+
     final controller = StreamController<List<ChatCacheTableData>>();
     StreamSubscription<QuerySnapshot>? firestoreSub;
     StreamSubscription<List<ChatCacheTableData>>? driftSub;
@@ -756,7 +767,18 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
         ..where((t) => t.ownerUid.equals(uid))
         ..orderBy([(t) => OrderingTerm.desc(t.lastMessageAt)])
       ).watch().listen(
-        controller.add,
+        (rows) {
+          // Equality-caching, ίδιο pattern με messagesStream/chatDocProvider:
+          // αν η νέα λίστα είναι ίδια με την προηγούμενη, suppress το emit.
+          final previous = _lastChatsListCache;
+          if (previous != null && const DeepCollectionEquality().equals(previous, rows)) {
+            DebugConfig.log(DebugConfig.chatStream,
+                'streamChats: suppressed (content unchanged) rows=${rows.length}');
+            return;
+          }
+          _lastChatsListCache = rows;
+          controller.add(rows);
+        },
         onError: controller.addError,
       );
 

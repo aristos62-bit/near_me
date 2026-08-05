@@ -103,7 +103,7 @@ class PublicProfileHeader extends ConsumerWidget {
                 Padding(
                   padding: const EdgeInsets.only(top: 2),
                   child: Text(
-                    _distanceLabel(distanceKm!, isGreek, profile.geoHash),
+                    L10n.distanceLabel(distanceKm!, profile.geoHash, isGreek: isGreek),
                     style: headerSmall,
                   ),
                 ),
@@ -143,13 +143,5 @@ class PublicProfileHeader extends ConsumerWidget {
       color: theme.colorScheme.surfaceContainerHighest,
       child: Icon(Icons.person, size: 48, color: theme.colorScheme.onSurfaceVariant),
     );
-  }
-
-  String _distanceLabel(double km, bool isGreek, String? geoHash) {
-    final dist = L10n.distanceText(km, metric: true);
-    if (geoHash != null && geoHash.length >= 5) {
-      return isGreek ? 'Απόσταση Συνοικίας εντός: $dist' : 'Distance within Neighborhood: $dist';
-    }
-    return isGreek ? 'Απόσταση Πόλης εντός: $dist' : 'Distance within City: $dist';
   }
 }

@@ -192,7 +192,7 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
   }
 
   Widget _buildRadiusSelector(bool isGreek) {
-    final values = [1.0, 5.0, 10.0, 25.0, 50.0, 100.0];
+    final values = [1.0, 5.0, 10.0, 25.0, 50.0, 100.0, 250.0, 500.0];
     return PopupMenuButton<double>(
       tooltip: isGreek ? 'Ακτίνα αναζήτησης' : 'Search radius',
       onSelected: (km) async {
@@ -245,7 +245,7 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
       appSettingsProvider.select((s) => s.asData?.value.searchRadiusKm),
     );
     if (savedRadius != null && mounted) {
-      final clamped = savedRadius.clamp(1.0, 100.0);
+      final clamped = savedRadius.clamp(1.0, 500.0);
       if (clamped != _defaultRadius) {
         _defaultRadius = clamped;
         DebugConfig.log(DebugConfig.uiInteraction,

@@ -801,3 +801,24 @@ Minimal οριζόντια κάρτα στη Discovery: κυκλικό avatar α
 - `backups/app_router_20260805_184037.dart`
 
 ### `flutter analyze`: clean ✅ (0 issues)
+
+## Session 219 — Firebase init failure retry screen (0%) — ΠΛΗΡΕΣ REVERT — 5 Αυγ 2026
+
+> **ΑΠΟΤΕΛΕΣΜΑ: Πλήρες revert. Το fix ΔΕΝ ισχύει πια. Κανένα ίχνος δεν έμεινε στον κώδικα.**
+
+### Σκοπός (αρχικός, λάθος)
+Φτιάξαμε retry screen για όταν αποτυγχάνει το `Firebase.initializeApp()` (γνήσιο config/platform error), αντί του παλιού fatal error χωρίς retry. Υλοποιήθηκε: `firebase_retry_screen.dart` (νέο), ErrorView `retryLabel`, idempotency guard στο firebase_init, `firebase/init-failed` error message, 3ο keyed child στο AnimatedSwitcher του main.dart + `_onFirebaseRetrySuccess()`. Backups: `main_20260805_191850.dart`, `firebase_init_20260805_191850.dart`, `error_messages_20260805_191850.dart`.
+
+### Device tests (release APK, airplane mode) — γιατί REVERT
+- **Firebase init ΔΕΝ απαιτεί δίκτυο**: διαβάζει bundled `google-services.json` τοπικά. Airplane mode → init επιτυχία πάντα (238ms/153ms), `Firebase initialized` σε κάθε cold start.
+- Το "δεν υπάρχει σύνδεση στο διαδίκτυο" + Retry που έβλεπε ο χρήστης είναι **το υπάρχον offline UX του Discovery** (`_performSearch: no connectivity`, `ErrorView retry tapped` → `_onRefresh`), ΟΧΙ το δικό μας screen — το `FirebaseRetryScreen` **δεν χτίστηκε ποτέ**.
+- Άρα το πρόβλημα "offline → dead app" **δεν υπάρχει στο init βήμα** · το offline το χειρίζεται ήδη σωστά το connectivity banner + search retry · το fix μας προστάτευε μόνο από σπάνιο config failure → κρίθηκε λάθος και περιττό.
+
+### Revert (υλοποιημένο, verified)
+- `main.dart`, `firebase_init.dart`, `error_messages.dart` → επαναφορά από backups `20260805_191850` (Copy-Item).
+- `app_state_widget.dart` → `git checkout` (retryLabel αφαιρέθηκε, μόνο αυτό άλλαξε).
+- `firebase_retry_screen.dart` → διαγράφηκε.
+- **`flutter analyze`: clean ✅ · `flutter test`: 30/30 ✅ · `git status` καθαρό ✅**
+
+### Backups
+- `backups/main_20260805_191850.dart` · `backups/firebase_init_20260805_191850.dart` · `backups/error_messages_20260805_191850.dart` (κρατούνται μόνο ως reference, δεν χρησιμοποιούνται)

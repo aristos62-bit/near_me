@@ -36,15 +36,17 @@ class AppBootstrap extends StatefulWidget {
   State<AppBootstrap> createState() => _AppBootstrapState();
 }
 
-class _AppBootstrapState extends State<AppBootstrap> {
+class _AppBootstrapState extends State<AppBootstrap> with WidgetsBindingObserver {
   bool _firebaseReady = false;
   bool _dbReady = false;
   bool _ready = false;
+  bool _firebaseInitDone = false;
   late final DateTime _t0;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _t0 = DateTime.now();
     DebugConfig.log(DebugConfig.serviceInit,
         '[TIMING] Splash rendered immediately');
@@ -52,8 +54,24 @@ class _AppBootstrapState extends State<AppBootstrap> {
   }
   @override
   void dispose() {
-    // Future: clean up timers/subscriptions if added
+    DebugConfig.log(DebugConfig.serviceInit, 'AppBootstrap: removeObserver');
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!_firebaseInitDone) {
+      DebugConfig.log(DebugConfig.serviceInit,
+          'AppBootstrap: lifecycle $state (ignored — Firebase not ready)');
+    } else if (_ready) {
+      DebugConfig.log(DebugConfig.serviceInit,
+          'AppBootstrap: lifecycle $state (NearMeApp handles it)');
+    } else {
+      DebugConfig.log(DebugConfig.presence,
+          'AppBootstrap: forwarding lifecycle $state to PresenceService');
+      PresenceService.handleLifecycle(state);
+    }
   }
 
   Future<void> _initAfterFrame() async {
@@ -84,6 +102,13 @@ class _AppBootstrapState extends State<AppBootstrap> {
       AppRouter.init();
       FcmService.init();
       PresenceService.init();
+      _firebaseInitDone = true;
+      final current = WidgetsBinding.instance.lifecycleState;
+      if (current != null && current != AppLifecycleState.resumed) {
+        DebugConfig.log(DebugConfig.presence,
+            'AppBootstrap: initial state $current → PresenceService');
+        PresenceService.handleLifecycle(current);
+      }
     }
 
     final dbReady = await dbFuture;

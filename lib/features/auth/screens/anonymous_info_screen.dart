@@ -66,9 +66,7 @@ class _AnonymousInfoScreenState extends ConsumerState<AnonymousInfoScreen> {
                   ),
                   const SizedBox(height: 40),
                   Text(
-                    isGreek
-                        ? 'Καλωσήρθες στο NearMe!'
-                        : 'Welcome to NearMe!',
+                    '${isGreek ? 'Καλωσήρθες στο' : 'Welcome to'} ${L10n.appName(context)}!',
                     style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,

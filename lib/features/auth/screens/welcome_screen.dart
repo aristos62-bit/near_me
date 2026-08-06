@@ -139,7 +139,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
           GradientHeader(
             gradientColors: [AppColors.primary, AppColors.primaryDark],
             icon: Icons.near_me_rounded,
-            title: 'NearMe',
+            title: L10n.appName(context),
             subtitle: isGreek
                 ? 'Βρες ανθρώπους κοντά σου — για συγκατοίκηση, παρέα, φιλία και δικτύωση'
                 : 'Find people near you — for roommates, social, friendship and networking',

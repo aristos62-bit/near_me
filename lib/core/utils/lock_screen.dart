@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
 import '../debug/debug_config.dart';
+import '../l10n/l10n.dart';
 import '../utils/app_messenger.dart';
 
 class LockScreen extends StatelessWidget {
@@ -73,7 +74,7 @@ class LockScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 32),
                   Text(
-                    'NearMe',
+                    L10n.appName(context),
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
@@ -91,9 +92,8 @@ class LockScreen extends StatelessWidget {
                     label: Text(isGreek ? 'Ξεκλείδωμα' : 'Unlock'),
                     onPressed: () async {
                       final authed = await authenticate(
-                        reason: isGreek
-                            ? 'Ξεκλείδωσε το NearMe'
-                            : 'Unlock NearMe',
+                        reason:
+                            '${isGreek ? 'Ξεκλείδωσε το' : 'Unlock'} ${L10n.appName(context)}',
                       );
                       if (authed) {
                         DebugConfig.log(DebugConfig.serviceCall,

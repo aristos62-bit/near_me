@@ -12,6 +12,14 @@ class L10n {
     return Localizations.localeOf(context).languageCode == 'el';
   }
 
+  /// SPoT: αν το locale είναι ελληνικά (χωρίς context — ασφαλές πάνω από το
+  /// MaterialApp, όπου δεν υπάρχει Localizations).
+  static bool isGreekLocale(Locale locale) => locale.languageCode == 'el';
+
+  /// SPoT για το όνομα της εφαρμογής (locale-aware, χωρίς context).
+  static String appNameFromLocale(Locale locale) =>
+      isGreekLocale(locale) ? 'Κοντά μου' : 'NearMe';
+
   static Locale? deviceLocale() {
     final locale = PlatformDispatcher.instance.locale;
     for (final supported in supported) {
@@ -289,6 +297,10 @@ class L10n {
 
   static String unknownName({required bool isGreek}) =>
       isGreek ? 'Άγνωστο' : 'Unknown';
+
+  /// SPoT για το όνομα της εφαρμογής (locale-aware).
+  static String appName(BuildContext context) =>
+      appNameFromLocale(Localizations.localeOf(context));
 
   /// SPoT για την απόσταση με πλαίσιο (Συνοικία / Πόλη).
   /// Αντικαθιστά τα duplicated `_distanceLabel` σε profile_card και public_profile_header.

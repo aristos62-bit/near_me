@@ -91,7 +91,7 @@ class AppRouter {
         child: Scaffold(
           appBar: AppBar(
             automaticallyImplyLeading: false,
-            title: const Text('NearMe'),
+            title: Text(L10n.appName(context)),
           ),
           body: Center(
             child: Padding(

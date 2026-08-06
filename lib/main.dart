@@ -233,8 +233,11 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
       DebugConfig.log(DebugConfig.serviceCall,
           'main: startup biometric lock check');
       FcmService.isLocked = true;
+      final locale = _deviceLocale!;
+      final appName = L10n.appNameFromLocale(locale);
+      final unlockedLabel = L10n.isGreekLocale(locale) ? 'Ξεκλείδωσε το' : 'Unlock';
       final authed = await LockScreen.authenticate(
-        reason: 'Unlock NearMe',
+        reason: '$unlockedLabel $appName',
       );
       if (authed) {
         FcmService.isLocked = false;
@@ -291,8 +294,11 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
       DebugConfig.log(DebugConfig.serviceCall,
           'main: checking biometric lock on resume');
       FcmService.isLocked = true;
+      final locale = _deviceLocale!;
+      final appName = L10n.appNameFromLocale(locale);
+      final unlockedLabel = L10n.isGreekLocale(locale) ? 'Ξεκλείδωσε το' : 'Unlock';
       final authed = await LockScreen.authenticate(
-        reason: 'Unlock NearMe',
+        reason: '$unlockedLabel $appName',
       );
       if (authed) {
         FcmService.isLocked = false;
@@ -468,7 +474,7 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
     }
 
     return MaterialApp.router(
-      title: 'NearMe',
+      title: L10n.appNameFromLocale(_deviceLocale!),
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,

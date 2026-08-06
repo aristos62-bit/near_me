@@ -1,6 +1,6 @@
 {
-    "name": "near_me",
-    "short_name": "near_me",
+    "name": "Κοντά μου",
+    "short_name": "Κοντά μου",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

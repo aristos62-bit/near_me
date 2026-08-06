@@ -21,9 +21,8 @@ import 'date_separator.dart';
 import 'message_bubble/message_bubble.dart';
 import 'message_bubble/message_callbacks.dart';
 import 'dart:async';
-import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:path_provider/path_provider.dart';
+import '../../../core/utils/media_share_cache.dart';
 import 'package:flutter_email_sender/flutter_email_sender.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -188,8 +187,7 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     };
     if (ext == null || url.isEmpty) return null;
     try {
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/$msgId.$ext');
+      final file = await MediaShareCache.fileFor(msgId, ext);
       if (type == 'gif') {
         final data = await GiphyService.downloadBytes(url);
         if (data == null) return null;
@@ -245,7 +243,13 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     final tsSuffix = ts != null
         ? '\n\n(${L10n.formatTimeOfDay(context, TimeOfDay.fromDateTime(ts))})'
         : '';
-    final body = attachmentPath != null ? tsSuffix.trim() : '$content$tsSuffix';
+    final body = attachmentPath != null
+        ? tsSuffix.trim()
+        : (isMedia
+        ? (greek
+        ? '[Δεν ήταν δυνατή η αποστολή του αρχείου]$tsSuffix'
+        : '[Could not send the file]$tsSuffix')
+        : '$content$tsSuffix');
 
     final email = Email(
       subject: subject,
@@ -296,7 +300,8 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     if (choice == 'external') {
       final type = msg['type'] as String? ?? 'text';
       final content = msg['content'] as String? ?? '';
-      if (type == 'image' || type == 'audio' || type == 'video' || type == 'gif') {
+      final isMedia = type == 'image' || type == 'audio' || type == 'video' || type == 'gif';
+      if (isMedia) {
         final msgId = msg['id'] as String? ?? DateTime.now().millisecondsSinceEpoch.toString();
         final file = await _downloadMediaAsFile(content, type, msgId);
         if (!mounted) return;
@@ -314,7 +319,11 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
         AppMessenger.showInfo(context, ErrorMessages.get('chat/share-file-failed', greek));
       }
       try {
-        await SharePlus.instance.share(ShareParams(text: content));
+        await SharePlus.instance.share(ShareParams(
+          text: isMedia
+              ? (greek ? '[Δεν ήταν δυνατή η αποστολή του αρχείου]' : '[Could not send the file]')
+              : content,
+        ));
       } catch (e) {
         DebugConfig.error('ChatMessagesList: share failed', data: e);
         if (!mounted) return;

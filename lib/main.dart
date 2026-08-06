@@ -20,6 +20,7 @@ import 'features/chat/providers/chat_provider.dart';
 import 'features/settings/providers/app_settings_provider.dart';
 import 'providers/unread_badge_provider.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'core/utils/media_share_cache.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -90,6 +91,10 @@ class _AppBootstrapState extends State<AppBootstrap> with WidgetsBindingObserver
     DebugConfig.log(DebugConfig.serviceInit, '[TIMING] Database start');
 
     final dbFuture = DatabaseService.tryInit();
+
+    // Fire-and-forget: δεν μπλοκάρει το startup timing, καθαρίζει
+    // τυχόν "ορφανά" temp αρχεία media από προηγούμενα email/share.
+    unawaited(MediaShareCache.sweep());
 
     final firebaseReady = await firebaseFuture;
     final tFirebaseEnd = DateTime.now();

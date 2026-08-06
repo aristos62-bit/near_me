@@ -822,3 +822,45 @@ Minimal οριζόντια κάρτα στη Discovery: κυκλικό avatar α
 
 ### Backups
 - `backups/main_20260805_191850.dart` · `backups/firebase_init_20260805_191850.dart` · `backups/error_messages_20260805_191850.dart` (κρατούνται μόνο ως reference, δεν χρησιμοποιούνται)
+
+---
+
+## Session 220 — Crash L10n fix + Incoming Share v1 + Media Forward fix (100%) — 6 Αυγ 2026
+
+### Σκοπός (3 ανεξάρτητα, σε ροή)
+1. **Fix crash** — `L10n.appName(context)`/`L10n.isGreek(context)` πάνω από το MaterialApp (χωρίς Localizations): title στο `main.dart:471` + biometric unlock reasons (`:237,:295`).
+2. **Incoming Share v1** — "Κοινόχρηστο σε NearMe" από άλλες εφαρμογές (text/url/image/video/audio).
+3. **Media Forward fix** — η προώθηση media σε chat έστελνε το URL ως text· τώρα `sendMediaMessage` (image/audio/video/gif) χωρίς re-upload.
+
+### 1) Crash fix (`l10n.dart` + `main.dart`)
+- **SPoT**: νέα context-free helpers `L10n.appNameFromLocale(Locale)` / `L10n.isGreekLocale(Locale)` + `_deviceLocale` στο main (χωρίς MediaQuery) — τα 3 σημεία χρησιμοποιούν locale, όχι context.
+- Backups: `backups/*_20260806_112344.bak` (l10n/main/chat_messages_list/AndroidManifest/debug_config/feature_flags/MainActivity).
+
+### 2) Incoming Share v1 (νέα λειτουργία)
+- **`lib/core/services/incoming_share_service.dart`** (νέο) — consume-once, event-driven, static: `init()`/`pollPending()`/`tryExecutePending()`/`onPending`, truncation 4000 chars, guards `_isShowingSheet`, Android-safe (`MissingPluginException` graceful), getPendingShare single poll + type validation.
+- **`lib/shared/widgets/incoming_share_sheet.dart`** (νέο) — leaf preview sheet (text/url μόνο· images/video/audio → info "δεν υποστηρίζεται"), χρησιμοποιεί shared `showChatRecipientPicker`.
+- **`feature_flags.dart`** `incomingShareEnabled=true` · **`debug_config.dart`** `chatShare=true` · error keys `share/needs-verification`, `share/media-not-supported`.
+- **`main.dart`** — `IncomingShareService.init()` (firebase-ok block), `onPending` σαν FcmService listener, `_executeIncomingShareSafely()` (app context + post-frame fallback), κλήσεις μετά startup-lock/biometric-unlock/resume + `pollPending` σε resumed.
+- **`MainActivity.kt`** — 2ο MethodChannel `near_me/incoming_share` + `ACTION_SEND` (text/image/video/audio) + `onCreate`/`onNewIntent` handling.
+- **`AndroidManifest.xml`** — 4 intent-filters (text, image, video, audio).
+- Τεστ: τελευταίο v1 build → share δεν δοκιμάστηκε σε device εκείνη τη στιγμή.
+
+### 3) Media Forward fix (5 αρχεία, backup `backups/*_20260806_121640.bak`)
+**Root cause (verified με git):** ο `_forwardToChat` (`chat_messages_list.dart:334`) έκανε **πάντα** `sendMessage(content)` — το `content` για media είναι Storage/GIPHY URL → αποθηκευόταν ως text → εμφανιζόταν σύνδεσμος. `git log -S "sendMedia" -- chat_messages_list.dart` → **κανένα commit** → ΔΕΝ είναι regression, feature-gap που υπήρχε πάντα. Email (`_onEmail`: κατεβάζει+επισυνάπτει) και εξωτερικό share (`_onShare`: κατεβάζει+SharePlus file) δούλευαν — γι' αυτό "το email δουλεύει σωστά".
+- **`giphy_service.dart`** — νέο `GiphyService.downloadBytes(String url)`: HTTP GET (HttpClient, 15s timeout), `storageDownload` logs, null σε αποτυχία/άκυρο URL. SPoT HTTP GET (ίδιο pattern με search/trending). `import 'dart:typed_data'`.
+- **`chat_repository.dart`** (interface) — νέα παράμετρος `String? forwardThumbnailUrl` στο `sendMediaMessage`.
+- **`chat_repository_impl.dart`** — video: `'thumbnailUrl': thumbnailUrl ?? forwardThumbnailUrl` (backward-compatible) + `DebugConfig.log(chatVideo, 'forward thumbnail passthrough')`.
+- **`chat_provider.dart`** — passthrough `forwardThumbnailUrl`.
+- **`chat_messages_list.dart`** — `_forwardToChat`: media (`image/audio/video/gif`) → `sendMediaMessage(content, type, duration?, forwardThumbnailUrl?)`· text → `sendMessage` (parity). `_downloadMediaAsFile` dispatcher: `gif` → `GiphyService.downloadBytes` (ext `gif→'gif'`), αλλιώς `refFromURL` (50MB). `_onEmail`/`_onShare` `isMedia` συμπεριλαμβάνει `gif`.
+- **Ζero rebuild storm:** 0 νέο `watch`/MediaQuery/`setState`· `ref.read(chatActionsProvider.notifier)` (pattern υπάρχον text forward)· HTTP download χωρίς UI state. Checks verify/block τα ίδια σε send/sendMedia (:204,:244 vs :806,:836) → μηδέν regression.
+
+### Παρατήρηση UX (δεν είναι bug)
+Email με attachment: το Android email app (π.χ. Gmail, `launchMode=singleTask`) ανοίγει στο δικό του task — με "back" γυρίζει στο inbox του, όχι στην εφαρμογή. Ο plugin κάνει σωστά `startActivityForResult` (`flutter_email_sender_method_channel-1.0.1:...Plugin.kt`). Αναμενόμενη Android συμπεριφορά, όχι fixable από Flutter χωρίς vendor/hack. Επιστροφή με "Μετάβαση εφαρμογών". Προαιρετική βελτίωση: info snackbar οδηγίας (δεν εφαρμόστηκε).
+
+### Έλεγχος
+- Forward text σε ομαδική: `sendMessage chat=...` + `Προωθήθηκε` ✅
+- **`flutter analyze`: clean ✅ (0 issues)** (μετά τα 3 fixes)
+- `flutter test`: δεν τρέχτηκε σε αυτό το session
+
+### Backups
+- `backups/*_20260806_112344.bak` (crash fix) · `backups/*_20260806_121640.bak` (media forward) · `backups/oldsessions_20260806_123954.md`

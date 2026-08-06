@@ -111,13 +111,13 @@ class ErrorMessages {
       case 'chat/email-not-configured':
         return isGreek ? 'Δεν βρέθηκε ρυθμισμένη εφαρμογή email' : 'No configured email app found';
       case 'chat/email-attach-failed':
-        return isGreek ? 'Δεν ήταν δυνατή η επισύναψη — θα σταλεί ο σύνδεσμος' : 'Could not attach file — sending link instead';
+        return isGreek ? 'Δεν ήταν δυνατή η επισύναψη του αρχείου' : 'Could not attach the file';
       case 'chat/email-not-available':
         return isGreek ? 'Η εφαρμογή email δεν είναι διαθέσιμη αυτή τη στιγμή' : 'Email composer is unavailable right now';
       case 'chat/email-send-failed':
         return isGreek ? 'Αποτυχία αποστολής email' : 'Failed to send email';
       case 'chat/share-file-failed':
-        return isGreek ? 'Δεν ήταν δυνατή η κοινοποίηση αρχείου — θα σταλεί ο σύνδεσμος' : 'Could not share file — sending link instead';
+        return isGreek ? 'Δεν ήταν δυνατή η κοινοποίηση του αρχείου' : 'Could not share the file';
       case 'chat/share-failed':
         return isGreek ? 'Αποτυχία κοινοποίησης' : 'Failed to share';
       case 'chat/no-chats-forward':

@@ -9,6 +9,8 @@ import 'core/firebase/firebase_init.dart';
 import 'core/debug/debug_config.dart';
 import 'dart:async';
 import 'core/notifications/fcm_service.dart';
+import 'core/config/feature_flags.dart';
+import 'core/services/incoming_share_service.dart';
 import 'core/services/presence_service.dart';
 import 'core/utils/app_messenger.dart';
 import 'core/utils/lock_screen.dart';
@@ -101,6 +103,7 @@ class _AppBootstrapState extends State<AppBootstrap> with WidgetsBindingObserver
       AppRouter.firebaseReady = true;
       AppRouter.init();
       FcmService.init();
+      IncomingShareService.init();
       PresenceService.init();
       _firebaseInitDone = true;
       final current = WidgetsBinding.instance.lifecycleState;
@@ -215,6 +218,7 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
     super.initState();
     _deviceLocale = L10n.deviceLocale();
     WidgetsBinding.instance.addObserver(this);
+    IncomingShareService.onPending = _executeIncomingShareSafely;
     _fcmSub = FcmService.foregroundStream.listen(
       _onFcmForeground,
       onError: (e) => DebugConfig.error('main: FCM foreground stream error', data: e),
@@ -228,6 +232,7 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
       final settings = ref.read(appSettingsProvider).value;
       if (settings == null || !settings.biometricLockEnabled) {
         FcmService.tryExecutePendingNav();
+        _executeIncomingShareSafely();
         return;
       }
       DebugConfig.log(DebugConfig.serviceCall,
@@ -243,6 +248,7 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
         FcmService.isLocked = false;
         _lastUnlockTime = DateTime.now();
         FcmService.tryExecutePendingNav();
+        _executeIncomingShareSafely();
       } else if (mounted) {
         setState(() => _isLocked = true);
       }
@@ -252,8 +258,27 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
     }
   }
 
+  /// Εκτελεί το pending incoming share αν το app είναι ξεκλείδωτο και υπάρχει
+  /// context. Σε cold start το `_appContext` μπορεί να μην είναι ακόμα έτοιμο
+  /// (ορίζεται στο builder του MaterialApp) → fallback σε post-frame callback.
+  void _executeIncomingShareSafely() {
+    if (!FeatureFlags.incomingShareEnabled) return;
+    if (!mounted || _isLocked) return;
+    final ctx = _appContext;
+    if (ctx == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_isLocked && _appContext != null) {
+          IncomingShareService.tryExecutePending(ref, _appContext!);
+        }
+      });
+      return;
+    }
+    IncomingShareService.tryExecutePending(ref, ctx);
+  }
+
   @override
   void dispose() {
+    IncomingShareService.onPending = null;
     _stopIdleTimer();
     WidgetsBinding.instance.removeObserver(this);
     _fcmSub?.cancel();
@@ -272,6 +297,8 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
       _checkBiometricLock().then((_) {
         if (!_isLocked && mounted) {
           _resetIdleTimer();
+          IncomingShareService.pollPending();
+          _executeIncomingShareSafely();
         }
       });
     }
@@ -304,6 +331,7 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
         FcmService.isLocked = false;
         _lastUnlockTime = DateTime.now();
         FcmService.tryExecutePendingNav();
+        _executeIncomingShareSafely();
       } else if (mounted) {
         DebugConfig.warn('main: biometric auth failed, locking app');
         setState(() => _isLocked = true);
@@ -495,6 +523,7 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
                       'main: lock screen unlock success');
                   FcmService.isLocked = false;
                   FcmService.tryExecutePendingNav();
+                  _executeIncomingShareSafely();
                   setState(() {
                     _isLocked = false;
                     _lastUnlockTime = DateTime.now();

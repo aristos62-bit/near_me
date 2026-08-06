@@ -268,6 +268,7 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
     Uint8List? audioBytes,
     String? videoPath,
     Uint8List? thumbnailBytes,
+    String? forwardThumbnailUrl,
     int? duration,
   }) async {
     if (!await _checkOnline()) return false;
@@ -275,7 +276,7 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
         'ChatActions: sendMediaMessage chat=$chatId type=$type replyTo=${replyTo?['messageId']}');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
-      await _chatRepo.sendMediaMessage(chatId, content: content, type: type, replyTo: replyTo, imageBytes: imageBytes, audioBytes: audioBytes, videoPath: videoPath, thumbnailBytes: thumbnailBytes, duration: duration);
+      await _chatRepo.sendMediaMessage(chatId, content: content, type: type, replyTo: replyTo, imageBytes: imageBytes, audioBytes: audioBytes, videoPath: videoPath, thumbnailBytes: thumbnailBytes, forwardThumbnailUrl: forwardThumbnailUrl, duration: duration);
       DebugConfig.log(DebugConfig.repositoryResult,
           'ChatActions: sendMediaMessage success');
       state = const ChatActionState(status: ChatActionStatus.success);

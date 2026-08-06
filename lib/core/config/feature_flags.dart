@@ -7,6 +7,7 @@ class FeatureFlags {
   // Communication
   static const bool videoCallEnabled = false;
   static const bool groupChatEnabled = true;
+  static const bool incomingShareEnabled = true;
 
   // Discovery
   static const bool aiMatchingEnabled = false;

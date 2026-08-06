@@ -10,6 +10,8 @@ import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
 import '../../../core/utils/error_messages.dart';
 import '../../../shared/widgets/app_state_widget.dart';
+import '../../../shared/widgets/chat_recipient_picker.dart';
+import '../../../shared/utils/giphy_service.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../block/providers/block_provider.dart';
 import '../providers/chat_provider.dart';
@@ -181,16 +183,23 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
       'image' => 'jpg',
       'audio' => 'm4a',
       'video' => 'mp4',
+      'gif' => 'gif',
       _ => null,
     };
-    if (ext == null) return null;
+    if (ext == null || url.isEmpty) return null;
     try {
-      final ref = FirebaseStorage.instance.refFromURL(url);
-      final data = await ref.getData(50 * 1024 * 1024);
-      if (data == null) return null;
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/$msgId.$ext');
-      await file.writeAsBytes(data);
+      if (type == 'gif') {
+        final data = await GiphyService.downloadBytes(url);
+        if (data == null) return null;
+        await file.writeAsBytes(data);
+      } else {
+        final ref = FirebaseStorage.instance.refFromURL(url);
+        final data = await ref.getData(50 * 1024 * 1024);
+        if (data == null) return null;
+        await file.writeAsBytes(data);
+      }
       return XFile(file.path);
     } catch (e) {
       DebugConfig.warn('ChatMessagesList: media download failed', data: e);
@@ -204,7 +213,7 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     final content = msg['content'] as String? ?? '';
     final msgId = msg['id'] as String? ?? DateTime.now().millisecondsSinceEpoch.toString();
     final subject = greek ? 'Μήνυμα από near_me' : 'Message from near_me';
-    final isMedia = type == 'image' || type == 'audio' || type == 'video';
+    final isMedia = type == 'image' || type == 'audio' || type == 'video' || type == 'gif';
 
     EmailCapabilities capabilities;
     try {
@@ -287,7 +296,7 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     if (choice == 'external') {
       final type = msg['type'] as String? ?? 'text';
       final content = msg['content'] as String? ?? '';
-      if (type == 'image' || type == 'audio' || type == 'video') {
+      if (type == 'image' || type == 'audio' || type == 'video' || type == 'gif') {
         final msgId = msg['id'] as String? ?? DateTime.now().millisecondsSinceEpoch.toString();
         final file = await _downloadMediaAsFile(content, type, msgId);
         if (!mounted) return;
@@ -326,41 +335,27 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
       return;
     }
 
-    final targetChatId = await showModalBottomSheet<String>(
-      context: context,
-      builder: (ctx) => ListView(
-        shrinkWrap: true,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Text(greek ? 'Προώθηση σε' : 'Forward to',
-                style: Theme.of(ctx).textTheme.titleMedium),
-          ),
-          ...chats.map((chat) {
-            final isGroup = chat.isGroupChat;
-            final title = isGroup ? (chat.groupName ?? '') : (chat.otherNickname ?? '');
-            final avatarUrl = isGroup ? chat.groupAvatarUrl : chat.otherAvatarUrl;
-            return ListTile(
-              leading: CircleAvatar(
-                backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
-                    ? CachedNetworkImageProvider(avatarUrl)
-                    : null,
-                child: (avatarUrl == null || avatarUrl.isEmpty)
-                    ? Icon(isGroup ? Icons.group : Icons.person)
-                    : null,
-              ),
-              title: Text(title),
-              onTap: () => Navigator.of(ctx).pop(chat.chatId),
-            );
-          }),
-        ],
-      ),
-    );
+    final targetChatId = await showChatRecipientPicker(context, chats);
     if (targetChatId == null || !mounted) return;
 
     final content = msg['content'] as String? ?? '';
-    final success = await ref.read(chatActionsProvider.notifier)
-        .sendMessage(targetChatId, content);
+    final type = msg['type'] as String? ?? 'text';
+    DebugConfig.log(DebugConfig.chatShare,
+        'ChatMessagesList: forward chat=$targetChatId type=$type');
+    final isMedia = type == 'image' || type == 'audio' || type == 'video' || type == 'gif';
+    final success = isMedia
+        ? await ref.read(chatActionsProvider.notifier).sendMediaMessage(
+              targetChatId,
+              content: content,
+              type: type,
+              duration: (type == 'audio' || type == 'video')
+                  ? (msg['duration'] as int?)
+                  : null,
+              forwardThumbnailUrl:
+                  type == 'video' ? (msg['thumbnailUrl'] as String?) : null,
+            )
+        : await ref.read(chatActionsProvider.notifier)
+            .sendMessage(targetChatId, content);
     if (!mounted) return;
     if (success) {
       AppMessenger.showSuccess(context, ErrorMessages.get('chat/forwarded', greek));

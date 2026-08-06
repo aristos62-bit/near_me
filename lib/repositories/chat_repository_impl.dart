@@ -800,6 +800,7 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
     Uint8List? audioBytes,
     String? videoPath,
     Uint8List? thumbnailBytes,
+    String? forwardThumbnailUrl,
     int? duration,
   }) async {
     final user = auth.currentUser;
@@ -887,6 +888,11 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
         }
       }
 
+      if (type == 'video' && forwardThumbnailUrl != null) {
+        DebugConfig.log(DebugConfig.chatVideo,
+            'sendMediaMessage: forward thumbnail passthrough for video');
+      }
+
       final msgData = <String, dynamic>{
         'senderId': user.uid,
         'content': content,
@@ -894,7 +900,8 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
         'timestamp': FieldValue.serverTimestamp(),
         'isRead': false,
         if ((type == 'audio' || type == 'video') && duration != null) 'duration': duration,
-        if (type == 'video' && thumbnailUrl != null) 'thumbnailUrl': thumbnailUrl,
+        if (type == 'video' && (thumbnailUrl != null || forwardThumbnailUrl != null))
+          'thumbnailUrl': thumbnailUrl ?? forwardThumbnailUrl,
       };
       if (replyTo != null) {
         msgData['replyTo'] = replyTo;

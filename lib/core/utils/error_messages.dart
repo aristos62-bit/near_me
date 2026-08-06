@@ -126,6 +126,12 @@ class ErrorMessages {
         return isGreek ? 'Προωθήθηκε' : 'Forwarded';
       case 'chat/forward-failed':
         return isGreek ? 'Αποτυχία προώθησης' : 'Failed to forward';
+      case 'share/needs-verification':
+        return isGreek ? 'Πρέπει να επαληθεύσεις τον λογαριασμό σου για να στείλεις μηνύματα'
+            : 'Verify your account to send messages';
+      case 'share/media-not-supported':
+        return isGreek ? 'Η κοινοποίηση αρχείων πολυμέσων δεν υποστηρίζεται ακόμα'
+            : 'Sharing media files is not supported yet';
       case 'chat/reply-privately-failed':
         return isGreek ? 'Δεν ήταν δυνατό το άνοιγμα προσωπικής συνομιλίας'
             : 'Could not open private chat';

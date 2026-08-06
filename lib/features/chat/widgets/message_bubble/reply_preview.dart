@@ -19,14 +19,19 @@ class ReplyPreview extends StatelessWidget {
     final theme = Theme.of(context);
     final senderNickname = replyTo['senderNickname'] as String?;
     final contentPreview = replyTo['contentPreview'] as String? ?? '';
-    final preview = isGroupChat && senderNickname != null
-        ? '@$senderNickname: $contentPreview'
-        : contentPreview;
-
     final mediaUrl = ReplyMediaThumbnail.urlFor(replyTo);
     final isMedia = mediaUrl != null;
-    DebugConfig.log(DebugConfig.chatReply,
-        'ReplyPreview: thumbnail=${isMedia ? "yes" : "no"}');
+    DebugConfig.log(
+      DebugConfig.chatReply,
+      'ReplyPreview: id=${replyTo['id']} thumb=${isMedia ? "yes" : "no"} '
+      'h=${identityHashCode(this)}',
+    );
+
+    final preview = isMedia
+        ? (isGroupChat && senderNickname != null ? '@$senderNickname' : '')
+        : (isGroupChat && senderNickname != null
+              ? '@$senderNickname: $contentPreview'
+              : contentPreview);
 
     final textWidget = Text(
       preview,
@@ -44,10 +49,7 @@ class ReplyPreview extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest.withAlpha(180),
         border: Border(
-          left: BorderSide(
-            color: theme.colorScheme.primary,
-            width: 3,
-          ),
+          left: BorderSide(color: theme.colorScheme.primary, width: 3),
         ),
         borderRadius: BorderRadius.circular(6),
       ),

@@ -29,7 +29,10 @@ import 'package:url_launcher/url_launcher.dart';
 class _MessageReadProps {
   final bool effectiveIsRead;
   final List<String> seenBy;
-  const _MessageReadProps({required this.effectiveIsRead, required this.seenBy});
+  const _MessageReadProps({
+    required this.effectiveIsRead,
+    required this.seenBy,
+  });
 }
 
 class ChatMessagesList extends ConsumerStatefulWidget {
@@ -53,19 +56,25 @@ class ChatMessagesList extends ConsumerStatefulWidget {
 }
 
 class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
+  static int _counter = 0;
+  final int _instanceId = _counter++;
   final _scrollCtrl = ScrollController();
   int _lastMessageCount = 0;
   String? _lastMessageId;
   bool _isFirstLoad = true;
   int _buildCount = 0;
   Map<String, DateTime>? _lastLastReadTimestamps;
+  Map<String, String>? _lastParticipantNicknames;
+  Map<String, String>? _lastParticipantAvatarUrls;
   bool _isOpeningPrivateChat = false;
 
   @override
   void initState() {
     super.initState();
-    DebugConfig.log(DebugConfig.uiInteraction,
-        'ChatMessagesList init: ${widget.chatId}');
+    DebugConfig.log(
+      DebugConfig.uiInteraction,
+      'ChatMessagesList init: ${widget.chatId}',
+    );
     _scrollCtrl.addListener(() {
       final pixels = _scrollCtrl.position.pixels;
       if (_scrollCtrl.position.maxScrollExtent - pixels < 300) {
@@ -76,19 +85,27 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
 
   @override
   void dispose() {
-    DebugConfig.log(DebugConfig.uiInteraction,
-        'ChatMessagesList dispose: ${widget.chatId}');
+    DebugConfig.log(
+      DebugConfig.uiInteraction,
+      'ChatMessagesList dispose: ${widget.chatId}',
+    );
     _scrollCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _onApproveDelete(String chatId) async {
-    DebugConfig.log(DebugConfig.uiInteraction, 'ChatMessagesList: approveDelete chat=$chatId');
+    DebugConfig.log(
+      DebugConfig.uiInteraction,
+      'ChatMessagesList: approveDelete chat=$chatId',
+    );
     await ref.read(chatActionsProvider.notifier).approveDeleteChat(chatId);
   }
 
   Future<void> _onRejectDelete(String chatId) async {
-    DebugConfig.log(DebugConfig.uiInteraction, 'ChatMessagesList: rejectDelete chat=$chatId');
+    DebugConfig.log(
+      DebugConfig.uiInteraction,
+      'ChatMessagesList: rejectDelete chat=$chatId',
+    );
     await ref.read(chatActionsProvider.notifier).rejectDeleteChat(chatId);
   }
 
@@ -96,32 +113,44 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     if (!mounted) return;
     final confirmed = await AppMessenger.showConfirmDialog(
       context,
-      title: L10n.localizedMessage(context, 'Διαγραφή συνομιλίας / Delete conversation'),
-      message: L10n.localizedMessage(context,
-          'Η συνομιλία θα διαγραφεί μόνιμα μόνο για εσένα. Αυτή η ενέργεια δεν αναιρείται. / '
-              'This chat will be permanently deleted for you only. This cannot be undone.'),
+      title: L10n.localizedMessage(
+        context,
+        'Διαγραφή συνομιλίας / Delete conversation',
+      ),
+      message: L10n.localizedMessage(
+        context,
+        'Η συνομιλία θα διαγραφεί μόνιμα μόνο για εσένα. Αυτή η ενέργεια δεν αναιρείται. / '
+        'This chat will be permanently deleted for you only. This cannot be undone.',
+      ),
       confirmLabel: L10n.localizedMessage(context, 'Διαγραφή / Delete'),
       cancelLabel: L10n.localizedMessage(context, 'Ακύρωση / Cancel'),
       isDestructive: true,
     );
     if (!mounted || !confirmed) return;
-    DebugConfig.log(DebugConfig.uiInteraction, 'ChatMessagesList: deleteForMe chat=$chatId');
+    DebugConfig.log(
+      DebugConfig.uiInteraction,
+      'ChatMessagesList: deleteForMe chat=$chatId',
+    );
     await ref.read(chatActionsProvider.notifier).deleteChatForMe(chatId);
   }
 
   void _onInfo(
-      Map<String, dynamic> msg,
-      _MessageReadProps props,
-      bool isGroupChat,
-      Map<String, String> participantNicknames,
-      Map<String, String> participantAvatarUrls,
-      ) {
+    Map<String, dynamic> msg,
+    _MessageReadProps props,
+    bool isGroupChat,
+    Map<String, String> participantNicknames,
+    Map<String, String> participantAvatarUrls,
+  ) {
     final greek = L10n.isGreek(context);
     final senderId = msg['senderId'] as String? ?? '';
-    final reactions = (msg['reactions'] as Map<String, dynamic>?) ?? const <String, dynamic>{};
+    final reactions =
+        (msg['reactions'] as Map<String, dynamic>?) ??
+        const <String, dynamic>{};
     final readerUids = participantNicknames.keys.where((u) {
       if (u == senderId) return false;
-      final hasRead = isGroupChat ? props.seenBy.contains(u) : props.effectiveIsRead;
+      final hasRead = isGroupChat
+          ? props.seenBy.contains(u)
+          : props.effectiveIsRead;
       final hasReacted = reactions.containsKey(u);
       return hasRead || hasReacted;
     }).toList();
@@ -146,9 +175,11 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
             if (readerUids.isEmpty)
               Padding(
                 padding: const EdgeInsets.all(16),
-                child: Text(greek
-                    ? 'Κανείς δεν το έχει διαβάσει ακόμα'
-                    : 'No one has read this yet'),
+                child: Text(
+                  greek
+                      ? 'Κανείς δεν το έχει διαβάσει ακόμα'
+                      : 'No one has read this yet',
+                ),
               ),
             ...readerUids.map((uid) {
               final nickname = participantNicknames[uid] ?? uid;
@@ -176,8 +207,11 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     );
   }
 
-
-  Future<XFile?> _downloadMediaAsFile(String url, String type, String msgId) async {
+  Future<XFile?> _downloadMediaAsFile(
+    String url,
+    String type,
+    String msgId,
+  ) async {
     final ext = switch (type) {
       'image' => 'jpg',
       'audio' => 'm4a',
@@ -209,9 +243,12 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     final greek = L10n.isGreek(context);
     final type = msg['type'] as String? ?? 'text';
     final content = msg['content'] as String? ?? '';
-    final msgId = msg['id'] as String? ?? DateTime.now().millisecondsSinceEpoch.toString();
+    final msgId =
+        msg['id'] as String? ??
+        DateTime.now().millisecondsSinceEpoch.toString();
     final subject = greek ? 'Μήνυμα από near_me' : 'Message from near_me';
-    final isMedia = type == 'image' || type == 'audio' || type == 'video' || type == 'gif';
+    final isMedia =
+        type == 'image' || type == 'audio' || type == 'video' || type == 'gif';
 
     EmailCapabilities capabilities;
     try {
@@ -219,12 +256,18 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     } catch (e) {
       DebugConfig.error('ChatMessagesList: getCapabilities failed', data: e);
       if (!mounted) return;
-      AppMessenger.showError(context, ErrorMessages.get('chat/email-no-app', greek));
+      AppMessenger.showError(
+        context,
+        ErrorMessages.get('chat/email-no-app', greek),
+      );
       return;
     }
     if (!mounted) return;
     if (!capabilities.canSend) {
-      AppMessenger.showError(context, ErrorMessages.get('chat/email-not-configured', greek));
+      AppMessenger.showError(
+        context,
+        ErrorMessages.get('chat/email-not-configured', greek),
+      );
       return;
     }
 
@@ -234,7 +277,10 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
       if (!mounted) return;
       attachmentPath = file?.path;
       if (attachmentPath == null) {
-        AppMessenger.showInfo(context, ErrorMessages.get('chat/email-attach-failed', greek));
+        AppMessenger.showInfo(
+          context,
+          ErrorMessages.get('chat/email-attach-failed', greek),
+        );
       }
     }
 
@@ -246,10 +292,10 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     final body = attachmentPath != null
         ? tsSuffix.trim()
         : (isMedia
-        ? (greek
-        ? '[Δεν ήταν δυνατή η αποστολή του αρχείου]$tsSuffix'
-        : '[Could not send the file]$tsSuffix')
-        : '$content$tsSuffix');
+              ? (greek
+                    ? '[Δεν ήταν δυνατή η αποστολή του αρχείου]$tsSuffix'
+                    : '[Could not send the file]$tsSuffix')
+              : '$content$tsSuffix');
 
     final email = Email(
       subject: subject,
@@ -262,13 +308,19 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
       await FlutterEmailSender.send(email);
     } on FlutterEmailSenderNotAvailableException {
       if (!mounted) return;
-      AppMessenger.showError(context, ErrorMessages.get('chat/email-not-available', greek));
+      AppMessenger.showError(
+        context,
+        ErrorMessages.get('chat/email-not-available', greek),
+      );
     } on FlutterEmailSenderUnsupportedFeatureException catch (e) {
       DebugConfig.warn('ChatMessagesList: email unsupported features', data: e);
     } catch (e) {
       DebugConfig.error('ChatMessagesList: email send failed', data: e);
       if (!mounted) return;
-      AppMessenger.showError(context, ErrorMessages.get('chat/email-send-failed', greek));
+      AppMessenger.showError(
+        context,
+        ErrorMessages.get('chat/email-send-failed', greek),
+      );
     }
   }
 
@@ -282,12 +334,16 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
           children: [
             ListTile(
               leading: const Icon(Icons.forward),
-              title: Text(greek ? 'Προώθηση σε συνομιλία' : 'Forward to a chat'),
+              title: Text(
+                greek ? 'Προώθηση σε συνομιλία' : 'Forward to a chat',
+              ),
               onTap: () => Navigator.of(ctx).pop('forward'),
             ),
             ListTile(
               leading: const Icon(Icons.ios_share),
-              title: Text(greek ? 'Κοινοποίηση εκτός εφαρμογής' : 'Share externally'),
+              title: Text(
+                greek ? 'Κοινοποίηση εκτός εφαρμογής' : 'Share externally',
+              ),
               onTap: () => Navigator.of(ctx).pop('external'),
             ),
           ],
@@ -300,9 +356,15 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     if (choice == 'external') {
       final type = msg['type'] as String? ?? 'text';
       final content = msg['content'] as String? ?? '';
-      final isMedia = type == 'image' || type == 'audio' || type == 'video' || type == 'gif';
+      final isMedia =
+          type == 'image' ||
+          type == 'audio' ||
+          type == 'video' ||
+          type == 'gif';
       if (isMedia) {
-        final msgId = msg['id'] as String? ?? DateTime.now().millisecondsSinceEpoch.toString();
+        final msgId =
+            msg['id'] as String? ??
+            DateTime.now().millisecondsSinceEpoch.toString();
         final file = await _downloadMediaAsFile(content, type, msgId);
         if (!mounted) return;
         if (file != null) {
@@ -316,18 +378,28 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
           if (!mounted) return;
           if (shared) return;
         }
-        AppMessenger.showInfo(context, ErrorMessages.get('chat/share-file-failed', greek));
+        AppMessenger.showInfo(
+          context,
+          ErrorMessages.get('chat/share-file-failed', greek),
+        );
       }
       try {
-        await SharePlus.instance.share(ShareParams(
-          text: isMedia
-              ? (greek ? '[Δεν ήταν δυνατή η αποστολή του αρχείου]' : '[Could not send the file]')
-              : content,
-        ));
+        await SharePlus.instance.share(
+          ShareParams(
+            text: isMedia
+                ? (greek
+                      ? '[Δεν ήταν δυνατή η αποστολή του αρχείου]'
+                      : '[Could not send the file]')
+                : content,
+          ),
+        );
       } catch (e) {
         DebugConfig.error('ChatMessagesList: share failed', data: e);
         if (!mounted) return;
-        AppMessenger.showError(context, ErrorMessages.get('chat/share-failed', greek));
+        AppMessenger.showError(
+          context,
+          ErrorMessages.get('chat/share-failed', greek),
+        );
       }
       return;
     }
@@ -340,7 +412,10 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
         .toList();
     if (chats.isEmpty) {
       if (!mounted) return;
-      AppMessenger.showInfo(context, ErrorMessages.get('chat/no-chats-forward', greek));
+      AppMessenger.showInfo(
+        context,
+        ErrorMessages.get('chat/no-chats-forward', greek),
+      );
       return;
     }
 
@@ -349,104 +424,164 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
 
     final content = msg['content'] as String? ?? '';
     final type = msg['type'] as String? ?? 'text';
-    DebugConfig.log(DebugConfig.chatShare,
-        'ChatMessagesList: forward chat=$targetChatId type=$type');
-    final isMedia = type == 'image' || type == 'audio' || type == 'video' || type == 'gif';
+    DebugConfig.log(
+      DebugConfig.chatShare,
+      'ChatMessagesList: forward chat=$targetChatId type=$type',
+    );
+    final isMedia =
+        type == 'image' || type == 'audio' || type == 'video' || type == 'gif';
     final success = isMedia
-        ? await ref.read(chatActionsProvider.notifier).sendMediaMessage(
-              targetChatId,
-              content: content,
-              type: type,
-              duration: (type == 'audio' || type == 'video')
-                  ? (msg['duration'] as int?)
-                  : null,
-              forwardThumbnailUrl:
-                  type == 'video' ? (msg['thumbnailUrl'] as String?) : null,
-            )
-        : await ref.read(chatActionsProvider.notifier)
-            .sendMessage(targetChatId, content);
+        ? await ref
+              .read(chatActionsProvider.notifier)
+              .sendMediaMessage(
+                targetChatId,
+                content: content,
+                type: type,
+                duration: (type == 'audio' || type == 'video')
+                    ? (msg['duration'] as int?)
+                    : null,
+                forwardThumbnailUrl: type == 'video'
+                    ? (msg['thumbnailUrl'] as String?)
+                    : null,
+              )
+        : await ref
+              .read(chatActionsProvider.notifier)
+              .sendMessage(targetChatId, content);
     if (!mounted) return;
     if (success) {
-      AppMessenger.showSuccess(context, ErrorMessages.get('chat/forwarded', greek));
+      AppMessenger.showSuccess(
+        context,
+        ErrorMessages.get('chat/forwarded', greek),
+      );
     } else {
       final state = ref.read(chatActionsProvider);
-      AppMessenger.showError(context, ErrorMessages.get(
-          state.errorMessage ?? 'chat/forward-failed', greek));
+      AppMessenger.showError(
+        context,
+        ErrorMessages.get(state.errorMessage ?? 'chat/forward-failed', greek),
+      );
     }
   }
 
   Future<void> _onLinkTap(String url) async {
     final greek = L10n.isGreek(context);
-    DebugConfig.log(DebugConfig.uiInteraction, 'ChatMessagesList: link tap url=$url');
+    DebugConfig.log(
+      DebugConfig.uiInteraction,
+      'ChatMessagesList: link tap url=$url',
+    );
     final normalized = (url.startsWith('http://') || url.startsWith('https://'))
         ? url
         : 'https://$url';
     final uri = Uri.tryParse(normalized);
     if (uri == null) {
-      AppMessenger.showError(context, ErrorMessages.get('chat/link-invalid', greek));
+      AppMessenger.showError(
+        context,
+        ErrorMessages.get('chat/link-invalid', greek),
+      );
       return;
     }
     try {
-      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
       if (!mounted) return;
       if (!launched) {
-        AppMessenger.showError(context, ErrorMessages.get('chat/link-open-failed', greek));
+        AppMessenger.showError(
+          context,
+          ErrorMessages.get('chat/link-open-failed', greek),
+        );
       }
     } catch (e) {
       DebugConfig.error('ChatMessagesList: link launch failed', data: e);
       if (!mounted) return;
-      AppMessenger.showError(context, ErrorMessages.get('chat/link-open-failed', greek));
+      AppMessenger.showError(
+        context,
+        ErrorMessages.get('chat/link-open-failed', greek),
+      );
     }
   }
 
   Future<void> _onKeepChat(String chatId) async {
-    DebugConfig.log(DebugConfig.uiInteraction, 'ChatMessagesList: keepChat chat=$chatId');
+    DebugConfig.log(
+      DebugConfig.uiInteraction,
+      'ChatMessagesList: keepChat chat=$chatId',
+    );
     await ref.read(chatActionsProvider.notifier).cancelDeleteRequest(chatId);
   }
 
   Future<void> _onReact(String messageId, String emoji) async {
-    DebugConfig.log(DebugConfig.chatReactions, 'ChatMessagesList: react msg=$messageId emoji=$emoji');
-    await ref.read(chatActionsProvider.notifier).reactToMessage(widget.chatId, messageId, emoji);
+    DebugConfig.log(
+      DebugConfig.chatReactions,
+      'ChatMessagesList: react msg=$messageId emoji=$emoji',
+    );
+    await ref
+        .read(chatActionsProvider.notifier)
+        .reactToMessage(widget.chatId, messageId, emoji);
   }
 
   Future<void> _onRemove(String messageId) async {
-    DebugConfig.log(DebugConfig.chatReactions, 'ChatMessagesList: remove reaction msg=$messageId');
-    await ref.read(chatActionsProvider.notifier).removeReaction(widget.chatId, messageId);
+    DebugConfig.log(
+      DebugConfig.chatReactions,
+      'ChatMessagesList: remove reaction msg=$messageId',
+    );
+    await ref
+        .read(chatActionsProvider.notifier)
+        .removeReaction(widget.chatId, messageId);
   }
 
   void _onReply(Map<String, dynamic> msg) {
-    DebugConfig.log(DebugConfig.chatReply, 'ChatMessagesList: reply msg=${msg['id']}');
+    DebugConfig.log(
+      DebugConfig.chatReply,
+      'ChatMessagesList: reply msg=${msg['id']}',
+    );
     ref.read(replyToMessageProvider.notifier).setReply(widget.chatId, msg);
   }
 
-  Future<void> _onReplyPrivately(Map<String, dynamic> msg, Map<String, String> participantNicknames) async {
+  Future<void> _onReplyPrivately(
+    Map<String, dynamic> msg,
+    Map<String, String> participantNicknames,
+  ) async {
     final greek = L10n.isGreek(context);
     final senderId = msg['senderId'] as String? ?? '';
     final currentUid = ref.read(authStateProvider).value?.uid ?? '';
     if (senderId.isEmpty || senderId == currentUid) {
-      DebugConfig.warn('ChatMessagesList: replyPrivately invalid '
-          'senderId=$senderId currentUid=$currentUid');
+      DebugConfig.warn(
+        'ChatMessagesList: replyPrivately invalid '
+        'senderId=$senderId currentUid=$currentUid',
+      );
       return;
     }
     if (_isOpeningPrivateChat) return;
     _isOpeningPrivateChat = true;
-    DebugConfig.log(DebugConfig.uiInteraction,
-        'ChatMessagesList: replyPrivately tap sender=$senderId msgId=${msg['id']}');
+    DebugConfig.log(
+      DebugConfig.uiInteraction,
+      'ChatMessagesList: replyPrivately tap sender=$senderId msgId=${msg['id']}',
+    );
     try {
-      final chatId = await ref.read(chatActionsProvider.notifier).createChat(senderId);
+      final chatId = await ref
+          .read(chatActionsProvider.notifier)
+          .createChat(senderId);
       if (!mounted) return;
       if (chatId == null) {
-      final state = ref.read(chatActionsProvider);
-      AppMessenger.showError(context, ErrorMessages.get(
-          state.errorMessage ?? 'chat/reply-privately-failed', greek));
-      return;
+        final state = ref.read(chatActionsProvider);
+        AppMessenger.showError(
+          context,
+          ErrorMessages.get(
+            state.errorMessage ?? 'chat/reply-privately-failed',
+            greek,
+          ),
+        );
+        return;
       }
 
       final senderNicknameHint = participantNicknames[senderId] ?? senderId;
-      ref.read(pendingPrivateReplyProvider.notifier)
+      ref
+          .read(pendingPrivateReplyProvider.notifier)
           .set(chatId, msg, senderNicknameHint: senderNicknameHint);
-      DebugConfig.log(DebugConfig.chatReply,
-          'ChatMessagesList: replyPrivately opening chat=$chatId');
+      DebugConfig.log(
+        DebugConfig.chatReply,
+        'ChatMessagesList: replyPrivately opening chat=$chatId',
+      );
       context.push('/chat/$chatId');
     } finally {
       if (mounted) _isOpeningPrivateChat = false;
@@ -458,16 +593,21 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
   void _onEdit(Map<String, dynamic> msg) {
     final type = msg['type'] as String? ?? 'text';
     if (type != 'text') {
-      DebugConfig.log(DebugConfig.chatReply,
-          '_onEdit: skipped for type=$type');
+      DebugConfig.log(DebugConfig.chatReply, '_onEdit: skipped for type=$type');
       return;
     }
-    DebugConfig.log(DebugConfig.chatReply, 'ChatMessagesList: edit msg=${msg['id']}');
+    DebugConfig.log(
+      DebugConfig.chatReply,
+      'ChatMessagesList: edit msg=${msg['id']}',
+    );
     final rawTs = msg['timestamp'];
     final ts = rawTs is Timestamp ? rawTs.toDate() : null;
     if (ts != null && DateTime.now().difference(ts) > _editWindow) {
       final greek = L10n.isGreek(context);
-      AppMessenger.showInfo(context, ErrorMessages.get('chat/edit-timeout', greek));
+      AppMessenger.showInfo(
+        context,
+        ErrorMessages.get('chat/edit-timeout', greek),
+      );
       return;
     }
     ref.read(editingMessageProvider.notifier).setEdit(widget.chatId, msg);
@@ -481,27 +621,43 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     final confirmed = await AppMessenger.showConfirmDialog(
       context,
       title: greek ? 'Διαγραφή μηνύματος' : 'Delete message',
-      message: greek ? 'Θέλεις να διαγράψεις αυτό το μήνυμα;' : 'Delete this message?',
+      message: greek
+          ? 'Θέλεις να διαγράψεις αυτό το μήνυμα;'
+          : 'Delete this message?',
       confirmLabel: greek ? 'Διαγραφή' : 'Delete',
       cancelLabel: greek ? 'Ακύρωση' : 'Cancel',
       isDestructive: true,
     );
     if (!mounted || confirmed != true) return;
-    DebugConfig.log(DebugConfig.chatReply, 'ChatMessagesList: delete msg=$messageId');
-    final ok = await ref.read(chatActionsProvider.notifier).deleteMessage(widget.chatId, messageId);
+    DebugConfig.log(
+      DebugConfig.chatReply,
+      'ChatMessagesList: delete msg=$messageId',
+    );
+    final ok = await ref
+        .read(chatActionsProvider.notifier)
+        .deleteMessage(widget.chatId, messageId);
     if (!ok && mounted) {
       final chatState = ref.read(chatActionsProvider);
-      AppMessenger.showError(context,
-          ErrorMessages.get(chatState.errorMessage ?? 'chat/unknown-error', L10n.isGreek(context)));
+      AppMessenger.showError(
+        context,
+        ErrorMessages.get(
+          chatState.errorMessage ?? 'chat/unknown-error',
+          L10n.isGreek(context),
+        ),
+      );
     }
   }
 
-  void _onMessagesChanged(List<Map<String, dynamic>> messages, String currentUid) {
+  void _onMessagesChanged(
+    List<Map<String, dynamic>> messages,
+    String currentUid,
+  ) {
     if (messages.isEmpty || !mounted) return;
     final newLastId = messages.last['id'] as String?;
     final hasNewLast = newLastId != null && newLastId != _lastMessageId;
     final isNewMessage = hasNewLast && messages.length >= _lastMessageCount;
-    final isOwnNewMessage = isNewMessage && messages.last['senderId'] == currentUid;
+    final isOwnNewMessage =
+        isNewMessage && messages.last['senderId'] == currentUid;
     _lastMessageId = newLastId ?? _lastMessageId;
     _lastMessageCount = messages.length;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -514,9 +670,11 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
       if (!isNewMessage) return;
       final currentScroll = _scrollCtrl.position.pixels;
       if (isOwnNewMessage) {
-        DebugConfig.log(DebugConfig.uiInteraction,
-            'ChatMessagesList: own message -> scroll-to-bottom '
-            '(from ${currentScroll.toInt()}px)');
+        DebugConfig.log(
+          DebugConfig.uiInteraction,
+          'ChatMessagesList: own message -> scroll-to-bottom '
+          '(from ${currentScroll.toInt()}px)',
+        );
         _scrollCtrl.animateTo(
           0,
           duration: const Duration(milliseconds: 200),
@@ -525,8 +683,10 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
         return;
       }
       if (currentScroll > 50.0) {
-        DebugConfig.log(DebugConfig.uiInteraction,
-            'auto-scroll: suppressed (user ${currentScroll.toInt()}px from bottom)');
+        DebugConfig.log(
+          DebugConfig.uiInteraction,
+          'auto-scroll: suppressed (user ${currentScroll.toInt()}px from bottom)',
+        );
         return;
       }
       _scrollCtrl.animateTo(
@@ -543,89 +703,144 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     final oldest = current.first;
     final rawTs = oldest['timestamp'];
     if (rawTs is! Timestamp) return;
-    ref.read(olderMessagesByChatProvider.notifier).loadMore(widget.chatId, rawTs.toDate());
+    ref
+        .read(olderMessagesByChatProvider.notifier)
+        .loadMore(widget.chatId, rawTs.toDate());
   }
 
   @override
   Widget build(BuildContext context) {
     final messagesAsync = ref.watch(messagesProvider(widget.chatId));
     final currentUid = ref.watch(authStateProvider).value?.uid ?? '';
-    final lastReadTimestamps = ref.watch(chatDocProvider(widget.chatId).select((a) {
-      final raw = (a.asData?.value?.data() as Map<String, dynamic>?)
-      ?['lastReadTimestamps'] as Map<String, dynamic>?;
-      if (raw == null) return const <String, DateTime>{};
-      final result = raw.map((k, v) {
-        final ts = (v as Timestamp?)?.toDate();
-        return MapEntry(k, ts ?? DateTime(2020));
-      });
-      if (_lastLastReadTimestamps != null &&
-          const DeepCollectionEquality().equals(_lastLastReadTimestamps, result)) {
-        DebugConfig.log(DebugConfig.chatStream,
-            'ChatMessagesList: lastReadTimestamps cache hit for ${widget.chatId}');
-        return _lastLastReadTimestamps!;
-      }
-      DebugConfig.log(DebugConfig.chatStream,
-          'ChatMessagesList: lastReadTimestamps cache miss for ${widget.chatId}');
-      _lastLastReadTimestamps = result;
-      return result;
-    }));
-    final isGroupChat = ref.watch(chatDocProvider(widget.chatId).select(
-      (a) =>
-          (a.asData?.value?.data() as Map<String, dynamic>?)?['isGroupChat'] ==
-          true,
-    ));
+    final lastReadTimestamps = ref.watch(
+      chatDocProvider(widget.chatId).select((a) {
+        final raw =
+            (a.asData?.value?.data()
+                    as Map<String, dynamic>?)?['lastReadTimestamps']
+                as Map<String, dynamic>?;
+        if (raw == null) return const <String, DateTime>{};
+        final result = raw.map((k, v) {
+          final ts = (v as Timestamp?)?.toDate();
+          return MapEntry(k, ts ?? DateTime(2020));
+        });
+        if (_lastLastReadTimestamps != null &&
+            const DeepCollectionEquality().equals(
+              _lastLastReadTimestamps,
+              result,
+            )) {
+          DebugConfig.log(
+            DebugConfig.chatStream,
+            'ChatMessagesList: lastReadTimestamps cache hit for ${widget.chatId}',
+          );
+          return _lastLastReadTimestamps!;
+        }
+        DebugConfig.log(
+          DebugConfig.chatStream,
+          'ChatMessagesList: lastReadTimestamps cache miss for ${widget.chatId}',
+        );
+        _lastLastReadTimestamps = result;
+        return result;
+      }),
+    );
+    final isGroupChat = ref.watch(
+      chatDocProvider(widget.chatId).select(
+        (a) =>
+            (a.asData?.value?.data()
+                as Map<String, dynamic>?)?['isGroupChat'] ==
+            true,
+      ),
+    );
     final blockedByMe = isGroupChat
-        ? (ref.watch(blockedUidsProvider(currentUid)).asData?.value ?? const <String>{})
+        ? (ref.watch(blockedUidsProvider(currentUid)).asData?.value ??
+              const <String>{})
         : const <String>{};
-    final participantNicknames = ref.watch(chatDocProvider(widget.chatId).select(
-      (a) {
-        final raw = (a.asData?.value?.data() as Map<String, dynamic>?)
-            ?['participantNicknames'] as Map<String, dynamic>?;
+    final participantNicknames = ref.watch(
+      chatDocProvider(widget.chatId).select((a) {
+        final raw =
+            (a.asData?.value?.data()
+                    as Map<String, dynamic>?)?['participantNicknames']
+                as Map<String, dynamic>?;
         if (raw == null) return const <String, String>{};
-        return raw.map((k, v) => MapEntry(k, v as String? ?? k));
-      },
-    ));
-    final participantAvatarUrls = ref.watch(chatDocProvider(widget.chatId).select(
-      (a) {
-        final raw = (a.asData?.value?.data() as Map<String, dynamic>?)
-            ?['participantAvatarUrls'] as Map<String, dynamic>?;
+        final result = raw.map((k, v) => MapEntry(k, v as String? ?? k));
+        if (_lastParticipantNicknames != null &&
+            const DeepCollectionEquality().equals(
+              _lastParticipantNicknames,
+              result,
+            )) {
+          return _lastParticipantNicknames!;
+        }
+        _lastParticipantNicknames = result;
+        return result;
+      }),
+    );
+    final participantAvatarUrls = ref.watch(
+      chatDocProvider(widget.chatId).select((a) {
+        final raw =
+            (a.asData?.value?.data()
+                    as Map<String, dynamic>?)?['participantAvatarUrls']
+                as Map<String, dynamic>?;
         if (raw == null) return const <String, String>{};
-        return raw.map((k, v) => MapEntry(k, v as String? ?? ''));
-      },
-    ));
-    final hasPendingDelete = ref.watch(chatDocProvider(widget.chatId).select(
-      (a) => (a.asData?.value?.data() as Map<String, dynamic>?)
-          ?['pendingDelete'] == true,
-    ));
-    final hasDeleteResponseNeeded = ref.watch(chatDocProvider(widget.chatId).select(
-      (a) => (a.asData?.value?.data() as Map<String, dynamic>?)
-          ?['deleteResponseNeeded'] == true,
-    ));
-    DebugConfig.log(DebugConfig.chatDelete,
-        'ChatMessagesList: pendingDelete=$hasPendingDelete '
-        'deleteResponseNeeded=$hasDeleteResponseNeeded for ${widget.chatId}');
+        final result = raw.map((k, v) => MapEntry(k, v as String? ?? ''));
+        if (_lastParticipantAvatarUrls != null &&
+            const DeepCollectionEquality().equals(
+              _lastParticipantAvatarUrls,
+              result,
+            )) {
+          return _lastParticipantAvatarUrls!;
+        }
+        _lastParticipantAvatarUrls = result;
+        return result;
+      }),
+    );
+    final hasPendingDelete = ref.watch(
+      chatDocProvider(widget.chatId).select(
+        (a) =>
+            (a.asData?.value?.data()
+                as Map<String, dynamic>?)?['pendingDelete'] ==
+            true,
+      ),
+    );
+    final hasDeleteResponseNeeded = ref.watch(
+      chatDocProvider(widget.chatId).select(
+        (a) =>
+            (a.asData?.value?.data()
+                as Map<String, dynamic>?)?['deleteResponseNeeded'] ==
+            true,
+      ),
+    );
+    DebugConfig.log(
+      DebugConfig.chatDelete,
+      'ChatMessagesList: pendingDelete=$hasPendingDelete '
+      'deleteResponseNeeded=$hasDeleteResponseNeeded for ${widget.chatId}',
+    );
     final participantUids = ref.watch(participantUidsProvider(widget.chatId));
-    final otherUid = isGroupChat ? null : participantUids.where((u) => u != currentUid).firstOrNull;
+    final otherUid = isGroupChat
+        ? null
+        : participantUids.where((u) => u != currentUid).firstOrNull;
     // --- ΝΕΟ: combined (παλιά + live) λίστα για rendering + loading state παλιών μηνυμάτων ---
     final combinedMessages = ref.watch(combinedMessagesProvider(widget.chatId));
-    final isLoadingOlder = ref.watch(olderMessagesByChatProvider
-        .select((m) => m[widget.chatId]?.isLoading ?? false));
+    final isLoadingOlder = ref.watch(
+      olderMessagesByChatProvider.select(
+        (m) => m[widget.chatId]?.isLoading ?? false,
+      ),
+    );
     final greek = L10n.isGreek(context);
     _buildCount++;
-    final screenW = MediaQuery.sizeOf(context).width;
-    DebugConfig.log(DebugConfig.chatBubbleDesign,
-        'MSG_LIST BUILD #$_buildCount chat=${widget.chatId} '
-        'screenW=${screenW.toStringAsFixed(1)}');
+    DebugConfig.log(
+      DebugConfig.chatBubbleDesign,
+      'MSG_LIST BUILD #$_buildCount chat=${widget.chatId} inst=$_instanceId',
+    );
 
     return messagesAsync.when(
       loading: () => const LoadingView(),
       error: (e, _) {
         DebugConfig.error('ChatScreen messages error', data: e);
         return ErrorView(
-          message: L10n.localizedMessage(context,
-              'Σφάλμα φόρτωσης / Failed to load'),
-          onRetry: () =>
-              ref.invalidate(messagesProvider(widget.chatId)),
+          message: L10n.localizedMessage(
+            context,
+            'Σφάλμα φόρτωσης / Failed to load',
+          ),
+          onRetry: () => ref.invalidate(messagesProvider(widget.chatId)),
         );
       },
       data: (messages) {
@@ -641,9 +856,21 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
                       icon: Icons.chat_bubble_outline,
                       message: greek ? 'Καμία συνομιλία' : 'No messages',
                     )
-                  : _buildMessagesList(combinedMessages, currentUid, lastReadTimestamps, isGroupChat,
-                      participantNicknames, participantAvatarUrls, participantUids, otherUid,
-                      hasPendingDelete, hasDeleteResponseNeeded, isLoadingOlder, blockedByMe, greek),
+                  : _buildMessagesList(
+                      combinedMessages,
+                      currentUid,
+                      lastReadTimestamps,
+                      isGroupChat,
+                      participantNicknames,
+                      participantAvatarUrls,
+                      participantUids,
+                      otherUid,
+                      hasPendingDelete,
+                      hasDeleteResponseNeeded,
+                      isLoadingOlder,
+                      blockedByMe,
+                      greek,
+                    ),
             ),
           ],
         );
@@ -666,7 +893,11 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     Set<String> blockedByMe,
     bool greek,
   ) {
-    final renderItems = ChatGroupingCalculator.calculate(widget.chatId, combinedMessages, currentUid);
+    final renderItems = ChatGroupingCalculator.calculate(
+      widget.chatId,
+      combinedMessages,
+      currentUid,
+    );
     final readProps = _precomputeReadProps(
       combinedMessages,
       currentUid,
@@ -679,111 +910,135 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
       return r != null && r.isNotEmpty;
     }).length;
     final totalRead = readProps.values.where((p) => p.effectiveIsRead).length;
-    final totalWithSeenBy = readProps.values.where((p) => p.seenBy.isNotEmpty).length;
-    DebugConfig.log(DebugConfig.chatBubbleDesign,
-        'MSG_LIST: ${renderItems.length} items, '
-        '${combinedMessages.length} msgs, '
-        '$totalWithReactions with reactions, '
-        '$totalRead read, '
-        '$totalWithSeenBy with seenBy');
+    final totalWithSeenBy = readProps.values
+        .where((p) => p.seenBy.isNotEmpty)
+        .length;
+    DebugConfig.log(
+      DebugConfig.chatBubbleDesign,
+      'MSG_LIST: ${renderItems.length} items, '
+      '${combinedMessages.length} msgs, '
+      '$totalWithReactions with reactions, '
+      '$totalRead read, '
+      '$totalWithSeenBy with seenBy',
+    );
     final itemCount = renderItems.length + (isLoadingOlder ? 1 : 0);
-    return ListView.builder(
-      controller: _scrollCtrl,
-      reverse: true,
-      padding: EdgeInsets.symmetric(
-        horizontal: ResponsiveUtils.paddingValueFromWidth(
-            MediaQuery.sizeOf(context).width),
-        vertical: 8,
-      ),
-      itemCount: itemCount,
-      itemBuilder: (_, i) {
-        if (isLoadingOlder && i == itemCount - 1) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Center(
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ),
-          );
-        }
-        final item = renderItems[renderItems.length - 1 - i];
-        if (item.type == RenderItemType.dateSeparator) {
-          return DateSeparator(key: ValueKey('ds_${item.date}'), date: item.date!);
-        }
-
-        final msg = item.message!;
-        final senderId = msg['senderId'] as String? ?? '';
-        final isSenderBlockedByMe = blockedByMe.contains(senderId);
-        final senderNickname = participantNicknames[senderId];
-        final senderAvatarUrl = participantAvatarUrls[senderId];
-        if (senderNickname == null) {
-          DebugConfig.warn(
-              'ChatMessagesList: senderNickname null for senderId=$senderId '
-                  'chat=${widget.chatId} nicknameMapSize=${participantNicknames.length}');
-        }
-
-        final msgId = msg['id'] as String? ?? '';
-        final props = readProps[msgId] ??
-            const _MessageReadProps(effectiveIsRead: false, seenBy: []);
-
-        return MessageBubble(
-          key: ValueKey(msgId),
-          message: msg,
-          currentUid: currentUid,
-          isGroupChat: isGroupChat,
-          isSenderBlockedByMe: isSenderBlockedByMe,
-          isRead: props.effectiveIsRead,
-          isGrouped: item.isGrouped,
-          isLastInGroup: item.isLastInGroup,
-          showAvatar: item.showAvatar,
-          senderNickname: senderNickname,
-          senderAvatarUrl: senderAvatarUrl,
-          participantNicknames: isGroupChat ? participantNicknames : null,
-          seenBy: props.seenBy,
-          hasPendingDelete: hasPendingDelete,
-          hasDeleteResponseNeeded: hasDeleteResponseNeeded,
-          chatId: widget.chatId,
-          audioPlayer: widget.audioPlayer,
-          videoPlayer: widget.videoPlayer,
-          videoLoadingUrl: widget.videoLoadingUrl,
-          callbacks: MessageCallbacks(
-            onApproveDelete: _onApproveDelete,
-            onRejectDelete: _onRejectDelete,
-            onDeleteForMe: _onDeleteForMe,
-            onKeepChat: _onKeepChat,
-            onReact: _onReact,
-            onRemove: _onRemove,
-            onReply: () => _onReply(msg),
-            onReplyPrivately: () => _onReplyPrivately(msg, participantNicknames),
-            onEdit: () => _onEdit(msg),
-            onDelete: () => _onDelete(msg),
-            onInfo: () => _onInfo(
-              msg,
-              props,
-              isGroupChat,
-              participantNicknames,
-              participantAvatarUrls,
-            ),
-            onEmail: () => _onEmail(msg),
-            onShare: () => _onShare(msg),
-            onLinkTap: _onLinkTap,
-            onPlayVideo: widget.onPlayVideo,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = ResponsiveUtils.resolveWidth(context, constraints);
+        return ListView.builder(
+          controller: _scrollCtrl,
+          reverse: true,
+          padding: EdgeInsets.symmetric(
+            horizontal: ResponsiveUtils.paddingValueFromWidth(w),
+            vertical: 8,
           ),
+          itemCount: itemCount,
+          itemBuilder: (_, i) {
+            DebugConfig.log(
+              DebugConfig.chatBubbleDesign,
+              'MSG_LIST itemBuilder i=$i (${widget.chatId}, inst=$_instanceId)',
+            );
+            if (isLoadingOlder && i == itemCount - 1) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              );
+            }
+            final item = renderItems[renderItems.length - 1 - i];
+            DebugConfig.log(
+              DebugConfig.chatBubbleDesign,
+              'MSG_LIST item type=${item.type} '
+              'msgId=${item.message?['id'] ?? item.date ?? 'none'} '
+              '(i=$i, inst=$_instanceId)',
+            );
+            if (item.type == RenderItemType.dateSeparator) {
+              return DateSeparator(
+                key: ValueKey('ds_${item.date}'),
+                date: item.date!,
+              );
+            }
+
+            final msg = item.message!;
+            final senderId = msg['senderId'] as String? ?? '';
+            final isSenderBlockedByMe = blockedByMe.contains(senderId);
+            final senderNickname = participantNicknames[senderId];
+            final senderAvatarUrl = participantAvatarUrls[senderId];
+            if (senderNickname == null) {
+              DebugConfig.warn(
+                'ChatMessagesList: senderNickname null for senderId=$senderId '
+                'chat=${widget.chatId} nicknameMapSize=${participantNicknames.length}',
+              );
+            }
+
+            final msgId = msg['id'] as String? ?? '';
+            final props =
+                readProps[msgId] ??
+                const _MessageReadProps(effectiveIsRead: false, seenBy: []);
+
+            return MessageBubble(
+              key: ValueKey(msgId),
+              message: msg,
+              currentUid: currentUid,
+              isGroupChat: isGroupChat,
+              isSenderBlockedByMe: isSenderBlockedByMe,
+              isRead: props.effectiveIsRead,
+              isGrouped: item.isGrouped,
+              isLastInGroup: item.isLastInGroup,
+              showAvatar: item.showAvatar,
+              senderNickname: senderNickname,
+              senderAvatarUrl: senderAvatarUrl,
+              participantNicknames: isGroupChat ? participantNicknames : null,
+              seenBy: props.seenBy,
+              hasPendingDelete: hasPendingDelete,
+              hasDeleteResponseNeeded: hasDeleteResponseNeeded,
+              chatId: widget.chatId,
+              audioPlayer: widget.audioPlayer,
+              videoPlayer: widget.videoPlayer,
+              videoLoadingUrl: widget.videoLoadingUrl,
+              callbacks: MessageCallbacks(
+                onApproveDelete: _onApproveDelete,
+                onRejectDelete: _onRejectDelete,
+                onDeleteForMe: _onDeleteForMe,
+                onKeepChat: _onKeepChat,
+                onReact: _onReact,
+                onRemove: _onRemove,
+                onReply: () => _onReply(msg),
+                onReplyPrivately: () =>
+                    _onReplyPrivately(msg, participantNicknames),
+                onEdit: () => _onEdit(msg),
+                onDelete: () => _onDelete(msg),
+                onInfo: () => _onInfo(
+                  msg,
+                  props,
+                  isGroupChat,
+                  participantNicknames,
+                  participantAvatarUrls,
+                ),
+                onEmail: () => _onEmail(msg),
+                onShare: () => _onShare(msg),
+                onLinkTap: _onLinkTap,
+                onPlayVideo: widget.onPlayVideo,
+              ),
+            );
+          },
         );
       },
     );
   }
 
   Map<String, _MessageReadProps> _precomputeReadProps(
-      List<Map<String, dynamic>> messages,
-      String currentUid,
-      String? otherUid,
-      Map<String, DateTime> lastReadTimestamps,
-      bool isGroupChat,
-      ) {
+    List<Map<String, dynamic>> messages,
+    String currentUid,
+    String? otherUid,
+    Map<String, DateTime> lastReadTimestamps,
+    bool isGroupChat,
+  ) {
     final result = <String, _MessageReadProps>{};
     for (final msg in messages) {
       final msgId = msg['id'] as String? ?? '';
@@ -795,7 +1050,9 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
       List<String> seenBy;
       if (isGroupChat && msgTimestamp != null) {
         seenBy = lastReadTimestamps.entries
-            .where((e) => e.key != senderId && e.value.compareTo(msgTimestamp) >= 0)
+            .where(
+              (e) => e.key != senderId && e.value.compareTo(msgTimestamp) >= 0,
+            )
             .map((e) => e.key)
             .toList();
       } else {
@@ -807,8 +1064,11 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
         effectiveIsRead = false;
       } else {
         final msgIsRead = msg['isRead'] as bool? ?? false;
-        final otherLastRead = otherUid != null ? lastReadTimestamps[otherUid] : null;
-        effectiveIsRead = msgIsRead ||
+        final otherLastRead = otherUid != null
+            ? lastReadTimestamps[otherUid]
+            : null;
+        effectiveIsRead =
+            msgIsRead ||
             (otherLastRead != null &&
                 msgTimestamp != null &&
                 otherLastRead.compareTo(msgTimestamp) >= 0);
@@ -819,8 +1079,10 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
         seenBy: seenBy,
       );
     }
-    DebugConfig.log(DebugConfig.chatBubbleDesign,
-        'ChatMessagesList: precomputed ${result.length} readProps for ${messages.length} msgs');
+    DebugConfig.log(
+      DebugConfig.chatBubbleDesign,
+      'ChatMessagesList: precomputed ${result.length} readProps for ${messages.length} msgs',
+    );
     return result;
   }
 }

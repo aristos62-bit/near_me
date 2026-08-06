@@ -864,3 +864,74 @@ Email με attachment: το Android email app (π.χ. Gmail, `launchMode=singleT
 
 ### Backups
 - `backups/*_20260806_112344.bak` (crash fix) · `backups/*_20260806_121640.bak` (media forward) · `backups/oldsessions_20260806_123954.md`
+
+---
+
+## Session 221 — ChatMessagesList rebuild storm (MediaQuery) + ReplyPreview media label (100%) — 6 Αυγ 2026
+
+### Σκοπός
+1. **ReplyPreview fix** — περιττό label («🎬 Βίντεο»/«📷 Φωτογραφία»/«🎞️ GIF») δίπλα στο thumbnail των media replies.
+2. **ChatMessagesList rebuild storm** — 22-26 builds/sec στο πληκτρολόγιο (regression από Session 212 όπου το gallery είχε 0 rebuilds). **Root cause βρέθηκε & fixed.**
+
+### 1) ReplyPreview fix (`reply_preview.dart`, backup `backups/reply_preview_20260806_1600.bak`)
+- Για media reply, το `contentPreview` παίρνει label από το `_mediaPreview` (chat_input_bar.dart:169-176, π.χ. image→"📷 Photo"). Το `ReplyPreview` το έδειχνε **δίπλα** στο thumbnail → πλεονασμός.
+- **Fix:** όταν υπάρχει thumbnail (`isMedia`), το κείμενο δίπλα δείχνει **μόνο** `@senderNickname` (σε group) ή τίποτα. Στο **audio** (χωρίς thumbnail, `urlFor`→null) και στα **text** το κείμενο μένει κανονικά.
+- `flutter analyze` clean ✅
+
+### 2) Rebuild storm — Διάγνωση (revert-ready diagnostics, όλα αποκλείστηκαν ένα-ένα)
+Με `MSG_LIST SIG` diagnostic στο `build()` (ποιο `ref.watch` αλλάζει / identity-check στο AsyncValue):
+- **nicknames/avatars fix (προηγούμενο, κρατείται):** οι selectors `participantNicknames`/`participantAvatarUrls` έφτιαχναν νέο Map σε κάθε build → Riverpod identity-compare = πάντα "άλλαξε" → rebuild. Fix: cached-instance (όπως το υπάρχον `lastReadTimestamps`), κρατείται στο `chat_messages_list.dart` ~581-616.
+- **Αποκλείστηκαν:** parent rebuild (καμία γραμμή `ChatScreen BUILD`, flag `uiRebuild=true`), provider emits (κανένα `chatDocProvider`/`messagesProvider` log στα bursts), `setState` (κανένα στο widget), ReplyPreview (StatelessWidget), screenH (853.3 σταθερό).
+- **`SIG -> EXTERNAL(no-watch-changed)`** σε όλα τα bursts → τίποτα από τα watches δεν άλλαξε, το build τρέχει 22-26× **στο ίδιο ms**.
+
+### ROOT CAUSE (επιβεβαιώθηκε με `SIG -> viewInsets` σε κάθε burst)
+- Το `ChatMessagesList.build()` έκανε `MediaQuery.sizeOf(context)` (για diagnostic screenH) + `MediaQuery.sizeOf(context).width` (γραμμή 750, responsive padding).
+- Όταν ανοίγει/κλείνει το πληκτρολόγιο, το **`viewInsets` αλλάζει σε κάθε frame του animation** → όποιος κάνει `MediaQuery.of`/`sizeOf` στη build του γίνεται dirty → **ολόκληρο το list ξαναχτίζεται 22-26 φορές** (όσα τα frames του keyboard animation). Το `screenH` δεν αλλάζει — το `viewInsets` είναι άλλο field του MediaQueryData.
+
+### Η λύση (μόνο `chat_messages_list.dart` — 2 προσπάθειες)
+
+**fix2 (απέτυχε, backup `backups/chat_messages_list_20260806_1640.fix2.bak`):**
+- **Cached width:** `double _screenWidth` + `didChangeDependencies()` το διαβάζει και το ενημερώνει μόνο όταν αλλάξει πραγματικά.
+- **Αποτυχία:** η `didChangeDependencies()` που καλούσε `MediaQuery.sizeOf(context)` δηλώνει κι αυτή MediaQuery dependency → το keyboard συνέχισε να ξαναχτίζει το widget. Επιβεβαιώθηκε: καθαρό log χωρίς πληκτρολόγιο, αλλά bursts με πληκτρολόγιο (`BUILD #7..#39`, 11-22×).
+- **Μάθημα:** MediaQuery σε `didChangeDependencies` = **εξίσου** dependency. Η dependency δηλώνεται με την ΚΛΗΣΗ του MediaQuery, όχι μόνο στη build.
+
+**fix3 (ΤΕΛΙΚΟ, backup `backups/chat_messages_list_20260806_1715.fix3.bak`):**
+- **LayoutBuilder** αντί MediaQuery: wrapped το ListView σε `LayoutBuilder` και πλάτος μέσω `ResponsiveUtils.resolveWidth(context, constraints)` (chat_messages_list.dart:923-925) — **μηδέν MediaQuery σε ολόκληρο το αρχείο** (grep-verified).
+- **Revert όλων των test codes:** αφαιρέθηκαν `REVERT-DIAG-H`, `REVERT-DIAG-T`, fields `_diagSig`/`_diagPrevAsync`, `_screenWidth`/`didChangeDependencies`, `viewInsets`/`viewPadding` diagnostics. Κρατείται μόνο το απλό `MSG_LIST BUILD #N` log (flag `chatBubbleDesign`).
+- Κρατήθηκαν: fix nicknames/avatars (cached-instance) + λειτουργικό `MSG_LIST: N items...` log.
+
+### Επαλήθευση (device logs, 6 Αυγ)
+- **Πριν:** κάθε άνοιγμα/κλείσιμο πληκτρολογίου → `MSG_LIST BUILD #4..#29` (22-26×, όλα `SIG -> viewInsets`).
+- **Μετά fix3:** σε πλήρες run (άνοιγμα chats, send/reply/forward με πληκτρολόγιο) → **καμία** γραμμή `MSG_LIST BUILD` από keyboard/scroll. Μόνο: BUILD #1-#4 στο άνοιγμα chat (initial → chatDoc emit → messagesProvider emit) και +1-#2 σε κάθε πραγματικό send. ✅
+- **Υπόλοιπο:** τα `ReplyPreview ×N` (26-47) είναι rebuilds **μεμονωμένων ListView items** (bubbles), ΟΧΙ ολόκληρου του list (δεν υπάρχει ταυτόχρονο `MSG_LIST BUILD`) — πιθανόν από scroll/keyboard frames. Ξεχωριστό, πιο ελαφρύ ζήτημα, ακόμα προς διερεύνηση.
+
+### Μάθημα για μελλοντική χρήση (σημαντικό)
+- **ΠΟΤΕ** `MediaQuery.sizeOf/viewInsetsOf/viewPaddingOf` μέσα σε `build()` αν το widget πρέπει να είναι σταθερό: η εξάρτηση είναι σε **ολόκληρο το MediaQueryData** — το keyboard (viewInsets) ξαναχτίζει όλους τους dependents, ακόμα κι αν το μέγεθος δεν αλλάζει.
+- Το codebase έχει ήδη το σωστό pattern: `ResponsiveUtils` "PURE WIDTH-BASED (no MediaQuery dependency)" + `ResponsiveBuilder`/`ResponsivePadding` με `LayoutBuilder` (constraints) — «no MediaQuery rebuild cascade».
+- Διάγνωση rebuild storms: SIG-diagnostic (hash/identity των watches ανά build) πριν οτιδήποτε speculative. Αποκλεισμοί: parent build log, provider emits, setState, MediaQuery.
+
+### Backups
+- `backups/chat_messages_list_20260806_1455.fix.bak` (pre-fix nicknames/avatars)
+- `backups/chat_messages_list_20260806_1530.hlog.bak` (pre-screenH)
+- `backups/chat_messages_list_20260806_1610.diagT.bak` · `..._1620.diagT2.bak` (SIG diagnostics, προσωρινά)
+- `backups/chat_messages_list_20260806_1640.fix2.bak` (pre-MediaQuery-fix — απότυχε, didChangeDependencies)
+- `backups/chat_messages_list_20260806_1715.fix3.bak` (ΤΕΛΙΚΟ fix — LayoutBuilder + resolveWidth, zero MediaQuery)
+- `backups/reply_preview_20260806_1600.bak`
+
+### ⚠️ ΠΡΟΣΟΧΗ — ΕΠΑΚΟΛΟΥΘΟ FIX & REVERT (6 Αυγ, μετά το παραπάνω)
+
+Οι παρακάτω σημειώσεις (fix4 memoization) είναι **REVERTED** — διατηρούνται μόνο για ιστορικό, ΔΕΝ είναι ενεργός κώδικας. Ο τρέχων ενεργός κώδικας = fix3 (LayoutBuilder) + νέα διακριτικά logs (βλ. πιο κάτω).
+
+**fix4 (memoization ListView — ΑΠΟΡΡΙΦΘΗΚΕ/REVERT, backup `backups/chat_messages_list_20260806_memo.bak`):**
+- Δοκιμάστηκε memoization ολόκληρου του `ListView` widget: fields `_cachedList`/`_cachedListWidth`, reset στο `build()`, short-circuit `return _cachedList!;` όταν το width δεν αλλάζει (μόνο το ύψος αλλάζει από keyboard).
+- **Αιτία αποτυχίας:** τα device logs (16:51) έδειξαν `MSG_LIST: ListView reused (w=384) (×25)` **ΜΑΖΙ** με `ReplyPreview: thumbnail=yes (×26)` / `(×52)` — δηλαδή το ListView widget κρατιέται (reused) αλλά τα **items ξαναχτίζονται**. Ο λόγος: στο keyboard relayout ο **`itemBuilder` ξανακαλείται** για τα ορατά items (sliver child cycle), οπότε δημιουργούνται νέα `MessageBubble` widgets ανεξαρτήτως του memoized ListView.
+- **Δεύτερη αιτία (μεθοδολογική):** το `ReplyPreview ×26/×52` ήταν **aggregate** χωρίς διάκριση — το `ReplyPreview` εμφανίζεται σε **5 εστίες** (`emoji_only_bubble.dart:115`, `gif_image_bubble.dart:175`, `audio_message_bubble.dart:223`, `video_message_bubble.dart:241`, `text_message_bubble.dart:223`) και το `ChatMessagesList` φτιάχνεται σε **4 σημεία** του chat_screen (γρ. 73, 134, 150, 161). Χωρίς msgId/instance/identityHashCode στα logs δεν μπορούμε να ξέρουμε ποια εστία και ποιο item ξαναχτίζεται. **Μάθημα: πρώτα διακριτικά diagnostics, μετά λύση — ποτέ speculative fix σε aggregate logs.**
+
+**REVERT + νέα διακριτικά logs (τρέχουσα κατάσταση, backups `backups/chat_messages_list_20260806_diagnostics.bak` + `backups/reply_preview_20260806_diagnostics.bak`):**
+- Αφαιρέθηκε πλήρως το memoization (ξανά clean fix3 LayoutBuilder, zero MediaQuery). `flutter analyze` clean ✅.
+- **Log A** — `chat_messages_list.dart`: `MSG_LIST itemBuilder i=X (chat, inst)` + `MSG_LIST item type=... msgId=... (inst)` στο `itemBuilder` → δείχνει πόσα indices καλούνται ανά frame και ποια (flag `chatBubbleDesign`).
+- **Log B** — `reply_preview.dart`: `ReplyPreview: id=<msgId> thumb=... h=<identityHashCode>` → ξεχωρίζει αν το ίδιο instance ξαναχτίζεται (ίδιο `h`) ή είναι διαφορετικά bubbles (flag `chatReply`).
+- **Log C** — `chat_messages_list.dart`: `MSG_LIST BUILD ... inst=<instanceId>` → ποιο από τα 4 instances του chat_screen χτίζει (flag `chatBubbleDesign`).
+- **Ανοιχτό:** εκκρεμεί device test από χρήστη + ανάλυση των νέων διακριτικών logs.
+
+### `flutter analyze`: clean ✅ (0 issues)

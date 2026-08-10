@@ -935,3 +935,40 @@ Email με attachment: το Android email app (π.χ. Gmail, `launchMode=singleT
 - **Ανοιχτό:** εκκρεμεί device test από χρήστη + ανάλυση των νέων διακριτικών logs.
 
 ### `flutter analyze`: clean ✅ (0 issues)
+
+---
+
+## Session 222 — SPoT bubbleMaxWidth + ReplyPreview cap + rebuild diagnosis (100%) — 10 Αυγ 2026
+
+### Σκοπός (3 μέρη, σε ροή)
+1. **SPoT bubbleMaxWidth** — το `bubbleMaxWidth = πλάτος × 0.75` υπολογιζόταν σε **4 διαφορετικά** bubble αρχεία (text/gif/audio/video, καθένα με δικό του `LayoutBuilder`· το `emoji_only_bubble` δεν είχε καθόλου). Σήμερα έγινε **Single Point of Truth** (Option A εγκρίθηκε).
+2. **ReplyPreview (quotes) καπέλωμα** — τα quotes (ReplyPreview) άφηναν το πλάτος τους ελεύθερο· τώρα καπελώνονται στο `bubbleMaxWidth` με `ConstrainedBox`.
+3. **Rebuild diagnosis** — κλείσιμο του ανοικτού θέματος του Session 221 (τα `ReplyPreview ×N` στα bursts): γιατί ξαναχτίζονται, ποια items, είναι φυσιολογικό;
+
+### 1) SPoT (8 αρχεία, backup `backups/*_20260810_pre_bubbleMaxWidth_spot.bak.dart`)
+- **`chat_messages_list.dart:943-944`** — SPoT: `w = ResponsiveUtils.resolveWidth(...)`, `bubbleMaxWidth = w * 0.75`. Υπολογισμός ΕΝΑΣ φορά ανά (re)BUILD, περνάει ως παράμετρος στο `MessageBubble`.
+- **`message_bubble.dart`** — νέα **required** παράμετρος `bubbleMaxWidth`, περνιέται και στα 5 bubble types.
+- **`text_message_bubble.dart`** — αφαιρέθηκε το LayoutBuilder (κρατήθηκε το `IntrinsicWidth` από Session 203).
+- **`gif_image_bubble.dart`** — αφαιρέθηκε το LayoutBuilder (κρατήθηκε το `maxHeight: 200`). Ο full-screen viewer (:383) **έμεινε άθικτος**.
+- **`audio_message_bubble.dart`** — αφαιρέθηκε το LayoutBuilder.
+- **`video_message_bubble.dart`** — αφαιρέθηκαν **και οι 2** χρήσεις (maxWidth + SizedBox width).
+- **`emoji_only_bubble.dart`** — νέα required παράμετρος + build-log με το value.
+- **`reply_preview.dart`** — νέα optional `maxWidth` + `ConstrainedBox`· τα 5 bubble αρχεία περνούν `maxWidth: bubbleMaxWidth`.
+
+### 2) Επαλήθευση SPoT (device: Xiaomi 24094RAD4G / NFT8KF4LD6XWOF7D)
+- `MSG_LIST: ListView (re)BUILT (w=384.0, bubbleMaxWidth=288.0, ...)` → **μία** φορά ανά πραγματικό build ✅
+- `MSG_LIST: ListView REUSED (w=384.0 ...) — height-only relayout, itemBuilder NOT re-invoked (×25)` → **fix5 (SPoT width-cache) δουλεύει**: σε αλλαγή μόνο ύψους το ListView instance επιστρέφεται identical → το Flutter κάνει shortcut → **δεν** ξανακαλεί itemBuilder για κανένα index ✅ (backups/λογική: 926-937, τοπικές μεταβλητές, όχι State field).
+- Idle: **4+ λεπτά καθαρά** (0 bursts) ✅
+- Ξεχωριστή παρατήρηση (δεν απενεργοποιήθηκε): το `ChatScreen` ξαναφτιάχνει `_messagesList` σε video play/fail (chat_screen.dart:134,150,161) — σκοτώνει το fix5 cache, μελλοντική δουλειά.
+
+### 3) Rebuild diagnosis — ΑΠΑΝΤΗΣΗ (probe `MB:` στο `MessageBubble.build`, flag `chatBubbleDesign`)
+- **Probe:** `MB: msgId=... type=... REPLY=... isMe=...` στο build του MessageBubble (προσωρινό) έδειξε ξεκάθαρα ότι στα bursts ξαναχτίζονται **ΟΛΑ τα visible bubbles** (image×26, gif×26, video×26, text×9, emoji×5 σε ~25 frames), ΟΧΙ μόνο τα quotes.
+- **Γιατί «τα`ReplyPreview` ήταν τόσα»:** το `ReplyPreview` ήταν το **μόνο** αρχείο με build-log. Καμία γραμμή `MSG_LIST: ListView REUSED` δεν συνέπεσε με itemBuilder — τα `MB ×N` είναι rebuilds των **ίδιων Elements** (Sliver-layer relayout), όχι νέα ListView/items.
+- **Συμπέρασμα: ΦΥΣΙΟΛΟΓΙΚΟ.** Τυπική συμπεριφορά `ListView` όταν αλλάζει η διάσταση viewport (πληκτρολόγιο/insets): τα **ορατά** παιδιά ξανα-γίνονται build κάθε frame του animation. Bounded (ανάλογο των ~5 ορατών, όχι των 50), μόνο κατά αλληλεπίδραση, ιδle=0. Όχι leak, όχι loop. Δεν χρειάζεται επεμβατική βελτιστοποίηση (ρίσκο > όφελος).
+
+### `flutter analyze`: clean ✅ (0 issues)
+
+### Backups
+- `backups/*_20260810_pre_bubbleMaxWidth_spot.bak.dart` (8 αρχεία: chat_messages_list, message_bubble, text_message_bubble, gif_image_bubble, audio_message_bubble, video_message_bubble, reply_preview, emoji_only_bubble)
+- `backups/message_bubble_20260810_pre_probe.bak.dart` (πριν το temporary probe)
+- `backups/oldsessions_20260810_pre_222.md`

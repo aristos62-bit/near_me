@@ -13,6 +13,7 @@ import 'tail_painter.dart';
 
 class AudioMessageBubble extends StatefulWidget {
   final String content;
+  final double bubbleMaxWidth;
   final int duration;
   final String timeStr;
   final bool isMe;
@@ -43,6 +44,7 @@ class AudioMessageBubble extends StatefulWidget {
   const AudioMessageBubble({
     super.key,
     required this.content,
+    required this.bubbleMaxWidth,
     this.duration = 0,
     required this.timeStr,
     required this.isMe,
@@ -123,7 +125,9 @@ class _AudioMessageBubbleState extends State<AudioMessageBubble> {
       setState(() {
         _position = pos;
         if (widget.duration > 0) {
-          _progress = pos.inMilliseconds / (widget.duration * 1000).clamp(1, double.infinity);
+          _progress =
+              pos.inMilliseconds /
+              (widget.duration * 1000).clamp(1, double.infinity);
         }
       });
     });
@@ -164,17 +168,29 @@ class _AudioMessageBubbleState extends State<AudioMessageBubble> {
     try {
       if (_isPlaying) {
         await player.pause();
-        DebugConfig.log(DebugConfig.chatAudio, 'AudioBubble: pause msg=${widget.messageId}');
+        DebugConfig.log(
+          DebugConfig.chatAudio,
+          'AudioBubble: pause msg=${widget.messageId}',
+        );
       } else {
         await player.stop();
         await player.play(UrlSource(widget.content));
-        DebugConfig.log(DebugConfig.chatAudio, 'AudioBubble: play msg=${widget.messageId}');
+        DebugConfig.log(
+          DebugConfig.chatAudio,
+          'AudioBubble: play msg=${widget.messageId}',
+        );
       }
     } catch (e, s) {
-      DebugConfig.error('AudioBubble: playback error msg=${widget.messageId}', data: e, exception: s);
+      DebugConfig.error(
+        'AudioBubble: playback error msg=${widget.messageId}',
+        data: e,
+        exception: s,
+      );
       if (mounted) {
-        AppMessenger.showError(context,
-            ErrorMessages.get('chat/audio-playback-error', L10n.isGreek(context)));
+        AppMessenger.showError(
+          context,
+          ErrorMessages.get('chat/audio-playback-error', L10n.isGreek(context)),
+        );
       }
     }
   }
@@ -203,139 +219,144 @@ class _AudioMessageBubbleState extends State<AudioMessageBubble> {
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final bubbleMaxWidth = constraints.maxWidth * 0.75;
-          return Column(
-            crossAxisAlignment: widget.isMe
-                ? CrossAxisAlignment.end
-                : CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: widget.isMe
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
+        children: [
+          if (!widget.isMe &&
+              widget.showAvatar &&
+              (widget.senderAvatarUrl != null || widget.senderNickname != null))
+            SenderHeader(
+              senderAvatarUrl: widget.senderAvatarUrl,
+              senderNickname: widget.senderNickname,
+              isGroupChat: widget.isGroupChat,
+            ),
+          if (widget.replyTo != null)
+            ReplyPreview(
+              replyTo: widget.replyTo!,
+              isMe: widget.isMe,
+              isGroupChat: widget.isGroupChat,
+              maxWidth: widget.bubbleMaxWidth,
+            ),
+          Stack(
+            clipBehavior: Clip.none,
             children: [
-              if (!widget.isMe &&
-                  widget.showAvatar &&
-                  (widget.senderAvatarUrl != null || widget.senderNickname != null))
-                SenderHeader(
-                  senderAvatarUrl: widget.senderAvatarUrl,
-                  senderNickname: widget.senderNickname,
-                  isGroupChat: widget.isGroupChat,
-                ),
-              if (widget.replyTo != null)
-                ReplyPreview(
-                  replyTo: widget.replyTo!,
-                  isMe: widget.isMe,
-                  isGroupChat: widget.isGroupChat,
-                ),
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  BubbleLongPressWrapper(
-                    isMe: widget.isMe,
-                    isGroupChat: widget.isGroupChat,
-                    isSenderBlockedByMe: widget.isSenderBlockedByMe,
-                    canEdit: false,
-                    onReply: widget.onReply,
-                    onReplyPrivately: widget.onReplyPrivately,
-                    onDelete: widget.onDelete,
-                    onInfo: widget.onInfo,
-                    onEmail: widget.onEmail,
-                    onShare: widget.onShare,
-                    child: Container(
-                      constraints: BoxConstraints(maxWidth: bubbleMaxWidth),
-                      decoration: BoxDecoration(
-                        color: bubbleColor,
-                        borderRadius: bubbleBorderRadius,
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            onPressed: _togglePlayPause,
-                            icon: Icon(
-                              _isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
-                              size: 32,
-                              color: widget.isMe
-                                  ? theme.colorScheme.onPrimaryContainer
-                                  : theme.colorScheme.primary,
-                            ),
-                          ),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(4),
-                                  child: LinearProgressIndicator(
-                                    value: _progress,
-                                    minHeight: 4,
-                                    backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      widget.isMe
-                                          ? theme.colorScheme.onPrimaryContainer
-                                          : theme.colorScheme.primary,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '${_isPlaying ? "$posMin:$posSecStr / " : ""}$totalMin:$totalSecStr',
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  if (showTail)
-                    Positioned(
-                      bottom: 0,
-                      right: widget.isMe ? -8 : null,
-                      left: !widget.isMe ? -8 : null,
-                      child: CustomPaint(
-                        painter: TailPainter(color: bubbleColor),
-                        size: const Size(10, 8),
-                      ),
-                    ),
-                ],
-              ),
-              MessageReactionsRow(
-                chatId: widget.chatId,
-                reactions: widget.reactions,
-                currentUid: widget.currentUid,
-                messageId: widget.messageId,
+              BubbleLongPressWrapper(
                 isMe: widget.isMe,
-                onReact: widget.onReact,
-                onRemove: widget.onRemove,
-              ),
-              Padding(
-                padding: EdgeInsets.only(
-                  top: 2,
-                  left: widget.isMe ? 0 : 14,
-                  right: widget.isMe ? 14 : 0,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.lock, size: 10,
-                        color: theme.colorScheme.onSurfaceVariant),
-                    const SizedBox(width: 4),
-                    Text(
-                      widget.timeStr,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                isGroupChat: widget.isGroupChat,
+                isSenderBlockedByMe: widget.isSenderBlockedByMe,
+                canEdit: false,
+                onReply: widget.onReply,
+                onReplyPrivately: widget.onReplyPrivately,
+                onDelete: widget.onDelete,
+                onInfo: widget.onInfo,
+                onEmail: widget.onEmail,
+                onShare: widget.onShare,
+                child: Container(
+                  constraints: BoxConstraints(maxWidth: widget.bubbleMaxWidth),
+                  decoration: BoxDecoration(
+                    color: bubbleColor,
+                    borderRadius: bubbleBorderRadius,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        onPressed: _togglePlayPause,
+                        icon: Icon(
+                          _isPlaying
+                              ? Icons.pause_circle_filled
+                              : Icons.play_circle_filled,
+                          size: 32,
+                          color: widget.isMe
+                              ? theme.colorScheme.onPrimaryContainer
+                              : theme.colorScheme.primary,
+                        ),
                       ),
-                    ),
-                  ],
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: _progress,
+                                minHeight: 4,
+                                backgroundColor:
+                                    theme.colorScheme.surfaceContainerHighest,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  widget.isMe
+                                      ? theme.colorScheme.onPrimaryContainer
+                                      : theme.colorScheme.primary,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${_isPlaying ? "$posMin:$posSecStr / " : ""}$totalMin:$totalSecStr',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
+              if (showTail)
+                Positioned(
+                  bottom: 0,
+                  right: widget.isMe ? -8 : null,
+                  left: !widget.isMe ? -8 : null,
+                  child: CustomPaint(
+                    painter: TailPainter(color: bubbleColor),
+                    size: const Size(10, 8),
+                  ),
+                ),
             ],
-          );
-        },
+          ),
+          MessageReactionsRow(
+            chatId: widget.chatId,
+            reactions: widget.reactions,
+            currentUid: widget.currentUid,
+            messageId: widget.messageId,
+            isMe: widget.isMe,
+            onReact: widget.onReact,
+            onRemove: widget.onRemove,
+          ),
+          Padding(
+            padding: EdgeInsets.only(
+              top: 2,
+              left: widget.isMe ? 0 : 14,
+              right: widget.isMe ? 14 : 0,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.lock,
+                  size: 10,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  widget.timeStr,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

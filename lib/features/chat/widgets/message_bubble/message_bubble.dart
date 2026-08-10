@@ -11,6 +11,7 @@ import 'video_message_bubble.dart';
 
 class MessageBubble extends StatelessWidget {
   final Map<String, dynamic> message;
+  final double bubbleMaxWidth;
   final String currentUid;
   final bool isGroupChat;
   final bool isSenderBlockedByMe;
@@ -33,6 +34,7 @@ class MessageBubble extends StatelessWidget {
   const MessageBubble({
     super.key,
     required this.message,
+    required this.bubbleMaxWidth,
     required this.currentUid,
     this.isGroupChat = false,
     this.isSenderBlockedByMe = false,
@@ -63,17 +65,20 @@ class MessageBubble extends StatelessWidget {
     final timeStr = ts != null
         ? L10n.formatTimeOfDay(context, TimeOfDay.fromDateTime(ts))
         : '';
-    final reactions = (message['reactions'] as Map<String, dynamic>?) ?? <String, dynamic>{};
+    final reactions =
+        (message['reactions'] as Map<String, dynamic>?) ?? <String, dynamic>{};
     final replyTo = message['replyTo'] as Map<String, dynamic>?;
     final msgId = message['id'] as String? ?? '';
     final isMe = senderId == currentUid;
     final contentEn = message['contentEn'] as String?;
     final action = message['action'] as String?;
-    final mentions = (message['mentions'] as List?)?.cast<String>() ?? <String>[];
+    final mentions =
+        (message['mentions'] as List?)?.cast<String>() ?? <String>[];
 
     return switch (type) {
       'audio' => AudioMessageBubble(
         content: content,
+        bubbleMaxWidth: bubbleMaxWidth,
         duration: message['duration'] as int? ?? 0,
         timeStr: timeStr,
         isMe: isMe,
@@ -117,6 +122,7 @@ class MessageBubble extends StatelessWidget {
       ),
       'video' => VideoMessageBubble(
         content: content,
+        bubbleMaxWidth: bubbleMaxWidth,
         duration: message['duration'] as int? ?? 0,
         thumbnailUrl: message['thumbnailUrl'] as String?,
         timeStr: timeStr,
@@ -149,6 +155,7 @@ class MessageBubble extends StatelessWidget {
       ),
       'gif' || 'image' => GifImageBubble(
         content: content,
+        bubbleMaxWidth: bubbleMaxWidth,
         timeStr: timeStr,
         isMe: isMe,
         isGroupChat: isGroupChat,
@@ -178,6 +185,7 @@ class MessageBubble extends StatelessWidget {
       ),
       _ when type == 'text' && isOnlyEmoji(content) => EmojiOnlyBubble(
         content: content,
+        bubbleMaxWidth: bubbleMaxWidth,
         timeStr: timeStr,
         isMe: isMe,
         isGroupChat: isGroupChat,
@@ -204,6 +212,7 @@ class MessageBubble extends StatelessWidget {
       ),
       _ => TextMessageBubble(
         content: content,
+        bubbleMaxWidth: bubbleMaxWidth,
         timeStr: timeStr,
         isMe: isMe,
         isGroupChat: isGroupChat,

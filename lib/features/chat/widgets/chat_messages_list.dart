@@ -67,6 +67,11 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
   Map<String, String>? _lastParticipantNicknames;
   Map<String, String>? _lastParticipantAvatarUrls;
   bool _isOpeningPrivateChat = false;
+  // TEMP SIG-PROBE (Session 223) — revert: backup chat_messages_list_20260810_sigprobe.bak
+  Widget? _sigLastWidget;
+  int _sigSelectCalls = 0;
+  int _sigLastMsgsHash = 0;
+  int _sigLastCombinedHash = 0;
 
   @override
   void initState() {
@@ -718,6 +723,7 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
             (a.asData?.value?.data()
                     as Map<String, dynamic>?)?['lastReadTimestamps']
                 as Map<String, dynamic>?;
+        _sigSelectCalls++; // TEMP SIG-PROBE
         if (raw == null) return const <String, DateTime>{};
         final result = raw.map((k, v) {
           final ts = (v as Timestamp?)?.toDate();
@@ -830,6 +836,22 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
       DebugConfig.chatBubbleDesign,
       'MSG_LIST BUILD #$_buildCount chat=${widget.chatId} inst=$_instanceId',
     );
+    // TEMP SIG-PROBE (Session 223) — platformDispatcher, όχι MediaQuery dependency
+    final vi = WidgetsBinding.instance.platformDispatcher.views.first.viewInsets;
+    final sigParentChanged = !identical(widget, _sigLastWidget);
+    final sigMsgsHash = identityHashCode(messagesAsync.value);
+    final sigCombinedHash = identityHashCode(combinedMessages);
+    DebugConfig.log(
+      DebugConfig.chatBubbleDesign,
+      'SIG-PROBE: viewInsets=${vi.bottom.toStringAsFixed(1)} '
+      'parentChanged=$sigParentChanged '
+      'msgsHash=$sigMsgsHash(prev=$_sigLastMsgsHash) '
+      'combinedHash=$sigCombinedHash(prev=$_sigLastCombinedHash) '
+      'selectCalls=$_sigSelectCalls buildCalls=$_buildCount',
+    );
+    _sigLastWidget = widget;
+    _sigLastMsgsHash = sigMsgsHash;
+    _sigLastCombinedHash = sigCombinedHash;
 
     return messagesAsync.when(
       loading: () => const LoadingView(),
@@ -941,21 +963,17 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final w = ResponsiveUtils.resolveWidth(context, constraints);
+        final bubbleMaxWidth = w * 0.75;
 
         if (cachedListView != null && cachedWidth == w) {
-          DebugConfig.log(
-            DebugConfig.chatBubbleDesign,
-            'MSG_LIST: ListView REUSED (w=$w, chat=${widget.chatId}, '
-                'inst=$_instanceId) — height-only relayout, itemBuilder NOT re-invoked',
-          );
           return cachedListView!;
         }
 
         cachedWidth = w;
         DebugConfig.log(
           DebugConfig.chatBubbleDesign,
-          'MSG_LIST: ListView (re)BUILT (w=$w, chat=${widget.chatId}, '
-              'inst=$_instanceId)',
+          'MSG_LIST: ListView (re)BUILT (w=$w, bubbleMaxWidth=$bubbleMaxWidth, '
+          'chat=${widget.chatId}, inst=$_instanceId)',
         );
 
         cachedListView = ListView.builder(
@@ -967,10 +985,6 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
           ),
           itemCount: itemCount,
           itemBuilder: (_, i) {
-            DebugConfig.log(
-              DebugConfig.chatBubbleDesign,
-              'MSG_LIST itemBuilder i=$i (${widget.chatId}, inst=$_instanceId)',
-            );
             if (isLoadingOlder && i == itemCount - 1) {
               return const Padding(
                 padding: EdgeInsets.symmetric(vertical: 12),
@@ -987,8 +1001,8 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
             DebugConfig.log(
               DebugConfig.chatBubbleDesign,
               'MSG_LIST item type=${item.type} '
-                  'msgId=${item.message?['id'] ?? item.date ?? 'none'} '
-                  '(i=$i, inst=$_instanceId)',
+              'msgId=${item.message?['id'] ?? item.date ?? 'none'} '
+              '(i=$i, inst=$_instanceId)',
             );
             if (item.type == RenderItemType.dateSeparator) {
               return DateSeparator(
@@ -1005,18 +1019,19 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
             if (senderNickname == null) {
               DebugConfig.warn(
                 'ChatMessagesList: senderNickname null for senderId=$senderId '
-                    'chat=${widget.chatId} nicknameMapSize=${participantNicknames.length}',
+                'chat=${widget.chatId} nicknameMapSize=${participantNicknames.length}',
               );
             }
 
             final msgId = msg['id'] as String? ?? '';
             final props =
                 readProps[msgId] ??
-                    const _MessageReadProps(effectiveIsRead: false, seenBy: []);
+                const _MessageReadProps(effectiveIsRead: false, seenBy: []);
 
             return MessageBubble(
               key: ValueKey(msgId),
               message: msg,
+              bubbleMaxWidth: bubbleMaxWidth,
               currentUid: currentUid,
               isGroupChat: isGroupChat,
               isSenderBlockedByMe: isSenderBlockedByMe,

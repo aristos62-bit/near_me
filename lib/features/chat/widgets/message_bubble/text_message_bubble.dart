@@ -10,6 +10,7 @@ import 'package:flutter/gestures.dart';
 
 class TextMessageBubble extends StatelessWidget {
   final String content;
+  final double bubbleMaxWidth;
   final String timeStr;
   final bool isMe;
   final bool isGroupChat;
@@ -42,6 +43,7 @@ class TextMessageBubble extends StatelessWidget {
   const TextMessageBubble({
     super.key,
     required this.content,
+    required this.bubbleMaxWidth,
     required this.timeStr,
     required this.isMe,
     this.isGroupChat = false,
@@ -185,136 +187,127 @@ class TextMessageBubble extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Align(
         alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final bubbleMaxWidth = constraints.maxWidth * 0.75;
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: isMe
-                  ? CrossAxisAlignment.end
-                  : CrossAxisAlignment.start,
-              children: [
-                if (!isMe &&
-                    showAvatar &&
-                    (senderAvatarUrl != null || senderNickname != null))
-                  SenderHeader(
-                    senderAvatarUrl: senderAvatarUrl,
-                    senderNickname: senderNickname,
-                    isGroupChat: isGroupChat,
-                  ),
-                BubbleLongPressWrapper(
-                  isGroupChat: isGroupChat,
-                  isSenderBlockedByMe: isSenderBlockedByMe,
-                  isMe: isMe,
-                  onReply: onReply,
-                  onReplyPrivately: onReplyPrivately,
-                  onEdit: onEdit,
-                  onDelete: onDelete,
-                  onInfo: onInfo,
-                  onEmail: onEmail,
-                  onShare: onShare,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: isMe
-                        ? CrossAxisAlignment.end
-                        : CrossAxisAlignment.start,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: isMe
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
+          children: [
+            if (!isMe &&
+                showAvatar &&
+                (senderAvatarUrl != null || senderNickname != null))
+              SenderHeader(
+                senderAvatarUrl: senderAvatarUrl,
+                senderNickname: senderNickname,
+                isGroupChat: isGroupChat,
+              ),
+            BubbleLongPressWrapper(
+              isGroupChat: isGroupChat,
+              isSenderBlockedByMe: isSenderBlockedByMe,
+              isMe: isMe,
+              onReply: onReply,
+              onReplyPrivately: onReplyPrivately,
+              onEdit: onEdit,
+              onDelete: onDelete,
+              onInfo: onInfo,
+              onEmail: onEmail,
+              onShare: onShare,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: isMe
+                    ? CrossAxisAlignment.end
+                    : CrossAxisAlignment.start,
+                children: [
+                  if (replyTo != null)
+                    ReplyPreview(
+                      replyTo: replyTo!,
+                      isMe: isMe,
+                      isGroupChat: isGroupChat,
+                      maxWidth: bubbleMaxWidth,
+                    ),
+                  Stack(
+                    clipBehavior: Clip.none,
                     children: [
-                      if (replyTo != null)
-                        ReplyPreview(
-                          replyTo: replyTo!,
-                          isMe: isMe,
-                          isGroupChat: isGroupChat,
+                      Container(
+                        constraints: BoxConstraints(maxWidth: bubbleMaxWidth),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
                         ),
-                      Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          Container(
-                            constraints: BoxConstraints(
-                              maxWidth: bubbleMaxWidth,
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: bubbleColor,
-                              borderRadius: bubbleBorderRadius,
-                            ),
-                            child: IntrinsicWidth(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  (mentions.isEmpty &&
-                                          !_linkDetector.hasMatch(content))
-                                      ? Text(
-                                          content,
-                                          style: TextStyle(color: textColor),
-                                          textAlign: TextAlign.start,
-                                        )
-                                      : _buildRichContent(
-                                          context,
-                                          content,
-                                          mentions,
-                                          isMe,
-                                        ),
-                                  if (timeStr.isNotEmpty)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 4),
-                                      child: Align(
-                                        alignment:
-                                            AlignmentDirectional.bottomEnd,
-                                        child: Text(
-                                          timeStr,
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            color: isMe
-                                                ? Colors.white.withAlpha(180)
-                                                : theme
-                                                      .colorScheme
-                                                      .onSurfaceVariant
-                                                      .withAlpha(180),
-                                          ),
-                                        ),
+                        decoration: BoxDecoration(
+                          color: bubbleColor,
+                          borderRadius: bubbleBorderRadius,
+                        ),
+                        child: IntrinsicWidth(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              (mentions.isEmpty &&
+                                      !_linkDetector.hasMatch(content))
+                                  ? Text(
+                                      content,
+                                      style: TextStyle(color: textColor),
+                                      textAlign: TextAlign.start,
+                                    )
+                                  : _buildRichContent(
+                                      context,
+                                      content,
+                                      mentions,
+                                      isMe,
+                                    ),
+                              if (timeStr.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Align(
+                                    alignment: AlignmentDirectional.bottomEnd,
+                                    child: Text(
+                                      timeStr,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: isMe
+                                            ? Colors.white.withAlpha(180)
+                                            : theme.colorScheme.onSurfaceVariant
+                                                  .withAlpha(180),
                                       ),
                                     ),
-                                ],
-                              ),
-                            ),
+                                  ),
+                                ),
+                            ],
                           ),
-                          if (showTail)
-                            Positioned(
-                              bottom: 0,
-                              right: isMe ? -8 : null,
-                              left: !isMe ? -8 : null,
-                              child: CustomPaint(
-                                painter: TailPainter(color: bubbleColor),
-                                size: const Size(10, 8),
-                              ),
-                            ),
-                        ],
+                        ),
                       ),
+                      if (showTail)
+                        Positioned(
+                          bottom: 0,
+                          right: isMe ? -8 : null,
+                          left: !isMe ? -8 : null,
+                          child: CustomPaint(
+                            painter: TailPainter(color: bubbleColor),
+                            size: const Size(10, 8),
+                          ),
+                        ),
                     ],
                   ),
-                ),
-                MessageReactionsRow(
-                  chatId: chatId,
-                  reactions: reactions,
-                  currentUid: currentUid,
-                  messageId: messageId,
-                  isMe: isMe,
-                  onReact: onReact,
-                  onRemove: onRemove,
-                ),
-                ReadReceiptFooter(
-                  isMe: isMe,
-                  isGroupChat: isGroupChat,
-                  isRead: isRead,
-                  seenBy: seenBy,
-                ),
-              ],
-            );
-          },
+                ],
+              ),
+            ),
+            MessageReactionsRow(
+              chatId: chatId,
+              reactions: reactions,
+              currentUid: currentUid,
+              messageId: messageId,
+              isMe: isMe,
+              onReact: onReact,
+              onRemove: onRemove,
+            ),
+            ReadReceiptFooter(
+              isMe: isMe,
+              isGroupChat: isGroupChat,
+              isRead: isRead,
+              seenBy: seenBy,
+            ),
+          ],
         ),
       ),
     );

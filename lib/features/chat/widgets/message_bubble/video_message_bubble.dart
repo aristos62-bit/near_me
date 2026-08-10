@@ -13,6 +13,7 @@ import 'tail_painter.dart';
 
 class VideoMessageBubble extends StatefulWidget {
   final String content;
+  final double bubbleMaxWidth;
   final int duration;
   final String? thumbnailUrl;
   final String timeStr;
@@ -46,6 +47,7 @@ class VideoMessageBubble extends StatefulWidget {
   const VideoMessageBubble({
     super.key,
     required this.content,
+    required this.bubbleMaxWidth,
     this.duration = 0,
     this.thumbnailUrl,
     required this.timeStr,
@@ -174,11 +176,16 @@ class _VideoMessageBubbleState extends State<VideoMessageBubble> {
         await controller.play();
       }
     } catch (e, s) {
-      DebugConfig.error('VideoBubble: playback error msg=${widget.messageId}',
-          data: e, exception: s);
+      DebugConfig.error(
+        'VideoBubble: playback error msg=${widget.messageId}',
+        data: e,
+        exception: s,
+      );
       if (mounted) {
-        AppMessenger.showError(context,
-            ErrorMessages.get('chat/video-playback-error', L10n.isGreek(context)));
+        AppMessenger.showError(
+          context,
+          ErrorMessages.get('chat/video-playback-error', L10n.isGreek(context)),
+        );
       }
     }
   }
@@ -215,211 +222,212 @@ class _VideoMessageBubbleState extends State<VideoMessageBubble> {
     final controller = _getController();
     final isMyController = _isMyController();
     final isLoading = widget.content == widget.isLoadingUrl;
-    final videoAspectRatio = (isMyController && controller != null && controller.value.isInitialized)
+    final videoAspectRatio =
+        (isMyController && controller != null && controller.value.isInitialized)
         ? controller.value.aspectRatio
         : 16 / 9;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final bubbleMaxWidth = constraints.maxWidth * 0.75;
-          return Column(
-            crossAxisAlignment: widget.isMe
-                ? CrossAxisAlignment.end
-                : CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: widget.isMe
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
+        children: [
+          if (!widget.isMe &&
+              widget.showAvatar &&
+              (widget.senderAvatarUrl != null || widget.senderNickname != null))
+            SenderHeader(
+              senderAvatarUrl: widget.senderAvatarUrl,
+              senderNickname: widget.senderNickname,
+              isGroupChat: widget.isGroupChat,
+            ),
+          if (widget.replyTo != null)
+            ReplyPreview(
+              replyTo: widget.replyTo!,
+              isMe: widget.isMe,
+              isGroupChat: widget.isGroupChat,
+              maxWidth: widget.bubbleMaxWidth,
+            ),
+          Stack(
+            clipBehavior: Clip.none,
             children: [
-              if (!widget.isMe &&
-                  widget.showAvatar &&
-                  (widget.senderAvatarUrl != null || widget.senderNickname != null))
-                SenderHeader(
-                  senderAvatarUrl: widget.senderAvatarUrl,
-                  senderNickname: widget.senderNickname,
-                  isGroupChat: widget.isGroupChat,
-                ),
-              if (widget.replyTo != null)
-                ReplyPreview(
-                  replyTo: widget.replyTo!,
-                  isMe: widget.isMe,
-                  isGroupChat: widget.isGroupChat,
-                ),
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  BubbleLongPressWrapper(
-                    isMe: widget.isMe,
-                    isGroupChat: widget.isGroupChat,
-                    isSenderBlockedByMe: widget.isSenderBlockedByMe,
-                    canEdit: false,
-                    onReply: widget.onReply,
-                    onReplyPrivately: widget.onReplyPrivately,
-                    onDelete: widget.onDelete,
-                    onInfo: widget.onInfo,
-                    onEmail: widget.onEmail,
-                    onShare: widget.onShare,
-                    child: Container(
-                      constraints: BoxConstraints(maxWidth: bubbleMaxWidth),
-                      decoration: BoxDecoration(
-                        color: bubbleColor,
-                        borderRadius: bubbleBorderRadius,
-                      ),
-                      child: ClipRRect(
-                        borderRadius: bubbleBorderRadius,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            GestureDetector(
-                              onTap: _togglePlayPause,
-                              child: SizedBox(
-                                width: bubbleMaxWidth,
-                                child: AspectRatio(
-                                  aspectRatio: videoAspectRatio,
-                                  child: Stack(
-                                    alignment: Alignment.center,
-                                    children: [
-                                      if (isMyController && controller != null)
-                                        VideoPlayer(controller)
-                                      else if (widget.thumbnailUrl != null)
-                                        Stack(
-                                          alignment: Alignment.center,
-                                          fit: StackFit.expand,
-                                          children: [
-                                            CachedNetworkImage(
-                                              imageUrl: widget.thumbnailUrl!,
-                                              fit: BoxFit.cover,
-                                              errorWidget: (_, _, _) => Container(
-                                                color: Colors.black38,
-                                                child: const Icon(
-                                                  Icons.movie_creation_outlined,
-                                                  size: 48,
-                                                  color: Colors.white70,
-                                                ),
-                                              ),
+              BubbleLongPressWrapper(
+                isMe: widget.isMe,
+                isGroupChat: widget.isGroupChat,
+                isSenderBlockedByMe: widget.isSenderBlockedByMe,
+                canEdit: false,
+                onReply: widget.onReply,
+                onReplyPrivately: widget.onReplyPrivately,
+                onDelete: widget.onDelete,
+                onInfo: widget.onInfo,
+                onEmail: widget.onEmail,
+                onShare: widget.onShare,
+                child: Container(
+                  constraints: BoxConstraints(maxWidth: widget.bubbleMaxWidth),
+                  decoration: BoxDecoration(
+                    color: bubbleColor,
+                    borderRadius: bubbleBorderRadius,
+                  ),
+                  child: ClipRRect(
+                    borderRadius: bubbleBorderRadius,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        GestureDetector(
+                          onTap: _togglePlayPause,
+                          child: SizedBox(
+                            width: widget.bubbleMaxWidth,
+                            child: AspectRatio(
+                              aspectRatio: videoAspectRatio,
+                              child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  if (isMyController && controller != null)
+                                    VideoPlayer(controller)
+                                  else if (widget.thumbnailUrl != null)
+                                    Stack(
+                                      alignment: Alignment.center,
+                                      fit: StackFit.expand,
+                                      children: [
+                                        CachedNetworkImage(
+                                          imageUrl: widget.thumbnailUrl!,
+                                          fit: BoxFit.cover,
+                                          errorWidget: (_, _, _) => Container(
+                                            color: Colors.black38,
+                                            child: const Icon(
+                                              Icons.movie_creation_outlined,
+                                              size: 48,
+                                              color: Colors.white70,
                                             ),
-                                            if (isLoading)
-                                              const CircularProgressIndicator(
-                                                color: Colors.white70,
-                                              ),
-                                          ],
-                                        )
-                                      else
-                                        Container(
-                                          color: Colors.black38,
-                                          child: isLoading
-                                              ? const CircularProgressIndicator(
-                                            color: Colors.white70,
-                                          )
-                                              : const Icon(
-                                            Icons.movie_creation_outlined,
-                                            size: 48,
-                                            color: Colors.white70,
                                           ),
                                         ),
-                                    if (!isLoading)
-                                      Container(
-                                        decoration: BoxDecoration(
-                                          color: Colors.black26,
-                                          shape: BoxShape.circle,
-                                        ),
-                                        padding: const EdgeInsets.all(8),
-                                        child: Icon(
-                                          _isPlaying
-                                              ? Icons.pause
-                                              : Icons.play_arrow,
-                                          size: 36,
-                                          color: Colors.white,
-                                        ),
+                                        if (isLoading)
+                                          const CircularProgressIndicator(
+                                            color: Colors.white70,
+                                          ),
+                                      ],
+                                    )
+                                  else
+                                    Container(
+                                      color: Colors.black38,
+                                      child: isLoading
+                                          ? const CircularProgressIndicator(
+                                              color: Colors.white70,
+                                            )
+                                          : const Icon(
+                                              Icons.movie_creation_outlined,
+                                              size: 48,
+                                              color: Colors.white70,
+                                            ),
+                                    ),
+                                  if (!isLoading)
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.black26,
+                                        shape: BoxShape.circle,
                                       ),
-                                    Positioned(
-                                      bottom: 4,
-                                      right: 4,
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: Colors.black54,
-                                          borderRadius:
-                                              BorderRadius.circular(4),
-                                        ),
-                                        child: Text(
-                                          '$totalMin:$totalSecStr',
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 11,
-                                          ),
+                                      padding: const EdgeInsets.all(8),
+                                      child: Icon(
+                                        _isPlaying
+                                            ? Icons.pause
+                                            : Icons.play_arrow,
+                                        size: 36,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  Positioned(
+                                    bottom: 4,
+                                    right: 4,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black54,
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        '$totalMin:$totalSecStr',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 11,
                                         ),
                                       ),
                                     ),
-                                    if (isMyController)
-                                      Positioned(
-                                        bottom: 4,
-                                        left: 4,
-                                        child: GestureDetector(
-                                          onTap: _toggleMute,
-                                          child: Icon(
-                                            _isMuted
-                                                ? Icons.volume_off
-                                                : Icons.volume_up,
-                                            color: Colors.white70,
-                                            size: 16,
-                                          ),
+                                  ),
+                                  if (isMyController)
+                                    Positioned(
+                                      bottom: 4,
+                                      left: 4,
+                                      child: GestureDetector(
+                                        onTap: _toggleMute,
+                                        child: Icon(
+                                          _isMuted
+                                              ? Icons.volume_off
+                                              : Icons.volume_up,
+                                          color: Colors.white70,
+                                          size: 16,
                                         ),
                                       ),
-                                  ],
-                                ),
+                                    ),
+                                ],
                               ),
                             ),
                           ),
-                          ],
                         ),
-                      ),
+                      ],
                     ),
                   ),
-                  if (showTail)
-                    Positioned(
-                      bottom: 0,
-                      right: widget.isMe ? -8 : null,
-                      left: !widget.isMe ? -8 : null,
-                      child: CustomPaint(
-                        painter: TailPainter(color: bubbleColor),
-                        size: const Size(10, 8),
-                      ),
-                    ),
-                ],
-              ),
-              Padding(
-                padding: EdgeInsets.only(
-                  top: 2,
-                  left: widget.isMe ? 0 : 14,
-                  right: widget.isMe ? 14 : 0,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.lock, size: 10,
-                        color: theme.colorScheme.onSurfaceVariant),
-                    const SizedBox(width: 4),
-                    Text(
-                      widget.timeStr,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
                 ),
               ),
-              MessageReactionsRow(
-                chatId: widget.chatId,
-                reactions: widget.reactions,
-                currentUid: widget.currentUid,
-                messageId: widget.messageId,
-                isMe: widget.isMe,
-                onReact: widget.onReact,
-                onRemove: widget.onRemove,
-              ),
+              if (showTail)
+                Positioned(
+                  bottom: 0,
+                  right: widget.isMe ? -8 : null,
+                  left: !widget.isMe ? -8 : null,
+                  child: CustomPaint(
+                    painter: TailPainter(color: bubbleColor),
+                    size: const Size(10, 8),
+                  ),
+                ),
             ],
-          );
-        },
+          ),
+          Padding(
+            padding: EdgeInsets.only(
+              top: 2,
+              left: widget.isMe ? 0 : 14,
+              right: widget.isMe ? 14 : 0,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.lock,
+                  size: 10,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  widget.timeStr,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          MessageReactionsRow(
+            chatId: widget.chatId,
+            reactions: widget.reactions,
+            currentUid: widget.currentUid,
+            messageId: widget.messageId,
+            isMe: widget.isMe,
+            onReact: widget.onReact,
+            onRemove: widget.onRemove,
+          ),
+        ],
       ),
     );
   }

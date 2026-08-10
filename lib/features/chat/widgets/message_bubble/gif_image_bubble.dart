@@ -13,6 +13,7 @@ import 'tail_painter.dart';
 
 class GifImageBubble extends ConsumerWidget {
   final String content;
+  final double bubbleMaxWidth;
   final String timeStr;
   final bool isMe;
   final bool isGroupChat;
@@ -43,6 +44,7 @@ class GifImageBubble extends ConsumerWidget {
   const GifImageBubble({
     super.key,
     required this.content,
+    required this.bubbleMaxWidth,
     required this.timeStr,
     required this.isMe,
     this.isGroupChat = false,
@@ -100,13 +102,15 @@ class GifImageBubble extends ConsumerWidget {
     );
   }
 
-  static void _showGallery(BuildContext context, List<String> urls, int initialIndex) {
+  static void _showGallery(
+    BuildContext context,
+    List<String> urls,
+    int initialIndex,
+  ) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => _PhotoGalleryViewer(
-          imageUrls: urls,
-          initialIndex: initialIndex,
-        ),
+        builder: (_) =>
+            _PhotoGalleryViewer(imageUrls: urls, initialIndex: initialIndex),
       ),
     );
   }
@@ -119,14 +123,18 @@ class GifImageBubble extends ConsumerWidget {
     }
     final msgs = ref.read(combinedMessagesProvider(chatId));
     final urls = msgs
-        .where((m) =>
-            m['type'] == 'image' &&
-            ((m['content'] as String?) ?? '').isNotEmpty)
+        .where(
+          (m) =>
+              m['type'] == 'image' &&
+              ((m['content'] as String?) ?? '').isNotEmpty,
+        )
         .map((m) => m['content'] as String)
         .toList();
     final idx = urls.indexOf(content);
-    DebugConfig.log(DebugConfig.uiInteraction,
-        'GifImageBubble: image tap idx=$idx of ${urls.length} chat=$chatId');
+    DebugConfig.log(
+      DebugConfig.uiInteraction,
+      'GifImageBubble: image tap idx=$idx of ${urls.length} chat=$chatId',
+    );
     if (urls.isEmpty) {
       _showImageFullScreen(context, content);
       return;
@@ -155,131 +163,129 @@ class GifImageBubble extends ConsumerWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final bubbleMaxWidth = constraints.maxWidth * 0.75;
-          return Column(
-            crossAxisAlignment: isMe
-                ? CrossAxisAlignment.end
-                : CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: isMe
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
+        children: [
+          if (!isMe &&
+              showAvatar &&
+              (senderAvatarUrl != null || senderNickname != null))
+            SenderHeader(
+              senderAvatarUrl: senderAvatarUrl,
+              senderNickname: senderNickname,
+              isGroupChat: isGroupChat,
+            ),
+          if (replyTo != null)
+            ReplyPreview(
+              replyTo: replyTo!,
+              isMe: isMe,
+              isGroupChat: isGroupChat,
+              maxWidth: bubbleMaxWidth,
+            ),
+          Stack(
+            clipBehavior: Clip.none,
             children: [
-              if (!isMe &&
-                  showAvatar &&
-                  (senderAvatarUrl != null || senderNickname != null))
-                SenderHeader(
-                  senderAvatarUrl: senderAvatarUrl,
-                  senderNickname: senderNickname,
-                  isGroupChat: isGroupChat,
-                ),
-              if (replyTo != null)
-                ReplyPreview(
-                  replyTo: replyTo!,
-                  isMe: isMe,
-                  isGroupChat: isGroupChat,
-                ),
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  BubbleLongPressWrapper(
-                    isMe: isMe,
-                    isGroupChat: isGroupChat,
-                    isSenderBlockedByMe: isSenderBlockedByMe,
-                    onReply: onReply,
-                    onReplyPrivately: onReplyPrivately,
-                    onEdit: onEdit,
-                    onDelete: onDelete,
-                    onInfo: onInfo,
-                    onEmail: onEmail,
-                    onShare: onShare,
-                      child: GestureDetector(
-                        onTap: isImage ? () => _openImagePreview(context, ref) : null,
-                        child: Container(
-                          constraints: BoxConstraints(
-                              maxWidth: bubbleMaxWidth, maxHeight: 200),
-                      decoration: BoxDecoration(
-                        color: bubbleColor,
-                        borderRadius: bubbleBorderRadius,
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: CachedNetworkImage(
-                        imageUrl: content,
-                        fit: BoxFit.cover,
-                        placeholder: (_, _) => SizedBox(
-                          width: 200,
-                          height: 200,
-                          child: Center(
-                            child: SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: isMe
-                                    ? Colors.white
-                                    : theme.colorScheme.primary,
-                              ),
+              BubbleLongPressWrapper(
+                isMe: isMe,
+                isGroupChat: isGroupChat,
+                isSenderBlockedByMe: isSenderBlockedByMe,
+                onReply: onReply,
+                onReplyPrivately: onReplyPrivately,
+                onEdit: onEdit,
+                onDelete: onDelete,
+                onInfo: onInfo,
+                onEmail: onEmail,
+                onShare: onShare,
+                child: GestureDetector(
+                  onTap: isImage ? () => _openImagePreview(context, ref) : null,
+                  child: Container(
+                    constraints: BoxConstraints(
+                      maxWidth: bubbleMaxWidth,
+                      maxHeight: 200,
+                    ),
+                    decoration: BoxDecoration(
+                      color: bubbleColor,
+                      borderRadius: bubbleBorderRadius,
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: CachedNetworkImage(
+                      imageUrl: content,
+                      fit: BoxFit.cover,
+                      placeholder: (_, _) => SizedBox(
+                        width: 200,
+                        height: 200,
+                        child: Center(
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: isMe
+                                  ? Colors.white
+                                  : theme.colorScheme.primary,
                             ),
                           ),
                         ),
-                        errorWidget: (_, _, _) => SizedBox(
-                          width: 200,
-                          height: 200,
-                          child: Icon(
-                            Icons.broken_image,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
+                      ),
+                      errorWidget: (_, _, _) => SizedBox(
+                        width: 200,
+                        height: 200,
+                        child: Icon(
+                          Icons.broken_image,
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ),
-                      ),
                   ),
-                  if (showTail)
-                    Positioned(
-                      bottom: 0,
-                      right: isMe ? -8 : null,
-                      left: !isMe ? -8 : null,
-                      child: CustomPaint(
-                        painter: TailPainter(color: bubbleColor),
-                        size: const Size(10, 8),
-                      ),
-                    ),
-                ],
-              ),
-              MessageReactionsRow(
-                chatId: chatId,
-                reactions: reactions,
-                currentUid: currentUid,
-                messageId: messageId,
-                isMe: isMe,
-                onReact: onReact,
-                onRemove: onRemove,
-              ),
-              Padding(
-                padding: EdgeInsets.only(
-                  top: 2,
-                  left: isMe ? 0 : 14,
-                  right: isMe ? 14 : 0,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      timeStr,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    ReadReceiptIndicator(
-                      isGroupChat: isGroupChat,
-                      isMe: isMe,
-                      isRead: isRead,
-                      seenBy: seenBy,
-                    ),
-                  ],
                 ),
               ),
+              if (showTail)
+                Positioned(
+                  bottom: 0,
+                  right: isMe ? -8 : null,
+                  left: !isMe ? -8 : null,
+                  child: CustomPaint(
+                    painter: TailPainter(color: bubbleColor),
+                    size: const Size(10, 8),
+                  ),
+                ),
             ],
-          );
-        },
+          ),
+          MessageReactionsRow(
+            chatId: chatId,
+            reactions: reactions,
+            currentUid: currentUid,
+            messageId: messageId,
+            isMe: isMe,
+            onReact: onReact,
+            onRemove: onRemove,
+          ),
+          Padding(
+            padding: EdgeInsets.only(
+              top: 2,
+              left: isMe ? 0 : 14,
+              right: isMe ? 14 : 0,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  timeStr,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                ReadReceiptIndicator(
+                  isGroupChat: isGroupChat,
+                  isMe: isMe,
+                  isRead: isRead,
+                  seenBy: seenBy,
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -319,8 +325,10 @@ class _PhotoGalleryViewerState extends State<_PhotoGalleryViewer>
       duration: const Duration(milliseconds: 250),
     )..addListener(_onZoomAnimTick);
     _zoomCtrl.addListener(_onZoomChanged);
-    DebugConfig.log(DebugConfig.uiInteraction,
-        'PhotoGalleryViewer: open idx=${widget.initialIndex} of ${widget.imageUrls.length}');
+    DebugConfig.log(
+      DebugConfig.uiInteraction,
+      'PhotoGalleryViewer: open idx=${widget.initialIndex} of ${widget.imageUrls.length}',
+    );
   }
 
   @override
@@ -355,9 +363,11 @@ class _PhotoGalleryViewerState extends State<_PhotoGalleryViewer>
         ? Matrix4.identity()
         : _centeredZoom(_viewport, 2.5);
     _zoomAnimCtrl.forward(from: 0);
-    DebugConfig.log(DebugConfig.uiInteraction,
-        'PhotoGalleryViewer: double-tap zoom -> '
-        '${currentScale > 1.0 ? "out" : "in"}');
+    DebugConfig.log(
+      DebugConfig.uiInteraction,
+      'PhotoGalleryViewer: double-tap zoom -> '
+      '${currentScale > 1.0 ? "out" : "in"}',
+    );
   }
 
   void _onZoomChanged() {
@@ -396,8 +406,10 @@ class _PhotoGalleryViewerState extends State<_PhotoGalleryViewer>
               _zoomTo = null;
               _zoomCtrl.value = Matrix4.identity();
               _wasZoomed = false;
-              DebugConfig.log(DebugConfig.uiInteraction,
-                  'PhotoGalleryViewer: page -> $i');
+              DebugConfig.log(
+                DebugConfig.uiInteraction,
+                'PhotoGalleryViewer: page -> $i',
+              );
             },
             itemBuilder: (_, i) => GestureDetector(
               onDoubleTap: _toggleZoom,

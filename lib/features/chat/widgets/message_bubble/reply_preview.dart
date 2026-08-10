@@ -6,12 +6,14 @@ class ReplyPreview extends StatelessWidget {
   final Map<String, dynamic> replyTo;
   final bool isMe;
   final bool isGroupChat;
+  final double? maxWidth;
 
   const ReplyPreview({
     super.key,
     required this.replyTo,
     required this.isMe,
     this.isGroupChat = false,
+    this.maxWidth,
   });
 
   @override
@@ -24,8 +26,7 @@ class ReplyPreview extends StatelessWidget {
     DebugConfig.log(
       DebugConfig.chatReply,
       // SPoT: το key λέγεται 'messageId' (βλ. chat_input_bar._buildReplyData) — ΟΧΙ 'id'.
-      'ReplyPreview: msgId=${replyTo['messageId']} thumb=${isMedia ? "yes" : "no"} '
-          'h=${identityHashCode(this)}',
+      'ReplyPreview: msgId=${replyTo['messageId']} thumb=${isMedia ? "yes" : "no"}',
     );
 
     final preview = isMedia
@@ -44,26 +45,29 @@ class ReplyPreview extends StatelessWidget {
       overflow: TextOverflow.ellipsis,
     );
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withAlpha(180),
-        border: Border(
-          left: BorderSide(color: theme.colorScheme.primary, width: 3),
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth ?? double.infinity),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest.withAlpha(180),
+          border: Border(
+            left: BorderSide(color: theme.colorScheme.primary, width: 3),
+          ),
+          borderRadius: BorderRadius.circular(6),
         ),
-        borderRadius: BorderRadius.circular(6),
+        child: isMedia
+            ? Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ReplyMediaThumbnail(imageUrl: mediaUrl),
+                  const SizedBox(width: 8),
+                  Expanded(child: textWidget),
+                ],
+              )
+            : textWidget,
       ),
-      child: isMedia
-          ? Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ReplyMediaThumbnail(imageUrl: mediaUrl),
-                const SizedBox(width: 8),
-                Expanded(child: textWidget),
-              ],
-            )
-          : textWidget,
     );
   }
 }

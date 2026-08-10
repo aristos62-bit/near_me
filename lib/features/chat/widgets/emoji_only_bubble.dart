@@ -30,6 +30,7 @@ double emojiFontSize(String text) {
 
 class EmojiOnlyBubble extends StatelessWidget {
   final String content;
+  final double bubbleMaxWidth;
   final String timeStr;
   final bool isMe;
   final bool isGroupChat;
@@ -57,6 +58,7 @@ class EmojiOnlyBubble extends StatelessWidget {
   const EmojiOnlyBubble({
     super.key,
     required this.content,
+    required this.bubbleMaxWidth,
     required this.timeStr,
     required this.isMe,
     this.isGroupChat = false,
@@ -94,18 +96,20 @@ class EmojiOnlyBubble extends StatelessWidget {
     DebugConfig.log(
       DebugConfig.chatBubbleDesign,
       'EmojiOnlyBubble: id=$emojiMsgId '
-          '"${content.trim()}" fontSize=$fontSize '
-          'isGrouped=$isGrouped isLastInGroup=$isLastInGroup',
+      '"${content.trim()}" fontSize=$fontSize bubbleMaxWidth=$bubbleMaxWidth '
+      'isGrouped=$isGrouped isLastInGroup=$isLastInGroup',
     );
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Column(
-        crossAxisAlignment:
-            isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment: isMe
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
         children: [
-          if (!isMe && showAvatar
-              && (senderAvatarUrl != null || senderNickname != null))
+          if (!isMe &&
+              showAvatar &&
+              (senderAvatarUrl != null || senderNickname != null))
             SenderHeader(
               senderAvatarUrl: senderAvatarUrl,
               senderNickname: senderNickname,
@@ -116,6 +120,7 @@ class EmojiOnlyBubble extends StatelessWidget {
               replyTo: replyTo!,
               isMe: isMe,
               isGroupChat: isGroupChat,
+              maxWidth: bubbleMaxWidth,
             ),
           BubbleLongPressWrapper(
             isMe: isMe,
@@ -126,33 +131,37 @@ class EmojiOnlyBubble extends StatelessWidget {
             onEmail: onEmail,
             onShare: onShare,
             child: Column(
-              crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              crossAxisAlignment: isMe
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
                 Padding(
                   padding: EdgeInsets.only(
-                      left: isMe ? 0 : 14,
-                      right: isMe ? 14 : 0),
+                    left: isMe ? 0 : 14,
+                    right: isMe ? 14 : 0,
+                  ),
                   child: Text(
                     content.trim(),
                     textAlign: TextAlign.start,
-                    style: TextStyle(
-                      fontSize: fontSize,
-                      color: textColor,
-                    ),
+                    style: TextStyle(fontSize: fontSize, color: textColor),
                   ),
                 ),
                 if (timeStr.isNotEmpty)
                   Padding(
                     padding: EdgeInsets.only(
-                        top: 2,
-                        left: isMe ? 0 : 14,
-                        right: isMe ? 14 : 0),
-                    child: Text(timeStr,
+                      top: 2,
+                      left: isMe ? 0 : 14,
+                      right: isMe ? 14 : 0,
+                    ),
+                    child: Text(
+                      timeStr,
                       textAlign: TextAlign.end,
                       style: TextStyle(
                         fontSize: 10,
-                        color: theme.colorScheme.onSurfaceVariant.withAlpha(180),
+                        color: theme.colorScheme.onSurfaceVariant.withAlpha(
+                          180,
+                        ),
                       ),
                     ),
                   ),

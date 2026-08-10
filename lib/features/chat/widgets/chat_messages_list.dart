@@ -922,10 +922,43 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
       '$totalWithSeenBy with seenBy',
     );
     final itemCount = renderItems.length + (isLoadingOlder ? 1 : 0);
+
+    // ─────────────────────────────────────────────────────────────
+    // fix5 (SPoT width-cache): ΤΟΠΙΚΕΣ μεταβλητές — ΟΧΙ State field.
+    // Επαναδημιουργούνται αυτόματα σε ΚΑΘΕ πραγματικό rebuild του
+    // _buildMessagesList (δηλ. όταν αλλάζουν πραγματικά δεδομένα μέσω
+    // ref.watch) — άρα ΔΕΝ υπάρχει ρίσκο μπαγιάτικων δεδομένων.
+    // Μέσα στο ΙΔΙΟ πραγματικό rebuild, ο LayoutBuilder.builder μπορεί
+    // να ξανατρέξει πολλές φορές λόγω αλλαγής ΜΟΝΟ του ύψους
+    // (π.χ. animation πληκτρολογίου μέσω _SafeInputArea) — σε αυτές
+    // τις επαναλήψεις, αν το width δεν άλλαξε, επιστρέφουμε το ΙΔΙΟ
+    // ListView instance ώστε το Flutter να κάνει identical()-shortcut
+    // και να ΜΗΝ ξανακαλέσει itemBuilder για κανένα ορατό index.
+    // ─────────────────────────────────────────────────────────────
+    double? cachedWidth;
+    Widget? cachedListView;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final w = ResponsiveUtils.resolveWidth(context, constraints);
-        return ListView.builder(
+
+        if (cachedListView != null && cachedWidth == w) {
+          DebugConfig.log(
+            DebugConfig.chatBubbleDesign,
+            'MSG_LIST: ListView REUSED (w=$w, chat=${widget.chatId}, '
+                'inst=$_instanceId) — height-only relayout, itemBuilder NOT re-invoked',
+          );
+          return cachedListView!;
+        }
+
+        cachedWidth = w;
+        DebugConfig.log(
+          DebugConfig.chatBubbleDesign,
+          'MSG_LIST: ListView (re)BUILT (w=$w, chat=${widget.chatId}, '
+              'inst=$_instanceId)',
+        );
+
+        cachedListView = ListView.builder(
           controller: _scrollCtrl,
           reverse: true,
           padding: EdgeInsets.symmetric(
@@ -954,8 +987,8 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
             DebugConfig.log(
               DebugConfig.chatBubbleDesign,
               'MSG_LIST item type=${item.type} '
-              'msgId=${item.message?['id'] ?? item.date ?? 'none'} '
-              '(i=$i, inst=$_instanceId)',
+                  'msgId=${item.message?['id'] ?? item.date ?? 'none'} '
+                  '(i=$i, inst=$_instanceId)',
             );
             if (item.type == RenderItemType.dateSeparator) {
               return DateSeparator(
@@ -972,14 +1005,14 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
             if (senderNickname == null) {
               DebugConfig.warn(
                 'ChatMessagesList: senderNickname null for senderId=$senderId '
-                'chat=${widget.chatId} nicknameMapSize=${participantNicknames.length}',
+                    'chat=${widget.chatId} nicknameMapSize=${participantNicknames.length}',
               );
             }
 
             final msgId = msg['id'] as String? ?? '';
             final props =
                 readProps[msgId] ??
-                const _MessageReadProps(effectiveIsRead: false, seenBy: []);
+                    const _MessageReadProps(effectiveIsRead: false, seenBy: []);
 
             return MessageBubble(
               key: ValueKey(msgId),
@@ -1028,6 +1061,7 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
             );
           },
         );
+        return cachedListView!;
       },
     );
   }

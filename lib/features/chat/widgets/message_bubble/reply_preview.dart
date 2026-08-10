@@ -23,8 +23,9 @@ class ReplyPreview extends StatelessWidget {
     final isMedia = mediaUrl != null;
     DebugConfig.log(
       DebugConfig.chatReply,
-      'ReplyPreview: id=${replyTo['id']} thumb=${isMedia ? "yes" : "no"} '
-      'h=${identityHashCode(this)}',
+      // SPoT: το key λέγεται 'messageId' (βλ. chat_input_bar._buildReplyData) — ΟΧΙ 'id'.
+      'ReplyPreview: msgId=${replyTo['messageId']} thumb=${isMedia ? "yes" : "no"} '
+          'h=${identityHashCode(this)}',
     );
 
     final preview = isMedia

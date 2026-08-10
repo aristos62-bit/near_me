@@ -11,6 +11,7 @@ import '../../../features/chat/providers/chat_provider.dart';
 import '../../../repositories/auth_repository.dart';
 import '../../../shared/widgets/chat_recipient_picker.dart';
 import '../../../shared/widgets/incoming_share_sheet.dart';
+import '../../data/local/database.dart';
 
 /// Διαχείριση εισερχόμενου sharing (OS share sheet → εφαρμογή).
 ///
@@ -118,9 +119,8 @@ class IncomingShareService {
         return;
       }
 
-      final chats = (ref.read(chatsProvider).asData?.value ?? [])
-          .where((c) => c.chatId != null)
-          .toList();
+      final chats = (await _loadChats(ref)).where((c) => c.chatId != null).toList();
+      if (!context.mounted) return;
       if (chats.isEmpty) {
         AppMessenger.showInfo(context,
             ErrorMessages.get('chat/no-chats-forward', greek));
@@ -147,6 +147,18 @@ class IncomingShareService {
           ErrorMessages.get('chat/forwarded', greek));
     } finally {
       _isShowingSheet = false;
+    }
+  }
+
+  /// Επιστρέφει τις συνομιλίες. Σε cold start το chatsProvider μπορεί να μην έχει
+  /// φορτώσει ακόμα → περιμένει μέχρι το πρώτο AsyncData (max 8s). Σε warm start
+  /// επιστρέφει αμέσως. Timeout/error → fallback στα ήδη φορτωμένα (ίσως κενά).
+  static Future<List<ChatCacheTableData>> _loadChats(WidgetRef ref) async {
+    try {
+      return await ref.read(chatsProvider.future)
+          .timeout(const Duration(seconds: 8));
+    } catch (_) {
+      return ref.read(chatsProvider).asData?.value ?? const <ChatCacheTableData>[];
     }
   }
 }

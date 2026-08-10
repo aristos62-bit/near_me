@@ -263,22 +263,24 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
     }
   }
 
-  /// Εκτελεί το pending incoming share αν το app είναι ξεκλείδωτο και υπάρχει
-  /// context. Σε cold start το `_appContext` μπορεί να μην είναι ακόμα έτοιμο
-  /// (ορίζεται στο builder του MaterialApp) → fallback σε post-frame callback.
+  /// Εκτελεί το pending incoming share αν το app είναι ξεκλείδωτο και ο
+  /// Navigator είναι έτοιμος. Χρησιμοποιεί ΑΠΟΚΛΕΙΣΤΙΚΑ το context του
+  /// Navigator (AppRouter.navigatorKey) — ο builder context του MaterialApp
+  /// είναι πάνω από τον Navigator και ο Navigator.of δεν τον βρίσκει.
   void _executeIncomingShareSafely() {
     if (!FeatureFlags.incomingShareEnabled) return;
     if (!mounted || _isLocked) return;
-    final ctx = _appContext;
-    if (ctx == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && !_isLocked && _appContext != null) {
-          IncomingShareService.tryExecutePending(ref, _appContext!);
-        }
-      });
+    final navCtx = AppRouter.navigatorKey.currentContext;
+    if (navCtx != null) {
+      IncomingShareService.tryExecutePending(ref, navCtx);
       return;
     }
-    IncomingShareService.tryExecutePending(ref, ctx);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_isLocked) {
+        final c = AppRouter.navigatorKey.currentContext;
+        if (c != null) IncomingShareService.tryExecutePending(ref, c);
+      }
+    });
   }
 
   @override

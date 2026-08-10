@@ -42,6 +42,7 @@ class AppRouter {
   static final _AuthChangeNotifier _authNotifier = _AuthChangeNotifier();
   static bool _verifyDismissed = false;
   static String? _lastUid;
+  static final navigatorKey = GlobalKey<NavigatorState>();
 
   static void dismissVerify() {
     DebugConfig.log(DebugConfig.authFlow, 'AppRouter: verify dismissed by user');
@@ -49,6 +50,7 @@ class AppRouter {
   }
 
   static final GoRouter router = GoRouter(
+    navigatorKey: navigatorKey,
     initialLocation: '/',
     refreshListenable: _authNotifier,
     redirect: (context, state) {

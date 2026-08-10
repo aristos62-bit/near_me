@@ -1,7 +1,11 @@
+import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:get_thumbnail_video/index.dart';
+import 'package:get_thumbnail_video/video_thumbnail.dart';
+import 'package:go_router/go_router.dart';
 import '../config/feature_flags.dart';
 import '../debug/debug_config.dart';
 import '../l10n/l10n.dart';
@@ -9,6 +13,7 @@ import '../utils/app_messenger.dart';
 import '../utils/error_messages.dart';
 import '../../../features/chat/providers/chat_provider.dart';
 import '../../../repositories/auth_repository.dart';
+import '../../../shared/utils/image_utils.dart';
 import '../../../shared/widgets/chat_recipient_picker.dart';
 import '../../../shared/widgets/incoming_share_sheet.dart';
 import '../../data/local/database.dart';
@@ -112,18 +117,65 @@ class IncomingShareService {
         return;
       }
 
-      final isMedia = payload.type != 'text' && payload.type != 'url';
-      if (isMedia) {
-        AppMessenger.showInfo(context,
-            ErrorMessages.get('share/media-not-supported', greek));
-        return;
-      }
-
       final chats = (await _loadChats(ref)).where((c) => c.chatId != null).toList();
       if (!context.mounted) return;
       if (chats.isEmpty) {
         AppMessenger.showInfo(context,
             ErrorMessages.get('chat/no-chats-forward', greek));
+        return;
+      }
+
+      final isMedia = payload.type != 'text' && payload.type != 'url';
+      if (isMedia) {
+        final path = payload.content;
+        final file = File(path);
+        if (!file.existsSync()) {
+          _deleteTmp(path);
+          AppMessenger.showError(context,
+              ErrorMessages.get('share/media-load-failed', greek));
+          return;
+        }
+
+        final videoThumb = (payload.type == 'video')
+            ? await _generateVideoThumb(path)
+            : null;
+        if (!context.mounted) {
+          _deleteTmp(path);
+          return;
+        }
+
+        final confirmed = await showIncomingShareSheet(context,
+            type: payload.type, content: path, filePath: path,
+            thumbnailBytes: videoThumb);
+        if (confirmed != true || !context.mounted) {
+          _deleteTmp(path);
+          return;
+        }
+
+        final targetChatId = await showChatRecipientPicker(context, chats);
+        if (targetChatId == null || !context.mounted) {
+          _deleteTmp(path);
+          return;
+        }
+
+        // Ανέβασμα με οπτική πρόοδο: ο χρήστης πάει στη συνομιλία και βλέπει
+        // spinner στο input bar όσο τρέχει το upload (όλα τα media types).
+        ref.read(incomingShareUploadProvider.notifier).begin(targetChatId);
+        if (context.mounted) {
+          context.go('/chat/$targetChatId');
+        }
+        final ok = await _sendMedia(ref, targetChatId, payload,
+            thumbnailBytes: videoThumb);
+        ref.read(incomingShareUploadProvider.notifier).end();
+        _deleteTmp(path);
+        if (!context.mounted) return;
+        if (!ok) {
+          final state = ref.read(chatActionsProvider);
+          AppMessenger.showError(context, ErrorMessages.get(
+              state.errorMessage ?? 'chat/forward-failed', greek));
+          return;
+        }
+        // success: το μήνυμα εμφανίζεται ήδη στη συνομιλία (χωρίς toast).
         return;
       }
 
@@ -147,6 +199,73 @@ class IncomingShareService {
           ErrorMessages.get('chat/forwarded', greek));
     } finally {
       _isShowingSheet = false;
+    }
+  }
+
+  /// Δημιουργεί το thumbnail ενός τοπικού video (fail-open → null). Το
+  /// αποτέλεσμα χρησιμοποιείται για preview στο sheet και reuse στο send.
+  static Future<Uint8List?> _generateVideoThumb(String path) async {
+    try {
+      return await VideoThumbnail.thumbnailData(
+        video: path,
+        imageFormat: ImageFormat.JPEG,
+        maxWidth: 480,
+        quality: 70,
+      );
+    } catch (e) {
+      DebugConfig.warn('IncomingShare: thumbnail generation failed', data: e);
+      return null;
+    }
+  }
+
+  /// Αποστέλλει το shared media μέσω του κατάλληλου μονοπατιού του
+  /// sendMediaMessage. Το native στέλνει `image` για κάθε εικόνα/GIF·
+  /// αν το αρχείο τελειώνει σε .gif προωθείται ως πραγματικό GIF
+  /// (raw bytes, χωρίς stripExif για να μη σπάσει το animation).
+  /// Επιστρέφει false σε σφάλμα (ο provider κρατά το errorMessage για προβολή).
+  static Future<bool> _sendMedia(
+      WidgetRef ref, String chatId, IncomingSharePayload payload,
+      {Uint8List? thumbnailBytes}) async {
+    final path = payload.content;
+    try {
+      switch (payload.type) {
+        case 'video':
+          return await ref.read(chatActionsProvider.notifier)
+              .sendMediaMessage(chatId,
+              content: '', type: 'video',
+              videoPath: path,
+              thumbnailBytes: thumbnailBytes);
+        case 'image':
+          final bytes = await File(path).readAsBytes();
+          final isGif = path.toLowerCase().endsWith('.gif');
+          return await ref.read(chatActionsProvider.notifier)
+              .sendMediaMessage(chatId,
+              content: '',
+              type: isGif ? 'gif' : 'image',
+              imageBytes: isGif ? bytes : await ImageUtils.stripExif(bytes));
+        case 'audio':
+          final bytes = await File(path).readAsBytes();
+          return await ref.read(chatActionsProvider.notifier)
+              .sendMediaMessage(chatId,
+              content: '', type: 'audio',
+              audioBytes: bytes);
+        default:
+          return false;
+      }
+    } catch (e) {
+      DebugConfig.error('IncomingShare: media send failed', data: e);
+      return false;
+    }
+  }
+
+  /// Best-effort διαγραφή του temp media μετά τη χρήση (απόρριψη, dismiss,
+  /// send επιτυχές ή όχι) ώστε να μην αφήνουμε orphan αρχεία στο cache.
+  static void _deleteTmp(String path) {
+    try {
+      final file = File(path);
+      if (file.existsSync()) file.deleteSync();
+    } catch (e) {
+      DebugConfig.warn('IncomingShare: temp cleanup failed', data: e);
     }
   }
 
@@ -174,4 +293,21 @@ class IncomingSharePayload {
     required this.content,
     this.uri,
   });
+}
+
+/// Mini provider: κρατάει το chatId όπου τρέχει το media upload του
+/// IncomingShare, ώστε ο ChatInputBar της συνομιλίας να δείξει spinner
+/// (ίδια συμπεριφορά με το κανονικό send media). Μηδενίζεται πάντα στο τέλος.
+final incomingShareUploadProvider =
+    NotifierProvider<IncomingShareUploadNotifier, String?>(
+  IncomingShareUploadNotifier.new,
+);
+
+class IncomingShareUploadNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void begin(String chatId) => state = chatId;
+
+  void end() => state = null;
 }

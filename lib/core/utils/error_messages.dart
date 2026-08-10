@@ -129,9 +129,9 @@ class ErrorMessages {
       case 'share/needs-verification':
         return isGreek ? 'Πρέπει να επαληθεύσεις τον λογαριασμό σου για να στείλεις μηνύματα'
             : 'Verify your account to send messages';
-      case 'share/media-not-supported':
-        return isGreek ? 'Η κοινοποίηση αρχείων πολυμέσων δεν υποστηρίζεται ακόμα'
-            : 'Sharing media files is not supported yet';
+      case 'share/media-load-failed':
+        return isGreek ? 'Αδυναμία φόρτωσης του αρχείου πολυμέσων'
+            : 'Could not load the media file';
       case 'chat/reply-privately-failed':
         return isGreek ? 'Δεν ήταν δυνατό το άνοιγμα προσωπικής συνομιλίας'
             : 'Could not open private chat';

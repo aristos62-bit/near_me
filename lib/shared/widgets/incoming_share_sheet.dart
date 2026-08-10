@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../../../core/l10n/l10n.dart';
 
@@ -8,14 +10,25 @@ Future<bool?> showIncomingShareSheet(
   BuildContext context, {
   required String type,
   required String content,
+  String? filePath,
+  Uint8List? thumbnailBytes,
 }) {
   return showModalBottomSheet<bool>(
     context: context,
     isDismissible: true,
     builder: (ctx) {
       final greek = L10n.isGreek(ctx);
-      final isUrl = type == 'url' ||
-          content.trimLeft().startsWith(RegExp(r'^https?://'));
+      final isMedia = filePath != null &&
+          (type == 'image' || type == 'gif' || type == 'video' || type == 'audio');
+      final isUrl = !isMedia &&
+          (type == 'url' || content.trimLeft().startsWith(RegExp(r'^https?://')));
+      final icon = isMedia
+          ? (type == 'video'
+              ? Icons.videocam_outlined
+              : type == 'audio'
+                  ? Icons.mic_outlined
+                  : Icons.image_outlined)
+          : (isUrl ? Icons.link : Icons.forward_to_inbox_outlined);
       return SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
@@ -25,7 +38,7 @@ Future<bool?> showIncomingShareSheet(
             children: [
               Row(
                 children: [
-                  Icon(isUrl ? Icons.link : Icons.forward_to_inbox_outlined),
+                  Icon(icon),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -44,9 +57,11 @@ Future<bool?> showIncomingShareSheet(
                   color: Theme.of(ctx).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: SingleChildScrollView(
-                  child: SelectableText(content, style: Theme.of(ctx).textTheme.bodyMedium),
-                ),
+                child: isMedia
+                    ? _buildMediaPreview(type, filePath, thumbnailBytes)
+                    : SingleChildScrollView(
+                        child: SelectableText(content, style: Theme.of(ctx).textTheme.bodyMedium),
+                      ),
               ),
               const SizedBox(height: 16),
               SizedBox(
@@ -62,5 +77,48 @@ Future<bool?> showIncomingShareSheet(
         ),
       );
     },
+  );
+}
+
+Widget _buildMediaPreview(String type, String filePath, Uint8List? thumbnailBytes) {
+  final showImage = type == 'image' || type == 'gif';
+  if (showImage) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Image.file(
+        File(filePath),
+        width: double.infinity,
+        height: 170,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => _mediaIcon(type),
+      ),
+    );
+  }
+  if (type == 'video' && thumbnailBytes != null) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Image.memory(
+        thumbnailBytes,
+        width: double.infinity,
+        height: 170,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => _mediaIcon(type),
+      ),
+    );
+  }
+  return _mediaIcon(type);
+}
+
+Widget _mediaIcon(String type) {
+  final IconData icon;
+  if (type == 'video') {
+    icon = Icons.videocam_outlined;
+  } else if (type == 'audio') {
+    icon = Icons.mic_outlined;
+  } else {
+    icon = Icons.image_outlined;
+  }
+  return Center(
+    child: Icon(icon, size: 48, color: Colors.grey),
   );
 }

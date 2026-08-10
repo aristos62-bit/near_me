@@ -3,6 +3,8 @@ package com.example.near_me
 import android.content.Intent
 import android.net.Uri
 import android.view.WindowManager
+import java.io.File
+import java.io.FileOutputStream
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -42,13 +44,14 @@ class MainActivity : FlutterFragmentActivity() {
         return when {
             type.startsWith("image/") || type.startsWith("video/") || type.startsWith("audio/") -> {
                 val uri = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
-                if (uri == null) return null
+                    ?: intent.clipData?.getItemAt(0)?.uri
+                val path = uri?.let { copySharedMedia(it, type) } ?: return null
                 val mediaType = when {
                     type.startsWith("image/") -> "image"
                     type.startsWith("video/") -> "video"
                     else -> "audio"
                 }
-                mapOf("type" to mediaType, "content" to uri.toString())
+                mapOf("type" to mediaType, "content" to path)
             }
             type.startsWith("text/") -> {
                 val text = intent.getStringExtra(Intent.EXTRA_TEXT)
@@ -57,6 +60,33 @@ class MainActivity : FlutterFragmentActivity() {
                 mapOf("type" to "text", "content" to text)
             }
             else -> null
+        }
+    }
+
+    /**
+     * Αντιγράφει το shared media (content:// uri) στο cacheDir
+     * `near_me_share_cache/incoming/` με την κατάλληλη επέκταση, ώστε το Dart
+     * να το διαβάσει σαν κανονικό file. Επιστρέφει το απόλυτο path ή null.
+     * Ext mapping είναι ίδιο με το Dart: gif→gif, image→jpg, video→mp4, audio→m4a.
+     */
+    private fun copySharedMedia(uri: Uri, type: String): String? {
+        val ext = when {
+            type.equals("image/gif", ignoreCase = true) -> "gif"
+            type.startsWith("image/") -> "jpg"
+            type.startsWith("video/") -> "mp4"
+            type.startsWith("audio/") -> "m4a"
+            else -> return null
+        }
+        val dest = File(cacheDir, "near_me_share_cache/incoming/${System.currentTimeMillis()}.$ext")
+        try {
+            dest.parentFile?.mkdirs()
+            contentResolver.openInputStream(uri)?.use { input ->
+                FileOutputStream(dest).use { output -> input.copyTo(output) }
+            } ?: return null
+            return dest.absolutePath
+        } catch (e: Exception) {
+            dest.delete()
+            return null
         }
     }
 

@@ -298,6 +298,27 @@ class L10n {
   static String unknownName({required bool isGreek}) =>
       isGreek ? 'Άγνωστο' : 'Unknown';
 
+  /// SPoT: label τύπου media για προεπισκοπήσεις (share sheet, replay κ.λπ.).
+  /// 'gif' εμφανίζεται ως 'GIF' και στα δύο locale.
+  static String mediaTypeLabel(String type, {required bool isGreek}) {
+    if (isGreek) {
+      switch (type) {
+        case 'image': return 'Φωτογραφία';
+        case 'gif': return 'GIF';
+        case 'video': return 'Βίντεο';
+        case 'audio': return 'Ηχογράφηση';
+      }
+    } else {
+      switch (type) {
+        case 'image': return 'Photo';
+        case 'gif': return 'GIF';
+        case 'video': return 'Video';
+        case 'audio': return 'Audio';
+      }
+    }
+    return type;
+  }
+
   /// SPoT για το όνομα της εφαρμογής (locale-aware).
   static String appName(BuildContext context) =>
       appNameFromLocale(Localizations.localeOf(context));

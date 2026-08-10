@@ -11,6 +11,7 @@ import 'package:get_thumbnail_video/index.dart';
 import 'package:get_thumbnail_video/video_thumbnail.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../core/services/incoming_share_service.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/error_messages.dart';
 import '../../../shared/utils/image_utils.dart';
@@ -557,6 +558,8 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     final canComm = AuthRepository.canUserCommunicate(currentUser);
     final replyToMsg = ref.watch(replyToMessageProvider.select((s) => s[widget.chatId]));
     final editingMsg = ref.watch(editingMessageProvider.select((s) => s[widget.chatId]));
+    final incomingShareUploading =
+        ref.watch(incomingShareUploadProvider) == widget.chatId;
     _buildCount++;
     DebugConfig.log(DebugConfig.uiInteraction,
         'ChatInputBar build#$_buildCount: canComm=$canComm '
@@ -633,7 +636,7 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
                 ])
               else
                 Row(children: [
-                  if (!_isLoading)
+                  if (!_isLoading && !incomingShareUploading)
                     IconButton(
                       icon: const Icon(Icons.add_circle_outline),
                       onPressed: _showMediaPicker,
@@ -660,8 +663,10 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
                   )),
                   const SizedBox(width: 8),
                   IconButton.filled(
-                    onPressed: _isLoading ? null : _send,
-                    icon: _isLoading
+                    onPressed: (_isLoading || incomingShareUploading)
+                        ? null
+                        : _send,
+                    icon: (_isLoading || incomingShareUploading)
                         ? const SizedBox(
                             width: 20, height: 20,
                             child: CircularProgressIndicator(strokeWidth: 2))

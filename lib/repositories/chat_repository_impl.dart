@@ -847,10 +847,12 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
       final chatRef = firestore.collection('chats').doc(chatId);
       final batch = firestore.batch();
 
-      if (imageBytes != null && type == 'image') {
+      if (imageBytes != null && (type == 'image' || type == 'gif')) {
+        final isGif = type == 'gif';
         final storageRef = FirebaseStorage.instance
-            .ref().child('chat_media/$chatId/${msgRef.id}.jpg');
-        await storageRef.putData(imageBytes, SettableMetadata(contentType: 'image/jpeg'));
+            .ref().child('chat_media/$chatId/${msgRef.id}.${isGif ? 'gif' : 'jpg'}');
+        await storageRef.putData(imageBytes,
+            SettableMetadata(contentType: isGif ? 'image/gif' : 'image/jpeg'));
         content = await storageRef.getDownloadURL();
       }
 

@@ -972,3 +972,50 @@ Email με attachment: το Android email app (π.χ. Gmail, `launchMode=singleT
 - `backups/*_20260810_pre_bubbleMaxWidth_spot.bak.dart` (8 αρχεία: chat_messages_list, message_bubble, text_message_bubble, gif_image_bubble, audio_message_bubble, video_message_bubble, reply_preview, emoji_only_bubble)
 - `backups/message_bubble_20260810_pre_probe.bak.dart` (πριν το temporary probe)
 - `backups/oldsessions_20260810_pre_222.md`
+
+---
+
+## Session 223 — SIG-PROBE: το storm αναπαράγεται και διαγιγνώσκεται 100% — 10 Αυγ 2026
+
+### Σκοπός
+Το Session 222 έκλεισε το «φυσιολογικό» κομμάτι (sliver relayout), αλλά παρέμενε ανοιχτό το storm του Session 221: 24-26 πλήρη `MSG_LIST BUILD` ανά δευτερόλεπτο με πανομοιότυπα δεδομένα. Βάλαμε instrumentation για οριστική διάγνωση.
+
+### Instrumentation (TEMP, αναστρέψιμο, backup `chat_messages_list_20260810_sigprobe.bak` / `..._sigprobe2.bak`)
+- Fields: `_sigLastWidget` (parent-change ανίχνευση), `selectCalls` counter στον lastReadTimestamps selector, `_sigLastMsgsHash`/`_sigLastCombinedHash` (content-change ανίχνευση).
+- Probe-log ανά build με `WidgetsBinding.instance.platformDispatcher.views.first.viewInsets` — **platformDispatcher, ΟΧΙ MediaQuery.of** → η ίδια η μέτρηση δεν αλλάζει τα rebuilds.
+- `SIG-PROBE-2`: hashes όλων των υπόλοιπων ref.watch (lastRead/nicknames/avatars/blocked/participantUids).
+
+### Ευρήματα (από run 20:45-46: media/GIF/emoji/photo pickers + keyboard)
+- **Κάθε animation πληκτρολογίου = 1 build ανά καρέ** (viewInsets σε τέλεια animation curve: κλείσιμο `804→699→580→…→0`, άνοιγμα `40→135→246→…→850`· 24-26 builds ανά animation).
+- `parentChanged=false` **πάντα** → parent αθώος.
+- `msgsHash`/`combinedHash` **πανομοιότυπα σε όλο το storm** → providers/content αθώα.
+- `selectCalls` +1/build (cache hits, equal) → selectors αθώα.
+- `flutter grep`: κανένα `MediaQuery` στο chat_messages_list.dart, ούτε στο `ResponsiveUtils.resolveWidth` (constraints+L10n μόνο), ούτε στο `L10n.isGreek` (Localizations.localeOf) → το dirty ανά καρέ έρχεται από το **Localizations InheritedWidget μέσω `L10n.isGreek(context)` στο build()** (μόνη `dependOnInheritedWidgetOfExactType` στο build path).
+
+---
+
+## Session 224 — ROOT CAUSE: Localizations + fix6 locale-cache (100%) — 10 Αυγ 2026
+
+### Απόδειξη (isolation test)
+Με το `L10n.isGreek(context)` προσωρινά αντικατεστημένο (`const greek = true`), **μηδέν storms** σε test με πολλαπλά ανοίγματα/κλεισίματα πληκτρολογίου (21:44:15/19/34/38) — μόνο τα bounded `ReplyPreview ×N` (φυσιολογικό sliver relayout). **Root cause 100% επιβεβαιωμένο:** το `Localizations.localeOf(context)` στο build ειδοποιεί τους dependents σε κάθε frame keyboard animation (το Localizations rebuilds ανάντη από MediaQuery viewInsets), ακόμα κι αν το locale δεν αλλάζει ποτέ.
+
+### Fix6 (SPoT locale-cache, 1 αρχείο) — ίδιο pattern με τα υπόλοιπα equality-caches του αρχείου
+- **Field:** `bool _cachedGreek = true;` (με σχόλιο root cause).
+- **`didChangeDependencies()`:** μοναδικό σημείο ανάγνωσης `_cachedGreek = L10n.isGreek(context);` — καλείται μόνο όταν το Localizations **πραγματικά** αλλάζει (αλλαγή γλώσσας εφαρμογής) → δίγλωσση λειτουργικότητα 100% διατηρημένη.
+- **Build:** `final greek = _cachedGreek;` — μηδέν InheritedWidget dependency στο build(). Το greek χρησιμοποιείται μόνο σε EmptyView/ErrorView μηνύματα → μηδενική επίδραση σε bubbles/ListView.
+
+### Επαλήθευση (device, run 22:00 — group chat, media+fwd+emoji+gif+photo+reply)
+- ΟΛΑ τα σενάρια που προκαλούσαν storm (MediaPickerSheet, emoji, GifPicker, photo picker + keyboard animations): **μηδέν `MSG_LIST BUILD` storms**.
+- Κάθε `MSG_LIST BUILD` (#1→#12) είχε **πραγματική αλλαγή** (msgsHash/combinedHash άλλαζαν — νέο μήνυμα/pending state).
+- Τα `ReplyPreview ×N` (bounded bursts) παραμένουν μόνα τους — φυσιολογικά (Session 222).
+- Σύγκριση: 20:45 (πριν) → 24-26 builds/storm με πανομοιότυπα hashes· 22:00 (μετά) → μηδέν.
+
+### Καθαρισμός (revert TEMP probes)
+- Αφαιρέθηκαν όλα τα SIG-PROBE (Session 223/224): fields (71-80), selectCalls counter (selector), SIG-PROBE + SIG-PROBE-2 blocks στο build().
+- Κρατήθηκε το permanent logging (MSG_LIST BUILD, ListView (re)BUILT/REUSED, item, precomputed).
+
+### `flutter analyze`: clean ✅ (0 issues)
+
+### Backups
+- `backups/chat_messages_list_20260810_pre_greek_cache_fix.bak` (κατάσταση με probes, πριν τα revert)
+- `backups/chat_messages_list_20260810_sigprobe.bak`, `backups/chat_messages_list_20260810_sigprobe2.bak` (αναφέρονται στα TEMP markers που αφαιρέθηκαν)

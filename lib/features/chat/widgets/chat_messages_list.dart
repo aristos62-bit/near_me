@@ -67,11 +67,12 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
   Map<String, String>? _lastParticipantNicknames;
   Map<String, String>? _lastParticipantAvatarUrls;
   bool _isOpeningPrivateChat = false;
-  // TEMP SIG-PROBE (Session 223) — revert: backup chat_messages_list_20260810_sigprobe.bak
-  Widget? _sigLastWidget;
-  int _sigSelectCalls = 0;
-  int _sigLastMsgsHash = 0;
-  int _sigLastCombinedHash = 0;
+  // fix6 (SPoT locale-cache): το locale δεν αλλάζει ποτέ κατά τη διάρκεια
+  // ζωής αυτού του Element παρά μόνο αν ο χρήστης αλλάξει γλώσσα εφαρμογής.
+  // Διαβάζεται μία φορά (didChangeDependencies) αντί σε κάθε build(), ώστε
+  // το Localizations InheritedWidget να μην ξαναχτίζει τη λίστα σε κάθε
+  // frame πληκτρολογίου (επιβεβαιωμένο root cause, Session 224).
+  bool _cachedGreek = true;
 
   @override
   void initState() {
@@ -86,6 +87,19 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
         _maybeLoadOlder();
       }
     });
+  }
+
+  // fix6 (SPoT locale-cache): το Localizations InheritedWidget ειδοποιεί
+  // εδώ — ΟΧΙ κατά το build() — άρα διαβάζουμε/ενημερώνουμε το cache ΜΟΝΟ
+  // εδώ. Αυτό είναι το ΜΟΝΑΔΙΚΟ σωστό σημείο: αν το locale πραγματικά
+  // αλλάξει (ο χρήστης αλλάζει γλώσσα εφαρμογής), θα καλεστεί ξανά και θα
+  // ενημερώσει σωστά το cache· αν απλώς ξαναχτίζεται λόγω πληκτρολογίου
+  // (χωρίς πραγματική αλλαγή locale), το cache παραμένει σωστό ούτως ή
+  // άλλως — απλώς δεν διαβάζουμε ξανά το Localizations μέσα στο build().
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _cachedGreek = L10n.isGreek(context);
   }
 
   @override
@@ -723,7 +737,6 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
             (a.asData?.value?.data()
                     as Map<String, dynamic>?)?['lastReadTimestamps']
                 as Map<String, dynamic>?;
-        _sigSelectCalls++; // TEMP SIG-PROBE
         if (raw == null) return const <String, DateTime>{};
         final result = raw.map((k, v) {
           final ts = (v as Timestamp?)?.toDate();
@@ -830,28 +843,14 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
         (m) => m[widget.chatId]?.isLoading ?? false,
       ),
     );
-    final greek = L10n.isGreek(context);
+    // fix6: cached στο didChangeDependencies() — βλ. εκεί. Καμία εξάρτηση
+    // από Localizations μέσα στο build() πλέον.
+    final greek = _cachedGreek;
     _buildCount++;
     DebugConfig.log(
       DebugConfig.chatBubbleDesign,
       'MSG_LIST BUILD #$_buildCount chat=${widget.chatId} inst=$_instanceId',
     );
-    // TEMP SIG-PROBE (Session 223) — platformDispatcher, όχι MediaQuery dependency
-    final vi = WidgetsBinding.instance.platformDispatcher.views.first.viewInsets;
-    final sigParentChanged = !identical(widget, _sigLastWidget);
-    final sigMsgsHash = identityHashCode(messagesAsync.value);
-    final sigCombinedHash = identityHashCode(combinedMessages);
-    DebugConfig.log(
-      DebugConfig.chatBubbleDesign,
-      'SIG-PROBE: viewInsets=${vi.bottom.toStringAsFixed(1)} '
-      'parentChanged=$sigParentChanged '
-      'msgsHash=$sigMsgsHash(prev=$_sigLastMsgsHash) '
-      'combinedHash=$sigCombinedHash(prev=$_sigLastCombinedHash) '
-      'selectCalls=$_sigSelectCalls buildCalls=$_buildCount',
-    );
-    _sigLastWidget = widget;
-    _sigLastMsgsHash = sigMsgsHash;
-    _sigLastCombinedHash = sigCombinedHash;
 
     return messagesAsync.when(
       loading: () => const LoadingView(),

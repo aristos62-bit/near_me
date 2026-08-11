@@ -1019,3 +1019,41 @@ Email με attachment: το Android email app (π.χ. Gmail, `launchMode=singleT
 ### Backups
 - `backups/chat_messages_list_20260810_pre_greek_cache_fix.bak` (κατάσταση με probes, πριν τα revert)
 - `backups/chat_messages_list_20260810_sigprobe.bak`, `backups/chat_messages_list_20260810_sigprobe2.bak` (αναφέρονται στα TEMP markers που αφαιρέθηκαν)
+
+## Session 225 — Incoming Share Media (image/video/audio/GIF) + Upload progress UX (100%) — 10 Αυγ 2026
+
+### Στόχος
+Το incoming share υπήρχε μόνο για text/url (`share/media-not-supported`). Φάση 2: πλήρες media sharing με πραγματικό GIF, video thumbnails και οπτική πρόοδο upload μέσα στη συνομιλία.
+
+### Native (`MainActivity.kt`)
+- `copySharedMedia(uri, type)`: αντιγράφει το `content:// → cacheDir/near_me_share_cache/incoming/<ts>.<ext>` (ext mapping ίδιο με Dart: gif→gif, image→jpg, video→mp4, audio→m4a). `clipData` fallback για EXTRA_STREAM null. Όποιο copy fail → null.
+- Media branch πλέον στέλνει στο Dart `content = απόλυτο path` (όχι το απρόσιτο για File `content://`).
+
+### Dart — flow
+- **`incoming_share_service.dart`**: το `share/media-not-supported` αντικαθίσταται από πλήρες media flow: file-check → preview sheet (`filePath` + `thumbnailBytes`) → `showChatRecipientPicker` → `_sendMedia`. Dispatch: `image` → `ImageUtils.stripExif` + bytes· `image/.gif` → **raw bytes** ως πραγματικό animated GIF (χωρίς stripExif· εσκεμμένα)· `video` → `videoPath` + thumbnail (fail-open)· `audio` → bytes. Temp cleanup best-effort `_deleteTmp()` σε **όλους** τους δρόμους (dismiss/απόρριψη/send ok-fail). Ο `MediaShareCache.sweep()` σβήνει μόνο root files → το `incoming/` δεν αγγίζεται (κανένα race).
+- **Video thumbnail reuse**: το thumbnail δημιουργείται **πριν** το preview sheet (`_generateVideoThumb`, ίδιο `VideoThumbnail`/get_thumbnail_video που ήδη χρησιμοποιεί το ChatInputBar) → εμφανίζεται στο sheet (`Image.memory`) και ξαναχρησιμοποιείται στο send (μία κλήση, όχι δύο).
+- **Upload progress UX**: μετά την επιλογή συνομιλίας `begin(chatId)` → `context.go('/chat/$chatId')` → `_sendMedia` → `end()` (πάντα). Ο `ChatInputBar` κάνει `ref.watch(incomingShareUploadProvider) == chatId` → ίδιο spinner pattern με το `_isLoading` (send disabled + «+» κρυφό) — **ίδια συμπεριφορά για ΟΛΑ τα media** (image/gif/video/audio). Success χωρίς toast (το μήνυμα φαίνεται)· error → υπάρχοντα snackbar/failed.
+- **`incoming_share_sheet.dart`**: media preview (Image.file / Image.memory thumb / icon) — leaf, χωρίς MediaQuery/watch. Νέο SPoT `L10n.mediaTypeLabel` (3 labels). `error_messages.dart`: `share/media-not-supported` → `share/media-load-failed`.
+- **`chat_repository_impl.dart`**: `imageBytes` branch δέχεται και `type=='gif'` → upload `.gif` με `contentType: image/gif` (interface αμετάβλητο).
+
+### Σημαντικά ευρήματα
+- **Υπάρχον pattern του app**: το app δεν χρησιμοποιεί modal loading — τα media sends χρησιμοποιούν `_isLoading` → spinner στο send button. Το `AppMessenger.showLoading/hideLoading` ήταν **dead code** (δεν καλούνται πουθενά). Γι' αυτό επιλέχθηκε το spinner στο InputBar αντί modal — συνεπές παντού.
+- `stripExif` με αρνητικό "saved bytes" (π.χ. `-90068`) είναι φυσιολογικό (JPEG re-encode μπορεί να επεκταθεί) — χωρίς σφάλμα.
+
+### Verification
+- `flutter analyze`: clean ✅ · `flutter test`: 30/30 ✅
+- Device (release build, cold start): image share ✓ (stripExif → sendMediaMessage image → success), video share ✓ (upload → success, Storage URL `.mp4` σωστό)
+- Παρατήρηση που διορθώθηκε: **video χωρίς thumbnail στο preview** → λύθηκε με δημιουργία thumbnail πριν το sheet
+- `SqliteException(database is locked)` στα `_syncChatFromFirestore` **προϋπάρχον** drift issue (retry πέτυχε μετά), όχι σχετικό με το share
+
+### Backups
+- `backups/incoming_share_media_<ts>/` (6 αρχεία πριν το media feature)
+- `backups/incoming_share_video_thumb_<ts>/` (service + sheet πριν το thumbnail-preview)
+- `backups/incoming_share_progress_<ts>/` (service + chat_input_bar πριν το upload progress)
+
+### Χρόνος/Flags
+- Κάθε αλλαγή ενεργοποιείται με το υπάρχον `FeatureFlags.incomingShareEnabled` · native copy logs `chatShare` flag. Απαιτεί **πλήρες rebuild** όταν αλλάζει το Kotlin (το video thumb + progress είναι Dart-only — αρκεί hot restart).
+
+### Εκκρεμούν (device tests)
+- GIF share → **animated** στην οθόνη παραλήπτη (ζητήθηκε ρητά πραγματικό GIF)
+- Audio share · Warm share (app ανοιχτό → share) · Regression text share

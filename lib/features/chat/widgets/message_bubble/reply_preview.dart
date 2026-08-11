@@ -53,11 +53,12 @@ class ReplyPreview extends StatelessWidget {
         ),
         child: isMedia
             ? Row(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   ReplyMediaThumbnail(imageUrl: mediaUrl),
                   const SizedBox(width: 8),
-                  Expanded(child: textWidget),
+                  Flexible(child: textWidget),
                 ],
               )
             : textWidget,

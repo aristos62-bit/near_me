@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 
 class DateSeparator extends StatelessWidget {
@@ -12,11 +11,6 @@ class DateSeparator extends StatelessWidget {
     final theme = Theme.of(context);
     final label = L10n.relativeDateLabel(context, date);
     final dividerColor = theme.colorScheme.onSurfaceVariant.withAlpha(40);
-
-    DebugConfig.log(
-      DebugConfig.chatBubbleDesign,
-      'DateSeparator: date=${date.toIso8601String()} label=$label',
-    );
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),

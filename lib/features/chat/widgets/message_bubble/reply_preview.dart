@@ -1,6 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import '../../../../core/debug/debug_config.dart';
 
 class ReplyPreview extends StatelessWidget {
   final Map<String, dynamic> replyTo;
@@ -23,11 +22,6 @@ class ReplyPreview extends StatelessWidget {
     final contentPreview = replyTo['contentPreview'] as String? ?? '';
     final mediaUrl = ReplyMediaThumbnail.urlFor(replyTo);
     final isMedia = mediaUrl != null;
-    DebugConfig.log(
-      DebugConfig.chatReply,
-      // SPoT: το key λέγεται 'messageId' (βλ. chat_input_bar._buildReplyData) — ΟΧΙ 'id'.
-      'ReplyPreview: msgId=${replyTo['messageId']} thumb=${isMedia ? "yes" : "no"}',
-    );
 
     final preview = isMedia
         ? (isGroupChat && senderNickname != null ? '@$senderNickname' : '')

@@ -62,14 +62,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   bool _emojiPickerVisible = false;
   final _audioPlayer = AudioPlayer();
   VideoPlayerController? _videoController;
-  int _buildCount = 0;
-  DateTime? _initTime;
   late Widget _messagesList;
 
   @override
   void initState() {
     super.initState();
-    _initTime = DateTime.now();
     _messagesList = ChatMessagesList(chatId: widget.chatId, audioPlayer: _audioPlayer, videoPlayer: _videoController, onPlayVideo: _playVideo, videoLoadingUrl: null);
     FcmService.registerActiveChat(widget.chatId);
     ref.read(replyToMessageProvider.notifier).clear(widget.chatId);
@@ -222,12 +219,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    _buildCount++;
-    final elapsed = _initTime != null
-        ? DateTime.now().difference(_initTime!).inMilliseconds
-        : 0;
-    DebugConfig.log(DebugConfig.uiRebuild,
-        'ChatScreen #$_instanceId BUILD #$_buildCount +${elapsed}ms');
     final greek = L10n.isGreek(context);
     final theme = Theme.of(context);
     final isGroupChat = ref.watch(chatDocProvider(widget.chatId).select((a) {
@@ -260,8 +251,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final permsInfo = permsAsync?.asData?.value;
     final canInvite = permsInfo?.hasPermission(currentUid, GroupPermission.inviteMembers) ?? false;
     final canDeleteMsgs = permsInfo?.hasPermission(currentUid, GroupPermission.deleteMessages) ?? false;
-    DebugConfig.log(DebugConfig.authGuard,
-        'ChatScreen #$_instanceId: isGroup=$isGroupChat canInvite=$canInvite canDeleteMsgs=$canDeleteMsgs');
     final otherUid = isGroupChat ? null : participantUids.where((u) => u != currentUid).firstOrNull;
     final otherNickname = otherUid != null ? participantNicknames[otherUid] : null;
     ref.listen(participantUidsProvider(widget.chatId), (prev, next) {
@@ -270,9 +259,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         context.pop();
       }
     });
-
-    DebugConfig.log(DebugConfig.uiInteraction,
-        'ChatScreen #$_instanceId: isGroup=$isGroupChat groupName=$groupName');
 
     return Scaffold(
       resizeToAvoidBottomInset: false,

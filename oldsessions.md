@@ -1057,3 +1057,44 @@ Email με attachment: το Android email app (π.χ. Gmail, `launchMode=singleT
 ### Εκκρεμούν (device tests)
 - GIF share → **animated** στην οθόνη παραλήπτη (ζητήθηκε ρητά πραγματικό GIF)
 - Audio share · Warm share (app ανοιχτό → share) · Regression text share
+
+---
+
+## Session 226 — Debug logs cleanup: search/discovery + startup (100%) — 11 Αυγ 2026
+
+### Σκοπός
+Απομάκρυνση/ομαδοποίηση verbose debug logs. Δύο φάσεις: **(1)** search/discovery hot path (per-candidate → summary) και **(2)** startup logs (περιορισμένο σετ high-value). Αρχή: «keep summaries / remove per-item lines». Καμία αλλαγή λογικής — μόνο `DebugConfig.log` calls (flags unchanged).
+
+### Φάση 1 — Search/discovery (6 αρχεία)
+
+- **`geohash_utils.dart`** — αφαιρέθηκαν: `encode:` / `decode:`, `_cellDimensions:`, `haversine:` (per-pair), και τα 2 `distanceToNearestEdge:`, `distanceToPoint:` (result + `[CACHE HIT]`), `isWithinRadius:`, και τα searchPrecision intermediates (`radius≤0`, «try coarser»). **Κρατήθηκαν:** `searchPrecision` final summary (1 γραμμή/αναζήτηση — τεκμήριο Session 214), ακραίο `DebugConfig.error` (safety net), `getNeighbours`, `getBounds`, `precisionFromSetting`, `precisionLabel`, `clearDistanceCache`.
+- **`firestore_search_repository.dart`** — `_passesFilters` → `(bool, reason)` χωρίς header + 12 ❌/✅ per-user γραμμές. Νέο helper `_filterAndLog`: **1 summary γραμμή ανά query** — `_geoSearch/_generalSearch: X/Y candidates passed filters (rejected: gender=N, age=M, radius=K...)`. Reasons ομαδοποιημένα: city/country/age/videoCall/directChat/online/lookingFor/interests/gender/radius.
+- **`search_provider.dart`** — per-candidate `_computeDistances: uid=...` αφαιρέθηκε · κρατείται το summary `N computed, M skipped`.
+- **`profile_card.dart`** — −3 logs (`presence` isOnline, `uiRebuild` build, `_buildAvatar`) + unused import αφαίρεση.
+- **`status_provider.dart`** — −2 logs (create/dispose) + unused import αφαίρεση.
+- **`profile_repository_impl.dart`** — −1 log (`streamUserStatus` start line · κρατείται η result line με `isOnline/effective`).
+
+### Φάση 2 — Startup (περιορισμένο σετ — ο χρήστης ρώτησε ρητά «τι κερδίζουμε», αποφασίστηκε optional-polish μόνο στα high-value)
+
+- **`main.dart`** — `AppBootstrap.didChangeAppLifecycleState` «ignored» branch → `if (!_firebaseInitDone) return;` (behavior-identical).
+- **`app_router.dart`** — 6→2 auth γραμμές: `AppRouter: user.reload() completed in Xms` + `Auth state changed: uid=..., anon=..., emailVerified=...` (με `verifyDismissed reset` ενσωματωμένο· `uidChanged` κρατιέται πριν το `_lastUid`). Αφαιρέθηκαν: `init callback fired`, `reload starting`, `user changed to`, `calling _authNotifier.notify()`.
+- **`auth_provider.dart`** — `userChanges:` duplicate αφαιρέθηκε — το `.map()` υπήρχε μόνο για το log, απλοποιήθηκε σε direct `userChanges()`.
+
+### Απορρίφθηκαν / κρατήθηκαν συνειδητά
+- **Init redundancy**: `Firebase initialized`, `Opening/Drift database opened`, `start` markers, `PresenceService.init`, `IncomingShare: init` — κρίθηκαν χαμηλής αξίας (μία φορά/εκκίνηση vs per-search noise), ο χρήστης πήρε απόφαση με κόστος-όφελος και τα άφησε.
+- **Guardrails** (ούτε έγγραφα στους candidates): ΟΛΑ τα `DebugConfig.warn`/`error` paths (`searchPrecision` extreme error, `getNeighbours failed`, `SearchNotifier.search failed`) — safety net ενάντια σε silent regressions.
+
+### Verification
+- `flutter analyze`: clean ✅ (0 issues, όλο το project) · `flutter test`: **30/30 passed** ✅ (το `[ERROR] AppSettings load failed` στο widget_test είναι γνωστό test-environment artifact, προϋπάρχον και άσχετο).
+- Net κέρδος: search/discovery ~50-80 → **~4-5 γραμμές/αναζήτηση** · startup **−6 γραμμές/εκκίνηση**.
+
+### Backups
+- `backups/geohash_utils_20260811_173442.dart`
+- `backups/firestore_search_repository_20260811_173817.dart`
+- `backups/{search_provider,profile_card,status_provider,profile_repository_impl}_20260811_174040.dart`
+- `backups/{main,app_router,auth_provider}_20260811_175132.dart`
+- `backups/oldsessions_20260811_175603.md`
+
+### Σημείωση για το μέλλον
+- Το πλήρες startup cleanup (init redundancy κ.λπ.) παραμένει **προαιρετικό polish**, όχι ανάγκη — εκτιμημένο κέρδος ~8-10 γραμμές/εκκίνηση με μηδενικό ρίσκο αν ποτέ αποφασιστεί.
+- Τα κρατημένα `[TIMING]`, `Redirect`, search εισόδου/εξόδου, `publish`/`saveProfile` είναι σκόπιμα — αποτελούν την «καρδιά» της διαγνωστικής ικανότητας.

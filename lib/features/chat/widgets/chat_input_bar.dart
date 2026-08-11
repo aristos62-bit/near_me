@@ -53,7 +53,6 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
   bool _isLoading = false;
   String? _errorMessage;
   Timer? _errorTimer;
-  int _buildCount = 0;
 
   // Κρατάμε το notifier σε πεδίο από το initState, ώστε να μπορούμε να
   // καθαρίσουμε το stale quote στο dispose ΧΩΡΙΣ ref.read (απαγορεύεται στο
@@ -435,10 +434,6 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
         widget.participantNicknames[senderId] ??
         senderId);
 
-    DebugConfig.log(DebugConfig.chatReply,
-        'ChatInputBar: reply banner for @$senderNickname: $preview'
-        '${mediaUrl != null ? " (thumb)" : ""}');
-
     return Container(
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest.withAlpha(120),
@@ -560,10 +555,6 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     final editingMsg = ref.watch(editingMessageProvider.select((s) => s[widget.chatId]));
     final incomingShareUploading =
         ref.watch(incomingShareUploadProvider) == widget.chatId;
-    _buildCount++;
-    DebugConfig.log(DebugConfig.uiInteraction,
-        'ChatInputBar build#$_buildCount: canComm=$canComm '
-        'emojiVisible=${widget.emojiPickerVisible}');
 
     ref.listen(editingMessageProvider.select((s) => s[widget.chatId]), (prev, next) {
       if (next != null && prev != next) {

@@ -56,13 +56,10 @@ class ChatMessagesList extends ConsumerStatefulWidget {
 }
 
 class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
-  static int _counter = 0;
-  final int _instanceId = _counter++;
   final _scrollCtrl = ScrollController();
   int _lastMessageCount = 0;
   String? _lastMessageId;
   bool _isFirstLoad = true;
-  int _buildCount = 0;
   Map<String, DateTime>? _lastLastReadTimestamps;
   Map<String, String>? _lastParticipantNicknames;
   Map<String, String>? _lastParticipantAvatarUrls;
@@ -747,10 +744,6 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
               _lastLastReadTimestamps,
               result,
             )) {
-          DebugConfig.log(
-            DebugConfig.chatStream,
-            'ChatMessagesList: lastReadTimestamps cache hit for ${widget.chatId}',
-          );
           return _lastLastReadTimestamps!;
         }
         DebugConfig.log(
@@ -827,11 +820,6 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
             true,
       ),
     );
-    DebugConfig.log(
-      DebugConfig.chatDelete,
-      'ChatMessagesList: pendingDelete=$hasPendingDelete '
-      'deleteResponseNeeded=$hasDeleteResponseNeeded for ${widget.chatId}',
-    );
     final participantUids = ref.watch(participantUidsProvider(widget.chatId));
     final otherUid = isGroupChat
         ? null
@@ -846,11 +834,6 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     // fix6: cached στο didChangeDependencies() — βλ. εκεί. Καμία εξάρτηση
     // από Localizations μέσα στο build() πλέον.
     final greek = _cachedGreek;
-    _buildCount++;
-    DebugConfig.log(
-      DebugConfig.chatBubbleDesign,
-      'MSG_LIST BUILD #$_buildCount chat=${widget.chatId} inst=$_instanceId',
-    );
 
     return messagesAsync.when(
       loading: () => const LoadingView(),
@@ -969,11 +952,6 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
         }
 
         cachedWidth = w;
-        DebugConfig.log(
-          DebugConfig.chatBubbleDesign,
-          'MSG_LIST: ListView (re)BUILT (w=$w, bubbleMaxWidth=$bubbleMaxWidth, '
-          'chat=${widget.chatId}, inst=$_instanceId)',
-        );
 
         cachedListView = ListView.builder(
           controller: _scrollCtrl,
@@ -997,12 +975,6 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
               );
             }
             final item = renderItems[renderItems.length - 1 - i];
-            DebugConfig.log(
-              DebugConfig.chatBubbleDesign,
-              'MSG_LIST item type=${item.type} '
-              'msgId=${item.message?['id'] ?? item.date ?? 'none'} '
-              '(i=$i, inst=$_instanceId)',
-            );
             if (item.type == RenderItemType.dateSeparator) {
               return DateSeparator(
                 key: ValueKey('ds_${item.date}'),
@@ -1127,10 +1099,6 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
         seenBy: seenBy,
       );
     }
-    DebugConfig.log(
-      DebugConfig.chatBubbleDesign,
-      'ChatMessagesList: precomputed ${result.length} readProps for ${messages.length} msgs',
-    );
     return result;
   }
 }

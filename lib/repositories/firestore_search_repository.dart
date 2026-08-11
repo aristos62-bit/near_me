@@ -141,8 +141,7 @@ class FirestoreSearchRepository implements SearchRepository {
       '_geoSearch: raw results=${all.length} (from ${allCells.length} cells)',
     );
 
-    final filtered =
-    all.where((p) => _passesFilters(p, filters)).toList();
+    final filtered = _filterAndLog(all, filters, '_geoSearch');
 
     // hasMore: αν ΟΠΟΙΟΔΗΠΟΤΕ snapshot επέστρεψε effectiveLimit docs
     final hasMore =
@@ -217,8 +216,7 @@ class FirestoreSearchRepository implements SearchRepository {
       all.add(PublicProfile.fromJson(data));
     }
 
-    final filtered =
-    all.where((p) => _passesFilters(p, filters)).toList();
+    final filtered = _filterAndLog(all, filters, '_generalSearch');
     final hasMore = snapshot.docs.length >= effectiveLimit;
     final cursorOut = hasMore && snapshot.docs.isNotEmpty
         ? SearchCursor(
@@ -361,82 +359,85 @@ class FirestoreSearchRepository implements SearchRepository {
     }
   }
 
-  bool _passesFilters(PublicProfile p, SearchFilters f) {
+  /// Φιλτράρει τα candidates πελάτη-side με ένα summary log ΑΝΤΙ πλήθος
+  /// per-user γραμμών: `X/Y candidates passed filters (rejected: reason=N, ...)`.
+  /// Τα rejection reasons ταξινομούνται σε ομάδες (gender, age, radius...),
+  /// ώστε το «γιατί βγάζει 0 αποτελέσματα» να διαγιγνώσκεται σε μία γραμμή.
+  List<PublicProfile> _filterAndLog(
+      List<PublicProfile> all, SearchFilters f, String label) {
+    final rejected = <String, int>{};
+    final passed = <PublicProfile>[];
+    for (final p in all) {
+      final r = _passesFilters(p, f);
+      if (r.$1) {
+        passed.add(p);
+      } else {
+        final reason = r.$2 ?? 'unknown';
+        rejected[reason] = (rejected[reason] ?? 0) + 1;
+      }
+    }
+    final rejectDesc = rejected.entries
+        .map((e) => '${e.key}=${e.value}')
+        .join(', ');
     DebugConfig.log(
       DebugConfig.repositoryFilter,
-      '_passesFilters: uid=${p.uid}, city=${p.city}, country=${p.country}, '
-          'age=${p.age}, gender=${p.gender}, lookingFor=${p.lookingFor}',
+      rejectDesc.isEmpty
+          ? '$label: ${passed.length}/${all.length} candidates passed filters'
+          : '$label: ${passed.length}/${all.length} candidates passed filters (rejected: $rejectDesc)',
     );
+    return passed;
+  }
 
+  /// Επιστρέφει (passed, reason) — ο λόγος απόρριψης ομαδοποιημένος
+  /// ώστε να συγκεντρώνεται στο [DebugConfig.repositoryFilter] summary.
+  (bool, String?) _passesFilters(PublicProfile p, SearchFilters f) {
     // City: case-insensitive (fallback αν δεν υπάρχει cityNormalized)
     if (f.city != null && f.city!.isNotEmpty) {
       if (p.city == null ||
           p.city!.toLowerCase() != f.city!.toLowerCase()) {
-        DebugConfig.log(DebugConfig.repositoryFilter,
-            '_passesFilters: ❌ city: wanted="${f.city}", got="${p.city}"');
-        return false;
+        return (false, 'city');
       }
     }
     if (f.country != null && f.country!.isNotEmpty) {
       if (p.country == null ||
           p.country!.toLowerCase() != f.country!.toLowerCase()) {
-        DebugConfig.log(DebugConfig.repositoryFilter,
-            '_passesFilters: ❌ country: wanted="${f.country}", got="${p.country}"');
-        return false;
+        return (false, 'country');
       }
     }
     if (f.minAge != null && (p.age == null || p.age! < f.minAge!)) {
-      DebugConfig.log(DebugConfig.repositoryFilter,
-          '_passesFilters: ❌ minAge: wanted≥${f.minAge}, got=${p.age}');
-      return false;
+      return (false, 'age');
     }
     if (f.maxAge != null && (p.age == null || p.age! > f.maxAge!)) {
-      DebugConfig.log(DebugConfig.repositoryFilter,
-          '_passesFilters: ❌ maxAge: wanted≤${f.maxAge}, got=${p.age}');
-      return false;
+      return (false, 'age');
     }
     if (f.allowVideoCall == true && !p.allowVideoCall) {
-      DebugConfig.log(DebugConfig.repositoryFilter,
-          '_passesFilters: ❌ videoCall required but disabled');
-      return false;
+      return (false, 'videoCall');
     }
     if (f.allowDirectChat == true && !p.allowDirectChat) {
-      DebugConfig.log(DebugConfig.repositoryFilter,
-          '_passesFilters: ❌ directChat required but disabled');
-      return false;
+      return (false, 'directChat');
     }
     if (f.isOnlineNow == true && !p.isOnline) {
-      DebugConfig.log(DebugConfig.repositoryFilter,
-          '_passesFilters: ❌ online required but offline');
-      return false;
+      return (false, 'online');
     }
     if (f.lookingFor != null) {
       if (p.lookingFor == null ||
           p.lookingFor!.toLowerCase() != f.lookingFor!.toLowerCase()) {
-        DebugConfig.log(DebugConfig.repositoryFilter,
-            '_passesFilters: ❌ lookingFor: wanted="${f.lookingFor}", got="${p.lookingFor}"');
-        return false;
+        return (false, 'lookingFor');
       }
     }
     if (f.interests != null && f.interests!.isNotEmpty) {
       if (p.interests == null || p.interests!.isEmpty) {
-        DebugConfig.log(DebugConfig.repositoryFilter,
-            '_passesFilters: ❌ interests required but profile has none');
-        return false;
+        return (false, 'interests');
       }
       if (!p.interests!.any(
             (i) => f.interests!.any((fi) => fi.toLowerCase() == i.toLowerCase()),
       )) {
-        DebugConfig.log(DebugConfig.repositoryFilter,
-            '_passesFilters: ❌ interests mismatch: wanted=${f.interests}, got=${p.interests}');
-        return false;
+        return (false, 'interests');
       }
     }
     if (f.gender != null && f.gender != 'all') {
       if (p.gender == null || p.gender != f.gender) {
-        DebugConfig.log(DebugConfig.repositoryFilter,
-            '_passesFilters: ❌ gender: wanted="${f.gender}", got="${p.gender}"');
-        return false;
+        return (false, 'gender');
       }
     }
     // Haversine distance filter
@@ -451,16 +452,10 @@ class FirestoreSearchRepository implements SearchRepository {
           f.longitude!,
           f.radiusKm!,
         )) {
-          DebugConfig.log(
-            DebugConfig.gpsGeoHash,
-            '_passesFilters: ❌ haversine: uid=${p.uid} outside radius=${f.radiusKm}km',
-          );
-          return false;
+          return (false, 'radius');
         }
       }
     }
-    DebugConfig.log(DebugConfig.repositoryFilter,
-        '_passesFilters: ✅ passed uid=${p.uid}');
-    return true;
+    return (true, null);
   }
 }

@@ -1,6 +1,5 @@
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter/material.dart';
-import '../../../core/debug/debug_config.dart';
 import 'message_bubble/reply_preview.dart';
 import 'message_bubble/sender_header.dart';
 import 'message_bubble/bubble_long_press_wrapper.dart';
@@ -91,14 +90,6 @@ class EmojiOnlyBubble extends StatelessWidget {
     final textColor = isMe
         ? theme.colorScheme.onSurface
         : theme.colorScheme.onSurface;
-
-    final emojiMsgId = messageId;
-    DebugConfig.log(
-      DebugConfig.chatBubbleDesign,
-      'EmojiOnlyBubble: id=$emojiMsgId '
-      '"${content.trim()}" fontSize=$fontSize bubbleMaxWidth=$bubbleMaxWidth '
-      'isGrouped=$isGrouped isLastInGroup=$isLastInGroup',
-    );
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),

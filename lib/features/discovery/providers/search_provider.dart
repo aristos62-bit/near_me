@@ -92,8 +92,6 @@ class SearchNotifier extends Notifier<SearchState> {
       try {
         final d = GeoHashUtils.distanceToPoint(p.geoHash!, centerLat, centerLng);
         distances[p.uid] = d;
-        DebugConfig.log(DebugConfig.repositoryFilter,
-            '_computeDistances: uid=${p.uid} geoHash=${p.geoHash} city=${p.city} distance=${d.toStringAsFixed(1)}km');
         computed++;
       } catch (e) {
         skipped++;

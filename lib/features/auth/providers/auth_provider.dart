@@ -19,11 +19,7 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
 
 final authStateProvider = StreamProvider<User?>((ref) {
   DebugConfig.log(DebugConfig.providerCreate, 'authStateProvider created');
-  return FirebaseAuth.instance.userChanges().map((user) {
-    DebugConfig.log(DebugConfig.authFlow,
-        'userChanges: uid=${user?.uid ?? "null"} anon=${user?.isAnonymous} emailVerified=${user?.emailVerified}');
-    return user;
-  });
+  return FirebaseAuth.instance.userChanges();
 });
 
 enum VerifyStatus { idle, loading, emailSent, verified, error }

@@ -3,7 +3,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/discovery/providers/status_provider.dart';
 import '../../core/l10n/l10n.dart';
-import '../../core/debug/debug_config.dart';
 import '../models/public_profile.dart';
 import 'online_indicator.dart';
 
@@ -28,10 +27,6 @@ class ProfileCard extends ConsumerWidget {
     final statusAsync = ref.watch(userStatusProvider(profile.uid));
     final streamOnline = statusAsync.value?.isOnline;
     final isOnline = streamOnline ?? profile.isOnline;
-    DebugConfig.log(DebugConfig.presence,
-        'ProfileCard uid=${profile.uid} isOnline=$isOnline (stream=$streamOnline profile=${profile.isOnline})');
-    DebugConfig.log(DebugConfig.uiRebuild,
-        'ProfileCard build uid=${profile.uid} layout=horizontal width=${width ?? 160}');
     return SizedBox(
       width: width ?? 160,
       child: Card(
@@ -179,8 +174,6 @@ class ProfileCard extends ConsumerWidget {
 
   Widget _buildAvatar(ThemeData theme) {
     final avatarUrl = profile.avatarUrl;
-    DebugConfig.log(DebugConfig.uiRebuild,
-        'ProfileCard._buildAvatar: uid=${profile.uid}, avatarUrl=${avatarUrl != null && avatarUrl.isNotEmpty ? "present (${avatarUrl.length} chars)" : "null or empty"}');
     return Container(
       width: 64,
       height: 64,

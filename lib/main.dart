@@ -64,10 +64,8 @@ class _AppBootstrapState extends State<AppBootstrap> with WidgetsBindingObserver
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!_firebaseInitDone) {
-      DebugConfig.log(DebugConfig.serviceInit,
-          'AppBootstrap: lifecycle $state (ignored — Firebase not ready)');
-    } else if (_ready) {
+    if (!_firebaseInitDone) return;
+    if (_ready) {
       DebugConfig.log(DebugConfig.serviceInit,
           'AppBootstrap: lifecycle $state (NearMeApp handles it)');
     } else {

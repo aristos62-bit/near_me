@@ -27,9 +27,6 @@ class _EmojiPickerPanelState extends State<EmojiPickerPanel> {
       return _cachedConfig!;
     }
 
-    DebugConfig.log(DebugConfig.uiInteraction,
-        'EmojiPickerPanel: _getConfig isDark=$isDark greek=$greek');
-
     _cachedConfig = EmojiPickerConfig.create(context);
     _cachedIsDark = isDark;
     _cachedIsGreek = greek;

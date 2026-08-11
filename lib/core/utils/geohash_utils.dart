@@ -52,10 +52,7 @@ class GeoHashUtils {
       }
     }
 
-    final result = buffer.toString();
-    DebugConfig.log(DebugConfig.gpsGeoHash,
-        'encode: ($latitude, $longitude) @$precision → $result');
-    return result;
+    return buffer.toString();
   }
 
   /// Returns geohash char count for a PrivacySettings.geoPrecision value.
@@ -167,8 +164,6 @@ class GeoHashUtils {
     const degKm = 111.32;
     final hKm = 180.0 / pow(2, latBits) * degKm;
     final wKm = 360.0 / pow(2, lngBits) * degKm * cos(latitude * pi / 180);
-    DebugConfig.log(DebugConfig.gpsGeoHash,
-        '_cellDimensions: p=$precision lat=${latitude.toStringAsFixed(1)}° → ${hKm.toStringAsFixed(2)}×${wKm.toStringAsFixed(2)} km');
     return (hKm: hKm, wKm: wKm);
   }
 
@@ -185,16 +180,10 @@ class GeoHashUtils {
   /// κελιά ~600-1250km — αρκετά για να καλύψουν έως 500km με το ΙΔΙΟ
   /// 9-cell (3×3) query pattern, χωρίς επιπλέον Firestore reads.
   static int searchPrecision(double radiusKm, double latitude) {
-    if (radiusKm <= 0) {
-      DebugConfig.log(DebugConfig.gpsGeoHash,
-          'searchPrecision: radius=$radiusKm ≤ 0 → default precision=4');
-      return 4;
-    }
+    if (radiusKm <= 0) return 4;
     for (int p = 7; p >= 1; p--) {
       final d = _cellDimensions(p, latitude);
       if (d.hKm < radiusKm || d.wKm < radiusKm) {
-        DebugConfig.log(DebugConfig.gpsGeoHash,
-            'searchPrecision: p=$p → cell ${d.hKm.toStringAsFixed(2)}×${d.wKm.toStringAsFixed(2)} km < radius=$radiusKm km, try coarser');
         continue;
       }
       DebugConfig.log(DebugConfig.gpsGeoHash,
@@ -248,8 +237,6 @@ class GeoHashUtils {
     }
     final lat = (latMin + latMax) / 2;
     final lng = (lonMin + lonMax) / 2;
-    DebugConfig.log(DebugConfig.gpsGeoHash,
-        'decode: "$geohash" → ($lat, $lng)');
     return (lat, lng);
   }
 
@@ -297,33 +284,12 @@ class GeoHashUtils {
       final dSouth = haversineDistance(centerLat, centerLon, latMin, centerLon);
       final dEast  = haversineDistance(centerLat, centerLon, centerLat, lonMax);
       final dWest  = haversineDistance(centerLat, centerLon, centerLat, lonMin);
-      final minDist = min(dNorth, min(dSouth, min(dEast, dWest)));
-
-      DebugConfig.log(
-        DebugConfig.gpsGeoHash,
-        'distanceToNearestEdge: geoHash=$geoHash '
-            'cell=[$latMin..$latMax, $lonMin..$lonMax] '
-            'inside → edges=[N=${dNorth.toStringAsFixed(3)}, '
-            'S=${dSouth.toStringAsFixed(3)}, E=${dEast.toStringAsFixed(3)}, '
-            'W=${dWest.toStringAsFixed(3)}] '
-            'min=${minDist.toStringAsFixed(1)}km',
-      );
-      return minDist;
+      return min(dNorth, min(dSouth, min(dEast, dWest)));
     }
 
     final nearestLat = centerLat.clamp(latMin, latMax);
     final nearestLon = centerLon.clamp(lonMin, lonMax);
-    final distance =
-    haversineDistance(centerLat, centerLon, nearestLat, nearestLon);
-
-    DebugConfig.log(
-      DebugConfig.gpsGeoHash,
-      'distanceToNearestEdge: geoHash=$geoHash '
-          'cell=[$latMin..$latMax, $lonMin..$lonMax] '
-          'nearest=($nearestLat,$nearestLon) '
-          'distance=${distance.toStringAsFixed(1)}km',
-    );
-    return distance;
+    return haversineDistance(centerLat, centerLon, nearestLat, nearestLon);
   }
 
   /// Returns effective distance from (centerLat, centerLon) to the profile
@@ -333,31 +299,17 @@ class GeoHashUtils {
   static double distanceToPoint(String geoHash, double centerLat, double centerLon) {
     final key = '$geoHash|${centerLat.toStringAsFixed(4)}|${centerLon.toStringAsFixed(4)}';
     final cached = _distanceCache[key];
-    if (cached != null) {
-      DebugConfig.log(DebugConfig.repositoryFilter,
-          'distanceToPoint: [CACHE HIT] geoHash=$geoHash → ${cached.toStringAsFixed(1)}km');
-      return cached;
-    }
+    if (cached != null) return cached;
 
     final edgeDist = distanceToNearestEdge(geoHash, centerLat, centerLon);
     final (cellLat, cellLng) = decode(geoHash);
     final centerDist = haversineDistance(centerLat, centerLon, cellLat, cellLng);
     final result = edgeDist > 0 ? edgeDist : centerDist;
-    DebugConfig.log(
-      DebugConfig.repositoryFilter,
-      'distanceToPoint: geoHash=$geoHash (len=${geoHash.length}) '
-          'center=($cellLat, $cellLng) yourGPS=($centerLat, $centerLon) '
-          'edgeDist=${edgeDist.toStringAsFixed(3)}km '
-          'centerDist=${centerDist.toStringAsFixed(1)}km '
-          'result=${result.toStringAsFixed(1)}km',
-    );
     if (result.isFinite) {
       _distanceCache[key] = result;
     }
     return result;
   }
-
-
 
   /// Check if [centerLat]/[centerLon] is within [radiusKm] of the geoHash cell.
   static bool isWithinRadius(
@@ -367,13 +319,7 @@ class GeoHashUtils {
       double radiusKm,
       ) {
     final distance = distanceToPoint(geoHash, centerLat, centerLon);
-    final result = distance <= radiusKm;
-    DebugConfig.log(
-      DebugConfig.repositoryFilter,
-      'isWithinRadius: geoHash=$geoHash '
-          'distance=${distance.toStringAsFixed(1)}km ≤ ${radiusKm}km = $result',
-    );
-    return result;
+    return distance <= radiusKm;
   }
 
   /// Haversine distance between two points in km.
@@ -392,14 +338,7 @@ class GeoHashUtils {
             sin(dLon / 2) *
             sin(dLon / 2);
     final c = 2 * atan2(sqrt(a), sqrt(1 - a));
-    final distance = earthRadiusKm * c;
-
-    DebugConfig.log(
-      DebugConfig.gpsGeoHash,
-      'haversine: ($lat1,$lon1) → ($lat2,$lon2) = '
-          '${distance.toStringAsFixed(2)} km',
-    );
-    return distance;
+    return earthRadiusKm * c;
   }
 }
 

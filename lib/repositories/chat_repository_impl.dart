@@ -849,6 +849,8 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
 
       if (imageBytes != null && (type == 'image' || type == 'gif')) {
         final isGif = type == 'gif';
+        DebugConfig.log(DebugConfig.storageUpload,
+            'sendMediaMessage: uploading image chat=$chatId type=$type');
         final storageRef = FirebaseStorage.instance
             .ref().child('chat_media/$chatId/${msgRef.id}.${isGif ? 'gif' : 'jpg'}');
         await storageRef.putData(imageBytes,

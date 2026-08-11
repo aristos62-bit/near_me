@@ -291,12 +291,10 @@ class AppRouter {
   static void init() {
     FirebaseAuth.instance.authStateChanges().listen((user) async {
       final t0 = DateTime.now();
-      DebugConfig.log(DebugConfig.authFlow,
-          'AppRouter: init callback fired uid=${user?.uid}');
+      final uid = user?.uid;
+      final uidChanged = uid != _lastUid;
       if (user != null) {
         try {
-          DebugConfig.log(DebugConfig.authFlow,
-              'AppRouter: user.reload() starting uid=${user.uid}');
           await user.reload();
           final elapsed = DateTime.now().difference(t0).inMilliseconds;
           DebugConfig.log(DebugConfig.authFlow,
@@ -305,17 +303,13 @@ class AppRouter {
           DebugConfig.warn('AppRouter: user.reload() failed, using cached data');
         }
       }
-      final uid = user?.uid;
-      if (uid != _lastUid) {
+      if (uidChanged) {
         _verifyDismissed = false;
         _lastUid = uid;
-        DebugConfig.log(DebugConfig.authFlow,
-            'AppRouter: user changed to uid=$uid, verifyDismissed reset');
       }
       DebugConfig.log(DebugConfig.authFlow,
-          'Auth state changed: uid=$uid, anon=${user?.isAnonymous}, emailVerified=${user?.emailVerified}');
-      DebugConfig.log(DebugConfig.authFlow,
-          'AppRouter: calling _authNotifier.notify() uid=$uid elapsed=${DateTime.now().difference(t0).inMilliseconds}ms');
+          'Auth state changed: uid=$uid, anon=${user?.isAnonymous}, emailVerified=${user?.emailVerified}'
+          '${uidChanged ? ', verifyDismissed reset' : ''}');
       _authNotifier.notify();
     });
   }

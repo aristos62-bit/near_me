@@ -10,6 +10,7 @@ class PresenceService {
   static DocumentReference? _publicRef;
   static bool _isShuttingDown = false;
   static bool _offlineInProgress = false;
+  static bool _startLogged = false;
 
   static void init() {
     DebugConfig.log(DebugConfig.serviceInit, 'PresenceService.init');
@@ -31,8 +32,11 @@ class PresenceService {
     if (_publicRef != null) {
       await _publicRef!.set({'isOnline': true}, SetOptions(merge: true));
     }
-    DebugConfig.log(DebugConfig.presence,
-        'PresenceService started: uid=$uid, publicRef set online');
+    if (!_startLogged) {
+      DebugConfig.log(DebugConfig.presence,
+          'PresenceService started: uid=$uid, publicRef set online');
+      _startLogged = true;
+    }
     _schedule();
   }
 
@@ -74,10 +78,7 @@ class PresenceService {
 
   static void _schedule() {
     _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 60), (_) {
-      DebugConfig.log(DebugConfig.presence, 'Presence heartbeat tick');
-      _touch();
-    });
+    _timer = Timer.periodic(const Duration(seconds: 60), (_) => _touch());
   }
 
   static Future<void> setOffline() async {
@@ -113,6 +114,7 @@ class PresenceService {
     _isShuttingDown = true;
     _timer?.cancel();
     _offlineInProgress = false;
+    _startLogged = false;
     _ref = null;
     _publicRef = null;
     DebugConfig.log(DebugConfig.serviceInit, 'PresenceService reset');

@@ -602,7 +602,6 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
 
   @override
   Stream<UserStatus> streamUserStatus(String uid) {
-    DebugConfig.log(DebugConfig.firestoreStream, 'streamUserStatus: $uid');
     if (uid.isEmpty) {
       DebugConfig.warn('streamUserStatus: empty uid');
       return Stream.value(const UserStatus(isOnline: false));

@@ -1231,3 +1231,40 @@ Email με attachment: το Android email app (π.χ. Gmail, `launchMode=singleT
 ### Backups
 - Σε φάσεις: `reply_preview_20260812_115721.bak`, `text_message_bubble_20260812_120014.bak`, `reply_preview_20260812_121202.bak`, `20260812_121258`, `text_message_bubble_20260812_123853.bak`, `gif_image_bubble_20260812_132220.bak` + `gif_image_bubble_inst_20260812_132753.bak`, `audio_message_bubble_20260812_134432.bak`, `video_message_bubble_20260812_135045.bak`, `emoji_only_bubble_20260812_135700.bak`.
 - **Cleanup:** `backups/*_before_instrumentation_20260812_140847.bak` (5 αρχεία) + `backups/oldsessions_20260812_141000.md`.
+
+---
+
+## Session 228 — Reactions side-trigger + summaries + cancel (100%) — 12 Αυγ 2026
+
+### Σκοπός
+Μετακίνηση του reaction trigger από τη στήλη κάτω από το μήνυμα σε **εικονίδιο δίπλα** στο bubble (αριστερά στα δικά μας, δεξιά στου άλλου), με: εμφάνιση του δικού μου emoji στο icon, σύνολα (emoji+πλήθος) δίπλα στου άλλου, και δυνατότητα **ακύρωσης**. Τίποτα δεν εμφανίζεται κάτω από το μήνυμα πια.
+
+### Φάση 1 — Πλάγιο trigger icon (+1 API)
+- **`message_reactions.dart`** — νέο public `ReactionTriggerIcon` (Stateless, μόνο `Theme.of` — μηδέν rebuild cascade, συνεπές με Sessions 196/200/222/224): ημιδιαφανές `Icons.add_reaction_outlined` σε κυκλικό border, `GestureDetector.onLongPress` → picker. Εξήχθη `showReactionPicker` (η picker λογική που ήταν μέσα στο `MessageReactions`) ως public.
+- **5 bubble files** (`text_message_bubble`, `gif_image_bubble`, `audio_message_bubble`, `video_message_bubble`, `emoji_only_bubble`): ο long-press wrapper (text/emoji) ή ο Stack (gif/audio/video) τυλίχτηκε σε `Row(center)` με το icon — `if (isMe)` αριστερά, `if (!isMe)` δεξιά.
+
+### Φάση 2 — Revert (ζητήθηκε από χρήστη)
+- Ο χρήστης δεν κατάλαβε τον συνδυασμό icon-emoji + chips κάτω → ζήτησε πλήρες revert. Επιστροφή στο «trigger-side» backup (`*_emoji_show_20260812_151503.bak`). Μάθημα επικοινωνίας: εξηγώ πάντα τι δείχνει το icon σε κάθε περίπτωση πριν εφαρμόσω.
+
+### Φάση 3 — Τελικό design (κατόπιν ξεκάθαρου UX με τον χρήστη, backup `*_side_summary_20260812_154038.bak`)
+- **Κάτω από το μήνυμα: ΤΙΠΟΤΑ** — αφαιρέθηκαν πλήρως τα `MessageReactionsRow(...)` από τα 5 bubbles (και τα 5 unused `import message_reactions_row.dart`).
+- **`ReactionTriggerIcon` (νέα signature: `reactions`, `currentUid`, `isMe`, `onRemove`):**
+  - Χωρίς δική μου reaction → `add_reaction_outlined` ημιδιαφανές, long-press → picker.
+  - Με δική μου reaction → δείχνει **το δικό μου emoji** σε κύκλο με border `primary`.
+  - **Tap** στο icon όταν έχω reaction → **αφαίρεση** (`onRemove?.call`).
+  - **Σύνολα δίπλα μόνο σε `!isMe`**: badge ανά emoji με πλήθος όταν >1 (νέο `_ReactionCountBadge`, π.χ. `❤️ 2 😂 1`). Στα δικά μου ΔΕΝ δείχνονται (το icon ήδη δείχνει το emoji μου — αποφυγή διπλής εμφάνισης, ζητήθηκε).
+- **`showReactionPicker` (νέα: `currentEmoji`, `onRemove`) — toggle:** ξανά-επιλογή του **ίδιου** emoji στο bottom-sheet ή στο full EmojiPicker → `onRemove` (ακύρωση) αντί re-set.
+- Όλα τα bubbles περνούν `reactions`, `currentUid`, `isMe`, `onRemove` (audio/video: `widget.`). `FeatureFlags.messageReactionsEnabled` κρατείται σε όλα τα paths.
+
+### Σημείωση / open θέμα
+- **`MessageReactions`** (message_reactions.dart) και **`MessageReactionsRow`** (message_reactions_row.dart) παραμένουν ορισμένα ως **dead code** — δεν καλούνται πια από κανένα bubble. Εκκρεμεί απόφαση αν θα διαγραφούν (χρειάζεται OK χρήστη).
+
+### Έλεγχος
+- **`flutter analyze`: clean ✅ (0 issues)** σε κάθε φάση (και μετά την αφαίρεση των unused imports).
+- `flutter test`: δεν τρέχτηκε σε αυτό το session.
+- **Εκκρεμεί**: device test τελικού design (δικό μου μήνυμα με ❤️ στο icon χωρίς σύνολα · του άλλου με badges · tap-remove · picker-toggle).
+
+### Backups
+- `backups/*_trigger_side_20260812_145805.bak` (φάση 1) · `backups/*_emoji_show_20260812_151503.bak` (πριν τη δοκιμή emoji-show)
+- `backups/*_side_summary_20260812_154038.bak` (πριν το τελικό design) · `backups/*_isMe_hide_20260812_154725.bak` (πριν την απόκρυψη συνόλων στα δικά μου) · `backups/*_152324.bak` (revert-source)
+- `backups/oldsessions_20260812_155017.md`

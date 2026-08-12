@@ -3,7 +3,8 @@ import 'reply_preview.dart';
 import 'tail_painter.dart';
 import 'sender_header.dart';
 import 'bubble_long_press_wrapper.dart';
-import 'message_reactions_row.dart';
+import '../message_reactions.dart';
+
 import 'read_receipt_footer.dart';
 import '../../../../core/theme/app_colors.dart';
 import 'package:flutter/gestures.dart';
@@ -201,7 +202,21 @@ class TextMessageBubble extends StatelessWidget {
                 senderNickname: senderNickname,
                 isGroupChat: isGroupChat,
               ),
-            BubbleLongPressWrapper(
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                if (isMe)
+                  ReactionTriggerIcon(
+                    chatId: chatId,
+                    messageId: messageId,
+                    reactions: reactions,
+                    currentUid: currentUid,
+                    isMe: isMe,
+                    onReact: onReact,
+                    onRemove: onRemove,
+                  ),
+                BubbleLongPressWrapper(
               isGroupChat: isGroupChat,
               isSenderBlockedByMe: isSenderBlockedByMe,
               isMe: isMe,
@@ -289,14 +304,17 @@ class TextMessageBubble extends StatelessWidget {
                 ],
               ),
             ),
-            MessageReactionsRow(
-              chatId: chatId,
-              reactions: reactions,
-              currentUid: currentUid,
-              messageId: messageId,
-              isMe: isMe,
-              onReact: onReact,
-              onRemove: onRemove,
+                if (!isMe)
+                  ReactionTriggerIcon(
+                    chatId: chatId,
+                    messageId: messageId,
+                    reactions: reactions,
+                    currentUid: currentUid,
+                    isMe: isMe,
+                    onReact: onReact,
+                    onRemove: onRemove,
+                  ),
+              ],
             ),
             ReadReceiptFooter(
               isMe: isMe,

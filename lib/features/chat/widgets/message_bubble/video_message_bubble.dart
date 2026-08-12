@@ -6,7 +6,8 @@ import '../../../../core/l10n/l10n.dart';
 import '../../../../core/utils/app_messenger.dart';
 import '../../../../core/utils/error_messages.dart';
 import 'bubble_long_press_wrapper.dart';
-import 'message_reactions_row.dart';
+import '../message_reactions.dart';
+
 import 'reply_preview.dart';
 import 'sender_header.dart';
 import 'tail_painter.dart';
@@ -242,7 +243,21 @@ class _VideoMessageBubbleState extends State<VideoMessageBubble> {
               senderNickname: widget.senderNickname,
               isGroupChat: widget.isGroupChat,
             ),
-          Stack(
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              if (widget.isMe)
+                ReactionTriggerIcon(
+                  chatId: widget.chatId,
+                  messageId: widget.messageId,
+                  reactions: widget.reactions,
+                  currentUid: widget.currentUid,
+                  isMe: widget.isMe,
+                  onReact: widget.onReact,
+                  onRemove: widget.onRemove,
+                ),
+              Stack(
             clipBehavior: Clip.none,
             children: [
               BubbleLongPressWrapper(
@@ -399,6 +414,18 @@ class _VideoMessageBubbleState extends State<VideoMessageBubble> {
                 ),
             ],
           ),
+              if (!widget.isMe)
+                ReactionTriggerIcon(
+                  chatId: widget.chatId,
+                  messageId: widget.messageId,
+                  reactions: widget.reactions,
+                  currentUid: widget.currentUid,
+                  isMe: widget.isMe,
+                  onReact: widget.onReact,
+                  onRemove: widget.onRemove,
+                ),
+            ],
+          ),
           Padding(
             padding: EdgeInsets.only(
               top: 2,
@@ -423,16 +450,7 @@ class _VideoMessageBubbleState extends State<VideoMessageBubble> {
               ],
             ),
           ),
-          MessageReactionsRow(
-            chatId: widget.chatId,
-            reactions: widget.reactions,
-            currentUid: widget.currentUid,
-            messageId: widget.messageId,
-            isMe: widget.isMe,
-            onReact: widget.onReact,
-            onRemove: widget.onRemove,
-          ),
-        ],
+          ],
       ),
     );
   }

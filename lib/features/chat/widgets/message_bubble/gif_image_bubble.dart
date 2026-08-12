@@ -6,7 +6,8 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/read_receipt_indicator.dart';
 import '../../providers/chat_provider.dart';
 import 'bubble_long_press_wrapper.dart';
-import 'message_reactions_row.dart';
+import '../message_reactions.dart';
+
 import 'reply_preview.dart';
 import 'sender_header.dart';
 import 'tail_painter.dart';
@@ -176,7 +177,21 @@ class GifImageBubble extends ConsumerWidget {
               senderNickname: senderNickname,
               isGroupChat: isGroupChat,
             ),
-          Stack(
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              if (isMe)
+                ReactionTriggerIcon(
+                  chatId: chatId,
+                  messageId: messageId,
+                  reactions: reactions,
+                  currentUid: currentUid,
+                  isMe: isMe,
+                  onReact: onReact,
+                  onRemove: onRemove,
+                ),
+              Stack(
             clipBehavior: Clip.none,
             children: [
               BubbleLongPressWrapper(
@@ -257,14 +272,17 @@ class GifImageBubble extends ConsumerWidget {
                 ),
             ],
           ),
-          MessageReactionsRow(
-            chatId: chatId,
-            reactions: reactions,
-            currentUid: currentUid,
-            messageId: messageId,
-            isMe: isMe,
-            onReact: onReact,
-            onRemove: onRemove,
+              if (!isMe)
+                ReactionTriggerIcon(
+                  chatId: chatId,
+                  messageId: messageId,
+                  reactions: reactions,
+                  currentUid: currentUid,
+                  isMe: isMe,
+                  onReact: onReact,
+                  onRemove: onRemove,
+                ),
+            ],
           ),
           Padding(
             padding: EdgeInsets.only(

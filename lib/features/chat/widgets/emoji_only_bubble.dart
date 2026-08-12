@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'message_bubble/reply_preview.dart';
 import 'message_bubble/sender_header.dart';
 import 'message_bubble/bubble_long_press_wrapper.dart';
-import 'message_bubble/message_reactions_row.dart';
+
+import 'message_reactions.dart';
 import 'message_bubble/read_receipt_footer.dart';
 import 'message_bubble/tail_painter.dart';
 import '../../../core/theme/app_colors.dart';
@@ -104,24 +105,41 @@ class EmojiOnlyBubble extends StatelessWidget {
               senderNickname: senderNickname,
               isGroupChat: isGroupChat,
             ),
-          BubbleLongPressWrapper(
-            isMe: isMe,
-            onReply: onReply,
-            onEdit: onEdit,
-            onDelete: onDelete,
-            onInfo: onInfo,
-            onEmail: onEmail,
-            onShare: onShare,
-            child: hasQuote ? _buildQuoteCard(context) : _buildBare(context),
-          ),
-          MessageReactionsRow(
-            chatId: chatId,
-            reactions: reactions,
-            currentUid: currentUid,
-            messageId: messageId,
-            isMe: isMe,
-            onReact: onReact,
-            onRemove: onRemove,
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              if (isMe)
+                ReactionTriggerIcon(
+                  chatId: chatId,
+                  messageId: messageId,
+                  reactions: reactions,
+                  currentUid: currentUid,
+                  isMe: isMe,
+                  onReact: onReact,
+                  onRemove: onRemove,
+                ),
+              BubbleLongPressWrapper(
+                isMe: isMe,
+                onReply: onReply,
+                onEdit: onEdit,
+                onDelete: onDelete,
+                onInfo: onInfo,
+                onEmail: onEmail,
+                onShare: onShare,
+                child: hasQuote ? _buildQuoteCard(context) : _buildBare(context),
+              ),
+              if (!isMe)
+                ReactionTriggerIcon(
+                  chatId: chatId,
+                  messageId: messageId,
+                  reactions: reactions,
+                  currentUid: currentUid,
+                  isMe: isMe,
+                  onReact: onReact,
+                  onRemove: onRemove,
+                ),
+            ],
           ),
           ReadReceiptFooter(
             isMe: isMe,

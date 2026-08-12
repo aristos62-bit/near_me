@@ -242,13 +242,6 @@ class _VideoMessageBubbleState extends State<VideoMessageBubble> {
               senderNickname: widget.senderNickname,
               isGroupChat: widget.isGroupChat,
             ),
-          if (widget.replyTo != null)
-            ReplyPreview(
-              replyTo: widget.replyTo!,
-              isMe: widget.isMe,
-              isGroupChat: widget.isGroupChat,
-              maxWidth: widget.bubbleMaxWidth,
-            ),
           Stack(
             clipBehavior: Clip.none,
             children: [
@@ -269,7 +262,17 @@ class _VideoMessageBubbleState extends State<VideoMessageBubble> {
                     color: bubbleColor,
                     borderRadius: bubbleBorderRadius,
                   ),
-                  child: ClipRRect(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (widget.replyTo != null)
+                        BubbleQuoteSection(
+                          replyTo: widget.replyTo,
+                          bubbleColor: bubbleColor,
+                          isGroupChat: widget.isGroupChat,
+                        ),
+                      ClipRRect(
                     borderRadius: bubbleBorderRadius,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -380,8 +383,10 @@ class _VideoMessageBubbleState extends State<VideoMessageBubble> {
                       ],
                     ),
                   ),
+                ],
                 ),
               ),
+            ),
               if (showTail)
                 Positioned(
                   bottom: 0,

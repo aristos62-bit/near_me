@@ -5,6 +5,8 @@ import 'message_bubble/sender_header.dart';
 import 'message_bubble/bubble_long_press_wrapper.dart';
 import 'message_bubble/message_reactions_row.dart';
 import 'message_bubble/read_receipt_footer.dart';
+import 'message_bubble/tail_painter.dart';
+import '../../../core/theme/app_colors.dart';
 
 final _emojiRegex = RegExp(EmojiRegex, unicode: true);
 // ignore: valid_regexps
@@ -85,11 +87,7 @@ class EmojiOnlyBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final fontSize = emojiFontSize(content);
-    final textColor = isMe
-        ? theme.colorScheme.onSurface
-        : theme.colorScheme.onSurface;
+    final hasQuote = replyTo != null;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
@@ -106,13 +104,6 @@ class EmojiOnlyBubble extends StatelessWidget {
               senderNickname: senderNickname,
               isGroupChat: isGroupChat,
             ),
-          if (replyTo != null)
-            ReplyPreview(
-              replyTo: replyTo!,
-              isMe: isMe,
-              isGroupChat: isGroupChat,
-              maxWidth: bubbleMaxWidth,
-            ),
           BubbleLongPressWrapper(
             isMe: isMe,
             onReply: onReply,
@@ -121,43 +112,7 @@ class EmojiOnlyBubble extends StatelessWidget {
             onInfo: onInfo,
             onEmail: onEmail,
             onShare: onShare,
-            child: Column(
-              crossAxisAlignment: isMe
-                  ? CrossAxisAlignment.end
-                  : CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: EdgeInsets.only(
-                    left: isMe ? 0 : 14,
-                    right: isMe ? 14 : 0,
-                  ),
-                  child: Text(
-                    content.trim(),
-                    textAlign: TextAlign.start,
-                    style: TextStyle(fontSize: fontSize, color: textColor),
-                  ),
-                ),
-                if (timeStr.isNotEmpty)
-                  Padding(
-                    padding: EdgeInsets.only(
-                      top: 2,
-                      left: isMe ? 0 : 14,
-                      right: isMe ? 14 : 0,
-                    ),
-                    child: Text(
-                      timeStr,
-                      textAlign: TextAlign.end,
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: theme.colorScheme.onSurfaceVariant.withAlpha(
-                          180,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+            child: hasQuote ? _buildQuoteCard(context) : _buildBare(context),
           ),
           MessageReactionsRow(
             chatId: chatId,
@@ -176,6 +131,131 @@ class EmojiOnlyBubble extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildBare(BuildContext context) {
+    final theme = Theme.of(context);
+    final fontSize = emojiFontSize(content);
+    final textColor = theme.colorScheme.onSurface;
+    return Column(
+      crossAxisAlignment: isMe
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: EdgeInsets.only(
+            left: isMe ? 0 : 14,
+            right: isMe ? 14 : 0,
+          ),
+          child: Text(
+            content.trim(),
+            textAlign: TextAlign.start,
+            style: TextStyle(fontSize: fontSize, color: textColor),
+          ),
+        ),
+        if (timeStr.isNotEmpty)
+          Padding(
+            padding: EdgeInsets.only(
+              top: 2,
+              left: isMe ? 0 : 14,
+              right: isMe ? 14 : 0,
+            ),
+            child: Text(
+              timeStr,
+              textAlign: TextAlign.end,
+              style: TextStyle(
+                fontSize: 10,
+                color: theme.colorScheme.onSurfaceVariant.withAlpha(180),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildQuoteCard(BuildContext context) {
+    final theme = Theme.of(context);
+    final bubbleColor = isMe
+        ? AppColors.chatBubbleSent
+        : theme.colorScheme.surfaceContainerHighest;
+    final isDarkCard =
+        ThemeData.estimateBrightnessForColor(bubbleColor) == Brightness.dark;
+    final textColor =
+        isDarkCard ? Colors.white : theme.colorScheme.onSurface;
+    final fontSize = emojiFontSize(content);
+    final bubbleBorderRadius = BorderRadius.only(
+      topLeft: const Radius.circular(20),
+      topRight: const Radius.circular(20),
+      bottomLeft: Radius.circular(!isMe && isLastInGroup ? 8 : 20),
+      bottomRight: Radius.circular(isMe && isLastInGroup ? 8 : 20),
+    );
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          constraints: BoxConstraints(maxWidth: bubbleMaxWidth),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: bubbleColor,
+            borderRadius: bubbleBorderRadius,
+          ),
+          child: IntrinsicWidth(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                BubbleQuoteSection(
+                  replyTo: replyTo,
+                  bubbleColor: bubbleColor,
+                  isGroupChat: isGroupChat,
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Align(
+                    alignment: AlignmentDirectional.bottomEnd,
+                    child: Text(
+                      content.trim(),
+                      textAlign: TextAlign.start,
+                      style: TextStyle(fontSize: fontSize, color: textColor),
+                    ),
+                  ),
+                ),
+                if (timeStr.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Align(
+                      alignment: AlignmentDirectional.bottomEnd,
+                      child: Text(
+                        timeStr,
+                        textAlign: TextAlign.end,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: isMe
+                              ? Colors.white.withAlpha(180)
+                              : theme.colorScheme.onSurfaceVariant.withAlpha(
+                                  180,
+                                ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        if (isLastInGroup)
+          Positioned(
+            bottom: 0,
+            right: isMe ? -8 : null,
+            left: !isMe ? -8 : null,
+            child: CustomPaint(
+              painter: TailPainter(color: bubbleColor),
+              size: const Size(10, 8),
+            ),
+          ),
+      ],
     );
   }
 }

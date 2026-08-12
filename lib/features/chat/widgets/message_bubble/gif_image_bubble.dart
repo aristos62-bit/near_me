@@ -176,13 +176,6 @@ class GifImageBubble extends ConsumerWidget {
               senderNickname: senderNickname,
               isGroupChat: isGroupChat,
             ),
-          if (replyTo != null)
-            ReplyPreview(
-              replyTo: replyTo!,
-              isMe: isMe,
-              isGroupChat: isGroupChat,
-              maxWidth: bubbleMaxWidth,
-            ),
           Stack(
             clipBehavior: Clip.none,
             children: [
@@ -209,7 +202,17 @@ class GifImageBubble extends ConsumerWidget {
                       borderRadius: bubbleBorderRadius,
                     ),
                     clipBehavior: Clip.antiAlias,
-                    child: CachedNetworkImage(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (replyTo != null)
+                          BubbleQuoteSection(
+                            replyTo: replyTo,
+                            bubbleColor: bubbleColor,
+                            isGroupChat: isGroupChat,
+                          ),
+                        CachedNetworkImage(
                       imageUrl: content,
                       fit: BoxFit.cover,
                       placeholder: (_, _) => SizedBox(
@@ -237,9 +240,11 @@ class GifImageBubble extends ConsumerWidget {
                         ),
                       ),
                     ),
+                  ],
                   ),
                 ),
               ),
+            ),
               if (showTail)
                 Positioned(
                   bottom: 0,

@@ -232,13 +232,6 @@ class _AudioMessageBubbleState extends State<AudioMessageBubble> {
               senderNickname: widget.senderNickname,
               isGroupChat: widget.isGroupChat,
             ),
-          if (widget.replyTo != null)
-            ReplyPreview(
-              replyTo: widget.replyTo!,
-              isMe: widget.isMe,
-              isGroupChat: widget.isGroupChat,
-              maxWidth: widget.bubbleMaxWidth,
-            ),
           Stack(
             clipBehavior: Clip.none,
             children: [
@@ -263,7 +256,17 @@ class _AudioMessageBubbleState extends State<AudioMessageBubble> {
                     horizontal: 12,
                     vertical: 8,
                   ),
-                  child: Row(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (widget.replyTo != null)
+                        BubbleQuoteSection(
+                          replyTo: widget.replyTo,
+                          bubbleColor: bubbleColor,
+                          isGroupChat: widget.isGroupChat,
+                        ),
+                      Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
@@ -307,7 +310,9 @@ class _AudioMessageBubbleState extends State<AudioMessageBubble> {
                           ],
                         ),
                       ),
-                    ],
+],
+                  ),
+                ],
                   ),
                 ),
               ),

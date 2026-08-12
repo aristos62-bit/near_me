@@ -1185,3 +1185,49 @@ Email με attachment: το Android email app (π.χ. Gmail, `launchMode=singleT
 2. Διάγνωση πριν από fix: **SIG-diagnostic** (hash/identity των watches) + αποκλεισμοί (parent rebuild, provider emits, setState, MediaQuery) πριν οτιδήποτε speculative.
 3. **Ποτέ speculative fix σε aggregate logs** — πρώτα διακριτικά (msgId/instance/identityHashCode).
 4. Το σωστό pattern του codebase: επιμέρους equality-caches (identical reference) + `LayoutBuilder`· «no MediaQuery rebuild cascade».
+
+---
+
+## Session 227 — Quote-in-Bubble unification (Φάσεις 1-6) + instrumentation removal (100%) — 12 Αυγ 2026
+
+### Σκοπός
+1. **Quote ενσωματωμένο ΜΕΣΑ στο bubble** (WhatsApp/Telegram style) σε ΟΛΟΥΣ τους τύπους μηνύματος — όχι ξεχωριστό `ReplyPreview` πάνω-έξω. Quote = ίδιο background, ίδιο πλάτος, εσωτερικός divider.
+2. Μετά το device verification, **αφαίρεση όλων των BUBBLE_W instrumentation blocks** (προσωρινό debug).
+
+Οδηγός υλοποίησης: **`reply_card.md`** (v1.0, authoritative).
+
+### βασική λύση (σε όλα τα bubble types)
+- **Quote κορυφή μέσα στο Container**: `Column(mainAxisSize.min, crossAxisAlignment.stretch) → [BubbleQuoteSection?, content..., time]`, αντί για `ReplyPreview` + μετά Container.
+- **§3.8 hug/fixed:** `IntrinsicWidth` (για να σφίγγει το πλάτος στο περιεχόμενο) ΜΟΝΟ για text & emoji. Media (gif/image, audio, video) = stretch χωρίς IntrinsicWidth (fixed width).
+- **Divider insider:** `SizedBox(height: 12, child: Center(child: SizedBox(height: 1, ColoredBox)))` μέσα στο `BubbleQuoteSection` (learned: ποτέ Material `Divider`/`Container(height:)` — intrinsic height ≠ 0).
+- **GlobalObjectKey:** ένα instance ανά μετρητή (δύο keys με ίδια τιμή ΔΕΝ είναι ίσα — bug source).
+- **Divider width verified (device logs):** text `w−28` (padding 14×2) · gif/image `=w` · audio `w−24` (padding 12×2) · video `=w` · emoji `w−28`.
+- **Emoji ειδικό:** `hasQuote ? _buildQuoteCard : _buildBare` — bare = ακριβώς η παλιά δομή (χωρίς card), quote card = Container(stretch)[Quote, emoji, time]. Sent → `AppColors.chatBubbleSent` (#075E54), received → `surfaceContainerHighest`, textColor contrast-aware, tail στο `isLastInGroup`.
+- **Κανόνες:** μόνο `Theme.of` σε build (audio/video ήταν ήδη Stateful για player), υπογραφές `MessageBubble`/`chat_messages_list` αμετάβλητες, `ChatInputBar` reply banner (:416) δεν αγγίστηκε.
+
+### Φάσεις (όλες merged & device-verified πριν το cleanup)
+- **Φάση 1:** `_replyPreviewText` helper + `BubbleQuoteSection` (flattened, accent 3px, contrast-aware) + `ReplyMediaThumbnail.surfaceColor` param → `reply_preview.dart`.
+- **Φάση 2 (text):** quote μέσα στο Container + test πλάτους· device verdict: divider πάντα `w−28`, hug σωστό, idle rebuild test 1′42″ καθαρό.
+- **Φάση 3 (gif/image):** αφαίρεση `ReplyPreview`, `Column(stretch)[Quote?, CachedNetworkImage]`· logs: `w=288.0 divider=288.0` ✓.
+- **Φάση 4 (audio):** `Column(stretch)[Quote?, Row]` (padding h12/v8)· logs: `divider=264.0` (w−24) ✓.
+- **Φάση 5 (video):** `Column(stretch)[Quote?, ClipRRect]`· logs: `divider=288.0` (=w) ✓.
+- **Φάση 6 (emoji):** `_buildBare`/`_buildQuoteCard`· logs: divider `w−28` (96.7→68.7, 96.2→68.2, 107.2→79.2, 125.3→97.3, 140.9→112.9), μικρά w → IntrinsicWidth OK, μηδέν `quote=false` μετρήσεις (bare).
+
+### Device regression (12 Αυγ, πριν το cleanup)
+- 1-to-1 + group + sent/received, replies σε text/gif/image/audio/video/emoji, πολλαπλά διαδοχικά reply→send→clear loop, emoji picker open/close.
+- **0 exceptions/overflows.** Όλα τα dividers συνεπή. Ένα burst ×48 στο dismiss emoji picker = γνωστό keyboard/scroll relayout, όχι regression του merge.
+
+### Αφαίρεση instrumentation (αυτό το session)
+- **5 αρχεία**, κάθε ένα: αφαίρεση `GlobalObjectKey` keys (`bubbleKey`/`dividerMeasureKey` + prefixes `bubble_/gif_/aud_/vid_/emo_`)**, `if (DebugConfig.debugMode) { addPostFrameCallback ... }` block, `key:` στο Container, `dividerKey:` param στο `BubbleQuoteSection`.
+- **Αφαιρέθηκαν και αχρησιμοποίητα imports `debug_config.dart`:** `text_message_bubble.dart`, `emoji_only_bubble.dart` (μόνο το instrumentation τα χρησιμοποιούσε). Σε `gif/audio/video` το import ΜΕΝΕΙ (χρησιμοποιείται για chatAudio/uiInteraction κ.λπ.).
+- **Κρατήθηκαν** τα προϋπάρχοντα `DebugConfig.chatBubbleDesign` logs: `chat_messages_list.dart:921` (MSG_LIST) & `chat_ui_utils.dart:68` (ChatGroupingCalculator).
+- Το flag `chatBubbleDesign` παραμένει στο `debug_config.dart` (χρησιμοποιείται από τα δύο κρατημένα logs).
+
+### Έλεγχος
+- `grep` verification: μηδέν `BUBBLE_W*` / bubble keys σε όλο το `lib/`.
+- **`flutter analyze`: clean ✅ (0 issues)**
+- `flutter test`: δεν τρέχτηκε σε αυτό το session.
+
+### Backups
+- Σε φάσεις: `reply_preview_20260812_115721.bak`, `text_message_bubble_20260812_120014.bak`, `reply_preview_20260812_121202.bak`, `20260812_121258`, `text_message_bubble_20260812_123853.bak`, `gif_image_bubble_20260812_132220.bak` + `gif_image_bubble_inst_20260812_132753.bak`, `audio_message_bubble_20260812_134432.bak`, `video_message_bubble_20260812_135045.bak`, `emoji_only_bubble_20260812_135700.bak`.
+- **Cleanup:** `backups/*_before_instrumentation_20260812_140847.bak` (5 αρχεία) + `backups/oldsessions_20260812_141000.md`.

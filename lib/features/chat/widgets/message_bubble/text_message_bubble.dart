@@ -261,7 +261,7 @@ class TextMessageBubble extends StatelessWidget {
                               replyTo: replyTo,
                               bubbleColor: bubbleColor,
                               isGroupChat: isGroupChat,
-                              dividerKey: GlobalObjectKey('bubble_divider_$messageId'),
+                              dividerKey: dividerMeasureKey,
                             ),
                           Column(
                             mainAxisSize: MainAxisSize.min,

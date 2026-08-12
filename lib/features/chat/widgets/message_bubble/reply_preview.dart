@@ -1,6 +1,104 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+String _replyPreviewText(Map<String, dynamic> replyTo, bool isGroupChat) {
+  final senderNickname = replyTo['senderNickname'] as String?;
+  final contentPreview = replyTo['contentPreview'] as String? ?? '';
+  final mediaUrl = ReplyMediaThumbnail.urlFor(replyTo);
+  final isMedia = mediaUrl != null;
+
+  return isMedia
+      ? (isGroupChat && senderNickname != null ? '@$senderNickname' : '')
+      : (isGroupChat && senderNickname != null
+            ? '@$senderNickname: $contentPreview'
+            : contentPreview);
+}
+
+/// Ενσωματωμένο quote στην κορυφή του bubble (WhatsApp style).
+/// Flattened: χωρίς δικό του background/radius/margin — τα δίνει το bubble.
+/// Το χρώμα accent/text/divider υπολογίζεται contrast-aware σε σχέση
+/// με το χρώμα του bubble (για sent bubbles π.χ. #075E54 → άσπρο accent).
+class BubbleQuoteSection extends StatelessWidget {
+  final Map<String, dynamic>? replyTo;
+  final Color bubbleColor;
+  final bool isGroupChat;
+  final GlobalKey? dividerKey;
+
+  const BubbleQuoteSection({
+    super.key,
+    required this.replyTo,
+    required this.bubbleColor,
+    this.isGroupChat = false,
+    this.dividerKey,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final reply = replyTo;
+    if (reply == null) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    final isDark =
+        ThemeData.estimateBrightnessForColor(bubbleColor) == Brightness.dark;
+    final accentColor =
+        isDark ? Colors.white.withAlpha(180) : theme.colorScheme.primary;
+    final textColor =
+        isDark ? Colors.white.withAlpha(230) : theme.colorScheme.onSurfaceVariant;
+    final dividerColor =
+        isDark ? Colors.white.withAlpha(60) : theme.colorScheme.onSurfaceVariant.withAlpha(50);
+    final thumbPlaceholderColor =
+        isDark ? Colors.white.withAlpha(36) : theme.colorScheme.surfaceContainerHighest.withAlpha(120);
+
+    final mediaUrl = ReplyMediaThumbnail.urlFor(reply);
+    final textWidget = Text(
+      _replyPreviewText(reply, isGroupChat),
+      style: theme.textTheme.bodySmall?.copyWith(
+        fontStyle: FontStyle.italic,
+        color: textColor,
+      ),
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+    );
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            border: Border(
+              left: BorderSide(color: accentColor, width: 3),
+            ),
+          ),
+          child: mediaUrl != null
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ReplyMediaThumbnail(
+                      imageUrl: mediaUrl,
+                      surfaceColor: thumbPlaceholderColor,
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(child: textWidget),
+                  ],
+                )
+              : textWidget,
+        ),
+        SizedBox(
+          key: dividerKey,
+          height: 12,
+          child: Center(
+            child: SizedBox(
+              height: 1,
+              child: ColoredBox(color: dividerColor),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class ReplyPreview extends StatelessWidget {
   final Map<String, dynamic> replyTo;
   final bool isMe;
@@ -18,19 +116,11 @@ class ReplyPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final senderNickname = replyTo['senderNickname'] as String?;
-    final contentPreview = replyTo['contentPreview'] as String? ?? '';
     final mediaUrl = ReplyMediaThumbnail.urlFor(replyTo);
     final isMedia = mediaUrl != null;
 
-    final preview = isMedia
-        ? (isGroupChat && senderNickname != null ? '@$senderNickname' : '')
-        : (isGroupChat && senderNickname != null
-              ? '@$senderNickname: $contentPreview'
-              : contentPreview);
-
     final textWidget = Text(
-      preview,
+      _replyPreviewText(replyTo, isGroupChat),
       style: theme.textTheme.bodySmall?.copyWith(
         fontStyle: FontStyle.italic,
         color: theme.colorScheme.onSurfaceVariant,
@@ -70,11 +160,13 @@ class ReplyPreview extends StatelessWidget {
 class ReplyMediaThumbnail extends StatelessWidget {
   final String imageUrl;
   final double size;
+  final Color? surfaceColor;
 
   const ReplyMediaThumbnail({
     super.key,
     required this.imageUrl,
     this.size = 44,
+    this.surfaceColor,
   });
 
   /// Επιστρέφει το URL εικόνας/thumbnail του quoted μηνύματος (SPoT).
@@ -92,6 +184,8 @@ class ReplyMediaThumbnail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final placeholderColor =
+        surfaceColor ?? theme.colorScheme.surfaceContainerHighest.withAlpha(120);
     return ClipRRect(
       borderRadius: BorderRadius.circular(6),
       child: CachedNetworkImage(
@@ -102,12 +196,12 @@ class ReplyMediaThumbnail extends StatelessWidget {
         placeholder: (_, _) => Container(
           width: size,
           height: size,
-          color: theme.colorScheme.surfaceContainerHighest.withAlpha(120),
+          color: placeholderColor,
         ),
         errorWidget: (_, _, _) => Container(
           width: size,
           height: size,
-          color: theme.colorScheme.surfaceContainerHighest.withAlpha(120),
+          color: placeholderColor,
           child: Icon(
             Icons.broken_image,
             size: 16,

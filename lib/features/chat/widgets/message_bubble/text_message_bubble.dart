@@ -6,6 +6,7 @@ import 'bubble_long_press_wrapper.dart';
 import 'message_reactions_row.dart';
 import 'read_receipt_footer.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/debug/debug_config.dart';
 import 'package:flutter/gestures.dart';
 
 class TextMessageBubble extends StatelessWidget {
@@ -183,6 +184,30 @@ class TextMessageBubble extends StatelessWidget {
       ),
     );
 
+    final bubbleKey = GlobalObjectKey('bubble_w_$messageId');
+    final dividerMeasureKey = GlobalObjectKey('bubble_divider_$messageId');
+    if (DebugConfig.debugMode) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final ctx = bubbleKey.currentContext;
+        if (ctx == null) return;
+        final box = ctx.findRenderObject() as RenderBox?;
+        if (box == null || !box.attached) return;
+        String dv = 'n/a';
+        final dctx = dividerMeasureKey.currentContext;
+        if (dctx != null) {
+          final dbox = dctx.findRenderObject() as RenderBox?;
+          if (dbox != null && dbox.attached) {
+            dv = dbox.size.width.toStringAsFixed(1);
+          }
+        }
+        DebugConfig.log(
+          DebugConfig.chatBubbleDesign,
+          'BUBBLE_W quote=${replyTo != null} isMe=$isMe maxBubble=${bubbleMaxWidth.toStringAsFixed(0)} '
+          'w=${box.size.width.toStringAsFixed(1)} divider=$dv',
+        );
+      });
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Align(
@@ -212,36 +237,35 @@ class TextMessageBubble extends StatelessWidget {
               onInfo: onInfo,
               onEmail: onEmail,
               onShare: onShare,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: isMe
-                    ? CrossAxisAlignment.end
-                    : CrossAxisAlignment.start,
+              child: Stack(
+                clipBehavior: Clip.none,
                 children: [
-                  if (replyTo != null)
-                    ReplyPreview(
-                      replyTo: replyTo!,
-                      isMe: isMe,
-                      isGroupChat: isGroupChat,
-                      maxWidth: bubbleMaxWidth,
+                  Container(
+                    key: bubbleKey,
+                    constraints: BoxConstraints(maxWidth: bubbleMaxWidth),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
                     ),
-                  Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Container(
-                        constraints: BoxConstraints(maxWidth: bubbleMaxWidth),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: bubbleColor,
-                          borderRadius: bubbleBorderRadius,
-                        ),
-                        child: IntrinsicWidth(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
+                    decoration: BoxDecoration(
+                      color: bubbleColor,
+                      borderRadius: bubbleBorderRadius,
+                    ),
+                    child: IntrinsicWidth(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (replyTo != null)
+                            BubbleQuoteSection(
+                              replyTo: replyTo,
+                              bubbleColor: bubbleColor,
+                              isGroupChat: isGroupChat,
+                              dividerKey: GlobalObjectKey('bubble_divider_$messageId'),
+                            ),
+                          Column(
                             mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               (mentions.isEmpty &&
                                       !_linkDetector.hasMatch(content))
@@ -275,20 +299,20 @@ class TextMessageBubble extends StatelessWidget {
                                 ),
                             ],
                           ),
-                        ),
+                        ],
                       ),
-                      if (showTail)
-                        Positioned(
-                          bottom: 0,
-                          right: isMe ? -8 : null,
-                          left: !isMe ? -8 : null,
-                          child: CustomPaint(
-                            painter: TailPainter(color: bubbleColor),
-                            size: const Size(10, 8),
-                          ),
-                        ),
-                    ],
+                    ),
                   ),
+                  if (showTail)
+                    Positioned(
+                      bottom: 0,
+                      right: isMe ? -8 : null,
+                      left: !isMe ? -8 : null,
+                      child: CustomPaint(
+                        painter: TailPainter(color: bubbleColor),
+                        size: const Size(10, 8),
+                      ),
+                    ),
                 ],
               ),
             ),

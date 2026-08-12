@@ -118,8 +118,9 @@ class ReactionTriggerIcon extends StatelessWidget {
     final myEmoji = reactions[currentUid] as String?;
 
     final Map<String, int> grouped = {};
-    for (final e in reactions.values) {
-      final emoji = e as String? ?? '';
+    for (final entry in reactions.entries) {
+      if (entry.key == currentUid) continue;
+      final emoji = entry.value as String? ?? '';
       if (emoji.isNotEmpty) grouped[emoji] = (grouped[emoji] ?? 0) + 1;
     }
 
@@ -165,7 +166,7 @@ class ReactionTriggerIcon extends StatelessWidget {
                       ),
                     ),
             ),
-            if (!isMe && grouped.isNotEmpty) ...[
+            if (grouped.isNotEmpty) ...[
               const SizedBox(width: 4),
               Wrap(
                 spacing: 3,

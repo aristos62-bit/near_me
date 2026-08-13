@@ -21,6 +21,7 @@ import 'features/settings/providers/app_settings_provider.dart';
 import 'providers/unread_badge_provider.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'core/utils/media_share_cache.dart';
+import 'core/utils/image_cache_guard.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -93,6 +94,11 @@ class _AppBootstrapState extends State<AppBootstrap> with WidgetsBindingObserver
     // Fire-and-forget: δεν μπλοκάρει το startup timing, καθαρίζει
     // τυχόν "ορφανά" temp αρχεία media από προηγούμενα email/share.
     unawaited(MediaShareCache.sweep());
+
+    // Fire-and-forget: ελέγχει το μέγεθος του CachedNetworkImage disk
+    // cache και το αδειάζει αν ξεπεράσει το όριο (flutter_cache_manager
+    // δεν έχει byte-cap, μόνο count/age — βλ. αξιολόγηση 2GB storage).
+    unawaited(ImageCacheGuard.checkAndPrune());
 
     final firebaseReady = await firebaseFuture;
     final tFirebaseEnd = DateTime.now();

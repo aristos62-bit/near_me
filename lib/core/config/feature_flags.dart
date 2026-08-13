@@ -8,6 +8,7 @@ class FeatureFlags {
   static const bool videoCallEnabled = false;
   static const bool groupChatEnabled = true;
   static const bool incomingShareEnabled = true;
+  static const bool phoneVerificationEnabled = false;
 
   // Discovery
   static const bool aiMatchingEnabled = false;

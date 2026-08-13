@@ -9,6 +9,7 @@ import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
 import '../../../core/utils/error_messages.dart';
 import '../../../core/utils/lock_screen.dart';
+import '../../../core/config/feature_flags.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/app_settings_provider.dart';
 
@@ -130,7 +131,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               if (isAnonymous)
                 const Divider(),
 
-              if (!isAnonymous && emailVerified) ...[
+              if (FeatureFlags.phoneVerificationEnabled &&
+                  !isAnonymous && emailVerified) ...[
                 ListTile(
                   leading: const Icon(Icons.phone_android_outlined),
                   title: Text(isGreek ? 'Επαλήθευση Τηλεφώνου' : 'Verify Phone'),

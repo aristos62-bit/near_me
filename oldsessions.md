@@ -936,7 +936,7 @@ Email με attachment: το Android email app (π.χ. Gmail, `launchMode=singleT
 - **Log A** — `chat_messages_list.dart`: `MSG_LIST itemBuilder i=X (chat, inst)` + `MSG_LIST item type=... msgId=... (inst)` στο `itemBuilder` → δείχνει πόσα indices καλούνται ανά frame και ποια (flag `chatBubbleDesign`).
 - **Log B** — `reply_preview.dart`: `ReplyPreview: id=<msgId> thumb=... h=<identityHashCode>` → ξεχωρίζει αν το ίδιο instance ξαναχτίζεται (ίδιο `h`) ή είναι διαφορετικά bubbles (flag `chatReply`).
 - **Log C** — `chat_messages_list.dart`: `MSG_LIST BUILD ... inst=<instanceId>` → ποιο από τα 4 instances του chat_screen χτίζει (flag `chatBubbleDesign`).
-- **Ανοιχτό:** εκκρεμεί device test από χρήστη + ανάλυση των νέων διακριτικών logs.
+- **Ανοιχτό:** εκκρεμεί device test από χρήστη + ανάλυση των νέων διακριτικών logs. → **✅ ΕΛΗΞΕ (13 Αυγ, Session 231)**
 
 ### `flutter analyze`: clean ✅ (0 issues)
 
@@ -1058,9 +1058,9 @@ Email με attachment: το Android email app (π.χ. Gmail, `launchMode=singleT
 ### Χρόνος/Flags
 - Κάθε αλλαγή ενεργοποιείται με το υπάρχον `FeatureFlags.incomingShareEnabled` · native copy logs `chatShare` flag. Απαιτεί **πλήρες rebuild** όταν αλλάζει το Kotlin (το video thumb + progress είναι Dart-only — αρκεί hot restart).
 
-### Εκκρεμούν (device tests)
-- GIF share → **animated** στην οθόνη παραλήπτη (ζητήθηκε ρητά πραγματικό GIF)
-- Audio share · Warm share (app ανοιχτό → share) · Regression text share
+### Εκκρεμούν (device tests) — ✅ ΟΛΑ ΕΛΗΞΑΝ (13 Αυγ, Session 231)
+- ~~GIF share → **animated** στην οθόνη παραλήπτη~~ → ✅
+- ~~Audio share · Warm share (app ανοιχτό → share) · Regression text share~~ → ✅
 
 ---
 
@@ -1164,7 +1164,7 @@ Email με attachment: το Android email app (π.χ. Gmail, `launchMode=singleT
 | Θέμα | Πηγή |
 |---|---|
 | `ChatScreen` ξαναφτιάχνει `_messagesList` σε video play/fail (chat_screen.dart:134,150,161) — σκοτώνει το fix5 width-cache | Session 222 |
-| Device test νέων διακριτικών logs (Log A/B/C: item, ReplyPreview id/h, inst) + ανάλυση — ζητήθηκε από χρήστη | Session 221 |
+| ~~Device test νέων διακριτικών logs (Log A/B/C: item, ReplyPreview id/h, inst) + ανάλυση — ζητήθηκε από χρήστη~~ → **✅ ΕΛΗΞΕ (13 Αυγ)** | Session 221 |
 | `join_confirmation_screen.dart:72` + `fcm_service.dart:89,166` — deep links χωρίς `extra` (group-capable) | Session 218 |
 | `AppMessenger.showLoading/hideLoading` — dead code (δεν καλούνται πουθενά· τα media sends χρησιμοποιούν `_isLoading` spinner) | Session 225 |
 
@@ -1257,14 +1257,106 @@ Email με attachment: το Android email app (π.χ. Gmail, `launchMode=singleT
 - Όλα τα bubbles περνούν `reactions`, `currentUid`, `isMe`, `onRemove` (audio/video: `widget.`). `FeatureFlags.messageReactionsEnabled` κρατείται σε όλα τα paths.
 
 ### Σημείωση / open θέμα
-- **`MessageReactions`** (message_reactions.dart) και **`MessageReactionsRow`** (message_reactions_row.dart) παραμένουν ορισμένα ως **dead code** — δεν καλούνται πια από κανένα bubble. Εκκρεμεί απόφαση αν θα διαγραφούν (χρειάζεται OK χρήστη).
+- ~~**`MessageReactions`** (message_reactions.dart) και **`MessageReactionsRow`** (message_reactions_row.dart) παραμένουν ορισμένα ως **dead code**~~ → **ΚΛΕΙΣΙΜΟ (Session 231):** και τα δύο διαγράφηκαν (verified 100% ασφαλές).
 
 ### Έλεγχος
 - **`flutter analyze`: clean ✅ (0 issues)** σε κάθε φάση (και μετά την αφαίρεση των unused imports).
 - `flutter test`: δεν τρέχτηκε σε αυτό το session.
-- **Εκκρεμεί**: device test τελικού design (δικό μου μήνυμα με ❤️ στο icon χωρίς σύνολα · του άλλου με badges · tap-remove · picker-toggle).
+- ~~**Εκκρεμεί**: device test τελικού design~~ → **✅ ΟΛΟΚΛΗΡΩΘΗΚΕ (13 Αυγ, Session 231):** δικό μου μήνυμα με ❤️ στο icon χωρίς σύνολα · του άλλου με badges · tap-remove · picker-toggle — όλα OK.
 
 ### Backups
 - `backups/*_trigger_side_20260812_145805.bak` (φάση 1) · `backups/*_emoji_show_20260812_151503.bak` (πριν τη δοκιμή emoji-show)
 - `backups/*_side_summary_20260812_154038.bak` (πριν το τελικό design) · `backups/*_isMe_hide_20260812_154725.bak` (πριν την απόκρυψη συνόλων στα δικά μου) · `backups/*_152324.bak` (revert-source)
 - `backups/oldsessions_20260812_155017.md`
+
+---
+
+## Session 229 — ImageCacheGuard: disk cache pruning fix (100%) — 13 Αυγ 2026
+
+### Το πρόβλημα
+Η disk cache του CachedNetworkImage δεν μειωνόταν στα 300MB παρά το log `pruned (was 774MB > 300MB limit)` — μεγάλωνε ανεξέλεγκτα (774→776→777MB).
+
+### Root cause (επιβεβαιωμένο, 2 μέρη)
+1. **Bug στο flutter_cache_manager 3.4.1 (`cache_store.dart`):** το `emptyCache()` διαγράφει τα entries από το DB αλλά **ΟΧΙ τα αρχεία** — το delete γίνεται με `io.File(cacheObject.relativePath)` (σχετικό path, π.χ. `uuid.jpg`, χωρίς base dir) → `existsSync()` = false πάντα, γιατί το πραγματικό cache είναι στο `getTemporaryDirectory()/libCachedImageData/`.
+2. **Λάθος μέτρηση στο πρώτο DIAG:** στο Android το DB του cache manager είναι **sqflite** (`libCachedImageData.db`) — το temporary DIAG που διάβαζε το `libCachedImageData.json` έδειχνε `registered=0`, που ήταν απλά λάθος μέτρηση (δεν υπάρχει json στο Android).
+
+- Το bug είναι **platform-agnostic** (Android/iOS/macOS/Windows/Linux) — μόνο το Web εξαιρείται.
+- **Κύκλος:** entries σβήνονται → files ξανακατεβαίνουν πάνω στα παλιά (χωρίς entry) → cache μεγαλώνει συνεχώς.
+
+### Fix (`image_cache_guard.dart`, 1 αρχείο)
+- Αντικατάσταση του σκέτου `DefaultCacheManager().emptyCache()` με: **απευθείας διαγραφή όλων των files** του φακέλου `getTemporaryDirectory()/libCachedImageData/` (loop `cacheDir.list(recursive: true)` → `File.delete()` με per-file try/catch) **και μετά** `emptyCache()` για καθαρισμό των entries του DB.
+- Αφαίρεση όλων των temporary DIAG diagnostics (import `dart:convert`, μετρητής `fileCount`, DIAG json block).
+- Logs: `current size=X.XMB` (πάντα) + `pruned N file(s) (was XMB > 300MB limit)` (μόνο όταν ξεπεράσει το όριο).
+
+### Verification (device, release build, 13 Αυγ)
+| Run | `current size` | Αποτέλεσμα |
+|---|---|---|
+| Πριν το fix | 777.3MB | — |
+| Run 1 | 777.3MB | `pruned 1202 file(s) (was 777MB > 300MB limit)` ✅ |
+| Run 2 | **0.8MB** | κάτω από 300MB, κανένα prune ✅ |
+
+- `flutter analyze lib\core\utils\image_cache_guard.dart`: clean ✅
+- Κανένα side-effect (όλα τα startup logs φυσιολογικά)
+
+### Backups
+- `backups/image_cache_guard_20260813_105056.dart` (original πριν τα temporary diagnostics)
+- `backups/image_cache_guard_20260813_105756.dart` (κατάσταση με τα temporary diagnostics, ως reference)
+- `backups/oldsessions_20260813_110229.md`
+
+---
+
+## Session 230 — Phone verification UI removal (feature flag OFF) (100%) — 13 Αυγ 2026
+
+### Σκοπός
+Αφαίρεση του phone verification από το UI (Settings), ύστερα από ανάλυση ότι είναι **πλεονασμός**: το `canUserCommunicate` καλύπτεται ήδη με verified **email Ή** τηλέφωνο — το τηλέφωνο πρόσθετε μόνο κόστος (SMS), fragile flow (reCAPTCHA + browser dependency, π.χ. Brave sessionStorage partitioning → «missing initial state») και UX friction. Η λογική παραμένει στον κώδικα, απλώς **feature flag OFF**.
+
+### Τι έγινε (2 αρχεία, backups `*_20260813_121012.dart`)
+- **`core/config/feature_flags.dart`** — νέο flag `static const bool phoneVerificationEnabled = false;` (στο Communication section).
+- **`features/settings/screens/settings_screen.dart`** — το section «Επαλήθευση Τηλεφώνου» + «Αφαίρεση Τηλεφώνου» + Divider (γρ. 133-161) τυλίχτηκε σε `if (FeatureFlags.phoneVerificationEnabled && !isAnonymous && emailVerified) ...[...]` + import `feature_flags.dart`. Κρύβονται και τα δύο entries (τηλέφωνο + ακύρωση/unlink).
+
+### Τι ΔΕΝ άλλαξε
+- `phone_verify_screen.dart`, `phone_verify_provider.dart`, `auth_repository.dart`/`impl` — λογική 100% άθικτη.
+- Route `/settings/phone-verify` στο `app_router.dart` — παραμένει (κανείς δεν το καλεί με flag OFF).
+- `public_profile_view_screen.dart` — το δημόσιο τηλέφωνο (profile field) δεν αγγίχτηκε (διαφορετικό από auth verification).
+
+### Διαδικασία απόφασης
+- Διαπιστώθηκε ότι τα SHA-1/SHA-256 fingerprints στο Firebase Console **ταιριάζουν** με το debug keystore (το release χρησιμοποιεί debug signing, `build.gradle.kts:33`) — άρα δεν ήταν θέμα κλειδιών.
+- Το «verify you're not a robot» + «missing initial state» είναι το **reCAPTCHA fallback** του Firebase (όταν δεν γίνεται SMS auto-verify) που ανοίγει τον **default browser** — ο Brave με storage partitioning σπάει το flow. Λύσεις (για μελλοντική χρήση αν ξαναενεργοποιηθεί): default browser → Chrome, Play Services ενημερωμένα, Shields OFF.
+
+### `flutter analyze`: clean ✅ (0 issues)
+
+### Backups
+- `backups/feature_flags_20260813_121012.dart`
+- `backups/settings_screen_20260813_121012.dart`
+- `backups/oldsessions_20260813_121944.md`
+
+---
+
+## Session 231 — Reactions dead code removal + device test OK (100%) — 13 Αυγ 2026
+
+### Σκοπός
+Κλείσιμο των 2 open θεμάτων του Session 228: **(1)** διαγραφή του dead code (`MessageReactions` + `MessageReactionsRow`) και **(2)** επιβεβαίωση του device test του τελικού design reactions.
+
+### 1) Dead code removal
+**Έλεγχος πριν (διεξοδικός, verified 100% ασφαλές):**
+- `MessageReactionsRow` — κανένα `.dart` import (ούτε `lib/`, ούτε `test/`). Μόνο αναφορές σε `.md` (oldsessions/sound_message/video_message) = τεκμηρίωση, όχι κώδικας.
+- `MessageReactions` (κλάση) — μοναδική χρήση από `MessageReactionsRow` (διαγράφεται κι αυτό).
+- `_ReactionChip` — private, ζει μόνο μέσα στην `MessageReactions`.
+- LIVE μέρη που ΜΕΝΟΥΝ: `ReactionTriggerIcon` (11 κλήσεις σε 5 bubbles), `showReactionPicker`, `_ReactionCountBadge`, `_reactionEmojiButton`, `_reactionFullPicker`.
+
+**Διαγραφές:**
+- `message_reactions_row.dart` — **ολόκληρο το αρχείο** (43 γρ., 1 αρχείο deleted).
+- `message_reactions.dart` — κλάση `MessageReactions` (74 γρ.) + `_ReactionChip` (47 γρ.). Το υπόλοιπο αρχείο μένει άθικτο.
+
+### 2) Device test τελικού design (13 Αυγ) — ✅ ΟΛΑ ΚΑΛΑ
+- Δικό μου μήνυμα με ❤️ στο icon **χωρίς σύνολα** ✓
+- Του άλλου με **badges** (emoji + πλήθος όταν >1) ✓
+- **Tap-remove** (tap στο icon με reaction → αφαίρεση) ✓
+- **Picker-toggle** (ξανά-επιλογή ίδιου emoji → remove αντί re-set) ✓
+
+### `flutter analyze`: clean ✅ (0 issues, full project — δεν έμεινε κανένα orphan import)
+
+### Backups
+- `backups/message_reactions_20260813_123055.dart`
+- `backups/message_reactions_row_20260813_123055.dart`
+- `backups/oldsessions_20260813_123256.md`

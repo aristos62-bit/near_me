@@ -1397,3 +1397,10 @@ Email με attachment: το Android email app (π.χ. Gmail, `launchMode=singleT
 - `backups/chat_screen_20260813_131456.dart`
 - `backups/video_message_bubble_20260813_131456.dart`
 - `backups/oldsessions_20260813_131753.md`
+
+### 🔴 Bug που βρέθηκε στο device test + fix (13 Αυγ)
+- **Σύμπτωμα:** `Bad state: Using "ref" when a widget is about to or has been unmounted is unsafe.` στο `_ChatScreenState.dispose` (chat_screen.dart:100) — το `ref.read(...).stop()` μέσα στο dispose.
+- **Αιτία:** το Riverpod απαγορεύει `ref` στο `dispose()`. Το `stop()` δεν εκτελούνταν → ο controller έμενε στο provider (zombie).
+- **Fix (canonical pattern):** field `late final VideoPlaybackNotifier _videoPlayback;` → αποθήκευση στο `initState` (`ref.read(videoPlaybackProvider.notifier)`) → `dispose()` καλεί `_videoPlayback.stop(chatId)` χωρίς `ref`. Backup `backups/chat_screen_20260813_133117.dart`.
+- **Επαλήθευση ότι το notifier είναι ασφαλές:** `stop()`/`_disposeController()`/`play()` χρησιμοποιούν ΜΟΝΟ το δικό τους `state` — κανένα `ref.read/watch` άλλου provider → ασφαλές να τρέξει σε οποιοδήποτε σημείο (ο notifier είναι global non-autoDispose).
+- `flutter analyze`: clean ✅ · εκκρεμεί re-test (καμία `Bad state` γραμμή).

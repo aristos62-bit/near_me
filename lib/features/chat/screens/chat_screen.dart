@@ -61,10 +61,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   bool _emojiPickerVisible = false;
   final _audioPlayer = AudioPlayer();
   late Widget _messagesList;
+  // Riverpod: στο dispose() το ref είναι unsafe — κρατάμε τον notifier σε
+  // field (αποθήκευση στο initState), όχι ref.read στο dispose.
+  late final VideoPlaybackNotifier _videoPlayback;
 
   @override
   void initState() {
     super.initState();
+    _videoPlayback = ref.read(videoPlaybackProvider.notifier);
     _messagesList = ChatMessagesList(chatId: widget.chatId, audioPlayer: _audioPlayer, videoPlayer: null, onPlayVideo: _playVideo, videoLoadingUrl: null);
     FcmService.registerActiveChat(widget.chatId);
     ref.read(replyToMessageProvider.notifier).clear(widget.chatId);
@@ -97,7 +101,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     FcmService.unregisterActiveChat(widget.chatId);
     _textCtrl.dispose();
     _audioPlayer.dispose();
-    ref.read(videoPlaybackProvider.notifier).stop(widget.chatId);
+    _videoPlayback.stop(widget.chatId);
     DebugConfig.log(DebugConfig.uiInteraction,
         'ChatScreen dispose #$_instanceId: ${widget.chatId}');
     super.dispose();

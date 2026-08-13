@@ -77,19 +77,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         'ChatScreen: composer state cleared chat=${widget.chatId}');
     DebugConfig.log(DebugConfig.uiInteraction,
         'ChatScreen init #$_instanceId: ${widget.chatId}');
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
 
       final allChats = ref.read(chatsProvider).asData?.value ?? [];
       final cached = allChats.where((c) => c.chatId == widget.chatId).firstOrNull;
-      final isGroup = cached?.isGroupChat
-          ?? widget.navExtra?.isGroupChat
-          ?? false;
+      final knownGroup = cached?.isGroupChat ?? widget.navExtra?.isGroupChat;
+
+      bool isGroup;
+      String src;
+      if (knownGroup != null) {
+        isGroup = knownGroup;
+        src = cached != null ? 'drift' : 'navExtra';
+      } else {
+        // Cold path (invite link / FCM deep link, χωρίς cache/navExtra):
+        // περιμένουμε το πραγματικό doc πριν κάνουμε markAsRead, ώστε να
+        // μην κάνουμε λάθος batch write isRead:true σε group chat.
+        final snap = await ref.read(chatDocProvider(widget.chatId).future);
+        if (!mounted) return; // re-check ΜΕΤΑ το await, πριν ξαναγγίξουμε ref
+        isGroup = snap?.data() != null &&
+            (snap!.data() as Map<String, dynamic>)['isGroupChat'] == true;
+        src = 'firestore-cold';
+      }
 
       DebugConfig.log(DebugConfig.firestoreWrite,
           'ChatScreen: markAsRead chat=${widget.chatId} '
-          'isGroupChat=$isGroup '
-          'src=${cached != null ? "drift" : widget.navExtra != null ? "navExtra" : "default"}');
+          'isGroupChat=$isGroup src=$src');
 
       ref.read(chatActionsProvider.notifier)
           .markAsRead(widget.chatId, isGroupChat: isGroup);

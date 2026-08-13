@@ -1163,9 +1163,9 @@ Email με attachment: το Android email app (π.χ. Gmail, `launchMode=singleT
 
 | Θέμα | Πηγή |
 |---|---|
-| `ChatScreen` ξαναφτιάχνει `_messagesList` σε video play/fail (chat_screen.dart:134,150,161) — σκοτώνει το fix5 width-cache | Session 222 |
+| ~~`ChatScreen` ξαναφτιάχνει `_messagesList` σε video play/fail (chat_screen.dart:134,150,161) — σκοτώνει το fix5 width-cache~~ → **✅ ΚΛΕΙΣΕ (Session 232: videoPlaybackProvider)** | Session 222 |
 | ~~Device test νέων διακριτικών logs (Log A/B/C: item, ReplyPreview id/h, inst) + ανάλυση — ζητήθηκε από χρήστη~~ → **✅ ΕΛΗΞΕ (13 Αυγ)** | Session 221 |
-| `join_confirmation_screen.dart:72` + `fcm_service.dart:89,166` — deep links χωρίς `extra` (group-capable) | Session 218 |
+| ~~`join_confirmation_screen.dart:72` + `fcm_service.dart:89,166` — deep links χωρίς `extra` (group-capable)~~ → **✅ ΚΛΕΙΣΕ (Session 232: ChatScreen cold-path chatDoc lookup με `!mounted` re-check)** | Session 218 |
 | `AppMessenger.showLoading/hideLoading` — dead code (δεν καλούνται πουθενά· τα media sends χρησιμοποιούν `_isLoading` spinner) | Session 225 |
 
 ---
@@ -1404,3 +1404,16 @@ Email με attachment: το Android email app (π.χ. Gmail, `launchMode=singleT
 - **Fix (canonical pattern):** field `late final VideoPlaybackNotifier _videoPlayback;` → αποθήκευση στο `initState` (`ref.read(videoPlaybackProvider.notifier)`) → `dispose()` καλεί `_videoPlayback.stop(chatId)` χωρίς `ref`. Backup `backups/chat_screen_20260813_133117.dart`.
 - **Επαλήθευση ότι το notifier είναι ασφαλές:** `stop()`/`_disposeController()`/`play()` χρησιμοποιούν ΜΟΝΟ το δικό τους `state` — κανένα `ref.read/watch` άλλου provider → ασφαλές να τρέξει σε οποιοδήποτε σημείο (ο notifier είναι global non-autoDispose).
 - `flutter analyze`: clean ✅ · εκκρεμεί re-test (καμία `Bad state` γραμμή).
+
+### ✅ Device re-test PASS (13 Αυγ 13:34-35)
+- **Καμία** `Bad state: Using "ref"` γραμμή (το fix του dispose δουλεύει).
+- `VideoPlayback: disposed controller` → `stop` → `ChatScreen dispose` στο κλείσιμο (13:34:54, 13:35:45).
+- Play 1ο/2ο/3ο βίντεο διαδοχικά: `disposed` → `loading` → `ready`, **0 `MSG_LIST BUILD`** σε όλα (fix5 cache σώζεται).
+- `ChatMessagesList init` 1 φορά/άνοιγμα. Μόνο `MSG_LIST ×2` = νέο μήνυμα (own message scroll) — φυσιολογικό.
+- **PENDING 1 ΚΛΕΙΣΕ:** Session 222 πρόβλημα (ChatScreen ξαναδημιουργούσε `_messagesList`) λύθηκε οριστικά.
+
+### ✅ PENDING 3 ΚΛΕΙΣΕ — deep links χωρίς `extra` (13 Αυγ)
+- **Πρόβλημα:** `join_confirmation_screen.dart:72` + `fcm_service.dart:89,166` πηγαίνουν στο `/chat/$chatId` χωρίς `navExtra`. Σε cold path (cache miss) το `ChatScreen.initState` πήγαινε `isGroup=false` σε group → λάθος batch `isRead:true` σε group μηνύματα (`chat_repository_impl.dart:499`).
+- **Fix (Επιλογή Α, μόνο `chat_screen.dart`):** ο postFrameCallback έγινε `async`· `knownGroup = cached ?? navExtra`· αν null → `await ref.read(chatDocProvider(...).future)` για το πραγματικό `isGroupChat` doc, **με `!mounted` re-check ΜΕΤΑ το await** (same lesson με dispose/ref bug — χρήστης το απαίτησε) · `src='firestore-cold'` στα logs.
+- **Λύει ΚΑΙ τα 2 σημεία με 1 αλλαγή** (fcm_service/join_confirmation δεν αγγίχτηκαν). Zero impact στο normal flow (cached/navExtra υπάρχουν πάντα· chatDocProvider είναι ήδη watched από build → ζωντανός, autoDispose δεν το σκοτώνει).
+- Backup: `backups/chat_screen_20260813_134449.dart` · `flutter analyze`: clean ✅

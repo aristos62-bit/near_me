@@ -1,10 +1,12 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
 import '../../../../core/debug/debug_config.dart';
 import '../../../../core/l10n/l10n.dart';
 import '../../../../core/utils/app_messenger.dart';
 import '../../../../core/utils/error_messages.dart';
+import '../../providers/chat_provider.dart';
 import 'bubble_long_press_wrapper.dart';
 import '../message_reactions.dart';
 
@@ -12,7 +14,7 @@ import 'reply_preview.dart';
 import 'sender_header.dart';
 import 'tail_painter.dart';
 
-class VideoMessageBubble extends StatefulWidget {
+class VideoMessageBubble extends ConsumerStatefulWidget {
   final String content;
   final double bubbleMaxWidth;
   final int duration;
@@ -41,6 +43,8 @@ class VideoMessageBubble extends StatefulWidget {
   final VoidCallback? onInfo;
   final VoidCallback? onEmail;
   final VoidCallback? onShare;
+  // TODO: αχρησιμοποίητο μετά τη μετάβαση σε videoPlaybackProvider —
+  // κρατείται λόγω §7.3 (μην αλλάξεις την υπογραφή του MessageBubble).
   final dynamic videoPlayer;
   final Future<void> Function(String url)? onPlayVideo;
   final String? isLoadingUrl;
@@ -81,18 +85,24 @@ class VideoMessageBubble extends StatefulWidget {
   });
 
   @override
-  State<VideoMessageBubble> createState() => _VideoMessageBubbleState();
+  ConsumerState<VideoMessageBubble> createState() => _VideoMessageBubbleState();
 }
 
-class _VideoMessageBubbleState extends State<VideoMessageBubble> {
+class _VideoMessageBubbleState extends ConsumerState<VideoMessageBubble> {
   bool _isPlaying = false;
   bool _isMuted = true;
   VoidCallback? _listener;
+  // Single source of truth για "σε ποιον controller είμαι συνδεδεμένος" —
+  // όχι re-derive από το provider στα cleanup (δεν είναι εγγυημένη η σειρά
+  // dispose μεταξύ ChatScreen.stop() και του bubble's dispose()).
+  VideoPlayerController? _attachedController;
 
   @override
   void initState() {
     super.initState();
-    _initPlayerListeners();
+    final controller =
+        ref.read(videoPlaybackProvider)[widget.chatId]?.controller;
+    _attachListener(controller);
   }
 
   @override
@@ -100,9 +110,9 @@ class _VideoMessageBubbleState extends State<VideoMessageBubble> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.content != widget.content) {
       _resetState();
-      _initPlayerListeners();
-    } else if (oldWidget.videoPlayer != widget.videoPlayer) {
-      _initPlayerListeners();
+      _attachListener(
+        ref.read(videoPlaybackProvider)[widget.chatId]?.controller,
+      );
     }
   }
 
@@ -113,11 +123,11 @@ class _VideoMessageBubbleState extends State<VideoMessageBubble> {
   }
 
   void _removeListener() {
-    final controller = _getController();
-    if (controller != null && _listener != null) {
-      controller.removeListener(_listener!);
+    if (_attachedController != null && _listener != null) {
+      _attachedController!.removeListener(_listener!);
     }
     _listener = null;
+    _attachedController = null;
   }
 
   void _resetState() {
@@ -125,9 +135,9 @@ class _VideoMessageBubbleState extends State<VideoMessageBubble> {
     _isMuted = true;
   }
 
-  void _initPlayerListeners() {
+  void _attachListener(VideoPlayerController? controller) {
     _removeListener();
-    final controller = _getController();
+    _attachedController = controller;
     if (controller == null) return;
 
     _listener = () {
@@ -144,8 +154,8 @@ class _VideoMessageBubbleState extends State<VideoMessageBubble> {
   }
 
   VideoPlayerController? _getController() {
-    if (widget.videoPlayer == null) return null;
-    final c = widget.videoPlayer as VideoPlayerController;
+    final c = ref.read(videoPlaybackProvider)[widget.chatId]?.controller;
+    if (c == null) return null;
     if (!c.value.isInitialized) return null;
     return c;
   }
@@ -157,16 +167,20 @@ class _VideoMessageBubbleState extends State<VideoMessageBubble> {
   }
 
   Future<void> _togglePlayPause() async {
-    if (widget.videoPlayer == null && widget.onPlayVideo != null) {
-      await widget.onPlayVideo!(widget.content);
+    final chatId = widget.chatId;
+    if (chatId == null) return;
+    if (_getController() == null) {
+      await ref
+          .read(videoPlaybackProvider.notifier)
+          .play(chatId, widget.content);
       return;
     }
     final controller = _getController();
     if (controller == null) return;
     if (!_isMyController()) {
-      if (widget.onPlayVideo != null) {
-        await widget.onPlayVideo!(widget.content);
-      }
+      await ref
+          .read(videoPlaybackProvider.notifier)
+          .play(chatId, widget.content);
       return;
     }
     try {
@@ -210,6 +224,22 @@ class _VideoMessageBubbleState extends State<VideoMessageBubble> {
         ? const Color(0xFF075E54)
         : theme.colorScheme.surfaceContainerHighest;
 
+    // Reactive rendering value: μόνο για το συγκεκριμένο bubble Element —
+    // δεν ανεβαίνει cascade στο ChatMessagesList/ListView.builder.
+    final playback = ref.watch(
+      videoPlaybackProvider.select((s) => s[widget.chatId]),
+    );
+    // Imperative side-effect: Riverpod-ισοδύναμο του didUpdateWidget για
+    // reactive state — attach/detach σε αλλαγή ενεργού controller.
+    ref.listen<VideoPlaybackInfo?>(
+      videoPlaybackProvider.select((s) => s[widget.chatId]),
+      (prev, next) {
+        if (prev?.controller != next?.controller) {
+          _attachListener(next?.controller);
+        }
+      },
+    );
+
     final bubbleBorderRadius = BorderRadius.only(
       topLeft: const Radius.circular(16),
       topRight: const Radius.circular(16),
@@ -222,7 +252,7 @@ class _VideoMessageBubbleState extends State<VideoMessageBubble> {
     final totalSecStr = (totalSec % 60).toString().padLeft(2, '0');
     final controller = _getController();
     final isMyController = _isMyController();
-    final isLoading = widget.content == widget.isLoadingUrl;
+    final isLoading = widget.content == playback?.loadingUrl;
     final videoAspectRatio =
         (isMyController && controller != null && controller.value.isInitialized)
         ? controller.value.aspectRatio

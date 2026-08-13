@@ -5,7 +5,6 @@ import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:video_player/video_player.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../repositories/chat_repository.dart';
@@ -61,13 +60,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _textCtrl = TextEditingController();
   bool _emojiPickerVisible = false;
   final _audioPlayer = AudioPlayer();
-  VideoPlayerController? _videoController;
   late Widget _messagesList;
 
   @override
   void initState() {
     super.initState();
-    _messagesList = ChatMessagesList(chatId: widget.chatId, audioPlayer: _audioPlayer, videoPlayer: _videoController, onPlayVideo: _playVideo, videoLoadingUrl: null);
+    _messagesList = ChatMessagesList(chatId: widget.chatId, audioPlayer: _audioPlayer, videoPlayer: null, onPlayVideo: _playVideo, videoLoadingUrl: null);
     FcmService.registerActiveChat(widget.chatId);
     ref.read(replyToMessageProvider.notifier).clear(widget.chatId);
     ref.read(editingMessageProvider.notifier).clear(widget.chatId);
@@ -99,7 +97,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     FcmService.unregisterActiveChat(widget.chatId);
     _textCtrl.dispose();
     _audioPlayer.dispose();
-    _videoController?.dispose();
+    ref.read(videoPlaybackProvider.notifier).stop(widget.chatId);
     DebugConfig.log(DebugConfig.uiInteraction,
         'ChatScreen dispose #$_instanceId: ${widget.chatId}');
     super.dispose();
@@ -123,47 +121,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Future<void> _playVideo(String url) async {
-    _videoController?.pause();
-    _videoController?.dispose();
-    _videoController = null;
-
-    setState(() {
-      _messagesList = ChatMessagesList(
-        chatId: widget.chatId,
-        audioPlayer: _audioPlayer,
-        videoPlayer: null,
-        onPlayVideo: _playVideo,
-        videoLoadingUrl: url,
-      );
-    });
-
-    try {
-      final controller = VideoPlayerController.networkUrl(Uri.parse(url));
-      await controller.initialize();
-      controller.setVolume(0.0);
-
-      setState(() {
-        _videoController = controller;
-        _messagesList = ChatMessagesList(
-          chatId: widget.chatId,
-          audioPlayer: _audioPlayer,
-          videoPlayer: _videoController,
-          onPlayVideo: _playVideo,
-          videoLoadingUrl: null,
-        );
-      });
-    } catch (e, s) {
-      DebugConfig.error('_playVideo failed', data: e, exception: s);
-      setState(() {
-        _messagesList = ChatMessagesList(
-          chatId: widget.chatId,
-          audioPlayer: _audioPlayer,
-          videoPlayer: null,
-          onPlayVideo: _playVideo,
-          videoLoadingUrl: null,
-        );
-      });
-    }
+    await ref.read(videoPlaybackProvider.notifier).play(widget.chatId, url);
   }
 
   Future<void> _leaveGroup() async {

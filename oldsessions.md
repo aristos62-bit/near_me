@@ -1360,3 +1360,40 @@ Email με attachment: το Android email app (π.χ. Gmail, `launchMode=singleT
 - `backups/message_reactions_20260813_123055.dart`
 - `backups/message_reactions_row_20260813_123055.dart`
 - `backups/oldsessions_20260813_123256.md`
+
+---
+
+## Session 232 — PENDING 1: Video `_messagesList` rebuild → videoPlaybackProvider (100%) — 13 Αυγ 2026
+
+### Το πρόβλημα (κλείσιμο PENDING 1)
+Το `ChatScreen` ξαναδημιουργούσε ολόκληρο το `ChatMessagesList` **3 φορές** σε video play/fail (chat_screen.dart:134,150,161) — σκότωνε το fix5 width-cache (Session 222). Ο κανόνας `reply_card.md` §7.3 («ΠΟΤΕ αλλαγή υπογραφής MessageBubble / itemBuilder») και το «κλειδωμένο» fix5 αποκλείουν την περνάδα props.
+
+### Επανέλεγχος (πριν την υλοποίηση)
+- **Υπάρχουσα υποδομή:** το `chat_provider.dart` έχει ήδη το pattern `Notifier<Map<String, …>>` keyed by chatId (`ReplyToMessageNotifier`, `EditingMessageNotifier`, `PendingPrivateReplyNotifier`) για state που διαβάζουν τα bubbles χωρίς αλλαγή υπογραφής — το video ακολούθησε ακριβώς αυτό.
+- **Το `VideoMessageBubble` ήδη αυτο-φιλτράρει** μέσω `_isMyController()` (`controller.dataSource == widget.content`) — δεν χρειάζεται να ξέρει «ποιο μήνυμα παίζει» από props.
+- **Κριτικό κενό (σημείωση χρήστη, επιβεβαιωμένο):** το `_initPlayerListeners()` ενεργοποιούνταν μέσω `didUpdateWidget` (αλλαγή props). Με `ref.watch` μόνο, το side-effect (attach/detach listener) δεν θα ξαναέτρεχε — stale listener σε παλιό controller. Λύση: `ref.listen` στο build (Riverpod-ισοδύναμο του didUpdateWidget) + `_attachedController` State field ως single source of truth (όχι re-derive από provider στα cleanup — η σειρά dispose ChatScreen vs bubble δεν είναι εγγυημένη).
+
+### Αλλαγές (3 αρχεία, backups `*_20260813_131456.dart`)
+- **`chat_provider.dart`** — νέο `VideoPlaybackInfo {controller, loadingUrl}` + `VideoPlaybackNotifier` (`play(chatId, url)`: dispose παλιού → loadingUrl → init → controller· `stop(chatId)`: dispose+clear) + `videoPlaybackProvider`. Import `video_player`. Logs `DebugConfig.chatVideo` σε loading/ready/fail/stop/dispose.
+- **`chat_screen.dart`** — `_playVideo` → 1 γραμμή `ref.read(videoPlaybackProvider.notifier).play(widget.chatId, url)`· αφαίρεση `_videoController` field + `dispose()` → `stop(chatId)`· αφαίρεση unused import `video_player`· `_messagesList` μένει fixed (χωρίς ξαναδημιουργίες).
+- **`video_message_bubble.dart`** — `StatefulWidget` → `ConsumerStatefulWidget` (υπογραφή **ίδια**): `_attachedController` field· `_attachListener(controller)` (remove-old → attach-new)· `_removeListener()` βάσει `_attachedController`· `initState` = `ref.read`· `didUpdateWidget` μόνο σε content change· build: `ref.watch` (rendering value) + `ref.listen` (side-effect: `prev?.controller != next?.controller` → `_attachListener`)· `_togglePlayPause` → notifier.play (null-guard chatId)· `isLoading` από `playback?.loadingUrl`· TODO σχόλιο στα νεκρά πεδία (`videoPlayer`/`onPlayVideo`/`isLoadingUrl`) — επιλογή **Α** (dead props ως fallback, πλήρης τήρηση §7.3).
+
+### Τι ΔΕΝ άλλαξε
+- `chat_messages_list.dart` — **ακέραιο** (fix5 άθικτο) · `message_bubble.dart` υπογραφή/`itemBuilder` — **ακέραια** · audio/gif/text/emoji/system bubbles — **ακέραια** · `ChatInputBar` (δικό του local controller για preview) — **ακέραιο**.
+
+### Rebuild-scope (επιβεβαίωση)
+`ref.watch`/`ref.listen` σε ConsumerState rebuild-άρουν μόνο το συγκεκριμένο bubble Element — όχι cascade στο ListView. Αφού `_messagesList` δεν αλλάζει πια, το `_buildMessagesList()`/fix5-cache δεν ξανατρέχει λόγω video.
+
+### `flutter analyze`: clean ✅ (0 issues)
+
+### Εκκρεμεί device test (release build)
+1. Play 2ο βίντεο ενώ παίζει το 1ο → το 1ο σταματά, χωρίς «αναβοσβήσιμο» όλης της λίστας.
+2. Loading spinner μόνο στο πατημένο βίντεο· mute/pause toggle OK· play/fail επιστροφή σε thumbnail χωρίς stuck spinner.
+3. Κλείσιμο/άνοιγμα chat → κανένα crash/zombie player.
+4. Logs `MSG_LIST`: σε play/fail **όχι** πλήρες `MSG_LIST BUILD`.
+
+### Backups
+- `backups/chat_provider_20260813_131456.dart`
+- `backups/chat_screen_20260813_131456.dart`
+- `backups/video_message_bubble_20260813_131456.dart`
+- `backups/oldsessions_20260813_131753.md`

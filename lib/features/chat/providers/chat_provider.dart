@@ -9,6 +9,7 @@ import '../../../data/local/database.dart';
 import '../../../repositories/chat_repository.dart';
 import '../../../repositories/chat_repository_impl.dart';
 import '../../../repositories/group_search_repository.dart';
+import 'package:video_player/video_player.dart';
 
 final _chatDocSnapCaches = <String, DocumentSnapshot?>{};
 
@@ -807,4 +808,71 @@ class EditingMessageNotifier extends Notifier<Map<String, Map<String, dynamic>?>
 
 final editingMessageProvider = NotifierProvider<EditingMessageNotifier, Map<String, Map<String, dynamic>?>>(
   EditingMessageNotifier.new,
+);
+
+class VideoPlaybackInfo {
+  final VideoPlayerController? controller;
+  final String? loadingUrl;
+  const VideoPlaybackInfo({this.controller, this.loadingUrl});
+}
+
+/// Κεντρική διαχείριση του ενεργού video player ανά chat. Το `ChatScreen`
+/// ΔΕΝ ξαναδημιουργεί πια το ChatMessagesList σε play/fail (αυτό σκότωνε το
+/// fix5 width-cache) — ο controller ζει εδώ και τα video bubbles τον
+/// διαβάζουν μέσω `ref.watch`/`ref.listen` (Session 232).
+class VideoPlaybackNotifier extends Notifier<Map<String, VideoPlaybackInfo>> {
+  @override
+  Map<String, VideoPlaybackInfo> build() {
+    DebugConfig.log(DebugConfig.providerCreate, 'VideoPlaybackNotifier built');
+    return const {};
+  }
+
+  Future<void> play(String chatId, String url) async {
+    _disposeController(chatId);
+    final loading = Map<String, VideoPlaybackInfo>.from(state);
+    loading[chatId] = VideoPlaybackInfo(loadingUrl: url);
+    state = loading;
+    DebugConfig.log(DebugConfig.chatVideo,
+        'VideoPlayback: loading chat=$chatId url=$url');
+
+    try {
+      final controller = VideoPlayerController.networkUrl(Uri.parse(url));
+      await controller.initialize();
+      controller.setVolume(0.0);
+      final next = Map<String, VideoPlaybackInfo>.from(state);
+      next[chatId] = VideoPlaybackInfo(controller: controller);
+      state = next;
+      DebugConfig.log(DebugConfig.chatVideo,
+          'VideoPlayback: ready chat=$chatId url=$url');
+    } catch (e, s) {
+      DebugConfig.error('VideoPlayback: init failed', data: e, exception: s);
+      final next = Map<String, VideoPlaybackInfo>.from(state);
+      next[chatId] = const VideoPlaybackInfo();
+      state = next;
+    }
+  }
+
+  void stop(String chatId) {
+    if (!state.containsKey(chatId)) return;
+    _disposeController(chatId);
+    final next = Map<String, VideoPlaybackInfo>.from(state);
+    next.remove(chatId);
+    state = next;
+    DebugConfig.log(DebugConfig.chatVideo, 'VideoPlayback: stop chat=$chatId');
+  }
+
+  void _disposeController(String chatId) {
+    final current = state[chatId];
+    if (current?.controller != null) {
+      current!.controller!.pause();
+      current.controller!.dispose();
+      DebugConfig.log(DebugConfig.chatVideo,
+          'VideoPlayback: disposed controller chat=$chatId');
+    }
+  }
+}
+
+final videoPlaybackProvider =
+    NotifierProvider<VideoPlaybackNotifier, Map<String, VideoPlaybackInfo>>(
+  VideoPlaybackNotifier.new,
 );

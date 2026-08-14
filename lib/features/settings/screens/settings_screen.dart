@@ -10,7 +10,9 @@ import '../../../core/utils/app_messenger.dart';
 import '../../../core/utils/error_messages.dart';
 import '../../../core/utils/lock_screen.dart';
 import '../../../core/config/feature_flags.dart';
+import '../../../providers/unread_badge_provider.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../requests/providers/requests_provider.dart';
 import '../providers/app_settings_provider.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -76,6 +78,36 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       AppMessenger.showError(context, ErrorMessages.get('auth/phone-remove-failed', L10n.isGreek(context)));
     } finally {
       if (mounted) setState(() => _isUnlinking = false);
+    }
+  }
+
+  Future<void> _signOut() async {
+    final isGreek = L10n.isGreek(context);
+    final confirmed = await AppMessenger.showConfirmDialog(
+      context,
+      title: L10n.localizedMessage(context, 'Αποσύνδεση / Sign Out'),
+      message: L10n.localizedMessage(context,
+          'Θέλεις σίγουρα να αποσυνδεθείς; / Are you sure you want to sign out?'),
+      confirmLabel: isGreek ? 'Αποσύνδεση' : 'Sign Out',
+      cancelLabel: isGreek ? 'Ακύρωση' : 'Cancel',
+      isDestructive: false,
+    );
+    if (!confirmed) return;
+    if (!mounted) return;
+    DebugConfig.log(DebugConfig.authFlow, 'SettingsScreen: sign out');
+    DebugConfig.log(DebugConfig.providerDispose,
+        '_signOut: invalidating Firestore stream providers');
+    ref.invalidate(incomingRequestsProvider);
+    ref.invalidate(outgoingRequestsProvider);
+    ref.invalidate(unreadBadgeProvider);
+    try {
+      await ref.read(authRepositoryProvider).signOut();
+      DebugConfig.log(DebugConfig.authFlow, 'SettingsScreen: signed out');
+    } catch (e) {
+      DebugConfig.error('SettingsScreen: sign out failed', exception: e);
+      if (!mounted) return;
+      AppMessenger.showError(
+          context, ErrorMessages.get('auth/sign-out-failed', L10n.isGreek(context)));
     }
   }
 
@@ -176,6 +208,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   subtitle: Text(isGreek ? 'Διαχείριση μπλοκαρισμένων χρηστών' : 'Manage blocked users'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.push('/profile/blocked'),
+                ),
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.logout_outlined),
+                  title: Text(isGreek ? 'Αποσύνδεση' : 'Sign Out'),
+                  subtitle: Text(isGreek ? 'Αποσύνδεση από τον λογαριασμό' : 'Sign out of your account'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _signOut(),
                 ),
                 const Divider(),
                 ListTile(

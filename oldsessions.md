@@ -1166,7 +1166,7 @@ Email με attachment: το Android email app (π.χ. Gmail, `launchMode=singleT
 | ~~`ChatScreen` ξαναφτιάχνει `_messagesList` σε video play/fail (chat_screen.dart:134,150,161) — σκοτώνει το fix5 width-cache~~ → **✅ ΚΛΕΙΣΕ (Session 232: videoPlaybackProvider)** | Session 222 |
 | ~~Device test νέων διακριτικών logs (Log A/B/C: item, ReplyPreview id/h, inst) + ανάλυση — ζητήθηκε από χρήστη~~ → **✅ ΕΛΗΞΕ (13 Αυγ)** | Session 221 |
 | ~~`join_confirmation_screen.dart:72` + `fcm_service.dart:89,166` — deep links χωρίς `extra` (group-capable)~~ → **✅ ΚΛΕΙΣΕ (Session 232: ChatScreen cold-path chatDoc lookup με `!mounted` re-check)** | Session 218 |
-| `AppMessenger.showLoading/hideLoading` — dead code (δεν καλούνται πουθενά· τα media sends χρησιμοποιούν `_isLoading` spinner) | Session 225 |
+| ~~`AppMessenger.showLoading/hideLoading` — dead code (δεν καλούνται πουθενά· τα media sends χρησιμοποιούν `_isLoading` spinner)~~ → **✅ ΚΛΕΙΣΕ (Session 232)** | Session 225 |
 
 ---
 
@@ -1417,3 +1417,64 @@ Email με attachment: το Android email app (π.χ. Gmail, `launchMode=singleT
 - **Fix (Επιλογή Α, μόνο `chat_screen.dart`):** ο postFrameCallback έγινε `async`· `knownGroup = cached ?? navExtra`· αν null → `await ref.read(chatDocProvider(...).future)` για το πραγματικό `isGroupChat` doc, **με `!mounted` re-check ΜΕΤΑ το await** (same lesson με dispose/ref bug — χρήστης το απαίτησε) · `src='firestore-cold'` στα logs.
 - **Λύει ΚΑΙ τα 2 σημεία με 1 αλλαγή** (fcm_service/join_confirmation δεν αγγίχτηκαν). Zero impact στο normal flow (cached/navExtra υπάρχουν πάντα· chatDocProvider είναι ήδη watched από build → ζωντανός, autoDispose δεν το σκοτώνει).
 - Backup: `backups/chat_screen_20260813_134449.dart` · `flutter analyze`: clean ✅
+
+### ✅ PENDING 3 device test PASS (13 Αυγ 13:49-50)
+- **Regression:** 1-1 `fUt4...ZQ` → `src=drift isGroupChat=false` · group `MJtzpl...` → `src=drift isGroupChat=true` · dispos χωρίς exceptions ✅
+- **Cold path:** cold start → `FCM executing pending nav=/chat/Sfh...KuY` (χωρίς extra) → `ChatScreen init #0` → **`src=firestore-cold isGroupChat=false`** → `chatDocProvider emit` ΠΡΙΝ το `markAsRead` (σωστή σειρά) · `Sfh...KuY` είναι όντως 1-1 (Session 218) ✅
+- Μηδέν `Bad state`/flutter exceptions · όλα τα E/ system-level (MIUI/Finsky/ads).
+- Σημείωση: cold-path group chat δεν δοκιμάστηκε (δεν υπήρχε FCM group push) — αλλά το flag έρχεται από το doc (truth), άρα εξ ορισμού σωστό.
+
+### ✅ PENDING 4 ΚΛΕΙΣΕ — AppMessenger dead code (13 Αυγ)
+- **Πρόβλημα:** `AppMessenger.showLoading/hideLoading` ήταν dead code από το Session 225 (κανένα call σε όλο το lib) — το app χρησιμοποιεί `_isLoading` spinner, όχι modal loading.
+- **Fix:** αφαίρεση και των δύο μεθόδων από το `app_messenger.dart` (γρ. 144-176). Τα `showSuccess/showError/showInfo/showConfirmDialog` έμειναν ως έχουν.
+- Backup: `backups/app_messenger_20260813_135235.dart` · `flutter analyze`: clean ✅
+
+---
+
+## Session 233 — ID token claims-check (cold start) + Sign Out στο Settings (100%) — 14 Αυγ 2026
+
+### 1) Stale ID token claims-check — πλήρες restart-scenario coverage
+
+**Το πρόβλημα (restart gap):** Το `main.dart` auth listener είχε `if ((uidChanged || emailVerifiedChanged) && prev is AsyncData)` — το `prev is AsyncData` guard έκανε SKIP **όλο** το block σε καθαρό cold start (πρώτο emit = `AsyncLoading`, όχι `AsyncData`). Έτσι, στο σενάριο «register unverified → kill app → επαλήθευση εξωτερικά (κλικ στο link) → cold start», το claims-check **δεν έτρεχε ποτέ** → το cached ID token έμενε με claim `email_verified: false` έως ~1h → το Firestore rule `isVerified()` (firestore.rules:60-63, `request.auth.token.email_verified`) μπλόκαρε writes (chat/requests) server-side ενώ το UI έδειχνε `canComm=true`.
+
+**Διάγνωση (device logs, 14 Αυγ):**
+- Live verification (ίδιο session): claims-check έτρεχε κανονικά (`cached ID token stale … force refreshing` → `force-refreshed`) ✅
+- Restart μετά από εξωτερική επαλήθευση (11:32:43): `listener fired … nextVerified=true` αλλά **ΚΑΝΕΝΑ** claims-check log — block skipped (`prev=AsyncLoading`) → stale token μη φρεσαρισμένο ❌
+
+**Fix (μόνο `main.dart`, backup `backups/main_claimscheck_20260814_113558.dart`):**
+- Το claims-check μετακινήθηκε **ΕΚΤΟΣ** του `prev is AsyncData` guard (main.dart:450-473) — τρέχει σε κάθε emission όταν `nextUser != null && nextUser.emailVerified`:
+  - `getIdTokenResult(false)` (local, 0 δίκτυο) → αν claim `email_verified == true` → `skip refresh` (return)
+  - Αλλιώς `getIdToken(true).timeout(6s)` → `force-refreshed`
+  - `.catchError` για check/refresh failures
+- Καλύπτει: live verification, cold-start μετά από εξωτερική επαλήθευση, login verified account. 0 δίκτυο όταν το token είναι ήδη σωστό.
+- Αφαιρέθηκε το stale σχόλιο (π.χ. `prevUser != null` προσέγγιση) + typo fix.
+
+**Πλήρες test (14 Αυγ, release):** register `soc.near.app@gmail.com` → sign out → kill → external verify → cold start:
+```
+11:49:03.688  listener fired prevUid=null … nextVerified=true
+11:49:03.688  cached ID token stale (claims say unverified) — force refreshing uid=kEs5O…
+11:49:04.841  ID token force-refreshed uid=kEs5O…           ← ακριβώς 1×
+11:49:04.841  listener fired prevVerified=true nextVerified=true
+11:49:04.841  cached ID token already reflects emailVerified, skip refresh   ← 2ο fire: skip
+```
+- Register (unverified): claims-check skip ✅ · `reload()` χωρίς timeout ✅ · 0 errors ✅
+- **Sign Out από Settings** (νέο): πλήρες cleanup + redirect `/welcome` ✅
+- `flutter analyze lib/main.dart`: clean ✅
+
+### 2) Sign Out στο Settings (για χρήστες χωρίς προφίλ)
+
+**Σκοπός:** Ο χρήστης που δεν έχει δημιουργήσει προφίλ δεν βλέπει το ProfileScreen (που είχε το μοναδικό Sign Out) → δεν μπορούσε να αποσυνδεθεί. Προστέθηκε Sign Out στο Settings πάνω από τη Διαγραφή Λογαριασμού.
+
+**Fix (μόνο `lib/features/settings/screens/settings_screen.dart`, backup `backups/settings_screen_signout_20260814_114543.dart`):**
+- **Imports:** `../../../providers/unread_badge_provider.dart` + `../../requests/providers/requests_provider.dart`
+- **Μέθοδος `_signOut()`:** ίδιο pattern με profile_screen (confirm dialog → invalidate `incomingRequestsProvider`/`outgoingRequestsProvider`/`unreadBadgeProvider` → `authRepositoryProvider.signOut()` → error handling `auth/sign-out-failed`)
+- **ListTile "Αποσύνδεση / Sign Out"** στο block `if (!isAnonymous)`, πάνω από το "Διαγραφή Λογαριασμού" + Divider
+- Device-verified: confirm dialog → `SettingsScreen: sign out` → cleanup (`Cleared 2 tokens`, `Presence setOffline`, chat cache) → `SettingsScreen: signed out` → redirect `/welcome` ✅
+
+### Backups
+- `backups/main_claimscheck_20260814_113558.dart`
+- `backups/settings_screen_signout_20260814_114543.dart`
+- `backups/oldsessions_20260814_115102.md`
+- `backups/firestore_cost_optimization_20260814_115102.md`
+
+### `flutter analyze`: clean ✅ (0 issues)

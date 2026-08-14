@@ -15,6 +15,7 @@ import '../../../core/utils/connectivity_guard.dart';
 import '../../../core/utils/error_messages.dart';
 import '../../../data/local/database.dart';
 import '../../../features/chat/providers/chat_provider.dart';
+import '../../../shared/utils/age_validation.dart';
 import '../../../shared/utils/image_utils.dart';
 import '../../../shared/widgets/chip_selector.dart';
 import '../../../shared/widgets/editor_scaffold.dart';
@@ -34,6 +35,8 @@ class ProfileEditorScreen extends ConsumerStatefulWidget {
 
 class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _nicknameKey = GlobalKey<FormFieldState<String>>();
+  final _birthYearKey = GlobalKey<FormFieldState<String>>();
   final _picker = ImagePicker();
 
   late TextEditingController _nicknameCtrl, _fullNameCtrl, _bioCtrl, _birthYearCtrl;
@@ -367,7 +370,14 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
   }
 
   Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      final firstError = _nicknameKey.currentState?.errorText ??
+          _birthYearKey.currentState?.errorText;
+      if (firstError != null && mounted) {
+        AppMessenger.showError(context, firstError);
+      }
+      return;
+    }
     if (!await ConnectivityGuard.ensure(context)) return;
     DebugConfig.log(DebugConfig.uiInteraction, 'ProfileEditorScreen save');
     setState(() => _isSaving = true);
@@ -476,12 +486,12 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
       body: Form(key: _formKey, child: ListView(padding: const EdgeInsets.only(bottom: 32), children: [
         _buildAvatarHeader(),
         FormSection(title: g ? 'Βασικά Στοιχεία' : 'Basic Info', children: [
-          _buildTextField(icon: Icons.person, label: g ? 'Ψευδώνυμο' : 'Nickname', ctrl: _nicknameCtrl, required: true),
+          _buildTextField(icon: Icons.person, label: g ? 'Ψευδώνυμο' : 'Nickname', ctrl: _nicknameCtrl, required: true, fieldKey: _nicknameKey),
           _buildTextField(icon: Icons.badge_outlined, label: g ? 'Πλήρες Όνομα' : 'Full Name', ctrl: _fullNameCtrl),
           _buildTextField(icon: Icons.article_outlined, label: g ? 'Βιογραφικό' : 'Bio', ctrl: _bioCtrl, maxLines: 3),
         ]),
         FormSection(title: g ? 'Προσωπικά' : 'Personal', children: [
-          _buildTextField(icon: Icons.cake_outlined, label: g ? 'Έτος Γέννησης' : 'Birth Year', ctrl: _birthYearCtrl, keyboardType: TextInputType.number),
+          _buildTextField(icon: Icons.cake_outlined, label: g ? 'Έτος Γέννησης' : 'Birth Year', ctrl: _birthYearCtrl, keyboardType: TextInputType.number, required: true, validator: (v) => AgeValidation.validateBirthYearField(v, isGreek: g), fieldKey: _birthYearKey),
           const SizedBox(height: 8),
           ChipSelector(options: _genders, selectedValue: _gender, onSelected: (v) => setState(() => _gender = v), labels: _genderLabels(g)),
         ]),
@@ -646,10 +656,11 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
     );
   }
 
-  Widget _buildTextField({required IconData icon, required String label, required TextEditingController ctrl, bool required = false, int maxLines = 1, TextInputType? keyboardType}) {
+  Widget _buildTextField({required IconData icon, required String label, required TextEditingController ctrl, bool required = false, int maxLines = 1, TextInputType? keyboardType, String? Function(String?)? validator, GlobalKey<FormFieldState<String>>? fieldKey}) {
     final g = L10n.isGreek(context);
-    return Padding(padding: const EdgeInsets.only(bottom: 12), child: TextFormField(controller: ctrl, maxLines: maxLines, keyboardType: keyboardType,
-      validator: required ? (v) => (v == null || v.trim().isEmpty) ? (g ? 'Υποχρεωτικό πεδίο' : 'Required') : null : null,
+    final fieldValidator = validator ?? (required ? (v) => (v == null || v.trim().isEmpty) ? (g ? 'Υποχρεωτικό πεδίο' : 'Required') : null : null);
+    return Padding(padding: const EdgeInsets.only(bottom: 12), child: TextFormField(key: fieldKey, controller: ctrl, maxLines: maxLines, keyboardType: keyboardType,
+      validator: fieldValidator,
       decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 20), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14))));
   }
 

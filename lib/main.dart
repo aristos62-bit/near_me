@@ -433,27 +433,43 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
         if ((uidChanged || emailVerifiedChanged) && prev is AsyncData) {
           DebugConfig.log(DebugConfig.authFlow,
               'main: auth changed — about to invalidate chatsProvider '
-              'uidChanged=$uidChanged emailVerifiedChanged=$emailVerifiedChanged');
+                  'uidChanged=$uidChanged emailVerifiedChanged=$emailVerifiedChanged');
           ref.invalidate(chatsProvider);
           if (uidChanged) {
             DebugConfig.log(DebugConfig.authFlow,
                 'main: uid changed ${prevUser?.uid ?? "null"} → ${nextUser?.uid ?? "null"}');
           }
+
           if (emailVerifiedChanged) {
             DebugConfig.log(DebugConfig.authFlow,
                 'main: emailVerified changed ${prevUser?.emailVerified} → ${nextUser?.emailVerified}');
-            if (nextUser != null && nextUser.emailVerified) {
-              nextUser.getIdToken(true).then((_) {
-                DebugConfig.log(DebugConfig.authFlow,
-                    'main: ID token force-refreshed after email verification uid=${nextUser.uid}');
-              }).catchError((Object e, StackTrace s) {
-                DebugConfig.error('main: getIdToken(true) failed after email verification',
-                    data: e, exception: s);
-              });
-            }
           }
           DebugConfig.log(DebugConfig.providerDispose,
               'main: invalidated chatsProvider (auth change)');
+        }
+        // Claims-check: τρέχει όσο ο χρήστης είναι verified — καλύπτει και
+        // cold start, άρα το restart μετά από εξωτερική επαλήθευση φρεσκάρει
+        // το stale token. Φθηνός έλεγχος (getIdTokenResult(false), χωρίς
+        // δίκτυο): αν το claim συμφωνεί ήδη με το γνωστό emailVerified=true,
+        // τίποτα άλλο. Force refresh μόνο όταν το token λέει ακόμα unverified.
+        if (nextUser != null && nextUser.emailVerified) {
+          nextUser.getIdTokenResult(false).then((tokenResult) async {
+            final tokenSaysVerified =
+                tokenResult.claims?['email_verified'] == true;
+            if (tokenSaysVerified) {
+              DebugConfig.log(DebugConfig.authFlow,
+                  'main: cached ID token already reflects emailVerified, skip refresh uid=${nextUser.uid}');
+              return;
+            }
+            DebugConfig.log(DebugConfig.authFlow,
+                'main: cached ID token stale (claims say unverified) — force refreshing uid=${nextUser.uid}');
+            await nextUser.getIdToken(true).timeout(const Duration(seconds: 6));
+            DebugConfig.log(DebugConfig.authFlow,
+                'main: ID token force-refreshed uid=${nextUser.uid}');
+          }).catchError((Object e, StackTrace s) {
+            DebugConfig.error('main: ID token check/refresh failed',
+                data: e, exception: s);
+          });
         }
       }
       if (prevUser != null && nextUser == null && mounted) {

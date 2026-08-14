@@ -225,6 +225,12 @@ class ErrorMessages {
         return isGreek ? 'Έχεις μη αποθηκευμένες αλλαγές. Θέλεις να αποθηκεύσεις πριν φύγεις;' : 'You have unsaved changes. Save before leaving?';
       case 'profile/nickname-required':
         return isGreek ? 'Το ψευδώνυμο είναι υποχρεωτικό' : 'Nickname is required';
+      case 'profile/birth-year-required':
+        return isGreek ? 'Το έτος γέννησης είναι υποχρεωτικό' : 'Birth year is required';
+      case 'profile/birth-year-invalid':
+        return isGreek ? 'Μη έγκυρο έτος γέννησης (1900-σήμερα)' : 'Invalid birth year (1900-current)';
+      case 'profile/min-age-required':
+        return isGreek ? 'Πρέπει να είσαι τουλάχιστον 18 ετών για να χρησιμοποιήσεις το NearMe' : 'You must be at least 18 to use NearMe';
       case 'profile/saved':
         return isGreek ? 'Αποθηκεύτηκε' : 'Saved';
       case 'profile/saved-success':

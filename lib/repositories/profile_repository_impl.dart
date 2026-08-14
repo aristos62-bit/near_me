@@ -9,6 +9,7 @@ import '../data/local/database.dart';
 import '../data/local/database_service.dart';
 import '../shared/models/public_profile.dart';
 import '../shared/models/user_status.dart';
+import '../shared/utils/age_validation.dart';
 import 'profile_repository.dart';
 import 'profile_storage_mixin.dart';
 
@@ -110,7 +111,9 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
           uid: uid,
           nickname: pub.nickname ?? '',
           bio: pub.bio,
-          birthYear: pub.age != null ? now.year - pub.age! : null,
+          birthYear: pub.age != null && pub.age! >= 18
+              ? now.year - pub.age!
+              : null,
           gender: pub.gender,
           interests: pub.interests,
           occupations: pub.occupations,
@@ -153,6 +156,13 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
     if (uid == null || uid.isEmpty) {
       throw const AppException(
           message: 'No authenticated user', code: 'auth_required');
+    }
+    if (!AgeValidation.isPlausibleBirthYear(profile.birthYear) ||
+        !AgeValidation.isAdultBirthYear(profile.birthYear)) {
+      DebugConfig.error('saveProfile REJECTED invalid birthYear=${profile.birthYear}');
+      throw const AppException(
+          message: 'Birth year is required and must be 18+',
+          code: 'validation_error');
     }
     try {
       final now = DateTime.now();
@@ -292,6 +302,13 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
       if (profile == null) {
         throw const AppException(
             message: 'Cannot publish: no profile exists',
+            code: 'validation_error');
+      }
+      if (!AgeValidation.isPlausibleBirthYear(profile.birthYear) ||
+          !AgeValidation.isAdultBirthYear(profile.birthYear)) {
+        DebugConfig.error('publish REJECTED invalid birthYear=${profile.birthYear}');
+        throw const AppException(
+            message: 'Cannot publish: birth year is required and must be 18+',
             code: 'validation_error');
       }
       await _ensurePrivacySettings(uid);

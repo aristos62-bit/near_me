@@ -295,12 +295,12 @@ class AppRouter {
       final uidChanged = uid != _lastUid;
       if (user != null) {
         try {
-          await user.reload();
+          await user.reload().timeout(const Duration(seconds: 6));
           final elapsed = DateTime.now().difference(t0).inMilliseconds;
           DebugConfig.log(DebugConfig.authFlow,
               'AppRouter: user.reload() completed in ${elapsed}ms uid=${user.uid}');
         } catch (_) {
-          DebugConfig.warn('AppRouter: user.reload() failed, using cached data');
+          DebugConfig.warn('AppRouter: user.reload() failed/timeout, using cached data');
         }
       }
       if (uidChanged) {

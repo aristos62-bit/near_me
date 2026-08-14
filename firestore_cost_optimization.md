@@ -496,6 +496,10 @@ const tokensSnap = await db.collection(`users/${recipientUid}/fcm_tokens`).get()
 
 **Εξοικονόμηση:** 1 επιπλέον `streamChats()` query + decrypt cycle στο startup. Αμελητέο κόστος αλλά διορθώνει περιττό pattern.
 
+> **⚠️ Ενημέρωση (14 Αυγ, Session 233):** Το `prev is AsyncData` guard είναι **ημιτελές** — σε καθαρό cold start το πρώτο emit είναι `AsyncLoading` (όχι `AsyncData`), άρα το guard κάνει SKIP ολόκληρο το block → το claims-check (ID token refresh μετά από external verification) δεν έτρεχε ποτέ → stale token με claim `email_verified: false` έως ~1h → Firestore rule `isVerified()` μπλόκαρε writes server-side.
+>
+> **Fix:** Το claims-check μετακινήθηκε **ΕΚΤΟΣ** του guard (main.dart:450-473): τρέχει όταν `nextUser != null && nextUser.emailVerified` — `getIdTokenResult(false)` (local) + conditional `getIdToken(true).timeout(6s)`. Ο outer guard για το `ref.invalidate(chatsProvider)` παραμένει ως έχει (P2.6 σκοπός αμετάβλητος). Device-verified (14 Αυγ): cold start μετά από external verification → `force refreshing` → `force-refreshed`, ακριβώς 1×, 2ο fire skip. Backup: `backups/main_claimscheck_20260814_113558.dart`.
+
 ---
 
 ### P2.5 — `sendChatNotification`: sender profile read also in non-group branch

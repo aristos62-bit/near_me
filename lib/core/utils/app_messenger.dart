@@ -140,40 +140,6 @@ class AppMessenger {
       ),
     );
   }
-
-  static void showLoading(BuildContext context, {String? message}) {
-    DebugConfig.log(DebugConfig.uiInteraction, 'AppMessenger showLoading: ${message ?? "no message"}');
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => PopScope(
-        canPop: false,
-        child: Center(
-          child: Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const CircularProgressIndicator(),
-                  if (message != null) ...[
-                    const SizedBox(height: 16),
-                    Text(message, style: Theme.of(ctx).textTheme.bodyMedium),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  static void hideLoading(BuildContext context) {
-    DebugConfig.log(DebugConfig.uiInteraction, 'AppMessenger hideLoading');
-    Navigator.of(context, rootNavigator: true).pop();
-  }
 }
 
 enum _SnackBarType { success, error, info }

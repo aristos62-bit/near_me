@@ -81,14 +81,19 @@ service cloud.firestore {
                           && notBanned()
                           && (isOwner(uid) || resource.data.isVisible == true);
 
-              // Πρώτη δημοσίευση: ελεύθερο (δεν υπάρχει ακόμα resource.data να συγκρίνουμε).
-              allow create: if isOwner(uid) && notBanned();
+              // Πρώτη δημοσίευση: ελεύθερο (δεν υπάρχει ακόμα resource.data να συγκρίνουμε),
+              // με age gating 18+ (το age απουσιάζει όταν ο χρήστης κρύβει την ηλικία).
+              allow create: if isOwner(uid) && notBanned()
+                            && (!('age' in request.resource.data)
+                                || request.resource.data.age >= 18);
 
               // Επόμενες ενημερώσεις: το geoHash είτε μένει ίδιο, είτε απουσιάζει
               // εντελώς από το payload (νέος client) — ποτέ νέα τιμή απευθείας
               // από τον client. Μόνο η computeGeoHash function (Admin SDK,
               // παρακάμπτει τα rules) μπορεί να το αλλάξει.
               allow update: if isOwner(uid) && notBanned()
+                            && (!('age' in request.resource.data)
+                                || request.resource.data.age >= 18)
                             && (request.resource.data.geoHash
                                   == resource.data.get('geoHash', null)
                                 || !('geoHash' in request.resource.data));

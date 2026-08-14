@@ -1,6 +1,6 @@
 # NearMe — Επείγουσα Βοήθεια (SOS / Help Request)
 
-> **Κατάσταση:** Πρόταση v3 — επανελέγχθηκε 14/8 (bugs #1-#6 + δευτερεύουσες ενσωματωμένες, rules validation εγκεκριμένο §9.2). ΔΕΝ έχει ξεκινήσει καμία αλλαγή κώδικα.
+> **Κατάσταση:** Πρόταση v3.1 — επανελέγχθηκε 14/8 (bugs #1-#6 + δευτερεύουσες B1-B8 + τρίτος έλεγχος **N1-N9** §9.3, rules validation εγκεκριμένο §9.2). ΔΕΝ έχει ξεκινήσει καμία αλλαγή κώδικα.
 > **Ημερομηνία:** 14 Αυγούστου 2026
 > **Βάση:** Κώδικας τελευταίας έκδοσης (Flutter 3.44.4), oldsessions.md (Κεφάλαιο 10 — rebuild storms, Sessions 215-233), firestore_cost_optimization.md
 
@@ -28,7 +28,7 @@
 | 1 | **Ποιος μπορεί να ζητήσει** | Όλα: `canUserCommunicate` (verified) + `isPublished` + γεωεντοπισμός (lat/lng) + **τουλάχιστον ένα** ανοιχτό κανάλι (`allowDirectChat` ή `showEmail` ή `showPhone` ή `allowVideoCall`) |
 | 2 | **Αποθήκευση** | Στο ίδιο `users/{uid}/public/profile` (πεδίο `helpRequest`) — χωρίς νέο collection/query/index |
 | 3 | **Τερματισμός** | Χειροκίνητο **και** αυτόματο TTL **60 λεπτά** |
-| 4 | **Απόσταση** | Την επιλέγει ο **αιτών** (radiusKm) — μόνο όσοι είναι εντός του βλέπουν κόκκινη κάρτα |
+| 4 | **Απόσταση** | Την επιλέγει ο **αιτών** (radiusKm) — μόνο όσοι είναι εντός του βλέπουν κόκκινη κάρτα. **Διευκρίνιση (N4):** το ορατό σύνολο = **τομή** SOS radius (αιτών) ΚΑΙ search radius (βοηθού) — βοηθός με 5km search δεν βλέπει SOS 25km (το φίλτρο radius `_passesFilters` προηγείται) |
 | 5 | **Μήνυμα** | Σύντομο κείμενο (max 80 chars) που εμφανίζεται στην κόκκινη κάρτα |
 | 6 | **Εικονίδιο** | `assets/icons/sos2.webp` (ήδη υπάρχει, ήδη στο pubspec assets) — στην AppBar της Ανακάλυψης δίπλα στο GpsStrengthIndicator |
 | 7 | **Σκοπός `help`** | Μένει, **μόνο μετονομασία label** σε «Υποστήριξη» (το key `'help'` παραμένει) |
@@ -61,7 +61,7 @@
 
 ### 4.1 Νέο freezed class
 
-```dart
+```text
 // lib/shared/models/public_profile.dart — νέο nested class
 @freezed
 abstract class HelpRequest with _$HelpRequest {
@@ -69,7 +69,7 @@ abstract class HelpRequest with _$HelpRequest {
     @Default(false) bool active,
     String? message,           // max 80 chars
     @Default(10.0) double radiusKm,
-    DateTime? updatedAt,       // nullable — αποθήκευση σε UTC: now.toUtc().toIso8601String() (το parent είναι local-no-offset, αλλά το SOS συγκρίνεται cross-device → χρειάζεται UTC, BUG 4)
+    DateTime? updatedAt,       // nullable — αποθήκευση σε UTC: now.toUtc().toIso8601String() (το parent γράφει local-with-offset· στο SOS η σύγκριση είναι cross-device → UTC για αναντίλεκτη σύγκριση, BUG 4 / N5)
   }) = _HelpRequest;
 
   factory HelpRequest.fromJson(Map<String, dynamic> json) =>
@@ -79,7 +79,7 @@ abstract class HelpRequest with _$HelpRequest {
 
 ### 4.2 Νέο πεδίο στο PublicProfile
 
-```dart
+```text
 HelpRequest? helpRequest,   // nested object στο public doc
 ```
 
@@ -119,7 +119,7 @@ users/{uid}/public/profile
 
 **Βήμα 1 — Eligibility check (SPoT util `help_request_config.dart`):**
 
-```dart
+```text
 // Ψευδο-λογική — όλες οι πηγές είναι πραγματικές:
 bool canRequestHelp({
   required bool canComm,        // AuthRepository.canUserCommunicate(user)
@@ -132,7 +132,7 @@ bool canRequestHelp({
 
 **⚠️ Πηγή του `hasChannel` (Εύρημα #3):** πρέπει να διαβάζεται από το **ήδη δημοσιευμένο** `PublicProfile` μέσω `publicProfileStreamProvider(uid)` (profile_provider.dart:26) — δηλαδή από τα 4 πεδία που βλέπουν πραγματικά οι βοηθοί:
 
-```dart
+```text
 bool hasChannel(PublicProfile? pub) =>
     pub?.allowDirectChat == true ||
     pub?.allowVideoCall == true ||
@@ -146,6 +146,8 @@ bool hasChannel(PublicProfile? pub) =>
 
 **⚠️ `hasVisibleLocation` (Β3):** ο έλεγχος γίνεται στο published `geoHash != null`. Με `geoPrecision='hidden'` το `computeGeoHash` **σβήνει** το geoHash (functions/src/index.ts:837) → το SOS θα ήταν ενεργό αλλά αόρατο σε όλους (distances κενό → ποτέ urgent) ενώ ο αιτών θα νόμιζε ότι λειτουργεί. Ο έλεγχος γίνεται μέσω του ίδιου `publicProfileStreamProvider` (όχι νέο stream).
 
+**⚠️ Loading state (N8):** το `publicProfileStreamProvider` είναι `autoDispose.family` → στο πρώτο άνοιγμα του sheet είναι `AsyncLoading`. Το sheet πρέπει να δείχνει loading spinner (pattern LoadingView) μέχρι `AsyncData` πριν το eligibility — αλλιώς θα φαινόταν στιγμιαία ότι όλα λείπουν.
+
 **Βήμα 2 — Settings (αν OK):**
 - Radius selector: **5 / 10 / 25 / 50 km**
 - Message field: maxLength 80 + counter
@@ -153,7 +155,7 @@ bool hasChannel(PublicProfile? pub) =>
 
 **Βήμα 3 — Write:**
 
-```dart
+```text
 await _firestore
     .collection('users').doc(uid).collection('public').doc('profile')
     .update({
@@ -168,7 +170,7 @@ await _firestore
 
 **⚠️ Γιατί `toIso8601String()` και ΟΧΙ `FieldValue.serverTimestamp()` (Εύρημα #1):**
 Το `updatedAt` του `PublicProfile` (και συνεπώς του `HelpRequest`) **δεν αποθηκεύεται ως Firestore Timestamp** — το generated `public_profile.g.dart` διαβάζει/γράφει ISO8601 string (γραμμές 38-40, 66):
-```dart
+```text
 updatedAt: json['updatedAt'] == null
     ? null
     : DateTime.parse(json['updatedAt'] as String),   // περιμένει String, ΟΧΙ Timestamp
@@ -193,7 +195,8 @@ updatedAt: json['updatedAt'] == null
 - Στο άνοιγμα της Discovery: αν το **δικό σου** `helpRequest.updatedAt < now - 60min` → αυτόματο off (1 write) + ενημέρωση UI
 - Οι βοηθοί αγνοούν flags με `updatedAt` εκτός TTL (βλ. §6)
 - **Σύγκριση:** αφού το `updatedAt` είναι ISO8601 string, πάντα `DateTime.parse(h.updatedAt)` → σύγκριση ως `DateTime` (ποτέ string comparison)
-- **Ζώνη ώρας (BUG 4):** γράφουμε σε **UTC** (`now.toUtc().toIso8601String()` → καταλήγει σε `Z`). Το `DateTime.parse` ενός string με `Z` δίνει το **ίδιο instant για όλους** τους βοηθούς ανεξαρτήτως ζώνης. Αν γράφαμε local-no-offset (π.χ. `15:00` Αθήνας χωρίς `Z`), ο βοηθός σε άλλη ζώνη θα το ερμήνευε ως **δικό του** τοπικό → λάθος duration: βοηθοί δυτικά → «μόνιμα urgent», βοηθοί ανατολικά → «ποτέ urgent». Το parent `updatedAt` έχει το ίδιο idiom αλλά συγκρίνεται μόνο στο ίδιο device (merge στο `getProfile`) → εκεί είναι ακίνδυνο· στο SOS η σύγκριση είναι cross-device, γι' αυτό αλλάζουμε σε UTC μόνο εδώ.
+- **Ζώνη ώρας (BUG 4):** γράφουμε σε **UTC** (`now.toUtc().toIso8601String()` → καταλήγει σε `Z`). Το `DateTime.parse` ενός string με `Z` δίνει το **ίδιο instant για όλους** τους βοηθούς ανεξαρτήτως ζώνης. Αν γράφαμε local-no-offset (π.χ. `15:00` Αθήνας χωρίς `Z`), ο βοηθός σε άλλη ζώνη θα το ερμήνευε ως **δικό του** τοπικό → λάθος duration: βοηθοί δυτικά → «μόνιμα urgent», βοηθοί ανατολικά → «ποτέ urgent». Το parent `updatedAt` έχει το ίδιο idiom αλλά συγκρίνεται μόνο στο ίδιο device (merge στο `getProfile`) → εκεί είναι ακίνδυνο· στο SOS η σύγκριση είναι cross-device, γι' αυτό αλλάζουμε σε UTC μόνο εδώ. *(N5: με το `DateTime.now().toIso8601String()` το parent γράφει πάντα με offset — το «local-no-offset» δεν προκύπτει από αυτόν τον κώδικα· το UTC παραμένει η σωστή επιλογή για αναντίλεκτη σύγκριση.)*
+- **Κόστος (N7):** το auto-off είναι 1 write ανά άνοιγμα Discovery με stale SOS — αμελητέο (~100 bytes, ≤1 ανά ενεργοποίηση).
 
 ---
 
@@ -203,7 +206,7 @@ updatedAt: json['updatedAt'] == null
 
 Στο `SearchNotifier` — **μετά το fetch, πριν το set state** — και στα δύο: `search()` και στο τέλος του `loadMore()` (μετά το append, search_provider.dart:278):
 
-```dart
+```text
 List<PublicProfile> _prioritizeHelpRequests(
   List<PublicProfile> results,
   Map<String, double> distances,   // φρέσκο map της τρέχουσας κλήσης — ΟΧΙ state.distances (BUG 1)
@@ -297,12 +300,7 @@ List<PublicProfile> _prioritizeHelpRequests(
 
 | Σενάριο | Συμπεριφορά / μέτρο |
 |---|---|
-| **publish() ξαναγράφει το doc** | **ΚΡΙΣΙΜΟ (Εύρημα #2):** αν ενεργό SOS, το `publish()` κάνει `.set()` πλήρη αντικατάσταση → θα σβήσει το `helpRequest`. **Πρέπει να μπει στο preserve idiom** (όπως isOnline/geoHash, profile_repository_impl.dart:369-392). **Το `publish()` καλείται από 4 σημεία** — όχι μόνο από edit profile/avatar:
-  - `discovery_screen.dart:145` ← **auto-publish κατά το GPS sync (silent, background!)** — το πιο επικίνδυνο: τρέχει αυτόματα κάθε φορά που αλλάζει η τοποθεσία ενώ ο χρήστης κάθεται στο Discovery με ενεργό SOS, όχι μόνο σε manual edit
-  - `privacy_editor_screen.dart:99`
-  - `profile_screen.dart:283`
-  - `profile_editor_screen.dart:450`
-  - Αφού είναι όλα το **ίδιο** `publish()`, η διόρθωση σε **ένα σημείο** (το preserve στο `publish()`) καλύπτει και τα 4 — αλλά το κείμενο πρέπει να αναφέρει ρητά τη συχνότητα του silent auto-publish από GPS |
+| **publish() ξαναγράφει το doc** | **ΚΡΙΣΙΜΟ (Εύρημα #2):** αν ενεργό SOS, το `publish()` κάνει `.set()` πλήρη αντικατάσταση → θα σβήσει το `helpRequest`. **Πρέπει να μπει στο preserve idiom** (όπως isOnline/geoHash, profile_repository_impl.dart:369-392). **Το `publish()` καλείται από 4 σημεία:** `discovery_screen.dart:145` ← **auto-publish GPS (silent, background!)** · `privacy_editor_screen.dart:99` · `profile_screen.dart:283` · `profile_editor_screen.dart:450`. Η διόρθωση σε **ένα σημείο** (το preserve στο `publish()`) καλύπτει και τα 4 — αλλά το κείμενο πρέπει να αναφέρει ρητά τη συχνότητα του silent auto-publish από GPS |
 | unpublish | doc deleted → SOS εξαφανίζεται (σωστό) |
 | Stale flag (εφαρμογή κλειστή 60+ min) | Βοηθοί τον αγνοούν (TTL στο search)· αιτών → auto-off στο άνοιγμα |
 | Blocked users | `_excludeBlocked` ήδη τρέχει (search_provider:70) — η επείγουσα ανάγκη δεν προσπερνά block |
@@ -331,7 +329,7 @@ List<PublicProfile> _prioritizeHelpRequests(
 **Επιπλέον σημείο (BUG 6):** το `profile_repository_impl.dart:580` (`getPublicProfile`) κάνει `PublicProfile.fromJson(doc.data()!)` **χωρίς try/catch** — χρησιμοποιείται από `send_request_screen.dart:36` και `blocked_users_screen.dart:96`. Ένα malformed `helpRequest` εκεί θα έριχνε αυτά τα screens (το exception τυλίγεται σε `AppException.firestore`). Να χρησιμοποιήσει το υπάρχον `_safePublicProfileFromJson` (ή ισοδύναμο try/catch → null). Τα άλλα σημεία του repo (:36, :554, :612) έχουν ήδη try/catch.
 
 **Μηδενικό side effect στη σελιδοποίηση (επιβεβαιωμένο):** το `hasMore` και το `cursorOut` υπολογίζονται πάντα από το **raw `snapshot.docs`**, ποτέ από τη λίστα με τα parsed αντικείμενα:
-```dart
+```text
 // _generalSearch — γρ. 219-220
 final hasMore = snapshot.docs.length >= effectiveLimit;  // raw snapshot
 final cursorOut = ... snapshot.docs.last.id ...;          // raw snapshot
@@ -366,6 +364,24 @@ Skip ενός malformed doc → καμία επίπτωση σε cursor/paginati
 
 **Περιορισμός:** τα rules **δεν μπορούν** να ελέγξουν την *πρόσφατη* τιμή του `updatedAt` (ISO string) — ο έλεγχος TTL παραμένει client-side (§5.4)· το rule σφραγίζει μόνο shape/τύπο/εύρος/verification (αποτρέπει spam radius/message και το απροσδιόριστο μέλλον). **Εφαρμογή:** ξεχωριστό βήμα μετά το sos.md — backup `firestore.rules` → edit → deploy.
 
+**⚠️ Αλληλεπίδραση με το preserve του publish() (N1):** επειδή ο κανόνας ενεργοποιείται όποτε το `helpRequest` είναι στο payload, το preserve στο `publish()` (Β2) πρέπει να κρατάει το πεδίο **μόνο όσο ο χρήστης παραμένει verified** (`canUserCommunicate`) — αλλιώς ένας χρήστης που έχασε την επαλήθευση (π.χ. `unlinkPhone()`) με ενεργό SOS θα είχε **αποτυχημένο publish**. Βλέπε §9.3 N1.
+
+---
+
+### 9.3 Τρίτος έλεγχος (14/8) — N1-N9 (νέες παρατηρήσεις)
+
+| # | Βαρύτητα | Εύρημα | Αντίμετρο |
+|---|----------|--------|-----------|
+| N1 | 🔴 ΚΡΙΣΙΜΟ | Αν ο χρήστης **χάσει την επαλήθευση όσο το SOS είναι ενεργό** (π.χ. `unlinkPhone()` — auth_repository.dart:35· verify μέσω τηλεφώνου → activate SOS → unlink), το `publish()` που preserve-άρει το `helpRequest` θα **αποτυγχάνει** (ο κανόνας §9.2 απαιτεί `isVerified()` όταν το πεδίο γράφεται). | Στο preserve του `publish()` (profile_repository_impl.dart:369-392): κράτα το `helpRequest` μόνο αν `AuthRepository.canUserCommunicate(_user)` είναι ακόμα true — αλλιώς skip (2 γραμμές). Το SOS δεν είναι έτσι κι αλλιώς έγκυρο χωρίς κανάλι. |
+| N2 | 🟡 Πλάνο | Η νέα μέθοδος `setHelpRequest(...)` λείπει από το **abstract interface** `profile_repository.dart` — ο `profileRepositoryProvider` είναι τυπωμένος ως `ProfileRepository`· χωρίς δήλωση στο interface θα χρειαζόταν cast στο impl. | Προσθήκη `setHelpRequest(...)` στο interface (§11 βήμα 8a). |
+| N3 | 🟡 Responsive | Η Discovery AppBar έχει ήδη 4 actions (gps + radius + saved + filters, discovery_screen.dart:272-284) — το 5ο (SOS) μπορεί να κάνει overflow σε ~320-360dp με μεγάλο font scale. | Device test σε στενή οθόνη· αν χρειαστεί compact SOS icon (24px) ή μετακίνηση radius selector σε menu. |
+| N4 | 🟡 Σχεδιαστική διευκρίνιση | Το ορατό σύνολο SOS = **τομή** SOS radius (αιτών) ΚΑΙ search radius (βοηθού) — ο βοηθός με 5km search δεν βλέπει SOS 25km (το `_passesFilters` :444-458 προηγείται). | Διορθώθηκε το wording της απόφασης #4. Όχι αλλαγή κώδικα. |
+| N5 | 🟡 Τεκμηρίωση | Το σκεπτικό του BUG 4 («parent είναι local-no-offset») είναι ανακριβές — `DateTime.now().toIso8601String()` πάντα περιέχει offset. Το συμπέρασμα (γράψε UTC `Z`) παραμένει σωστό. | Διορθώθηκαν τα σχόλια στο §4.1 / §5.4. Όχι αλλαγή κώδικα. |
+| N6 | 🟡 Transient | Αν ένα `helpRequest` γράφτηκε πριν το deploy των rules με μη-συμβατό shape, το preserve θα το ξαναγράψει → ο κανόνας §9.2 θα το απορρίψει → 1 αποτυχημένο publish. | Αποδεκτό (το publish έχει try/catch)· προαιρετικά drop αν αποτύχει validation. |
+| N7 | 🟢 Κόστος | Το TTL auto-off (1 write) τρέχει σε κάθε άνοιγμα Discovery με stale SOS. | Αμελητέο (~100 bytes, ≤1 ανά ενεργοποίηση). Καταγράφηκε στο §5.4. |
+| N8 | 🟡 UX | Το `publicProfileStreamProvider` είναι autoDispose → στο πρώτο άνοιγμα του sheet `AsyncLoading`· χωρίς loading state θα φαινόταν στιγμιαία «τι λείπει». | Loading spinner (LoadingView) μέχρι `AsyncData` πριν το eligibility (§5.2). |
+| N9 | 🔴 Consent log | Το `ConsentActionConfig.actions` (consent_action_config.dart:23-115) έχει fixed map — για άγνωστα actions το `label()` επιστρέφει **raw code** → το ConsentLog θα δείξει `help_request_activate` ακόμα και σε Έλληνες χρήστες (παραβίαση bilingual SPoT). | +2 entries στο map (`help_request_activate` / `help_request_deactivate`) με icon/color/labels (§11 βήμα 8b). Τα filter chips (consent_log_screen:22-30) προαιρετικά. |
+
 ---
 
 ## 10. Rebuild storm (Κεφάλαιο 10 — νέος έλεγχος)
@@ -390,7 +406,9 @@ Skip ενός malformed doc → καμία επίπτωση σε cursor/paginati
 | 5 | `lib/core/utils/error_messages.dart` | + 9 codes (help/*) |
 | 6 | `lib/core/l10n/l10n.dart` | + helpRequest labels + μετονομασία `'help'` |
 | 7 | `lib/features/profile/screens/profile_editor_screen.dart` | label «Υποστήριξη» |
-| 8 | `lib/repositories/profile_repository_impl.dart` | preserve `helpRequest` στο publish + νέα μέθοδος `setHelpRequest(...)` με consent log (Β8) |
+| 8 | `lib/repositories/profile_repository_impl.dart` | preserve `helpRequest` στο publish **gated με `canUserCommunicate` (N1)** + νέα μέθοδος `setHelpRequest(...)` με consent log (Β8) |
+| 8a | `lib/repositories/profile_repository.dart` | + `setHelpRequest(...)` στο abstract interface (N2) |
+| 8b | `lib/shared/utils/consent_action_config.dart` | + 2 entries `help_request_activate`/`help_request_deactivate` (N9) |
 | 9 | ΝΕΟ `lib/shared/utils/help_request_config.dart` | SPoT: TTL, radius options, maxLength, eligibility check |
 | 10 | ΝΕΟ `lib/features/discovery/widgets/help_request_sheet.dart` | bottom sheet (eligibility + settings + activate) |
 | 11 | `lib/features/discovery/screens/discovery_screen.dart` | SOS IconButton στην AppBar |
@@ -406,4 +424,5 @@ Skip ενός malformed doc → καμία επίπτωση σε cursor/paginati
 ## 12. Εκκρεμεί για σένα (πριν την εφαρμογή)
 
 1. ✅ Επανέλεγχος 14/8: bugs #1-#6 + δευτερεύουσες B1-B8 ενσωματώθηκαν στο αρχείο· rules validation εγκεκριμένο (§9.2)
-2. Αν είσαι ΟΚ → εντολή «επόμενο» → ξεκινάω Βήμα 1 (backup + model + build_runner)
+2. ✅ Τρίτος έλεγχος 14/8: **N1-N9** ενσωματώθηκαν (§9.3) — backup πριν: `backups/sos_20260814_162027.md`
+3. Αν είσαι ΟΚ → εντολή «επόμενο» → ξεκινάω Βήμα 1 (backup + model + build_runner)

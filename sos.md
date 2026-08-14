@@ -68,7 +68,7 @@ abstract class HelpRequest with _$HelpRequest {
     @Default(false) bool active,
     String? message,           // max 80 chars
     @Default(10.0) double radiusKm,
-    required DateTime updatedAt,
+    DateTime? updatedAt,       // nullable — ίδιο idiom με το parent PublicProfile.updatedAt
   }) = _HelpRequest;
 
   factory HelpRequest.fromJson(Map<String, dynamic> json) =>
@@ -205,8 +205,8 @@ List<PublicProfile> _prioritizeHelpRequests(List<PublicProfile> results) {
     final h = p.helpRequest;
     final dist = state.distances[p.uid];          // ήδη υπολογισμένο
     final isUrgent = h != null && h.active
-        && h.updatedAt != null
-        && now.difference(h.updatedAt.toLocal()) <= ttl  // 60 min
+        && h.updatedAt != null          // πραγματικός guard (updatedAt nullable)
+        && now.difference(h.updatedAt!.toLocal()) <= ttl  // 60 min
         && dist != null && dist <= h.radiusKm;
     (isUrgent ? urgent : rest).add(p);
   }
@@ -298,15 +298,36 @@ List<PublicProfile> _prioritizeHelpRequests(List<PublicProfile> results) {
 | Keyboard στο sheet | viewInsets + responsive (πρότυπο AppMessenger) |
 | App backgrounded στο TTL | χωρίς timers — έλεγχος με `updatedAt` ανά search/άνοιγμα |
 | Firestore κόστος | 1 write ανά activation, ~100 bytes — αμελητέο |
-| `updatedAt` null (legacy doc) | Guard: αν null → μη-urgent (fail-safe) |
+| `updatedAt` null (legacy doc) | Guard: αν null → μη-urgent (fail-safe) — **εφικτό γιατί το πεδίο είναι nullable** (αν ήταν required, το `fromJson` θα έκανε `null as String` → crash → σπασμένη αναζήτηση όλων, ίδιο ρίσκο με το Εύρημα #1) |
 
-### 9.1 Προαιρετικό (Εύρημα #4) — try/catch ανά έγγραφο στο Firestore search
+### 9.1 try/catch ανά έγγραφο στο Firestore search (Εύρημα #4) — ΕΓΚΕΚΡΙΜΕΝΟ
 
-**Προϋπάρχον ρίσκο, ανεξάρτητο του SOS** — αλλά το SOS το ενεργοποιεί πρώτη φορά στην πράξη:
+**Γιατί έχει νόημα (όχι απλώς «καλή πρακτική»):** Το SOS είναι η πρώτη λειτουργία που εισάγει non-trivial nested object (`HelpRequest`) στο `fromJson`. Μέχρι σήμερα όλα τα πεδία του `PublicProfile` είναι flat strings/bools/ένα nullable DateTime — πρακτικά αδύνατο να ρίξουν exception στο parsing. Με το nested object (typed `DateTime`/`double`) το ρίσκο parsing failure αυξάνεται ουσιαστικά για πρώτη φορά — δηλαδή το ενεργοποιεί η ίδια η αλλαγή που κάνουμε.
 
-- Στο `firestore_search_repository.dart:127-135`, το `PublicProfile.fromJson(data)` καλείται **χωρίς try/catch ανά έγγραφο** μέσα στο loop. Ένα μόνο κατεστραμμένο/malformed doc ρίχνει ΟΛΗ την αναζήτηση (το εξωτερικό try/catch είναι μόνο γύρω από όλη τη function, :356).
-- **Πρόταση:** περιτύλιξη κάθε `fromJson` σε try/catch → αν αποτύχει ένα doc, skip + log `warn` (όχι crash όλου του search).
-- **Χαμηλού ρίσκου, προαιρετικό** — επηρεάζει τo αίτημα μόνο αν ο χρήστης το εγκρίνει.
+**Και τα 3 σημεία κλήσης (επιβεβαιωμένα στον κώδικα):**
+- `firestore_search_repository.dart:135` — `_generalSearch` (`all.add`)
+- `firestore_search_repository.dart:216` — `collectionGroup`/`_geoSearch` (`all.add`)
+- `firestore_search_repository.dart:307` — `searchNearby` (`results.add`)
+
+Ένα κατεστραμμένο `helpRequest` σε ΟΠΟΙΟΔΗΠΟΤΕ προφίλ θα έριχνε σφάλμα και στις 3 μεθόδους.
+
+**Μηδενικό side effect στη σελιδοποίηση (επιβεβαιωμένο):** το `hasMore` και το `cursorOut` υπολογίζονται πάντα από το **raw `snapshot.docs`**, ποτέ από τη λίστα με τα parsed αντικείμενα:
+```dart
+// _generalSearch — γρ. 219-220
+final hasMore = snapshot.docs.length >= effectiveLimit;  // raw snapshot
+final cursorOut = ... snapshot.docs.last.id ...;          // raw snapshot
+// searchNearby — γρ. 333-334
+final hasMore = snapshots.any((s) => s.docs.length >= 50); // raw
+```
+Skip ενός malformed doc → καμία επίπτωση σε cursor/pagination.
+
+**Τι αλλάζει:**
+- Σήμερα: 1 χαλασμένο doc → throw σε όλη τη function → εξωτερικό catch (:356 και αντίστοιχα) → γενικό σφάλμα, 0 αποτελέσματα.
+- Με τη διόρθωση: skip + `DebugConfig.warn` log → όλα τα άλλα αποτελέσματα κανονικά.
+
+**Trade-off:** «κρύβει» σιωπηλά ένα malformed doc αντί να σκάσει δυνατά — γι' αυτό το `DebugConfig.warn` είναι υποχρεωτικό (όχι silent skip), ώστε να φαίνεται στα logs αν συμβεί ποτέ.
+
+**Εμβέλεια:** ξεχωριστό βήμα **#14** στη λίστα αρχείων (§11), μετά τα κύρια SOS βήματα — απομονωμένο αν κάτι πάει στραβά.
 
 ---
 
@@ -338,6 +359,7 @@ List<PublicProfile> _prioritizeHelpRequests(List<PublicProfile> results) {
 | 11 | `lib/features/discovery/screens/discovery_screen.dart` | SOS IconButton στην AppBar |
 | 12 | `lib/features/discovery/providers/search_provider.dart` | priority partition σε search() + loadMore() |
 | 13 | `lib/shared/widgets/profile_card.dart` | κόκκινη κάρτα + μήνυμα (read-only) |
+| 14 | `lib/repositories/firestore_search_repository.dart` | **ΕΓΚΕΚΡΙΜΕΝΟ (Εύρημα #4):** try/catch ανά έγγραφο στα 3 σημεία `fromJson` (:135, :216, :307) → skip + `DebugConfig.warn`, χωρίς side effect σε hasMore/cursor |
 
 **Σημείωση:** Κάθε βήμα: backup → edit → `flutter analyze`. Ένα βήμα τη φορά, με έλεγχο του χρήστη.
 

@@ -107,7 +107,7 @@ class L10n {
         case 'friendship': return 'Φιλία';
         case 'networking': return 'Δικτύωση';
         case 'exchange': return 'Ανταλλαγή';
-        case 'help': return 'Βοήθεια';
+        case 'help': return 'Υποστήριξη';
         case 'employment': return 'Απασχόληση';
       }
     } else {
@@ -117,7 +117,7 @@ class L10n {
         case 'friendship': return 'Friendship';
         case 'networking': return 'Networking';
         case 'exchange': return 'Exchange';
-        case 'help': return 'Help';
+        case 'help': return 'Support';
         case 'employment': return 'Employment';
       }
     }
@@ -332,6 +332,30 @@ class L10n {
     }
     return isGreek ? 'Απόσταση Πόλης εντός: $dist' : 'Distance within City: $dist';
   }
+
+  /// ─────────────────────────────────────────────────────────────
+  /// SOS / HELP REQUEST — Επείγουσα Βοήθεια (SPoT labels)
+  /// ─────────────────────────────────────────────────────────────
+  static String helpRequestTitle({required bool isGreek}) =>
+      isGreek ? 'Επείγουσα Βοήθεια' : 'Emergency Help';
+
+  static String needsHelpLabel({required bool isGreek}) =>
+      isGreek ? 'Χρειάζεται βοήθεια' : 'Needs help';
+
+  static String helpDistanceLabel({required bool isGreek}) =>
+      isGreek ? 'Απόσταση' : 'Distance';
+
+  static String helpMessageLabel({required bool isGreek}) =>
+      isGreek ? 'Μήνυμα' : 'Message';
+
+  static String helpActivateLabel({required bool isGreek}) =>
+      isGreek ? 'Ενεργοποίηση' : 'Activate';
+
+  static String helpDeactivateLabel({required bool isGreek}) =>
+      isGreek ? 'Απενεργοποίηση' : 'Deactivate';
+
+  static String helpRequirementsTitle({required bool isGreek}) =>
+      isGreek ? 'Για βοήθεια, χρειάζεται τουλάχιστον ένα κανάλι επικοινωνίας' : 'For help, at least one communication channel is needed.';
 }
 
 enum TemperatureUnit { celsius, fahrenheit }

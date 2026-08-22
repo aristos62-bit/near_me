@@ -10,6 +10,7 @@ import '../data/local/database_service.dart';
 import '../shared/models/public_profile.dart';
 import '../shared/models/user_status.dart';
 import '../shared/utils/age_validation.dart';
+import 'auth_repository.dart';
 import 'profile_repository.dart';
 import 'profile_storage_mixin.dart';
 
@@ -131,9 +132,9 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
           updatedAt: now,
         );
         await _db.into(_db.userProfileTable).insert(
-              restored.toCompanion(true).copyWith(id: const Value.absent()),
-            );
-        await _ensurePrivacySettings(uid);
+          restored.toCompanion(true).copyWith(id: const Value.absent()),
+        );
+        await _ensurePrivacySettings(uid, sourceProfile: restored);
         DebugConfig.log(DebugConfig.repositoryResult,
             'getProfile: restored from firestore: ${pub.nickname ?? "(unnamed)"}');
         DebugConfig.log(DebugConfig.repositoryResult,
@@ -177,7 +178,7 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
         data = data.copyWith(createdAt: now);
         await _db.into(_db.userProfileTable)
             .insert(data.toCompanion(true).copyWith(id: const Value.absent()));
-        await _ensurePrivacySettings(uid);
+        await _ensurePrivacySettings(uid, sourceProfile: data);
         DebugConfig.log(DebugConfig.databaseLocal, 'saveProfile inserted');
       }
       DebugConfig.log(DebugConfig.repositoryResult, 'saveProfile OK');
@@ -187,7 +188,7 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
     }
   }
 
-  Future<void> _ensurePrivacySettings(String uid) async {
+  Future<void> _ensurePrivacySettings(String uid, {UserProfileTableData? sourceProfile}) async {
     DebugConfig.log(DebugConfig.databaseLocal, '_ensurePrivacySettings: checking for $uid');
     try {
       final existing = await (_db.select(_db.privacySettingsTable)
@@ -197,14 +198,26 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
         return;
       }
       await _db.into(_db.privacySettingsTable).insert(
-        PrivacySettingsTableCompanion.insert(uid: Value(uid)),
+        PrivacySettingsTableCompanion.insert(
+          uid: Value(uid),
+          // Seed από το UserProfileTable αν υπάρχει (π.χ. restore σε νέα
+          // συσκευή από Firestore) — αποφεύγει να επαναφέρουμε στο false/false
+          // μια ρύθμιση που ο χρήστης είχε ήδη κάνει.
+          allowVideoCall: sourceProfile != null
+              ? Value(sourceProfile.allowVideoCall)
+              : const Value.absent(),
+          allowDirectChat: sourceProfile != null
+              ? Value(sourceProfile.allowDirectChat)
+              : const Value.absent(),
+        ),
       );
-      DebugConfig.log(DebugConfig.databaseLocal, '_ensurePrivacySettings: inserted defaults for $uid');
+      DebugConfig.log(DebugConfig.databaseLocal,
+          '_ensurePrivacySettings: inserted for $uid'
+              '${sourceProfile != null ? " (seeded allowVideoCall=${sourceProfile.allowVideoCall}, allowDirectChat=${sourceProfile.allowDirectChat})" : " (defaults)"}');
     } catch (e, s) {
       DebugConfig.error('_ensurePrivacySettings failed', data: e, exception: s);
     }
   }
-
   @override
   Future<void> deleteProfile() async {
     DebugConfig.log(DebugConfig.repositoryCall, 'deleteProfile');
@@ -311,7 +324,7 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
             message: 'Cannot publish: birth year is required and must be 18+',
             code: 'validation_error');
       }
-      await _ensurePrivacySettings(uid);
+      await _ensurePrivacySettings(uid, sourceProfile: profile);
       final privacy = await getPrivacySettings();
 
       // Το geoHash δεν υπολογίζεται πλέον εδώ — server-side authoritative
@@ -338,8 +351,8 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
         photoUrls: privacy?.showPhotos == true ? profile.photoUrls : null,
         email: privacy?.showEmail == true ? profile.email : null,
         phone: privacy?.showPhone == true ? profile.phone : null,
-        allowVideoCall: profile.allowVideoCall,
-        allowDirectChat: profile.allowDirectChat,
+        allowVideoCall: privacy?.allowVideoCall ?? false,
+        allowDirectChat: privacy?.allowDirectChat ?? false,
         isManualLocation: profile.latitudeExact == null && profile.longitudeExact == null,
         isVisible: true,
         lang: PlatformDispatcher.instance.locale.languageCode == 'el' ? 'el' : 'en',
@@ -385,6 +398,17 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
           final existingGeoHash = existingData?['geoHash'];
           if (existingGeoHash != null) {
             json['geoHash'] = existingGeoHash as String;
+          }
+          // Preserve το ενεργό SOS helpRequest (sos.md §9.2): κρατάμε το πεδίο
+          // ΜΟΝΟ όσο ο χρήστης παραμένει verified (canUserCommunicate) — αλλιώς
+          // ο targeted validation rule θα απέρριπτε το publish (απαιτεί isVerified
+          // όταν το helpRequest γράφεται στο payload). N1.
+          final existingHelpRequest = existingData?['helpRequest'];
+          if (existingHelpRequest != null &&
+              AuthRepository.canUserCommunicate(_user)) {
+            json['helpRequest'] = existingHelpRequest;
+            DebugConfig.log(DebugConfig.helpRequest,
+                'publish: preserved active helpRequest (uid=$uid, verified)');
           }
         }
       } catch (e) {
@@ -475,6 +499,78 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
     } catch (e, s) {
       DebugConfig.error('unpublish failed', data: e, exception: s);
       throw AppException.firestore('unpublish', e, s);
+    }
+  }
+
+  /// Ενεργοποιεί/απενεργοποιεί το SOS (helpRequest) στο public doc.
+  /// Ενεργό → update του nested `helpRequest` (updatedAt σε UTC ISO8601 —
+  /// βλ. sos.md §5.2). Απενεργοποίηση → `FieldValue.delete()` για καθαρό
+  /// καθαρισμό (δεν μένει stale object). Owner write, 1 write.
+  @override
+  Future<void> setHelpRequest({
+    required bool active,
+    String? message,
+    double? radiusKm,
+  }) async {
+    DebugConfig.log(DebugConfig.helpRequest,
+        'setHelpRequest: active=$active${message != null ? ', message="$message"' : ''}${radiusKm != null ? ', radiusKm=$radiusKm' : ''}');
+    final uid = _user?.uid;
+    if (uid == null || uid.isEmpty) {
+      throw const AppException(
+          message: 'No authenticated user', code: 'auth_required');
+    }
+    if (active && message != null && message.length > 80) {
+      DebugConfig.warn(
+          'setHelpRequest: message too long (${message.length} chars)');
+      throw const AppException(
+          message: 'Help message too long', code: 'help/message-too-long');
+    }
+    try {
+      if (active) {
+        await _firestore
+            .collection('users')
+            .doc(uid)
+            .collection('public')
+            .doc('profile')
+            .update({
+          'helpRequest': {
+            'active': true,
+            'message': message ?? '',
+            'radiusKm': radiusKm ?? 10.0,
+            'updatedAt': DateTime.now().toUtc().toIso8601String(),
+          }
+        });
+        await _db.logConsent(uid, 'help_request_activate', 'public');
+        DebugConfig.log(DebugConfig.helpRequest,
+            'setHelpRequest: SOS ACTIVATED uid=$uid radiusKm=${radiusKm ?? 10.0} message="$message"');
+      } else {
+        await _firestore
+            .collection('users')
+            .doc(uid)
+            .collection('public')
+            .doc('profile')
+            .update({
+          'helpRequest': FieldValue.delete(),
+        });
+        await _db.logConsent(uid, 'help_request_deactivate', 'public');
+        DebugConfig.log(
+            DebugConfig.helpRequest, 'setHelpRequest: SOS DEACTIVATED uid=$uid');
+      }
+      DebugConfig.log(DebugConfig.firestoreWrite,
+          'setHelpRequest: uid=$uid ${active ? "activate" : "deactivate"} write OK');
+    } on FirebaseException catch (e) {
+      if (e.code == 'not-found') {
+        DebugConfig.warn(
+            'setHelpRequest: public profile doc missing (not-found)',
+            data: e.code);
+        throw const AppException(
+            message: 'Published profile not found', code: 'help/not-found');
+      }
+      DebugConfig.error('setHelpRequest failed (FirebaseException)', data: e);
+      throw AppException.firestore('setHelpRequest', e);
+    } catch (e, s) {
+      DebugConfig.error('setHelpRequest failed', data: e, exception: s);
+      throw AppException.firestore('setHelpRequest', e, s);
     }
   }
 
@@ -577,7 +673,11 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
         DebugConfig.log(DebugConfig.repositoryResult, 'getPublicProfile: not found');
         return null;
       }
-      return PublicProfile.fromJson(doc.data()!);
+      final pub = _safePublicProfileFromJson(doc.data());
+      if (pub == null) {
+        DebugConfig.warn('getPublicProfile: invalid Firestore data — treating as not found');
+      }
+      return pub;
     } catch (e, s) {
       DebugConfig.error('getPublicProfile failed', data: e, exception: s);
       throw AppException.firestore('getPublicProfile', e, s);
@@ -608,6 +708,9 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
         DebugConfig.warn('streamPublicProfile: data() returned null');
         return null;
       }
+      // Παλιά docs μπορεί να μην έχουν `uid` — αντλούμε από το doc path
+      // (users/{uid}/public/profile), ίδιο pattern με το firestore_search_repository.
+      data['uid'] ??= snapshot.reference.parent.parent?.id;
       try {
         return PublicProfile.fromJson(data);
       } catch (e, s) {

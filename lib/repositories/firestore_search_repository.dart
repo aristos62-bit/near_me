@@ -11,6 +11,19 @@ class FirestoreSearchRepository implements SearchRepository {
   FirestoreSearchRepository({FirebaseFirestore? firestore})
       : _firestore = firestore ?? FirebaseFirestore.instance;
 
+  /// Try/catch ανά έγγραφο (sos.md §9.1 / Εύρημα #4): ένα malformed δημόσιο
+  /// προφίλ (π.χ. κατεστραμμένο nested `helpRequest`) skip-άρεται με warn αντί
+  /// να ρίξει ΟΛΗ την αναζήτηση. Χωρίς side effect σε hasMore/cursor (raw docs).
+  PublicProfile? _tryParsePublicProfile(Map<String, dynamic> data) {
+    try {
+      return PublicProfile.fromJson(data);
+    } catch (e) {
+      DebugConfig.warn(
+          'FirestoreSearchRepository: skipped malformed public profile (uid=${data['uid']}): $e');
+      return null;
+    }
+  }
+
   @override
   Future<SearchResult> search(SearchFilters filters,
       {SearchCursor? cursor}) async {
@@ -132,7 +145,8 @@ class FirestoreSearchRepository implements SearchRepository {
         if (uid.isEmpty || seen.contains(uid)) continue;
         seen.add(uid);
         data['uid'] ??= uid;
-        all.add(PublicProfile.fromJson(data));
+        final parsed = _tryParsePublicProfile(data);
+        if (parsed != null) all.add(parsed);
       }
     }
 
@@ -213,7 +227,8 @@ class FirestoreSearchRepository implements SearchRepository {
     for (final d in snapshot.docs) {
       final data = d.data() as Map<String, dynamic>;
       data['uid'] ??= d.reference.parent.parent?.id;
-      all.add(PublicProfile.fromJson(data));
+      final parsed = _tryParsePublicProfile(data);
+      if (parsed != null) all.add(parsed);
     }
 
     final filtered = _filterAndLog(all, filters, '_generalSearch');
@@ -304,7 +319,8 @@ class FirestoreSearchRepository implements SearchRepository {
           if (uid.isEmpty || seen.contains(uid)) continue;
           seen.add(uid);
           data['uid'] ??= uid;
-          results.add(PublicProfile.fromJson(data));
+          final parsed = _tryParsePublicProfile(data);
+          if (parsed != null) results.add(parsed);
         }
       }
 

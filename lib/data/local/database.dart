@@ -12,15 +12,17 @@ import '../../core/debug/debug_config.dart';
 
 part 'database.g.dart';
 
-@DriftDatabase(tables: [
-  UserProfileTable,
-  PrivacySettingsTable,
-  ConsentLogTable,
-  ChatCacheTable,
-  SavedSearchTable,
-  AppSettingsTable,
-  BlockedUserTable,
-])
+@DriftDatabase(
+  tables: [
+    UserProfileTable,
+    PrivacySettingsTable,
+    ConsentLogTable,
+    ChatCacheTable,
+    SavedSearchTable,
+    AppSettingsTable,
+    BlockedUserTable,
+  ],
+)
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
@@ -31,7 +33,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 13;
+  int get schemaVersion => 14;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -45,19 +47,37 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(chatCacheTable, chatCacheTable.lastMessageSender);
         await m.addColumn(chatCacheTable, chatCacheTable.lastMessageType);
         await m.addColumn(chatCacheTable, chatCacheTable.unreadCount);
-        DebugConfig.log(DebugConfig.databaseLocal, 'Migration v2->v3: added chat preview columns');
+        DebugConfig.log(
+          DebugConfig.databaseLocal,
+          'Migration v2->v3: added chat preview columns',
+        );
       }
       if (from < 4) {
-        await m.addColumn(privacySettingsTable, privacySettingsTable.showPhotos);
-        DebugConfig.log(DebugConfig.databaseLocal, 'Migration v3->v4: added showPhotos column');
+        await m.addColumn(
+          privacySettingsTable,
+          privacySettingsTable.showPhotos,
+        );
+        DebugConfig.log(
+          DebugConfig.databaseLocal,
+          'Migration v3->v4: added showPhotos column',
+        );
       }
       if (from < 5) {
-        await m.addColumn(privacySettingsTable, privacySettingsTable.showCountry);
-        DebugConfig.log(DebugConfig.databaseLocal, 'Migration v4->v5: added showCountry column');
+        await m.addColumn(
+          privacySettingsTable,
+          privacySettingsTable.showCountry,
+        );
+        DebugConfig.log(
+          DebugConfig.databaseLocal,
+          'Migration v4->v5: added showCountry column',
+        );
       }
       if (from < 6) {
         await m.addColumn(appSettingsTable, appSettingsTable.searchRadiusKm);
-        DebugConfig.log(DebugConfig.databaseLocal, 'Migration v5->v6: added searchRadiusKm column');
+        DebugConfig.log(
+          DebugConfig.databaseLocal,
+          'Migration v5->v6: added searchRadiusKm column',
+        );
       }
       if (from < 7) {
         await m.addColumn(chatCacheTable, chatCacheTable.ownerUid);
@@ -67,43 +87,96 @@ class AppDatabase extends _$AppDatabase {
         // αυτόματα και αβλαβώς από το Firestore στο επόμενο streamChats().
         // Αυτό είναι το οριστικό fix του cross-account cache leak.
         await delete(chatCacheTable).go();
-        DebugConfig.log(DebugConfig.databaseLocal,
-            'Migration v6->v7: added ownerUid column, cleared legacy chat cache (θα ξανασυγχρονιστεί από Firestore)');
+        DebugConfig.log(
+          DebugConfig.databaseLocal,
+          'Migration v6->v7: added ownerUid column, cleared legacy chat cache (θα ξανασυγχρονιστεί από Firestore)',
+        );
       }
       if (from < 8) {
         await m.addColumn(savedSearchTable, savedSearchTable.allowVideoCall);
         await m.addColumn(savedSearchTable, savedSearchTable.allowDirectChat);
         await m.addColumn(savedSearchTable, savedSearchTable.onlineOnly);
-        DebugConfig.log(DebugConfig.databaseLocal,
-            'Migration v7->v8: added allowVideoCall, allowDirectChat, onlineOnly columns to savedSearchTable');
+        DebugConfig.log(
+          DebugConfig.databaseLocal,
+          'Migration v7->v8: added allowVideoCall, allowDirectChat, onlineOnly columns to savedSearchTable',
+        );
       }
       if (from < 9) {
         await m.addColumn(chatCacheTable, chatCacheTable.isGroupChat);
         await m.addColumn(chatCacheTable, chatCacheTable.participantCount);
         await m.addColumn(chatCacheTable, chatCacheTable.participantUids);
         await m.addColumn(chatCacheTable, chatCacheTable.groupName);
-        DebugConfig.log(DebugConfig.databaseLocal,
-            'Migration v8->v9: added group chat columns to ChatCacheTable');
+        DebugConfig.log(
+          DebugConfig.databaseLocal,
+          'Migration v8->v9: added group chat columns to ChatCacheTable',
+        );
       }
       if (from < 10) {
         await m.addColumn(chatCacheTable, chatCacheTable.groupAvatarUrl);
-        DebugConfig.log(DebugConfig.databaseLocal,
-            'Migration v9->v10: added groupAvatarUrl column to ChatCacheTable');
+        DebugConfig.log(
+          DebugConfig.databaseLocal,
+          'Migration v9->v10: added groupAvatarUrl column to ChatCacheTable',
+        );
       }
       if (from < 11) {
         await m.addColumn(chatCacheTable, chatCacheTable.groupCreatedBy);
-        DebugConfig.log(DebugConfig.databaseLocal,
-            'Migration v10->v11: added groupCreatedBy column to ChatCacheTable');
+        DebugConfig.log(
+          DebugConfig.databaseLocal,
+          'Migration v10->v11: added groupCreatedBy column to ChatCacheTable',
+        );
       }
       if (from < 12) {
-        await m.addColumn(privacySettingsTable, privacySettingsTable.showAvatar);
-        DebugConfig.log(DebugConfig.databaseLocal,
-            'Migration v11->v12: added showAvatar column to PrivacySettingsTable');
+        await m.addColumn(
+          privacySettingsTable,
+          privacySettingsTable.showAvatar,
+        );
+        DebugConfig.log(
+          DebugConfig.databaseLocal,
+          'Migration v11->v12: added showAvatar column to PrivacySettingsTable',
+        );
       }
       if (from < 13) {
         await m.addColumn(chatCacheTable, chatCacheTable.messageExpiry);
-        DebugConfig.log(DebugConfig.databaseLocal,
-            'Migration v12->v13: added messageExpiry column to ChatCacheTable');
+        DebugConfig.log(
+          DebugConfig.databaseLocal,
+          'Migration v12->v13: added messageExpiry column to ChatCacheTable',
+        );
+      }
+      if (from < 14) {
+        // SPoT αλλαγή: allowVideoCall/allowDirectChat μετακομίζουν από
+        // UserProfileTable (παλιό, Profile Editor) σε PrivacySettingsTable
+        // (νέο SPoT, Privacy Editor). Τρέχει ΜΙΑ φορά ανά συσκευή, per-uid
+        // (ασφαλές και σε πολλαπλούς λογαριασμούς στην ίδια συσκευή).
+        // try/catch: μη-κρίσιμο data reconciliation βήμα — αν αποτύχει,
+        // δεν πρέπει να μπλοκάρει το άνοιγμα της βάσης/εκκίνηση της εφαρμογής.
+        try {
+          await customStatement('''
+            UPDATE privacy_settings_table
+            SET allow_video_call = (
+                  SELECT allow_video_call FROM user_profile_table
+                  WHERE user_profile_table.uid = privacy_settings_table.uid
+                ),
+                allow_direct_chat = (
+                  SELECT allow_direct_chat FROM user_profile_table
+                  WHERE user_profile_table.uid = privacy_settings_table.uid
+                )
+            WHERE EXISTS (
+              SELECT 1 FROM user_profile_table
+              WHERE user_profile_table.uid = privacy_settings_table.uid
+            )
+          ''');
+          DebugConfig.log(
+            DebugConfig.databaseLocal,
+            'Migration v13->v14: migrated allowVideoCall/allowDirectChat '
+            'from UserProfileTable to PrivacySettingsTable (νέο SPoT)',
+          );
+        } catch (e, s) {
+          DebugConfig.error(
+            'Migration v13->v14: allowVideoCall/allowDirectChat reconciliation failed (non-fatal)',
+            data: e,
+            exception: s,
+          );
+        }
       }
     },
   );
@@ -119,11 +192,11 @@ class AppDatabase extends _$AppDatabase {
   }
 
   Future<int> logConsent(
-      String uid,
-      String action,
-      String dataType, {
-        String? details,
-      }) async {
+    String uid,
+    String action,
+    String dataType, {
+    String? details,
+  }) async {
     return into(consentLogTable).insert(
       ConsentLogTableCompanion.insert(
         uid: Value(uid),

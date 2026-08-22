@@ -20,7 +20,6 @@ import '../../../shared/utils/image_utils.dart';
 import '../../../shared/widgets/chip_selector.dart';
 import '../../../shared/widgets/editor_scaffold.dart';
 import '../../../shared/widgets/form_section.dart';
-import '../../../shared/widgets/form_toggle.dart';
 import '../../../shared/widgets/gradient_header.dart';
 import '../../../shared/widgets/save_button.dart';
 import '../providers/location_autocomplete_service.dart';
@@ -44,7 +43,7 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
 
   String? _gender, _lookingFor, _avatarUrl;
   List<String> _interests = [], _photoUrls = [];
-  bool _allowVideoCall = false, _allowDirectChat = true, _isSaving = false;
+  bool _isSaving = false;
   bool _isDetectingLocation = false, _isUploadingAvatar = false, _avatarErrorShown = false;
   bool _locationDetectedViaGps = false;
   double? _latitude, _longitude;
@@ -70,7 +69,7 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
   Map<String, String> _lookingForLabels(bool g) => {
     'roommate': g ? 'Συγκάτοικο' : 'Roommate', 'social': g ? 'Παρέα' : 'Social',
     'friendship': g ? 'Φιλία' : 'Friendship', 'networking': g ? 'Δικτύωση' : 'Networking',
-    'exchange': g ? 'Ανταλλαγή' : 'Exchange', 'help': g ? 'Βοήθεια' : 'Help',
+    'exchange': g ? 'Ανταλλαγή' : 'Exchange', 'help': g ? 'Υποστήριξη' : 'Support',
     'employment': g ? 'Απασχόληση' : 'Employment',
   };
 
@@ -88,8 +87,6 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
       if (_gender != null) return true;
       if (_lookingFor != null) return true;
       if (_interests.isNotEmpty) return true;
-      if (_allowVideoCall != false) return true;
-      if (_allowDirectChat != true) return true;
       if (_avatarUrl != null) return true;
       if (_photoUrls.isNotEmpty) return true;
       if (_latitude != null) return true;
@@ -107,8 +104,6 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
     if (_gender != p.gender) return true;
     if (_lookingFor != p.lookingFor) return true;
     if (!listEquals(_interests, p.interests ?? [])) return true;
-    if (_allowVideoCall != p.allowVideoCall) return true;
-    if (_allowDirectChat != p.allowDirectChat) return true;
     if (_avatarUrl != p.avatarUrl) return true;
     if (!listEquals(_photoUrls, p.photoUrls ?? [])) return true;
     if (_latitude != p.latitudeExact) return true;
@@ -156,8 +151,6 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
     _gender = profile.gender;
     _lookingFor = profile.lookingFor;
     _interests = profile.interests ?? [];
-    _allowVideoCall = profile.allowVideoCall;
-    _allowDirectChat = profile.allowDirectChat;
     _latitude = profile.latitudeExact;
     _longitude = profile.longitudeExact;
     _locationDetectedViaGps = false;
@@ -411,8 +404,10 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
         lookingFor: _lookingFor,
         email: _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
         phone: _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
-        allowVideoCall: _allowVideoCall,
-        allowDirectChat: _allowDirectChat,
+        // Δεν επεξεργάζεται πια εδώ — SPoT μετακόμισε στο Privacy Editor
+        // (PrivacySettingsTable). Διατηρούμε ό,τι υπήρχε ήδη τοπικά.
+        allowVideoCall: _loadedProfile?.allowVideoCall ?? false,
+        allowDirectChat: _loadedProfile?.allowDirectChat ?? false,
         isPublished: _loadedProfile?.isPublished ?? false,
         latitudeExact: keepLatLng ? _latitude : null,
         longitudeExact: keepLatLng ? _longitude : null,
@@ -550,9 +545,6 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
         FormSection(title: g ? 'Επικοινωνία' : 'Communication', children: [
           _buildTextField(icon: Icons.email_outlined, label: g ? 'Ηλ. Ταχυδρομείο' : 'Email', ctrl: _emailCtrl, keyboardType: TextInputType.emailAddress),
           _buildTextField(icon: Icons.phone_outlined, label: g ? 'Τηλέφωνο' : 'Phone', ctrl: _phoneCtrl, keyboardType: TextInputType.phone),
-          const SizedBox(height: 4),
-          FormToggle(icon: Icons.videocam_outlined, title: g ? 'Βιντεοκλήση' : 'Video Call', subtitle: g ? 'Να επιτρέπονται αιτήματα βιντεοκλήσης' : 'Allow video call requests', value: _allowVideoCall, onChanged: (v) => setState(() => _allowVideoCall = v)),
-          FormToggle(icon: Icons.chat_outlined, title: g ? 'Άμεσο Chat' : 'Direct Chat', subtitle: g ? 'Να επιτρέπονται άμεσα μηνύματα' : 'Allow direct messages', value: _allowDirectChat, onChanged: (v) => setState(() => _allowDirectChat = v)),
         ]),
         Padding(padding: const EdgeInsets.fromLTRB(16, 16, 16, 8), child: SaveButton(isSaving: _isSaving, label: g ? 'Αποθήκευση' : 'Save', onPressed: _save)),
       ])),

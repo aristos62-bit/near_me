@@ -132,6 +132,11 @@ class DebugConfig {
   static const bool storageDownload = true;     // file downloads
 
   /// ─────────────────────────────────────────────────────────────
+  /// SOS / HELP REQUEST — Επείγουσα Βοήθεια (helpRequest)
+  /// ─────────────────────────────────────────────────────────────
+  static const bool helpRequest = true;            // SOS activation/TTL/priority partition
+
+  /// ─────────────────────────────────────────────────────────────
   /// ERROR HANDLING — Error classification & logging
   /// ─────────────────────────────────────────────────────────────
   static const bool errorHandler = true;           // error classification logs

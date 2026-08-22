@@ -117,8 +117,12 @@ class _SendRequestScreenState extends ConsumerState<SendRequestScreen> {
   }
 
   Widget _buildTypeSelector(PublicProfile? profile, ThemeData theme, bool isGreek) {
-    final chatAllowed = profile?.allowDirectChat ?? true;
-    final videoAllowed = profile?.allowVideoCall ?? true;
+    // Ευθυγραμμισμένο με το privacy-first default (false/false) του
+    // PrivacySettingsTable — αν δεν υπάρχει δημόσιο προφίλ (ή δεν επιτρέπει
+    // κάτι), δείχνουμε "μη διαθέσιμο" αντί να αφήνουμε τον χρήστη να φτάσει
+    // σε dead-end (compose μήνυμα → server-side rejection στο sendRequest).
+    final chatAllowed = profile?.allowDirectChat ?? false;
+    final videoAllowed = profile?.allowVideoCall ?? false;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),

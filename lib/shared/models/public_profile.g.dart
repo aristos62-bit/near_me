@@ -6,6 +6,23 @@ part of 'public_profile.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
+_HelpRequest _$HelpRequestFromJson(Map<String, dynamic> json) => _HelpRequest(
+  active: json['active'] as bool? ?? false,
+  message: json['message'] as String?,
+  radiusKm: (json['radiusKm'] as num?)?.toDouble() ?? 10.0,
+  updatedAt: json['updatedAt'] == null
+      ? null
+      : DateTime.parse(json['updatedAt'] as String),
+);
+
+Map<String, dynamic> _$HelpRequestToJson(_HelpRequest instance) =>
+    <String, dynamic>{
+      'active': instance.active,
+      'message': instance.message,
+      'radiusKm': instance.radiusKm,
+      'updatedAt': instance.updatedAt?.toIso8601String(),
+    };
+
 _PublicProfile _$PublicProfileFromJson(Map<String, dynamic> json) =>
     _PublicProfile(
       uid: json['uid'] as String,
@@ -38,6 +55,9 @@ _PublicProfile _$PublicProfileFromJson(Map<String, dynamic> json) =>
       updatedAt: json['updatedAt'] == null
           ? null
           : DateTime.parse(json['updatedAt'] as String),
+      helpRequest: json['helpRequest'] == null
+          ? null
+          : HelpRequest.fromJson(json['helpRequest'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PublicProfileToJson(_PublicProfile instance) =>
@@ -64,4 +84,5 @@ Map<String, dynamic> _$PublicProfileToJson(_PublicProfile instance) =>
       'phone': instance.phone,
       'lang': instance.lang,
       'updatedAt': instance.updatedAt?.toIso8601String(),
+      'helpRequest': instance.helpRequest,
     };

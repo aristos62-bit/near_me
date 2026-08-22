@@ -14,6 +14,9 @@ class FeatureFlags {
   static const bool aiMatchingEnabled = false;
   static const bool verifiedBadgeEnabled = false;
 
+  // SOS / Emergency Help
+  static const bool helpRequestEnabled = true;
+
   // Monetization
   static const bool premiumTierEnabled = false;
 

@@ -11,6 +11,7 @@ import '../../auth/providers/auth_provider.dart';
 import '../../block/providers/block_provider.dart';
 import 'filters_provider.dart';
 import '../../../core/utils/geohash_utils.dart';
+import '../../../shared/utils/help_request_config.dart';
 
 final searchRepositoryProvider = Provider<SearchRepository>((ref) {
   DebugConfig.log(DebugConfig.providerCreate, 'searchRepositoryProvider created');
@@ -109,6 +110,34 @@ class SearchNotifier extends Notifier<SearchState> {
     state = SearchState(status: SearchStatus.error, errorMessage: code);
   }
 
+  /// Stable priority partition (sos.md §6.1): όσοι έχουν ενεργό SOS εντός TTL
+  /// ΚΑΙ εντός του δικού τους radiusKm μπαίνουν πρώτοι, οι υπόλοιποι στην
+  /// τωρινή σειρά. Καλείται με το φρέσκο distances map της τρέχουσας κλήσης —
+  /// ΠΟΤΕ state.distances (BUG 1).
+  List<PublicProfile> _prioritizeHelpRequests(
+    List<PublicProfile> results,
+    Map<String, double> distances,
+  ) {
+    final now = DateTime.now();
+    final urgent = <PublicProfile>[];
+    final rest = <PublicProfile>[];
+    for (final p in results) {
+      final h = p.helpRequest;
+      final dist = distances[p.uid];
+      final isUrgent = h != null &&
+          h.active &&
+          h.updatedAt != null &&
+          now.difference(h.updatedAt!) <= HelpRequestConfig.ttl &&
+          dist != null &&
+          dist <= h.radiusKm;
+      (isUrgent ? urgent : rest).add(p);
+    }
+    if (urgent.isEmpty) return results;
+    DebugConfig.log(DebugConfig.helpRequest,
+        'SearchNotifier: ${urgent.length}/${results.length} urgent SOS prioritized');
+    return [...urgent, ...rest];
+  }
+
   /// Πύλη ρυθμού πριν από κάθε ΝΕΟ search (όχι loadMore — απλή
   /// σελιδοποίηση, όχι νέο lat/lng probing). Fail-open: αν η ίδια η
   /// function αποτύχει (δίκτυο, cold start), επιτρέπουμε το search —
@@ -171,11 +200,12 @@ class SearchNotifier extends Notifier<SearchState> {
       final distances = (lat != null && lng != null)
           ? _computeDistances(filtered, lat, lng)
           : const <String, double>{};
+      final prioritized = _prioritizeHelpRequests(filtered, distances);
       DebugConfig.log(DebugConfig.repositoryResult,
           'SearchNotifier.search: ${filtered.length} results, hasMore=${result.hasMore}, distances=${distances.length}');
       state = SearchState(
         status: SearchStatus.success,
-        results: filtered,
+        results: prioritized,
         hasMore: result.hasMore,
         searchCenterLat: lat,
         searchCenterLng: lng,
@@ -216,11 +246,12 @@ class SearchNotifier extends Notifier<SearchState> {
       final filtered = _excludeSelf(_excludeBlocked(result.results));
       _cursor = result.cursor;
       final distances = _computeDistances(filtered, lat, lng);
+      final prioritized = _prioritizeHelpRequests(filtered, distances);
       DebugConfig.log(DebugConfig.repositoryResult,
           'SearchNotifier.searchNearby: ${filtered.length} results, hasMore=${result.hasMore}, distances=${distances.length}');
       state = SearchState(
         status: SearchStatus.success,
-        results: filtered,
+        results: prioritized,
         hasMore: result.hasMore,
         searchCenterLat: lat,
         searchCenterLng: lng,
@@ -280,12 +311,13 @@ class SearchNotifier extends Notifier<SearchState> {
           ? _computeDistances(filtered, state.searchCenterLat!, state.searchCenterLng!)
           : const <String, double>{};
       final allDistances = {...state.distances, ...newDistances};
+      final prioritized = _prioritizeHelpRequests(all, allDistances);
       DebugConfig.log(DebugConfig.repositoryResult,
           'SearchNotifier.loadMore: +${filtered.length} = ${all.length} total, hasMore=${result.hasMore}, +${newDistances.length} distances = ${allDistances.length} total');
 
       state = SearchState(
         status: SearchStatus.success,
-        results: all,
+        results: prioritized,
         hasMore: result.hasMore,
         distances: allDistances,
         searchCenterLat: state.searchCenterLat,

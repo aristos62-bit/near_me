@@ -13,6 +13,15 @@ abstract class ProfileRepository {
   Future<void> unpublish();
   Future<bool> get isPublished;
 
+  /// Ενεργοποιεί/απενεργοποιεί το SOS (helpRequest) στο public doc.
+  /// Ενεργό: update nested `helpRequest` (message ≤ 80 chars, radiusKm,
+  /// updatedAt σε UTC ISO8601). Απενεργοποίηση: `FieldValue.delete()`.
+  Future<void> setHelpRequest({
+    required bool active,
+    String? message,
+    double? radiusKm,
+  });
+
   /// Αποθηκεύει νέες συντεταγμένες + πόλη/χώρα στο Drift.
   /// Πάντα αποθηκεύει lat/lng. Αποθηκεύει city/country μόνο αν δοθούν.
   /// Επιστρέφει το αποθηκευμένο profile για αποφυγή redundant getProfile().

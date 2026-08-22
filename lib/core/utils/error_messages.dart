@@ -303,6 +303,30 @@ class ErrorMessages {
         return isGreek ? 'Ξεμπλοκαρίστηκε' : 'Unblocked';
       case 'block/blocked':
         return isGreek ? 'Μπλοκαρίστηκε' : 'Blocked';
+      case 'help/not-verified':
+        return isGreek ? 'Πρέπει να επαληθεύσεις τον λογαριασμό σου' : 'Verify your account first';
+      case 'help/not-published':
+        return isGreek ? 'Πρέπει να δημοσιεύσεις το προφίλ σου' : 'You must publish your profile first';
+      case 'help/no-gps':
+        return isGreek ? 'Χρειάζεται τοποθεσία GPS' : 'GPS location is required';
+      case 'help/no-channel':
+        return isGreek ? 'Άνοιξε τουλάχιστον ένα κανάλι επικοινωνίας' : 'Open at least one communication channel';
+      case 'help/activate-failed':
+        return isGreek ? 'Αποτυχία ενεργοποίησης βοήθειας' : 'Failed to activate help';
+      case 'help/deactivate-failed':
+        return isGreek ? 'Αποτυχία απενεργοποίησης βοήθειας' : 'Failed to deactivate help';
+      case 'help/message-too-long':
+        return isGreek ? 'Το μήνυμα είναι πολύ μεγάλο' : 'Message is too long';
+      case 'help/expired':
+        return isGreek ? 'Το αίτημα βοήθειας έληξε' : 'The help request has expired';
+      case 'help/not-found':
+        return isGreek ? 'Δεν βρέθηκε το δημοσιευμένο προφίλ' : 'Published profile not found';
+      case 'help/hidden-location':
+        return isGreek ? 'Κάνε την τοποθεσία σου ορατή για να ζητήσεις βοήθεια' : 'Make your location visible to request help';
+      case 'help/activated':
+        return isGreek ? 'Η επείγουσα βοήθεια ενεργοποιήθηκε' : 'Emergency help activated';
+      case 'help/deactivated':
+        return isGreek ? 'Η επείγουσα βοήθεια απενεργοποιήθηκε' : 'Emergency help deactivated';
       case 'search/saved-search-deleted':
         return isGreek ? 'Η αποθηκευμένη αναζήτηση διαγράφηκε' : 'Saved search deleted';
       case 'search/filters-saved':

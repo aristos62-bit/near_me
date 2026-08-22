@@ -96,7 +96,20 @@ service cloud.firestore {
                                 || request.resource.data.age >= 18)
                             && (request.resource.data.geoHash
                                   == resource.data.get('geoHash', null)
-                                || !('geoHash' in request.resource.data));
+                                || !('geoHash' in request.resource.data))
+                            // Targeted validation του helpRequest (sos.md §9.2) —
+                            // ισχύει ΜΟΝΟ όταν το πεδίο γράφεται. Σφραγίζει shape/
+                            // τύπο/εύρος/verification (spam radius/message, μελλοντικό
+                            // updatedAt). Ο έλεγχος TTL παραμένει client-side (§5.4).
+                            && (!('helpRequest' in request.resource.data)
+                                || (request.resource.data.helpRequest.active is bool
+                                    && request.resource.data.helpRequest.radiusKm is number
+                                    && request.resource.data.helpRequest.radiusKm >= 1
+                                    && request.resource.data.helpRequest.radiusKm <= 50
+                                    && request.resource.data.helpRequest.message is string
+                                    && request.resource.data.helpRequest.message.size() <= 80
+                                    && request.resource.data.helpRequest.updatedAt is string
+                                    && isVerified()));
 
               allow delete: if isOwner(uid) && notBanned();
             }

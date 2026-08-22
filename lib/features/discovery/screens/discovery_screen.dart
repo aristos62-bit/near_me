@@ -2,13 +2,17 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/config/feature_flags.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/utils/error_messages.dart';
 import '../../../core/utils/app_messenger.dart';
+import '../../../shared/utils/help_request_config.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../../../shared/widgets/gps_strength_indicator.dart';
+import '../widgets/help_request_sheet.dart';
 import '../widgets/search_results_grid.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../../profile/providers/location_service.dart';
 import '../../profile/providers/profile_provider.dart';
 import '../../settings/providers/app_settings_provider.dart';
@@ -271,6 +275,7 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
         title: Text(isGreek ? 'Ανακάλυψη' : 'Discover'),
         actions: [
           const GpsStrengthIndicator(),
+          if (FeatureFlags.helpRequestEnabled) const SosHelpButton(),
           _buildRadiusSelector(isGreek),
           IconButton(
             icon: const Icon(Icons.bookmark_border),
@@ -371,4 +376,70 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
   }
 
 
+}
+
+/// Leaf widget για το SOS κουμπί στην AppBar (sos.md §5.1).
+/// Απομονωμένο ConsumerWidget — το κόκκινο ring (active state) διαβάζει το
+/// δικό σου publicProfileStreamProvider σε leaf, χωρίς να ξαναχτίζει το grid (§10).
+/// Επίσης χειρίζεται το TTL auto-off (§5.4) με ref.listen — event-driven,
+/// χωρίς Dart timers (Session 152 μάθημα).
+class SosHelpButton extends ConsumerWidget {
+  const SosHelpButton({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final uid = ref.watch(authStateProvider).value?.uid ?? '';
+    final pubAsync = ref.watch(publicProfileStreamProvider(uid));
+    final active = pubAsync.value?.helpRequest?.active == true;
+    final theme = Theme.of(context);
+    final isGreek = L10n.isGreek(context);
+
+    ref.listen(publicProfileStreamProvider(uid), (prev, next) {
+      final h = next.value?.helpRequest;
+      if (h == null || !h.active || h.updatedAt == null) return;
+      final now = DateTime.now();
+      if (now.difference(h.updatedAt!) > HelpRequestConfig.ttl) {
+        DebugConfig.log(DebugConfig.helpRequest,
+            'SosHelpButton: stale SOS detected → auto-off (TTL ${HelpRequestConfig.ttl.inMinutes}min)');
+        ref
+            .read(profileRepositoryProvider)
+            .setHelpRequest(active: false)
+            .then((_) => DebugConfig.log(
+                DebugConfig.helpRequest, 'SosHelpButton: auto-off write OK'))
+            .catchError((e) => DebugConfig.warn(
+                'SosHelpButton: auto-off failed (non-fatal)', data: e));
+      }
+    });
+
+    return IconButton(
+      onPressed: () {
+        DebugConfig.log(DebugConfig.uiInteraction, 'Discovery: SOS button tapped');
+        showHelpRequestSheet(context);
+      },
+      tooltip: L10n.helpRequestTitle(isGreek: isGreek),
+      padding: const EdgeInsets.all(4),
+      icon: Container(
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(40),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+          border: Border.all(
+            color: active ? theme.colorScheme.error : Colors.transparent,
+            width: 2.5,
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(1.5),
+          child: Image.asset('assets/icons/sos2.webp', width: 28, height: 28),
+        ),
+      ),
+    );
+  }
 }

@@ -112,6 +112,20 @@ class ConsentActionConfig {
       enLabel: 'Added a member',
       elLabel: 'Προσθήκη μέλους',
     ),
+    'help_request_activate': ConsentActionInfo(
+      icon: Icons.sos,
+      outlinedIcon: Icons.sos_outlined,
+      color: AppColors.error,
+      enLabel: 'Activated emergency help',
+      elLabel: 'Ενεργοποίηση επείγουσας βοήθειας',
+    ),
+    'help_request_deactivate': ConsentActionInfo(
+      icon: Icons.sos_outlined,
+      outlinedIcon: Icons.sos_outlined,
+      color: AppColors.warning,
+      enLabel: 'Deactivated emergency help',
+      elLabel: 'Απενεργοποίηση επείγουσας βοήθειας',
+    ),
   };
 
   static ConsentActionInfo? get(String action) => actions[action];

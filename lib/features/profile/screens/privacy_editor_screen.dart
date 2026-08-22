@@ -63,7 +63,10 @@ class _PrivacyEditorScreenState extends ConsumerState<PrivacyEditorScreen> {
       showGender: true, showCity: true, showExactLocation: false,
       showPhone: false, showEmail: false, showInterests: true,
       showOccupation: true, showBio: true, showLookingFor: true, showAvatar: true, showPhotos: true, showCountry: true,
-      allowVideoCall: true, allowDirectChat: true, geoPrecision: 'neighborhood',
+      // Ευθυγραμμισμένο με το PrivacySettingsTable column default (false/false)
+      // και με το αποτέλεσμα του migration v13->v14 για νέο χρήστη — privacy-first:
+      // κανείς δεν μπορεί να στείλει αίτημα video/chat μέχρι ο χρήστης να το ενεργοποιήσει ρητά.
+      allowVideoCall: false, allowDirectChat: false, geoPrecision: 'neighborhood',
     );
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadSettings());
   }
@@ -157,6 +160,28 @@ class _PrivacyEditorScreenState extends ConsumerState<PrivacyEditorScreen> {
             FormToggle(title: greek ? 'Αναζητώ' : 'Looking For', subtitle: greek ? 'Να εμφανίζεται ο λόγος αναζήτησης' : 'Show what you are looking for', value: _settings.showLookingFor, onChanged: (v) => setState(() => _settings = _settings.copyWith(showLookingFor: v))),
             FormToggle(title: greek ? 'Φωτογραφία Προφίλ' : 'Profile Photo', subtitle: greek ? 'Να εμφανίζεται η φωτογραφία προφίλ σου' : 'Show your profile photo', value: _settings.showAvatar, onChanged: (v) => setState(() => _settings = _settings.copyWith(showAvatar: v))),
             FormToggle(title: greek ? 'Φωτογραφίες' : 'Photos', subtitle: greek ? 'Να εμφανίζονται οι υπόλοιπες φωτογραφίες σου' : 'Show your other photos', value: _settings.showPhotos, onChanged: (v) => setState(() => _settings = _settings.copyWith(showPhotos: v))),
+          ]),
+          FormSection(icon: Icons.forum_outlined, title: greek ? 'Αιτήματα Επικοινωνίας' : 'Communication Requests', children: [
+            FormToggle(
+              icon: Icons.videocam_outlined,
+              title: greek ? 'Βιντεοκλήση' : 'Video Call',
+              subtitle: greek ? 'Να επιτρέπονται αιτήματα βιντεοκλήσης από άλλους' : 'Allow video call requests from others',
+              value: _settings.allowVideoCall,
+              onChanged: (v) {
+                DebugConfig.log(DebugConfig.uiInteraction, 'PrivacyEditor: allowVideoCall -> $v');
+                setState(() => _settings = _settings.copyWith(allowVideoCall: v));
+              },
+            ),
+            FormToggle(
+              icon: Icons.chat_outlined,
+              title: greek ? 'Άμεσο Chat' : 'Direct Chat',
+              subtitle: greek ? 'Να επιτρέπονται αιτήματα άμεσων μηνυμάτων από άλλους' : 'Allow direct message requests from others',
+              value: _settings.allowDirectChat,
+              onChanged: (v) {
+                DebugConfig.log(DebugConfig.uiInteraction, 'PrivacyEditor: allowDirectChat -> $v');
+                setState(() => _settings = _settings.copyWith(allowDirectChat: v));
+              },
+            ),
           ]),
 
           Padding(

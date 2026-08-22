@@ -4,6 +4,19 @@ part 'public_profile.freezed.dart';
 part 'public_profile.g.dart';
 
 @freezed
+abstract class HelpRequest with _$HelpRequest {
+  const factory HelpRequest({
+    @Default(false) bool active,
+    String? message,
+    @Default(10.0) double radiusKm,
+    DateTime? updatedAt,
+  }) = _HelpRequest;
+
+  factory HelpRequest.fromJson(Map<String, dynamic> json) =>
+      _$HelpRequestFromJson(json);
+}
+
+@freezed
 abstract class PublicProfile with _$PublicProfile {
   const factory PublicProfile({
     required String uid,
@@ -28,6 +41,7 @@ abstract class PublicProfile with _$PublicProfile {
     String? phone,
     @Default('el') String lang,
     DateTime? updatedAt,
+    HelpRequest? helpRequest,
   }) = _PublicProfile;
 
   factory PublicProfile.fromJson(Map<String, dynamic> json) =>

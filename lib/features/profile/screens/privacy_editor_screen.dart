@@ -149,23 +149,13 @@ class _PrivacyEditorScreenState extends ConsumerState<PrivacyEditorScreen> {
             const SizedBox(height: 8),
             _buildGeoPrecision(greek),
           ]),
-          FormSection(icon: Icons.contact_phone_outlined, title: greek ? 'Επικοινωνία' : 'Contact', children: [
-            FormToggle(title: greek ? 'Τηλέφωνο' : 'Phone', subtitle: greek ? 'Να εμφανίζεται το τηλέφωνό σου' : 'Show your phone number', value: _settings.showPhone, onChanged: (v) => setState(() => _settings = _settings.copyWith(showPhone: v))),
-            FormToggle(title: greek ? 'Ηλ. Ταχυδρομείο' : 'Email', subtitle: greek ? 'Να εμφανίζεται το email σου' : 'Show your email', value: _settings.showEmail, onChanged: (v) => setState(() => _settings = _settings.copyWith(showEmail: v))),
-          ]),
-          FormSection(icon: Icons.article_outlined, title: greek ? 'Περιεχόμενο Προφίλ' : 'Profile Content', children: [
-            FormToggle(title: greek ? 'Βιογραφικό' : 'Bio', subtitle: greek ? 'Να εμφανίζεται η περιγραφή σου' : 'Show your bio', value: _settings.showBio, onChanged: (v) => setState(() => _settings = _settings.copyWith(showBio: v))),
-            FormToggle(title: greek ? 'Ενδιαφέροντα' : 'Interests', subtitle: greek ? 'Να εμφανίζονται τα ενδιαφέροντά σου' : 'Show your interests', value: _settings.showInterests, onChanged: (v) => setState(() => _settings = _settings.copyWith(showInterests: v))),
-            FormToggle(title: greek ? 'Απασχόληση' : 'Occupation', subtitle: greek ? 'Να εμφανίζεται η απασχόλησή σου' : 'Show your occupation', value: _settings.showOccupation, onChanged: (v) => setState(() => _settings = _settings.copyWith(showOccupation: v))),
-            FormToggle(title: greek ? 'Αναζητώ' : 'Looking For', subtitle: greek ? 'Να εμφανίζεται ο λόγος αναζήτησης' : 'Show what you are looking for', value: _settings.showLookingFor, onChanged: (v) => setState(() => _settings = _settings.copyWith(showLookingFor: v))),
-            FormToggle(title: greek ? 'Φωτογραφία Προφίλ' : 'Profile Photo', subtitle: greek ? 'Να εμφανίζεται η φωτογραφία προφίλ σου' : 'Show your profile photo', value: _settings.showAvatar, onChanged: (v) => setState(() => _settings = _settings.copyWith(showAvatar: v))),
-            FormToggle(title: greek ? 'Φωτογραφίες' : 'Photos', subtitle: greek ? 'Να εμφανίζονται οι υπόλοιπες φωτογραφίες σου' : 'Show your other photos', value: _settings.showPhotos, onChanged: (v) => setState(() => _settings = _settings.copyWith(showPhotos: v))),
-          ]),
-          FormSection(icon: Icons.forum_outlined, title: greek ? 'Αιτήματα Επικοινωνίας' : 'Communication Requests', children: [
+          FormSection(icon: Icons.contact_phone_outlined, title: greek ? 'Κανάλια Επικοινωνίας' : 'Contact Channels', children: [
+            FormToggle(icon: Icons.phone_outlined, title: greek ? 'Τηλέφωνο' : 'Phone', subtitle: greek ? 'Να εμφανίζεται το τηλέφωνό σου' : 'Show your phone number', value: _settings.showPhone, onChanged: (v) => setState(() => _settings = _settings.copyWith(showPhone: v))),
+            FormToggle(icon: Icons.email_outlined, title: greek ? 'Ηλ. Ταχυδρομείο' : 'Email', subtitle: greek ? 'Να εμφανίζεται το email σου' : 'Show your email', value: _settings.showEmail, onChanged: (v) => setState(() => _settings = _settings.copyWith(showEmail: v))),
             FormToggle(
               icon: Icons.videocam_outlined,
               title: greek ? 'Βιντεοκλήση' : 'Video Call',
-              subtitle: greek ? 'Να επιτρέπονται αιτήματα βιντεοκλήσης από άλλους' : 'Allow video call requests from others',
+              subtitle: greek ? 'Να επιτρέπονται αιτήματα βιντεοκλήσεων από άλλους' : 'Allow video call requests from others',
               value: _settings.allowVideoCall,
               onChanged: (v) {
                 DebugConfig.log(DebugConfig.uiInteraction, 'PrivacyEditor: allowVideoCall -> $v');
@@ -182,6 +172,14 @@ class _PrivacyEditorScreenState extends ConsumerState<PrivacyEditorScreen> {
                 setState(() => _settings = _settings.copyWith(allowDirectChat: v));
               },
             ),
+          ]),
+          FormSection(icon: Icons.article_outlined, title: greek ? 'Περιεχόμενο Προφίλ' : 'Profile Content', children: [
+            FormToggle(title: greek ? 'Βιογραφικό' : 'Bio', subtitle: greek ? 'Να εμφανίζεται η περιγραφή σου' : 'Show your bio', value: _settings.showBio, onChanged: (v) => setState(() => _settings = _settings.copyWith(showBio: v))),
+            FormToggle(title: greek ? 'Ενδιαφέροντα' : 'Interests', subtitle: greek ? 'Να εμφανίζονται τα ενδιαφέροντά σου' : 'Show your interests', value: _settings.showInterests, onChanged: (v) => setState(() => _settings = _settings.copyWith(showInterests: v))),
+            FormToggle(title: greek ? 'Απασχόληση' : 'Occupation', subtitle: greek ? 'Να εμφανίζεται η απασχόλησή σου' : 'Show your occupation', value: _settings.showOccupation, onChanged: (v) => setState(() => _settings = _settings.copyWith(showOccupation: v))),
+            FormToggle(title: greek ? 'Αναζητώ' : 'Looking For', subtitle: greek ? 'Να εμφανίζεται ο λόγος αναζήτησης' : 'Show what you are looking for', value: _settings.showLookingFor, onChanged: (v) => setState(() => _settings = _settings.copyWith(showLookingFor: v))),
+            FormToggle(title: greek ? 'Φωτογραφία Προφίλ' : 'Profile Photo', subtitle: greek ? 'Να εμφανίζεται η φωτογραφία προφίλ σου' : 'Show your profile photo', value: _settings.showAvatar, onChanged: (v) => setState(() => _settings = _settings.copyWith(showAvatar: v))),
+            FormToggle(title: greek ? 'Φωτογραφίες' : 'Photos', subtitle: greek ? 'Να εμφανίζονται οι υπόλοιπες φωτογραφίες σου' : 'Show your other photos', value: _settings.showPhotos, onChanged: (v) => setState(() => _settings = _settings.copyWith(showPhotos: v))),
           ]),
 
           Padding(

@@ -258,7 +258,7 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 | Cloud Functions | 8 deployed (+ computeGeoHash, + checkSearchRateLimit) + `fcm-utils.ts` helper |
 | Build | `flutter analyze` clean, release APK ~15.8MB |
 | Tests | 30/30 passed |
-| Schema | Drift v12, 7 tables |
+| Schema | Drift v14, 7 tables |
 | Feature Flags | 21 (typesense, videoCall, groupChat, gifSupport, mediaMessages, audioMessages, videoMessages, messageExpiry, messageReactions, replyToMessage, **replyPrivately**, editMessage, deleteMessage, messageInfo, messageEmail, messageShare, groupEvents, webVersion, aiMatching, verifiedBadge, premiumTier) |
 
 ## ΚΕΦΑΛΑΙΟ 7 — KEY CONVENTIONS
@@ -1478,3 +1478,49 @@ Email με attachment: το Android email app (π.χ. Gmail, `launchMode=singleT
 - `backups/firestore_cost_optimization_20260814_115102.md`
 
 ### `flutter analyze`: clean ✅ (0 issues)
+
+---
+
+## Session 234 — SPoT μεταφορά allowVideoCall/allowDirectChat στο Privacy Editor (100%) — 22 Αυγ 2026
+
+### Σκοπός
+Τα toggles «Βιντεοκλήση» / «Άμεσο Chat» υπήρχαν μόνο στο Profile Editor και έγραφαν στο `UserProfileTable`. Το `PrivacySettingsTable` είχε ήδη τα ίδια columns (ορφανά — κανείς δεν τα διάβαζε). Η ρύθμιση «ποιος μπορεί να μου στείλει αίτημα video/chat» είναι θέμα απορρήτου → μεταφορά SPoT στο Privacy Editor.
+
+### Κρίσιμο εύρημα πριν την υλοποίηση
+Το `publish()` διάβαζε `profile.allowVideoCall/allowDirectChat` από UserProfileTable — απλή προσθήκη toggles δεμένων στο PrivacySettings θα δημιουργούσε dead UI (αποθηκευόταν τοπικά, δεν έφτανε ποτέ στο public snapshot). Γι' αυτό χρειάστηκε πλήρης μεταφορά SPoT, όχι απλό UI toggle.
+
+### Υλοποίηση (4 αρχεία, υλοποίηση από τον χρήστη, review από AI)
+
+1. **`lib/data/local/database.dart`** — schema v13→**v14**:
+   - Migration `from < 14`: `customStatement` UPDATE που αντιγράφει `allow_video_call`/`allow_direct_chat` από `user_profile_table` → `privacy_settings_table` per-uid (scalar subqueries + `WHERE EXISTS` guard). Προστατεύει υπάρχοντες χρήστες από silent reset σε false/false.
+   - **try/catch non-fatal**: DML πάνω σε δεδομένα χρήστη· αν αποτύχει δεν πρέπει να μπλοκάρει το άνοιγμα βάσης/εκκίνηση app (το onUpgrade τρέχει σε transaction). Ίδιο best-effort pattern με το geoPrecision Firestore sync.
+   - Trade-off: αν αποτύχει μία φορά ΔΕΝ ξανατρέχει (v14 καταγράφεται) → ο συγκεκριμένος χρήστης χάνει τη ρύθμιση. Mitigation: `DebugConfig.error` (πάντα ορατό).
+
+2. **`lib/repositories/profile_repository_impl.dart`**:
+   - `_ensurePrivacySettings(uid, {UserProfileTableData? sourceProfile})` — seeding: νέο row παίρνει τις τιμές του profile αντί για defaults (καλύπτει restore path σε νέα συσκευή).
+   - 3 call sites ενημερώθηκαν με `sourceProfile:` (getProfile restore γρ. 137, saveProfile γρ. 181, publish γρ. 327).
+   - **SPoT switch στο publish()** (γρ. 354-355): `allowVideoCall: privacy?.allowVideoCall ?? false`, `allowDirectChat: privacy?.allowDirectChat ?? false`.
+
+3. **`lib/features/profile/screens/profile_editor_screen.dart`** — αφαίρεση των 2 FormToggles + state fields (`_allowVideoCall`/`_allowDirectChat`) + dirty checks + import form_toggle. Στο `_save()` pass-through διατήρησης τιμών: `allowVideoCall: _loadedProfile?.allowVideoCall ?? false` (δεν μηδενίζει — το UserProfileTable column μένει ως legacy).
+
+4. **`lib/features/profile/screens/privacy_editor_screen.dart`**:
+   - Νέο FormSection «Αιτήματα Επικοινωνίας / Communication Requests» με 2 FormToggles δεμένα στα `_settings.allowVideoCall/allowDirectChat` + DebugConfig.logs.
+   - initState fallback defaults: `true/true` → **`false/false`** — ευθυγραμμισμένα με table defaults. Έτσι όλοι οι δρόμοι δημιουργίας row συγκλίνουν (table default = initState fallback = seeding) και δεν εξαρτάται από σειρά πλοήγησης (πρώτα Privacy Editor vs πρώτα publish).
+
+5. **`lib/features/requests/screens/send_request_screen.dart`** — deny-by-default στο UI: `profile?.allowDirectChat ?? true` → `?? false` (και για video). Χωρίς UX flicker: το FutureBuilder δείχνει LoadingView κατά το waiting, άρα το selector αποδίδει ΜΟΝΟ μετά την ολοκλήρωση — το fallback ενεργοποιείται μόνο όταν το public doc είναι πραγματικά null. Πλέον UI = client pre-check (request_repository_impl:62-67) = server rules (firestore.rules:68-69), όλα deny-by-default.
+
+### Συμπεριφορά
+- **Νέοι χρήστες**: αιτήματα επικοινωνίας κλειστά by default (privacy-first) — ενεργοποίηση ρητά από Privacy Editor.
+- **Υπάρχοντες χρήστες**: migration διατηρεί τις τιμές τους (σχεδόν όλοι έχουν `allowDirectChat=true` από το παλιό ProfileEditor default).
+- Ανεπηρέαστα: firestore.rules, search filters, saved searches, help_request_config (όλα διαβάζουν το public snapshot που πλέον γεμίζει από το σωστό SPoT).
+- **ΔΕΝ χρειάστηκε build_runner** (καμία αλλαγή σε columns — μόνο data migration).
+
+### Παραλείψεις / εκκρεμότητες
+- ❌ Δεν έγιναν backups για τα 4 edited αρχεία πριν τις αλλαγές (παραβίαση κανόνα — επισημάνθηκε).
+- ⏳ Device tests: (1) migration log `Migration v13->v14` σε update υπάρχοντος account, (2) toggle off → Apply → άλλη συσκευή δεν μπορεί να στείλει αίτημα, (3) restore path → log `seeded allowVideoCall=...`.
+
+### Έλεγχος
+- `flutter analyze`: clean ✅ (full project + targeted σε database.dart, privacy_editor_screen.dart, send_request_screen.dart)
+
+### Backups
+- `backups/oldsessions_20260822_123148.md` (πριν το update του παρόντος αρχείου)

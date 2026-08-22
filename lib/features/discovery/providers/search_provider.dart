@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -143,33 +144,67 @@ class SearchNotifier extends Notifier<SearchState> {
   /// function αποτύχει (δίκτυο, cold start), επιτρέπουμε το search —
   /// ίδιο best-effort σκεπτικό με το computeGeoHash στο profile publish.
   Future<bool> _checkRateLimit() async {
+    // TEMP [SEARCH-PERF]: μέτρηση διάρκειας CF κλήσης (ύποπτο για hang)
+    final cfSw = Stopwatch()..start();
+    // TEMP [SEARCH-PERF]: watchdog — αν η CF δεν απαντήσει, καταγράφεται hang
+    var cfDone = false;
+    Timer(const Duration(seconds: 5), () {
+      if (!cfDone) {
+        DebugConfig.warn(
+            '[SEARCH-PERF] ⚠️ rateLimit CF STILL PENDING after 5s (πιθανό zombie socket)');
+      }
+    });
+    Timer(const Duration(seconds: 20), () {
+      if (!cfDone) {
+        DebugConfig.error(
+            '[SEARCH-PERF] ⚠️⚠️ rateLimit CF STILL PENDING after 20s — επιβεβαιωμένο κόλλημα');
+      }
+    });
     try {
       DebugConfig.log(DebugConfig.cloudFunctions,
           'SearchNotifier: calling checkSearchRateLimit');
-      await FirebaseFunctions.instance
+      final cfCall = FirebaseFunctions.instance
           .httpsCallable('checkSearchRateLimit')
           .call();
+      // TEMP [SEARCH-PERF]: flag completion και σε error path — χωρίς unhandled exception
+      unawaited(cfCall.then(
+        (_) {
+          cfDone = true;
+        },
+        onError: (Object _) {
+          cfDone = true;
+        },
+      ));
+      // FIX: timeout 4s — zombie socket κατά αλλαγή δικτύου κρεμούσε την
+      // αναζήτηση έως ~45s. Σε λήξη: TimeoutException → fail-open (catch).
+      await cfCall.timeout(const Duration(seconds: 4));
+      DebugConfig.log(DebugConfig.cloudFunctions,
+          '[SEARCH-PERF] rateLimit CF ok (${cfSw.elapsedMilliseconds}ms)');
       return true;
     } on FirebaseFunctionsException catch (e) {
       final code = e.code.replaceFirst('functions/', '');
       if (code == 'resource-exhausted') {
         DebugConfig.log(DebugConfig.repositoryCall,
-            'SearchNotifier: rate limit exceeded');
+            'SearchNotifier: rate limit exceeded (${cfSw.elapsedMilliseconds}ms)');
         state = const SearchState(
             status: SearchStatus.error, errorMessage: 'search/rate-limited');
         return false;
       }
       DebugConfig.warn(
-          'SearchNotifier: rate limit check failed (fail-open)', data: e);
+          'SearchNotifier: rate limit check failed (fail-open, ${cfSw.elapsedMilliseconds}ms)',
+          data: e);
       return true;
     } catch (e) {
       DebugConfig.warn(
-          'SearchNotifier: rate limit check failed (fail-open)', data: e);
+          'SearchNotifier: rate limit check failed (fail-open, ${cfSw.elapsedMilliseconds}ms)',
+          data: e);
       return true;
     }
   }
 
   Future<void> search() async {
+    // TEMP [SEARCH-PERF]: διάγνωση καθυστέρησης εκκίνησης — αφαιρείται μετά
+    final perfSw = Stopwatch()..start();
     try {
       final connectivity = await Connectivity().checkConnectivity();
       if (connectivity.contains(ConnectivityResult.none)) {
@@ -179,9 +214,13 @@ class SearchNotifier extends Notifier<SearchState> {
             status: SearchStatus.error, errorMessage: 'search/no-connectivity');
         return;
       }
+      DebugConfig.log(DebugConfig.repositoryCall,
+          '[SEARCH-PERF] provider.search: connectivity ok (+${perfSw.elapsedMilliseconds}ms)');
     } catch (_) {}
 
     if (!await _checkRateLimit()) return;
+    DebugConfig.log(DebugConfig.repositoryCall,
+        '[SEARCH-PERF] provider.search: rateLimit passed (+${perfSw.elapsedMilliseconds}ms)');
 
     final filters = ref.read(searchFiltersProvider);
     DebugConfig.log(DebugConfig.repositoryCall, 'SearchNotifier.search: $filters');
@@ -192,7 +231,10 @@ class SearchNotifier extends Notifier<SearchState> {
 
     state = const SearchState(status: SearchStatus.loading);
     try {
+      final repoSw = Stopwatch()..start();
       final result = await _repo.search(filters);
+      DebugConfig.log(DebugConfig.repositoryCall,
+          '[SEARCH-PERF] provider.search: repo=${repoSw.elapsedMilliseconds}ms (+${perfSw.elapsedMilliseconds}ms), raw=${result.results.length}');
       final filtered = _excludeSelf(_excludeBlocked(result.results));
       _cursor = result.cursor;
       final lat = filters.latitude;
@@ -203,6 +245,8 @@ class SearchNotifier extends Notifier<SearchState> {
       final prioritized = _prioritizeHelpRequests(filtered, distances);
       DebugConfig.log(DebugConfig.repositoryResult,
           'SearchNotifier.search: ${filtered.length} results, hasMore=${result.hasMore}, distances=${distances.length}');
+      DebugConfig.log(DebugConfig.repositoryCall,
+          '[SEARCH-PERF] provider.search: TOTAL=${perfSw.elapsedMilliseconds}ms, results=${prioritized.length}');
       state = SearchState(
         status: SearchStatus.success,
         results: prioritized,
@@ -218,6 +262,8 @@ class SearchNotifier extends Notifier<SearchState> {
   }
 
   Future<void> searchNearby(double lat, double lng, double radiusKm) async {
+    // TEMP [SEARCH-PERF]: διάγνωση καθυστέρησης εκκίνησης — αφαιρείται μετά
+    final perfSw = Stopwatch()..start();
     try {
       final connectivity = await Connectivity().checkConnectivity();
       if (connectivity.contains(ConnectivityResult.none)) {
@@ -227,12 +273,14 @@ class SearchNotifier extends Notifier<SearchState> {
             status: SearchStatus.error, errorMessage: 'search/no-connectivity');
         return;
       }
+      DebugConfig.log(DebugConfig.repositoryCall,
+          '[SEARCH-PERF] provider.searchNearby: connectivity ok (+${perfSw.elapsedMilliseconds}ms)');
     } catch (_) {}
 
     if (!await _checkRateLimit()) return;
 
     DebugConfig.log(DebugConfig.repositoryCall,
-        'SearchNotifier.searchNearby: ($lat, $lng) r=$radiusKm');
+        'SearchNotifier.searchNearby: ($lat, $lng) r=$radiusKm (+${perfSw.elapsedMilliseconds}ms)');
 
     _resetPagination();
     _lastType = _SearchType.nearby;
@@ -242,13 +290,18 @@ class SearchNotifier extends Notifier<SearchState> {
 
     state = const SearchState(status: SearchStatus.loading);
     try {
+      final repoSw = Stopwatch()..start();
       final result = await _repo.searchNearby(lat, lng, radiusKm);
+      DebugConfig.log(DebugConfig.repositoryCall,
+          '[SEARCH-PERF] provider.searchNearby: repo=${repoSw.elapsedMilliseconds}ms (+${perfSw.elapsedMilliseconds}ms), raw=${result.results.length}');
       final filtered = _excludeSelf(_excludeBlocked(result.results));
       _cursor = result.cursor;
       final distances = _computeDistances(filtered, lat, lng);
       final prioritized = _prioritizeHelpRequests(filtered, distances);
       DebugConfig.log(DebugConfig.repositoryResult,
           'SearchNotifier.searchNearby: ${filtered.length} results, hasMore=${result.hasMore}, distances=${distances.length}');
+      DebugConfig.log(DebugConfig.repositoryCall,
+          '[SEARCH-PERF] provider.searchNearby: TOTAL=${perfSw.elapsedMilliseconds}ms, results=${prioritized.length}');
       state = SearchState(
         status: SearchStatus.success,
         results: prioritized,

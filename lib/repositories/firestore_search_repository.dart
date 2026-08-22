@@ -132,7 +132,16 @@ class FirestoreSearchRepository implements SearchRepository {
       return q.get();
     }).toList();
 
+    // TEMP [SEARCH-PERF]: μέτρηση διάρκειας παράλληλων cell queries
+    DebugConfig.log(DebugConfig.repositoryCall,
+        '[SEARCH-PERF] _geoSearch: fetch starting (${allCells.length} cells)...');
+    final fetchSw = Stopwatch()..start();
     final snapshots = await Future.wait(futures);
+    DebugConfig.log(
+      DebugConfig.repositoryCall,
+      '[SEARCH-PERF] _geoSearch: Future.wait=${fetchSw.elapsedMilliseconds}ms, '
+          'cells=${allCells.length}, docs/cell=[${snapshots.map((s) => s.docs.length).join(",")}]',
+    );
 
     // Συγχώνευση αποτελεσμάτων - deduplication με uid
     final seen = <String>{};
@@ -307,7 +316,16 @@ class FirestoreSearchRepository implements SearchRepository {
         return q.get();
       }).toList();
 
+      // TEMP [SEARCH-PERF]: μέτρηση διάρκειας παράλληλων cell queries
+      DebugConfig.log(DebugConfig.repositoryCall,
+          '[SEARCH-PERF] searchNearby: fetch starting (${allCells.length} cells)...');
+      final fetchSw = Stopwatch()..start();
       final snapshots = await Future.wait(futures);
+      DebugConfig.log(
+        DebugConfig.repositoryCall,
+        '[SEARCH-PERF] searchNearby: Future.wait=${fetchSw.elapsedMilliseconds}ms, '
+            'cells=${allCells.length}, docs/cell=[${snapshots.map((s) => s.docs.length).join(",")}]',
+      );
 
       final seen = <String>{};
       final results = <PublicProfile>[];

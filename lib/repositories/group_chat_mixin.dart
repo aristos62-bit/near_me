@@ -380,7 +380,7 @@ mixin GroupChatMixin {
     }
 
     try {
-      await FirebaseFunctions.instance
+      await FirebaseFunctions.instanceFor(region: 'europe-west1')
           .httpsCallable('addGroupParticipant')
           .call({'chatId': chatId, 'newUid': newUid});
 
@@ -412,7 +412,7 @@ mixin GroupChatMixin {
     if (isSelf) {
       // ── Self-removal via Cloud Function (bypasses Firestore rules) ──
       try {
-        await FirebaseFunctions.instance
+        await FirebaseFunctions.instanceFor(region: 'europe-west1')
             .httpsCallable('leaveGroup')
             .call({'chatId': chatId});
 

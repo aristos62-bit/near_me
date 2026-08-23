@@ -10,6 +10,7 @@ const REPORT_LIMIT = 10;
 const BAN_THRESHOLD = 5;
 const SEARCH_RATE_LIMIT = 30;
 const SEARCH_RATE_WINDOW_MS = 5 * 60 * 1000; // 5 λεπτά
+const REGION = 'europe-west1'; // κοντά στο Firestore eur3 — δείχνει το migration
 
 interface TokenEntry {
   uid: string;
@@ -83,7 +84,7 @@ function cleanupInvalidTokens(
   }
 }
 
-export const sendChatNotification = functions.firestore
+export const sendChatNotification = functions.region(REGION).firestore
   .document('chats/{chatId}/messages/{messageId}')
   .onCreate(async (snap, context) => {
     const message = snap.data();
@@ -204,7 +205,7 @@ export const sendChatNotification = functions.firestore
     return null;
   });
 
-export const onReportCreated = functions.firestore
+export const onReportCreated = functions.region(REGION).firestore
   .document('reports/{reportId}')
   .onCreate(async (snap, context) => {
     const report = snap.data() as ReportData;
@@ -319,7 +320,7 @@ export const onReportCreated = functions.firestore
     return null;
   });
 
-export const sendRequestNotification = functions.firestore
+export const sendRequestNotification = functions.region(REGION).firestore
   .document('requests/{reqId}')
   .onCreate(async (snap, context) => {
     const req = snap.data();
@@ -437,7 +438,7 @@ export const sendRequestNotification = functions.firestore
     return null;
   });
 
-export const sendRequestResponseNotification = functions.firestore
+export const sendRequestResponseNotification = functions.region(REGION).firestore
   .document('requests/{reqId}')
   .onUpdate(async (change, context) => {
     const before = change.before.data();
@@ -558,7 +559,7 @@ export const sendRequestResponseNotification = functions.firestore
     return null;
   });
 
-export const deleteUserData = functions.https.onCall(async (data, context) => {
+export const deleteUserData = functions.region(REGION).https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
   }
@@ -797,7 +798,7 @@ export const deleteUserData = functions.https.onCall(async (data, context) => {
     }
   }
 
-  export const computeGeoHash = functions.https.onCall(async (data, context) => {
+  export const computeGeoHash = functions.region(REGION).https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
     }
@@ -852,7 +853,7 @@ export const deleteUserData = functions.https.onCall(async (data, context) => {
 // στο loadMore() (απλή σελιδοποίηση, όχι νέο lat/lng probing).
 // ─────────────────────────────────────────────────────────
 
-export const checkSearchRateLimit = functions.https.onCall(async (data, context) => {
+export const checkSearchRateLimit = functions.region(REGION).https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
   }
@@ -896,7 +897,7 @@ export const checkSearchRateLimit = functions.https.onCall(async (data, context)
   }
 });
 
-  export const addGroupParticipant = functions.https.onCall(async (data, context) => {
+  export const addGroupParticipant = functions.region(REGION).https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
   }
@@ -1020,7 +1021,7 @@ export const checkSearchRateLimit = functions.https.onCall(async (data, context)
   }
 });
 
-export const leaveGroup = functions.https.onCall(async (data, context) => {
+export const leaveGroup = functions.region(REGION).https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
   }
@@ -1121,7 +1122,7 @@ export const leaveGroup = functions.https.onCall(async (data, context) => {
   }
 });
 
-export const expireStaleRequests = functions.pubsub
+export const expireStaleRequests = functions.region(REGION).pubsub
   .schedule('0 2 * * *')
   .timeZone('Europe/Athens')
   .onRun(async () => {
@@ -1145,7 +1146,7 @@ export const expireStaleRequests = functions.pubsub
     return null;
   });
 
-export const expireStaleMessages = functions.pubsub
+export const expireStaleMessages = functions.region(REGION).pubsub
   .schedule('*/5 * * * *')
   .timeZone('Europe/Athens')
   .onRun(async () => {
@@ -1168,7 +1169,7 @@ export const expireStaleMessages = functions.pubsub
     return null;
   });
 
-export const sendReactionNotification = functions.firestore
+export const sendReactionNotification = functions.region(REGION).firestore
   .document('chats/{chatId}/messages/{messageId}')
   .onUpdate(async (change, context) => {
     const before = change.before.data();
@@ -1234,7 +1235,7 @@ export const sendReactionNotification = functions.firestore
     return null;
   });
 
-export const sendBlockNotification = functions.firestore
+export const sendBlockNotification = functions.region(REGION).firestore
   .document('users/{uid}/blocked/{blockedUid}')
   .onWrite(async (change, context) => {
     const { uid, blockedUid } = context.params;

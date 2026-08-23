@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "128868315390",
-    "project_id": "nearme-gr",
-    "storage_bucket": "nearme-gr.firebasestorage.app"
+    "project_number": "502130609550",
+    "project_id": "nearme-eu",
+    "storage_bucket": "nearme-eu.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:128868315390:android:d47054ed0657f1d7aef5af",
+        "mobilesdk_app_id": "1:502130609550:android:3e02c4f86c22d2380f68df",
         "android_client_info": {
           "package_name": "com.example.near_me"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyC2dZ-hnjfXijPnzznZAYIsolRtQWTtwV4"
+          "current_key": "AIzaSyARNch-X-ZVNTFGSDs6WCLaaaDzq-Kr8UI"
         }
       ],
       "services": {

@@ -144,6 +144,18 @@ class SearchNotifier extends Notifier<SearchState> {
   /// function αποτύχει (δίκτυο, cold start), επιτρέπουμε το search —
   /// ίδιο best-effort σκεπτικό με το computeGeoHash στο profile publish.
   Future<bool> _checkRateLimit() async {
+    // Fail-fast: αν η σύνδεση χάθηκε μετά το αρχικό connectivity check του
+    // καλούντος, αποφεύγουμε το άσκοπο 4s timeout της CF κλήσης.
+    try {
+      final connectivity = await Connectivity().checkConnectivity();
+      if (connectivity.contains(ConnectivityResult.none)) {
+        DebugConfig.log(DebugConfig.networkConnectivity,
+            'SearchNotifier._checkRateLimit: no connectivity — skip CF');
+        state = const SearchState(
+            status: SearchStatus.error, errorMessage: 'search/no-connectivity');
+        return false;
+      }
+    } catch (_) {}
     // TEMP [SEARCH-PERF]: μέτρηση διάρκειας CF κλήσης (ύποπτο για hang)
     final cfSw = Stopwatch()..start();
     // TEMP [SEARCH-PERF]: watchdog — αν η CF δεν απαντήσει, καταγράφεται hang
@@ -163,7 +175,7 @@ class SearchNotifier extends Notifier<SearchState> {
     try {
       DebugConfig.log(DebugConfig.cloudFunctions,
           'SearchNotifier: calling checkSearchRateLimit');
-      final cfCall = FirebaseFunctions.instance
+      final cfCall = FirebaseFunctions.instanceFor(region: 'europe-west1')
           .httpsCallable('checkSearchRateLimit')
           .call();
       // TEMP [SEARCH-PERF]: flag completion και σε error path — χωρίς unhandled exception

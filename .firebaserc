@@ -1,5 +1,6 @@
 {
   "projects": {
-    "default": "nearme-gr"
+    "default": "nearme-eu",
+    "old-nam5": "nearme-gr"
   }
 }

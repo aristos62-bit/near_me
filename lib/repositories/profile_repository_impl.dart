@@ -454,7 +454,7 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
       // σπάει το publish (ίδιο σκεπτικό με deleteAccount CF call).
       if (hasLocation) {
         try {
-          final result = await FirebaseFunctions.instance
+          final result = await FirebaseFunctions.instanceFor(region: 'europe-west1')
               .httpsCallable('computeGeoHash')
               .call({
             'latitude': profile.latitudeExact,

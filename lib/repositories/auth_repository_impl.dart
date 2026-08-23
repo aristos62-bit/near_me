@@ -61,7 +61,9 @@ class AuthRepositoryImpl implements AuthRepository {
     DebugConfig.log(DebugConfig.authFlow, 'deleteAccount started: $uid (isSigningOut=true)');
     try {
       try {
-        final result = await FirebaseFunctions.instance.httpsCallable('deleteUserData').call({'uid': uid});
+        final result = await FirebaseFunctions.instanceFor(region: 'europe-west1')
+            .httpsCallable('deleteUserData')
+            .call({'uid': uid});
         DebugConfig.log(DebugConfig.cloudFunctions, 'deleteAccount: CF deleteUserData success: ${result.data}');
     } catch (e) {
       DebugConfig.warn('deleteAccount: CF deleteUserData failed, continuing with local cleanup', data: e);

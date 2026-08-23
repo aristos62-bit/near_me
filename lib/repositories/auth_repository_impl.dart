@@ -156,14 +156,20 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<void> reloadUser() async {
     DebugConfig.log(DebugConfig.authFlow, 'Reloading user');
-    await _auth.currentUser?.reload();
+    final user = _auth.currentUser;
+    if (user != null) {
+      await _withAuthTimeout(user.reload(), 'reloadUser');
+    }
     DebugConfig.log(DebugConfig.authFlow, 'User reloaded, emailVerified: ${_auth.currentUser?.emailVerified}');
   }
 
   @override
   Future<void> sendPasswordResetEmail(String email) async {
     DebugConfig.log(DebugConfig.authFlow, 'Sending password reset email: $email');
-    await _auth.sendPasswordResetEmail(email: email);
+    await _withAuthTimeout(
+      _auth.sendPasswordResetEmail(email: email),
+      'sendPasswordResetEmail',
+    );
     DebugConfig.log(DebugConfig.authFlow, 'Password reset email sent');
   }
 

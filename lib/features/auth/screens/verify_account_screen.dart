@@ -85,56 +85,6 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
     ref.read(verifyAccountProvider.notifier).checkVerification();
   }
 
-  void _showForgotPassword() {
-    final isGreek = L10n.isGreek(context);
-    final resetCtrl = TextEditingController(text: _emailCtrl.text);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(L10n.localizedMessage(context, 'Ξέχασες τον κωδικό; / Forgot Password?')),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(L10n.localizedMessage(context, 'Θα σου στείλουμε email επαναφοράς κωδικού / We will send you a password reset email')),
-            const SizedBox(height: 16),
-            TextField(
-              controller: resetCtrl,
-              decoration: InputDecoration(
-                labelText: 'Email',
-                border: const OutlineInputBorder(),
-                prefixIcon: const Icon(Icons.email_outlined),
-              ),
-              keyboardType: TextInputType.emailAddress,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              resetCtrl.dispose();
-            },
-            child: Text(isGreek ? 'Ακύρωση' : 'Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final email = resetCtrl.text.trim();
-              if (email.isEmpty) return;
-              Navigator.of(ctx).pop();
-              resetCtrl.dispose();
-              DebugConfig.log(DebugConfig.authFlow, 'VerifyAccountScreen: password reset for $email');
-              ref.read(verifyAccountProvider.notifier).sendPasswordReset(email);
-              AppMessenger.showSuccess(context,
-                  ErrorMessages.get('auth/reset-email-sent', L10n.isGreek(context)));
-            },
-            child: Text(isGreek ? 'Αποστολή' : 'Send'),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final isGreek = L10n.isGreek(context);
@@ -294,14 +244,6 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
               textAlign: TextAlign.center,
-            ),
-          ),
-        if (isLinked)
-          Center(
-            child: TextButton.icon(
-              onPressed: _showForgotPassword,
-              icon: const Icon(Icons.lock_reset_outlined, size: 18),
-              label: Text(isGreek ? 'Ξέχασες τον κωδικό;' : 'Forgot password?'),
             ),
           ),
       ],

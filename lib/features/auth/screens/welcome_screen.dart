@@ -95,6 +95,56 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
     ref.read(welcomeProvider.notifier).browseAnonymously();
   }
 
+  void _showForgotPassword() {
+    final isGreek = L10n.isGreek(context);
+    final resetCtrl = TextEditingController(text: _emailCtrl.text);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(L10n.localizedMessage(context, 'Ξέχασες τον κωδικό; / Forgot Password?')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(L10n.localizedMessage(context, 'Θα σου στείλουμε email επαναφοράς κωδικού / We will send you a password reset email')),
+            const SizedBox(height: 16),
+            TextField(
+              controller: resetCtrl,
+              decoration: InputDecoration(
+                labelText: 'Email',
+                border: const OutlineInputBorder(),
+                prefixIcon: const Icon(Icons.email_outlined),
+              ),
+              keyboardType: TextInputType.emailAddress,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              resetCtrl.dispose();
+            },
+            child: Text(isGreek ? 'Ακύρωση' : 'Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final email = resetCtrl.text.trim();
+              if (email.isEmpty) return;
+              Navigator.of(ctx).pop();
+              resetCtrl.dispose();
+              DebugConfig.log(DebugConfig.authFlow, 'WelcomeScreen: password reset for $email');
+              ref.read(verifyAccountProvider.notifier).sendPasswordReset(email);
+              AppMessenger.showSuccess(context,
+                  ErrorMessages.get('auth/reset-email-sent', L10n.isGreek(context)));
+            },
+            child: Text(isGreek ? 'Αποστολή' : 'Send'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _switchMode() {
     setState(() {
       _mode = _mode == _WelcomeMode.login ? _WelcomeMode.register : _WelcomeMode.login;
@@ -212,6 +262,14 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                 : (isGreek ? 'Εγγραφή' : 'Register'),
             onPressed: state.status == WelcomeStatus.loading ? null : _submit,
           ),
+          if (_mode == _WelcomeMode.login)
+            Center(
+              child: TextButton.icon(
+                onPressed: _showForgotPassword,
+                icon: const Icon(Icons.lock_reset_outlined, size: 18),
+                label: Text(isGreek ? 'Ξέχασες τον κωδικό;' : 'Forgot password?'),
+              ),
+            ),
           const SizedBox(height: 12),
           TextButton(
             onPressed: _switchMode,

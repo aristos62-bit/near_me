@@ -23,7 +23,8 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<User> signInAnonymously() async {
     DebugConfig.log(DebugConfig.authFlow, 'Signing in anonymously');
-    final result = await _auth.signInAnonymously();
+    final result =
+        await _withAuthTimeout(_auth.signInAnonymously(), 'signInAnonymously');
     DebugConfig.log(DebugConfig.authAnonymous, 'Anonymous sign-in: ${result.user?.uid}');
     return result.user!;
   }
@@ -131,7 +132,8 @@ class AuthRepositoryImpl implements AuthRepository {
     final user = _auth.currentUser;
     if (user == null) throw AppException.auth('link_user', 'No authenticated user');
     final credential = EmailAuthProvider.credential(email: email, password: password);
-    await user.linkWithCredential(credential);
+    await _withAuthTimeout(
+        user.linkWithCredential(credential), 'linkWithEmailAndPassword');
     DebugConfig.log(DebugConfig.authFlow, 'Anonymous linked to email: ${user.uid}');
   }
 
@@ -140,7 +142,7 @@ class AuthRepositoryImpl implements AuthRepository {
     DebugConfig.log(DebugConfig.authFlow, 'Sending email verification');
     final user = _auth.currentUser;
     if (user == null) throw AppException.auth('send_verification', 'No authenticated user');
-    await user.sendEmailVerification();
+    await _withAuthTimeout(user.sendEmailVerification(), 'sendEmailVerification');
     DebugConfig.log(DebugConfig.authFlow, 'Verification email sent');
   }
 
@@ -171,10 +173,34 @@ class AuthRepositoryImpl implements AuthRepository {
     DebugConfig.log(DebugConfig.consentLogWrite, 'deleteAccount consent logged');
   }
 
+  /// Τυλίγει authentication calls με timeout, ώστε ένα "κρεμασμένο" δίκτυο
+  /// (captive portal, packet-loss) να μην κλειδώνει το UI επ' άπειρον.
+  ///
+  /// Το `.timeout()` του Dart ΔΕΝ ακυρώνει το αρχικό f — συνεχίζει να τρέχει
+  /// στο background. Αν αργότερα ολοκληρωθεί με σφάλμα χωρίς να το ακούει
+  /// κανείς, γίνεται unhandled exception. Το `.then<void>(.., onError:)`
+  /// το καταναλώνει σιωπηλά (telemetry only). `unawaited()` δηλώνει ρητά
+  /// fire-and-forget πρόθεση.
+  Future<T> _withAuthTimeout<T>(Future<T> f, String op) {
+    unawaited(f.then<void>(
+      (_) {},
+      onError: (Object e) =>
+          DebugConfig.warn('$op: late completion after timeout', data: e),
+    ));
+    return f.timeout(const Duration(seconds: 6), onTimeout: () {
+      DebugConfig.warn('$op: timed out after 6s');
+      throw const AppException(
+          message: 'network-request-failed', code: 'auth/network-error');
+    });
+  }
+
   @override
   Future<User> signInWithEmailAndPassword(String email, String password) async {
     DebugConfig.log(DebugConfig.authFlow, 'Signing in with email: $email');
-    final result = await _auth.signInWithEmailAndPassword(email: email, password: password);
+    final result = await _withAuthTimeout(
+      _auth.signInWithEmailAndPassword(email: email, password: password),
+      'signInWithEmailAndPassword',
+    );
     DebugConfig.log(DebugConfig.authFlow, 'Email sign-in success: ${result.user?.uid}');
     return result.user!;
   }
@@ -182,7 +208,10 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<User> createUserWithEmailAndPassword(String email, String password) async {
     DebugConfig.log(DebugConfig.authFlow, 'Creating account with email: $email');
-    final result = await _auth.createUserWithEmailAndPassword(email: email, password: password);
+    final result = await _withAuthTimeout(
+      _auth.createUserWithEmailAndPassword(email: email, password: password),
+      'createUserWithEmailAndPassword',
+    );
     DebugConfig.log(DebugConfig.authFlow, 'Account created: ${result.user?.uid}');
     return result.user!;
   }

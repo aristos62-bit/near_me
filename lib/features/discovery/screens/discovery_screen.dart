@@ -78,18 +78,11 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
   Future<void> _performSearch() async {
     if (_isDetecting) return;
     if (mounted) setState(() => _isDetecting = true);
-    // TEMP [SEARCH-PERF]: διάγνωση καθυστέρησης εκκίνησης — αφαιρείται μετά
-    final perfSw = Stopwatch()..start();
-    void perfLog(String stage) => DebugConfig.log(DebugConfig.uiInteraction,
-        '[SEARCH-PERF] discovery: $stage (+${perfSw.elapsedMilliseconds}ms)');
 
     try {
-      perfLog('start');
       if (!await _checkConnectivity()) return;
-      perfLog('connectivity ok');
 
       final loc = await LocationService.getCurrentLocation();
-      perfLog('location resolved (${loc.latitude != null ? "ok" : "null"})');
       if (!mounted) return;
 
       if (loc.latitude != null && loc.longitude != null) {
@@ -104,10 +97,7 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
                 'city=${activeFilters.city}, country=${activeFilters.country}, '
                 'interests=${activeFilters.interests?.length}, '
                 'lookingFor=${activeFilters.lookingFor}]');
-        ref
-            .read(searchProvider.notifier)
-            .search();
-        perfLog('search dispatched');
+        ref.read(searchProvider.notifier).search();
 
         await _syncLocation(loc.latitude!, loc.longitude!);
       } else {

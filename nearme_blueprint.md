@@ -653,7 +653,7 @@ Deploy: `firebase deploy --only firestore`
 - Encryption keys: παράγονται on-device, αποθηκεύονται στο flutter_secure_storage
 - Encrypt/decrypt cache για αποφυγή duplicate operations (Session 147b)
 
-### Layer 5 — Behaviour (5 Cloud Functions + 1 helper)
+### Layer 5 — Behaviour (12 Cloud Functions + 1 helper)
 
 #### `onReportCreated` (reports/{reportId}.onCreate)
 - **Rate limiting:** max 10 reports/ώρα ανά reporter
@@ -671,14 +671,22 @@ Deploy: `firebase deploy --only firestore`
 - Anonymization chat messages (senderId → '[deleted]')
 - Firebase Auth: deleteUser(uid)
 
-#### FCM Cloud Functions (3 + 1 helper)
-- `sendFcmNewMessage` — notification για νέο μήνυμα σε chat
-- `sendFcmNewRequest` — notification για νέο αίτημα επικοινωνίας
-- `sendFcmRequestAccepted` — notification για αποδοχή αιτήματος
+#### FCM/Notification Cloud Functions (5 + 1 helper)
+- `sendChatNotification` — onCreate `chats/{chatId}/messages/{messageId}` → notification νέου μηνύματος
+- `sendRequestNotification` — onCreate `requests/{reqId}` → notification νέου αιτήματος επικοινωνίας
+- `sendRequestResponseNotification` — onUpdate `requests/{reqId}` → notification αποδοχής/απόρριψης
+- `sendReactionNotification` — trigger reaction → notification
+- `sendBlockNotification` — trigger block → notification
 - `fcm-utils.ts` — helper με exponential backoff (1s→2s→4s), 3 retries for retryable codes, locale-aware notifications (el/en fallback `?? 'en'`)
 
-**Deploy:** `firebase deploy --only functions`
-**Runtime:** Node.js 22 (1st Gen), region: us-central1
+#### Geo/Search & Group/Scheduled Cloud Functions (5)
+- `computeGeoHash` (callable) — server-side authoritative geoHash από lat/lng + geoPrecision (Admin SDK) στο public snapshot· σβήνει το geoHash όταν precision='hidden'
+- `checkSearchRateLimit` (callable) — fixed-window rate limit 30 queries/5min πριν από κάθε νέο search, transaction σε `users/{uid}/rateLimits/search`. **Fail-open** σε σφάλμα · **offline gate** client-side πριν την κλήση (Session 235). Cold start ~2s ανά idle window — αποδεκτό (απόφαση Plan B, minInstances deferred με triggers)
+- `leaveGroup` (callable) — έξοδος μέλους από group chat
+- `expireStaleRequests`, `expireStaleMessages` (pubsub scheduled) — λήξη παλιών requests/messages
+
+**Deploy:** `firebase deploy --only functions` (ή targeted: `--only functions:<όνομα>`)
+**Runtime:** Node.js 22 (1st Gen), region: **europe-west1** — ευθυγραμμισμένο με Firestore eur3 (μετάβαση project `nearme-gr` → `nearme-eu`, 22 Αυγ 2026)
 
 ---
 

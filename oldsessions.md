@@ -247,6 +247,7 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 | **207** | **Mock-location detection** — `position.isMocked` check σε GPS + lastKnown, LocationFailure.mockLocationDetected, discovery_screen μήνυμα fake GPS, 2 files changed |
 | **208** | **Client-side search rate limiting** — `_checkRateLimit()` στο SearchNotifier (search_provider.dart:118), fixed-window 30 queries/5min, CF `checkSearchRateLimit` με transaction, firestore.rules rateLimits write:false, fail-open σε network/CF failure |
 | **209** | **deleteUserData orphaned subcollections fix** — +3 subcollection deletes (privacy/settings, blocked/, rateLimits/search) σε CF `deleteUserData` (index.ts) + client-side defense-in-depth (`auth_repository_impl.dart:76-89`) + UI list update (`delete_account_screen.dart:213-221`). backup: `backups/deleteUserData_fix_20260728_*` |
+| **235** | **EU migration (eur3) ολοκλήρωση + δικτυακή διάγνωση IPv6 + αμυντικά fixes** — project nearme-gr→nearme-eu (nam5→eur3), `REGION=europe-west1` στις 12 CFs, `instanceFor` ×3 client calls · διάγνωση IPv6 blackhole router halohalo (fix στη πηγή, search TOTAL 7931→1149ms) · offline gate στην `_checkRateLimit` · auth timeouts 6s (`_withAuthTimeout`, 5 μέθοδοι) · SEARCH-PERF cleanup (−67 γρ.) · minInstances → Plan B deferred με triggers |
 
 ## ΚΕΦΑΛΑΙΟ 6 — CURRENT STATE
 
@@ -255,7 +256,7 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 | Completion | ~99.9% (Phases 1-3 100%, MultiChat 100%, Media 100%, Chat Redesign 100%, Audio Messages 100%) |
 | `.dart` files | ~122 (non-generated) |
 | Firestore indexes | 21 composite deployed |
-| Cloud Functions | 8 deployed (+ computeGeoHash, + checkSearchRateLimit) + `fcm-utils.ts` helper |
+| Cloud Functions | 12 deployed (europe-west1, gen1, Node 22) + `fcm-utils.ts` helper |
 | Build | `flutter analyze` clean, release APK ~15.8MB |
 | Tests | 30/30 passed |
 | Schema | Drift v14, 7 tables |
@@ -269,6 +270,10 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 - Repository pattern: abstract + impl, ποτέ raw Firestore στο UI
 - Privacy-first: πλήρες profile στο Drift, minimal public snapshot στο Firestore
 - GPS-first → session cache (5min) → last known → failure
+- Network timeouts: auth 6s (`_withAuthTimeout`) · search CF 4s fail-open · zombie futures consumed με `unawaited(f.then<void>((_) {}, onError))` — ποτέ bare `.catchError` (runtime TypeError σε non-nullable T)
+- Offline gate: fresh connectivity check ΠΡΙΝ από κάθε CF κλήση → offline = άμεσο error state, μηδενική κλήση/αναμονή
+- Client CF κλήσεις: πάντα `FirebaseFunctions.instanceFor(region: 'europe-west1')`, ποτέ default instance
+- Firebase project: **nearme-eu / eur3** (migration 22 Αυγ 2026 από nearme-gr/nam5 — παλιό alias `old-nam5`)
 
 ---
 
@@ -1524,3 +1529,42 @@ Email με attachment: το Android email app (π.χ. Gmail, `launchMode=singleT
 
 ### Backups
 - `backups/oldsessions_20260822_123148.md` (πριν το update του παρόντος αρχείου)
+
+---
+
+## Session 235 — Μετάβαση nearme-eu/eur3 (ολοκλήρωση) + δικτυακή διάγνωση IPv6 + αμυντικά fixes (100%) — 23 Αυγ 2026
+
+### Μέρος 1: Ολοκλήρωση μεταβάσης Firebase project (22-23 Αυγ)
+nearme-gr (nam5, US multi-region) → **nearme-eu** (**eur3**, EU multi-region). Αλλαγές:
+- `.firebaserc`: `default: nearme-eu`, παλιό project ως alias `old-nam5`
+- `android/app/google-services.json`: νέο project (`project_id: nearme-eu`)
+- `functions/src/index.ts`: +`const REGION = 'europe-west1'` + `.region(REGION)` και στις **12 functions**
+- Client `httpsCallable` κλήσεις: `FirebaseFunctions.instanceFor(region: 'europe-west1')` ×3 — search_provider.dart:164 (checkSearchRateLimit), auth_repository_impl.dart:65 (deleteUserData), profile_repository_impl.dart (computeGeoHash). Κανόνας: ποτέ default instance
+- Νέα UIDs (νέα accounts στο νέο project), δεδομένα ξαναφορτώθηκαν
+- Επαλήθευση με device tests: login/search/publish OK. Backups `*_pre_eu_migration_20260822_210025` ×7
+
+### Μέρος 2: Δικτυακή διάγνωση — IPv6 blackhole (23 Αυγ)
+**Σύμπτωμα:** Ένα WiFi δίκτυο (halohalo) έδειχνε timeouts σε reload/CF (~2s) ενώ τα υπόλοιπα δίκτυα ήταν γρήγορα (TOTAL 854-2590ms).
+**Διάγνωση μέσω adb:** ο router διαφημίζει SLAAC IPv6 (prefix `2a02:2149`, Vodafone GR) χωρίς δρομολόγηση → Android προτιμά IPv6 → SYN blackhole (~1-4s) → fallback IPv4. ping IPv4 22ms OK, ping6 100% packet loss.
+**Fix στη πηγή:** απενεργοποίηση IPv6 στον router (χρήστης). Re-test: CF 819ms, TOTAL **1149ms** (από 7931ms, **×7 βελτίωση**). Transient CF fail κατά το settling του router = σωστή OFFLINE banner συμπερίφορα (12s auto-recovery).
+
+### Μέρος 3: Αμυντικά fixes δικτύου (3 βήματα, ένα τη φορά)
+1. **Offline gate** (`search_provider.dart` `_checkRateLimit()`): fresh `Connectivity().checkConnectivity()` πριν την CF κλήση → offline: error state `'search/no-connectivity'`, μηδενική κλήση/αναμονή. Backup `search_provider_pre_offline_gate_20260823_123122.dart`
+2. **Auth timeouts**: helper `_withAuthTimeout<T>` (6s → `AppException('auth/network-error')`) σε 5 μεθόδους auth_repository_impl: signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, linkWithEmailAndPassword (κύριο μονοπάτι verify!), sendEmailVerification. Zombie futures consumed: `unawaited(f.then<void>((_) {}, onError: warn))` — ΠΟΤΕ bare `.catchError` (runtime TypeError σε non-nullable T). Επικυρώθηκε με πραγματικό login npit79@gmail.com: 1.82s success, μηδέν regressions (reload 274ms, TOTAL 854ms). Backup `auth_repository_impl_pre_auth_timeout_20260823_131300.dart`
+3. **SEARCH-PERF cleanup**: διαγραφή TEMP diagnostics (watchdogs 5s/20s+cfDone, perfSw/perfLog/fetchSw/repoSw) από search_provider.dart / discovery_screen.dart / firestore_search_repository.dart. Διατηρήθηκαν: offline gate, zombie-consumption pattern, timeout+fail-open, operational logs. Διαφορά **−67 γραμμές** (+9/−76). flutter analyze clean. Backups `*_pre_perf_cleanup_20260823_132418` ×3
+
+### Μέρος 4: minInstances απόφαση (Plan B)
+Cold start ~2s μία φορά ανά idle window στο checkSearchRateLimit — το fail-open καλύπτει ήδη το χειρότερο (UX polish, όχι correctness fix). **Απόφαση:** καμία αλλαγή τώρα · scale-up item με triggers επανεξέτασης (>30-50 DAU ή συχνοί cold starts στα logs) → τότε `runWith({ minInstances: 1 })` (~$10-14/μήνα gen1 256MB @eur pricing· targeted deploy `--only functions:checkSearchRateLimit`). Σημειώθηκε και στο firestore_cost_optimization.md §9.
+
+### Έλεγχος
+- `flutter analyze`: clean ✅ (και στα 3 fixes)
+- Device tests: login/search/publish στο halohalo post-fix — TOTAL 854-1149ms, μηδέν σφάλματα
+
+### Παραλείψεις / εκκρεμότητες
+- ⏳ Git commit των αλλαγών #2/#3 (working tree) — μόνο με ρητή εντολή χρήστη
+- ⏳ Follow-ups: timeout για `sendPasswordResetEmail` & `reloadUser`
+- Σημείωση: audit_report.md «8 deployed» παραμένει ως ιστορικό snapshot (δεν διορθώθηκε εσκεμμένα)
+
+### Backups
+- `backups/*_pre_eu_migration_20260822_210025` ×7 (migration)
+- `backups/{AGENTS,nearme_blueprint,oldsessions,firestore_cost_optimization}_pre_md_update_20260823_140105` (παρόν update .md)

@@ -652,6 +652,8 @@ final verify = await docRef.get();  // ← unnecessary
 
 ## 9. Στρατηγική Cloud Functions
 
+> **⚠️ Ενημέρωση (23 Αυγ, Session 235):** Μετάβαση σε project `nearme-eu` (Firestore eur3, Functions **europe-west1**, `const REGION` στο index.ts). Νέα defensive συμπεριφορά: (1) **Offline gate** στην `_checkRateLimit()` (search_provider.dart) — εκτός σύνδεσης το `checkSearchRateLimit` ΔΕΝ καλείται καθόλου (0 invocations, 0 reads/writes). (2) **minInstances απόφαση**: status quo (Plan B) — cold start ~2s μία φορά ανά idle window, καλύπτεται από fail-open· επανεξέταση με triggers >30-50 DAU ή συχνούς cold starts στα logs → τότε `runWith({ minInstances: 1 })` (~$10-14/μήνα gen1 256MB @eur pricing, targeted deploy `--only functions:checkSearchRateLimit`).
+
 ### 9.1 — Cost per invocation breakdown
 
 | Function | Trigger | Avg Reads | Avg Writes | Optimization Potential |

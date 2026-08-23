@@ -80,7 +80,7 @@ https://github.com/aristos62-bit/near_me
 lib/
 ├── core/               # config, theme, l10n, router, firebase_init, utils
 ├── data/
-│   ├── local/          # Drift database (7 tables, schema v8)
+│   ├── local/          # Drift database (7 tables, schema v14)
 │   └── remote/         # firestore_service, storage_service
 ├── providers/          # database provider (Drift)
 ├── repositories/       # 8 abstract interfaces + implementations
@@ -108,12 +108,18 @@ lib/
 - **Shared utils**: Common logic (formatters, validators, helpers) → κεντρικά utils
 - **Debug logging**: `DebugConfig.log()` σε κάθε operational action από την αρχή
 - **Unified error handling**: `ErrorView`/`LoadingView`/`EmptyView` (από `app_state_widget.dart`) για async states — `AppMessenger.showSuccess/Error/Info/ConfirmDialog` για snack bars, dialogs, loading. Ποτέ raw ScaffoldMessenger, AlertDialog ή error/loading widgets ανά screen.
+- **Defensive network timeouts**: auth endpoints 6s (`_withAuthTimeout` στο auth_repository_impl), search rate-limit CF 4s fail-open · όψιμα completions consumed με `unawaited(f.then<void>((_) {}, onError: ...))` (ΠΟΤΕ `.catchError` χωρίς return — runtime TypeError σε non-nullable T)
+- **Offline gate πριν από CF κλήσεις**: fresh `Connectivity().checkConnectivity()` → offline = άμεσο error state, μηδενική κλήση/αναμονή (π.χ. `_checkRateLimit` → `'search/no-connectivity'`)
 
 ## Project facts
 - GitHub: —
 - Τοπικό path: `C:\Users\Vaggelis\Flutter Projects\near_me`
 - IDE: Android Studio Panda 4 | 2025.3.4 Patch 1
 - Multi-platform: android, ios, web, Linux, macOS, windows
+- **Firebase project**: `nearme-eu` (default) · παλιό: `nearme-gr` (alias `old-nam5` στο .firebaserc)
+- **Firestore/Storage location**: eur3 (multi-region Europe) · **Cloud Functions region**: europe-west1 (gen1, Node 22)
+- **Migration**: 22 Αυγ 2026, nearme-gr (nam5/US) → nearme-eu (eur3/EU) — backups `*_pre_eu_migration_20260822_210025`
+- Client CF κλήσεις: ΠΑΝΤΑ `FirebaseFunctions.instanceFor(region: 'europe-west1')`, ποτέ default instance
 
 ## Shared Widgets & Utils (τρέχουσα κατάσταση)
 - `shared/widgets/gradient_header.dart` — GradientHeader (gradient header με icon, title, subtitle, child)

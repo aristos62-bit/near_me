@@ -8,6 +8,7 @@ import 'core/router/app_router.dart';
 import 'core/firebase/firebase_init.dart';
 import 'core/debug/debug_config.dart';
 import 'dart:async';
+import 'dart:ui' show PlatformDispatcher;
 import 'core/notifications/fcm_service.dart';
 import 'core/config/feature_flags.dart';
 import 'core/services/incoming_share_service.dart';
@@ -34,6 +35,12 @@ void main() async {
   // Crashlytics setup - ΠΡΕΠΕΙ να γίνει ΜΕΤΑ το initializeApp
   await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(true);
   FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+  // Uncaught async errors (εκτός Flutter framework) → Crashlytics
+  PlatformDispatcher.instance.onError = (error, stack) {
+    DebugConfig.error('main: uncaught async error', data: error, exception: stack);
+    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    return true;
+  };
 
   runApp(
     ProviderScope(
@@ -444,9 +451,14 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
               'main: auth changed — about to invalidate chatsProvider '
                   'uidChanged=$uidChanged emailVerifiedChanged=$emailVerifiedChanged');
           ref.invalidate(chatsProvider);
+          // Crashlytics: custom keys σε ΚΑΘΕ auth αλλαγή (φρεσκάρισμα emailVerified)
+          FirebaseCrashlytics.instance.setCustomKey('isAnonymous', nextUser?.isAnonymous ?? true);
+          FirebaseCrashlytics.instance.setCustomKey('emailVerified', nextUser?.emailVerified ?? false);
           if (uidChanged) {
             DebugConfig.log(DebugConfig.authFlow,
                 'main: uid changed ${prevUser?.uid ?? "null"} → ${nextUser?.uid ?? "null"}');
+            // Crashlytics: user ID μόνο σε αλλαγή χρήστη ('' στο sign-out = καθαρίζει)
+            FirebaseCrashlytics.instance.setUserIdentifier(nextUser?.uid ?? '');
           }
 
           if (emailVerifiedChanged) {

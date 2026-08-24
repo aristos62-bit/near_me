@@ -1630,3 +1630,68 @@ Cold start ~2s μία φορά ανά idle window στο checkSearchRateLimit �
 - `backups/verify_account_screen_pre_polish_20260823_202934.dart`
 - `backups/oldsessions_20260823_202150.md` (παρόν update .md)
 - `backups/oldsessions_pre_polish_note_20260823_225939.md` (παρόν update .md)
+
+---
+
+## Session 237 — Crashlytics: διόρθωση σπασμένου setup + πλήρης ενεργοποίηση end-to-end (100%) — 24 Αυγ 2026
+
+### Σκοπός
+Βήμα-βήμα έλεγχος ολόκληρης της αλυσίδας Crashlytics (dependencies → Gradle → google-services.json → main.dart init → Console → test crash) με αρχή «ότι υπάρχει να ελεγχθεί ότι είναι σωστό, ότι είναι λάθος να διορθωθεί, ότι δεν υπάρχει να προστεθεί».
+
+### 🔴 Κρίσιμο εύρημα: το Android build ήταν ΣΠΑΣΜΕΝΟ από το πρωί
+Το commit `f6804d6` («Crashlytics ok», 24 Αυγ 15:48) πρόσθεσε το plugin στο app-level (`app/build.gradle.kts:6`) αλλά **ΞΕΧΑΣΕ** τη δήλωση version στο settings-level. Επιβεβαίωση με `.\gradlew.bat :app:help`: `Plugin [id: 'com.google.firebase.crashlytics'] was not found ... BUILD FAILED`.
+**Γιατί δεν φάνηκε:** τελευταίο επιτυχές build = χθες 23/8 10:50 (πριν το commit) · κανένα build μετά τις αλλαγές. Το μήνυμα «ok» ήταν ελπιδοφόρο, όχι επαληθευμένο.
+
+### Διορθώσεις / προσθήκες (ένα αρχείο τη φορά, backup πριν κάθε edit)
+
+1. **`android/settings.gradle.kts`** (+1 γραμμή) — η κρίσιμη διόρθωση:
+   - `id("com.google.firebase.crashlytics") version "3.0.7" apply false` (3.0.7 = τελευταία σταθερή, 9 Απρ 2026· απαιτεί Gradle ≥8, AGP ≥8.1, google-services ≥4.4.1 — όλα OK: Gradle 9.1 / AGP 9.0.1 / GS 4.4.2)
+   - Επαλήθευση: `gradlew :app:help` → **BUILD SUCCESSFUL** (η πρώτη εκτέλεση θέλει online για download· με `--offline` αποτυγχάνει μέχρι να κατέβει μία φορά)
+   - Backup: `backups/crashlytics_fix_20260824_160843/`
+2. **`lib/main.dart`** (+1 import, +5 γραμμές) — το μοναδικό πραγματικό κενό του init:
+   ```dart
+   PlatformDispatcher.instance.onError = (error, stack) {
+     DebugConfig.error('main: uncaught async error', data: error, exception: stack);
+     FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+     return true;
+   };
+   ```
+   Official FlutterFire pattern (Context7-verified) — χωρίς αυτό τα uncaught async errors δεν έφταναν ΠΟΤΕ στο Crashlytics (το `FlutterError.onError` πιάνει μόνο framework errors). Το `DebugConfig.error` ακολουθεί SPoT convention (αλλιώς τα errors «χανόντουσαν» σιωπηλά στο debug console). Import pattern `dart:ui show PlatformDispatcher` ίδιο με profile_repository_impl.dart.
+   **Έλεγχοι που ζήτησε ο χρήστης:** μηδέν διπλές δουλειές — το δεύτερο `Firebase.initializeApp()` (στο `FirebaseInit.tryInitialize`) είναι cached/idempotent, μηδέν νέο άνοιγμα βάσης (το DatabaseService.tryInit ανέγγιχτο).
+   - Backup: `backups/crashlytics_fix_20260824_162137/`
+3. **`settings_screen.dart`** (προσωρινό) — debug-only test section (`if (DebugConfig.debugMode)`): non-fatal `recordError(StateError(...), StackTrace.current, reason:)` + fatal `.crash()`. Backup: `backups/crashlytics_fix_20260824_163613/`
+4. **`main.dart`** (auth listener) — User ID + custom keys:
+   - `setCustomKey('isAnonymous'/'emailVerified', ...)` σε ΚΑΘΕ auth emission (φρεσκάρισμα emailVerified)
+   - `setUserIdentifier(nextUser?.uid ?? '')` ΜΟΝΟ σε uidChanged ('' στο sign-out καθαρίζει — ο επόμενος χρήστης δεν κληρονομεί ID)
+   - Privacy: ΠΟΤΕ email/phone/nickname σε keys· UID επιτρέπεται (η Google το γνωρίζει ήδη από Auth — GDPR αναφορά στο privacy policy)
+   - Backup: `backups/crashlytics_userid_20260824_170548/`
+5. **Αφαίρεση test section** (μετά την επιβεβαίωση) — backup: `backups/crashlytics_cleanup_20260824_170424/`
+
+### ✅ End-to-end επιβεβαίωση (device, release + ENABLE_RELEASE_DEBUG)
+- Fatal: `FirebaseCrashlyticsTestCrash` έφτασε με αποκωδικοποιημένο trace (r8 mapping upload δούλεψε αυτόματα από το Gradle plugin)
+- Non-fatal: `Bad state: Test non-fatal error (verification)` με file:line του onTap
+- Crash-free sessions 33.33% = μαθηματικό των λίγων δοκιμαστικών sessions (φυσιολογικό)
+- Σημείωση UX: το crash μοιάζει με «πήγε background» — process death χωρίς animation· επιβεβαίωση με cold start (splash ξανά)
+
+### Τι υπήρχε ήδη σωστό (ελέγθηκε, καμία αλλαγή)
+pubspec.yaml ^5.2.3 = lock 5.2.3 ✅ · Gradle plugin application line ✅ · native deps block ✅ (βλ. εκκρεμότητα) · google-services.json: project_id nearme-eu, package_name ταιριάζει με applicationId ✅ · `setCrashlyticsCollectionEnabled(true)` + `FlutterError.onError` ✅
+
+### Έλεγχος
+- `flutter analyze`: clean ✅ (μετά από ΚΑΘΕ edit)
+- SPoT audit πριν την υλοποίηση: κανένας υπάρχον Crashlytics wrapper (καμία διπλοδουλιά)· ErrorMessages άσχετο (UI-only)· DebugConfig.error signature `error(msg, data:, exception:)` όπως main.dart:479
+
+### Εκκρεμότητες
+- ⏳ **Consent-gating**: το `setCrashlyticsCollectionEnabled(true)` είναι hardcoded (αγνοεί ConsentLog) — GDPR απόφαση όταν αποφασιστεί πολιτική consent
+- ⏳ **Redundant native deps** στο `app/build.gradle.kts` (BOM 33.12.0 + firebase-analytics + firebase-crashlytics): FlutterFire docs ΔΕΝ τα απαιτούν (το plugin φέρνει τα native SDKs μόνο του) — αξιολόγηση/αφαίρεση σε επόμενο session
+- ⏳ Git commit (τον κάνει ο χρήστης — απόφαση 23 Αυγ)
+- 📌 Παρατήρηση: `applicationId = "com.example.near_me"` placeholder — αν αλλάξει ποτέ, θέλει νέο Android app στο Firebase
+
+### Backups
+- `backups/crashlytics_fix_20260824_160843/settings.gradle.kts`
+- `backups/crashlytics_fix_20260824_162137/main.dart`
+- `backups/crashlytics_fix_20260824_163613/settings_screen.dart`
+- `backups/crashlytics_cleanup_20260824_170424/settings_screen.dart`
+- `backups/crashlytics_userid_20260824_170548/main.dart`
+- `backups/oldsessions_pre_crashlytics_20260824_171500.md` (παρόν update .md)
+
+### `flutter analyze`: clean ✅ (0 issues)

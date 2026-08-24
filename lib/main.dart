@@ -22,9 +22,18 @@ import 'providers/unread_badge_provider.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'core/utils/media_share_cache.dart';
 import 'core/utils/image_cache_guard.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Firebase.initializeApp() - καλείται και αλλού, αλλά δεν πειράζει
+  await Firebase.initializeApp();
+
+  // Crashlytics setup - ΠΡΕΠΕΙ να γίνει ΜΕΤΑ το initializeApp
+  await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(true);
+  FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
 
   runApp(
     ProviderScope(

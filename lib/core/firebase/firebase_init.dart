@@ -3,6 +3,11 @@ import '../debug/debug_config.dart';
 
 class FirebaseInit {
   static Future<bool> tryInitialize() async {
+    if (Firebase.apps.isNotEmpty) {
+      DebugConfig.log(DebugConfig.serviceInit,
+          'Firebase already initialized (main()) — skip duplicate init');
+      return true;
+    }
     try {
       await Firebase.initializeApp();
       DebugConfig.log(DebugConfig.serviceInit, 'Firebase initialized');

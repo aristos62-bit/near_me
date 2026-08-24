@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 
 /// Συγκεντρωτικό αρχείο ελέγχου debug μηνυμάτων.
 ///
@@ -185,22 +184,11 @@ class DebugConfig {
   /// Εκτυπώνει error — πάντα σε debug mode, ανεξαρτήτως flags.
   /// ─────────────────────────────────────────────────────────────
   static void error(String message, {Object? data, Object? exception}) {
-    if (debugMode) {
-      final timestamp = DateTime.now().toIso8601String().substring(11, 23);
-      final buffer = StringBuffer('[$timestamp][ERROR] $message');
-      if (data != null) buffer.write(' | data: $data');
-      if (exception != null) buffer.write(' | exception: $exception');
-      debugPrint(buffer.toString());
-    }
-
-    // Forward πάντα στο Crashlytics (ανεξαρτήτως debugMode) — το SDK
-    // δεν στέλνει τίποτα αν crashReportsEnabled=false (consent gate).
-    unawaited(FirebaseCrashlytics.instance.recordError(
-      exception ?? message,
-      null,
-      reason: message,
-      information: data != null ? [data.toString()] : const [],
-      fatal: false,
-    ));
+    if (!debugMode) return;
+    final timestamp = DateTime.now().toIso8601String().substring(11, 23);
+    final buffer = StringBuffer('[$timestamp][ERROR] $message');
+    if (data != null) buffer.write(' | data: $data');
+    if (exception != null) buffer.write(' | exception: $exception');
+    debugPrint(buffer.toString());
   }
 }

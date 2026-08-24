@@ -29,7 +29,9 @@ import 'package:firebase_core/firebase_core.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Firebase.initializeApp() - καλείται και αλλού, αλλά δεν πειράζει
+  // Firebase.initializeApp() - ξανακαλείται στο FirebaseInit.tryInitialize(),
+  // αλλά εκείνο είναι idempotent (Firebase.apps.isNotEmpty guard) — ασφαλές
+  // και σε web builds όπου το διπλό init πετάει [core/duplicate-app]
   await Firebase.initializeApp();
 
   // Crashlytics handlers - ΠΡΕΠΕΙ να γίνουν ΜΕΤΑ το initializeApp.

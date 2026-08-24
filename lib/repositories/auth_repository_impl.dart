@@ -183,17 +183,24 @@ class AuthRepositoryImpl implements AuthRepository {
   /// (captive portal, packet-loss) να μην κλειδώνει το UI επ' άπειρον.
   ///
   /// Το `.timeout()` του Dart ΔΕΝ ακυρώνει το αρχικό f — συνεχίζει να τρέχει
-  /// στο background. Αν αργότερα ολοκληρωθεί με σφάλμα χωρίς να το ακούει
-  /// κανείς, γίνεται unhandled exception. Το `.then<void>(.., onError:)`
-  /// το καταναλώνει σιωπηλά (telemetry only). `unawaited()` δηλώνει ρητά
-  /// fire-and-forget πρόθεση.
+  /// στο background (το SDK έχει εσωτερικό listener που καταναλώνει τα late
+  /// completions). Το `.then<void>(.., onError:)` παραμένει ως belt-and-braces
+  /// telemetry: με το flag `timedOut` τυπώνεται warn ΜΟΝΟ για πραγματικά late
+  /// completions μετά από timeout — τα σφάλματα εντός 6s τα αναφέρει ήδη ο
+  /// caller με το δικό του catch. `unawaited()` δηλώνει ρητά fire-and-forget
+  /// πρόθεση.
   Future<T> _withAuthTimeout<T>(Future<T> f, String op) {
+    var timedOut = false;
     unawaited(f.then<void>(
       (_) {},
-      onError: (Object e) =>
-          DebugConfig.warn('$op: late completion after timeout', data: e),
+      onError: (Object e) {
+        if (timedOut) {
+          DebugConfig.warn('$op: late completion after timeout', data: e);
+        }
+      },
     ));
     return f.timeout(const Duration(seconds: 6), onTimeout: () {
+      timedOut = true;
       DebugConfig.warn('$op: timed out after 6s');
       throw const AppException(
           message: 'network-request-failed', code: 'auth/network-error');

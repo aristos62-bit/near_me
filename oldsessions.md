@@ -1561,10 +1561,72 @@ Cold start ~2s μία φορά ανά idle window στο checkSearchRateLimit �
 - Device tests: login/search/publish στο halohalo post-fix — TOTAL 854-1149ms, μηδέν σφάλματα
 
 ### Παραλείψεις / εκκρεμότητες
-- ⏳ Git commit των αλλαγών #2/#3 (working tree) — μόνο με ρητή εντολή χρήστη
-- ⏳ Follow-ups: timeout για `sendPasswordResetEmail` & `reloadUser`
+- ~~⏳ Git commit των αλλαγών #2/#3 (working tree)~~ → **✅ ΚΛΕΙΣΕ (23 Αυγ):** commits d655e84 / 8056af7 / bd5e9aa
+- ~~⏳ Follow-ups: timeout για `sendPasswordResetEmail` & `reloadUser`~~ → **✅ ΚΛΕΙΣΕ (Session 236)**
 - Σημείωση: audit_report.md «8 deployed» παραμένει ως ιστορικό snapshot (δεν διορθώθηκε εσκεμμένα)
 
 ### Backups
 - `backups/*_pre_eu_migration_20260822_210025` ×7 (migration)
 - `backups/{AGENTS,nearme_blueprint,oldsessions,firestore_cost_optimization}_pre_md_update_20260823_140105` (παρόν update .md)
+
+---
+
+## Session 236 — Auth timeouts ολοκλήρωση (reloadUser/sendPasswordResetEmail) + «Ξέχασες τον κωδικό» στη σελίδα Login + 2 polish fixes (100%) — 23 Αυγ 2026
+
+### 1) Auth timeouts: reloadUser() + sendPasswordResetEmail (κλείσιμο εκκρεμότητας του Session 235)
+
+**Αλλαγή (μόνο `auth_repository_impl.dart`, backup `backups/auth_repository_impl_pre_reload_timeout_20260823_193916.dart`):**
+- `reloadUser()`: τοπική μεταβλητή `user` + null check (**διατήρηση σκόπιμης συμπεριφοράς «null user = σιωπηλό no-op»** — όχι throw, minimal change) + wrap με το υπάρχον `_withAuthTimeout` (6s → `AppException('auth/network-error')`)
+- `sendPasswordResetEmail()`: απευθείας wrap με `_withAuthTimeout`
+- Callers verified **read-only** πριν το edit: `checkVerification` (auth_provider.dart:98/:106 catch→emailSent), `sendPasswordReset` (:121/:124 catch→φιλικό μήνυμα), `checkVerificationSilent` (:132/:137 catch→warn) — όλα graceful ✅
+- Εκτός scope `.reload()` κλήσεις που αφέθηκαν συνειδητά: app_router.dart:298 (δικός του `.timeout(6s)`), auth_repository_impl.dart:301/:335 (phone flow — flag OFF από Session 230 / δικό του try-catch)
+
+**Device validation (release + `ENABLE_RELEASE_DEBUG=true`, logs 19:46-19:57):**
+| Σενάριο | Αποτέλεσμα |
+|---|---|
+| Α — reloadUser happy path | ×20+ κύκλοι auto-verify timer (~3s), όλα <1s, μηδέν timeout/warn ✅ |
+| Β — sendPasswordResetEmail | άμεση αποστολή + «Στάλθηκε email επαναφοράς», καθαρά logs ✅ |
+| Γ — blackhole πραγματικό 6s timeout | παραλείφθηκε ως προαιρετικό (ίδιος μηχανισμός με τις 7 ήδη επικυρωμένες μεθόδους) |
+| Δ — offline gate / cold start / sign-out ×3 / login | όλα καθαρά· offline gate μπλοκάρει πριν την κλήση repository ✅ |
+
+**Bonus — πραγματικό σφάλμα δοκίμασε αυθόρμητα το error path (19:55:53):** η επιβεβαίωση του reset link από τον χρήστη ακύρωσε τα tokens (`user-token-expired`, standard Firebase ασφάλεια) → το σφάλμα πέρασε σωστά μέσω του wrapper στον caller (`checkVerificationSilent: failed`) → καθαρό auto sign-out, redirect /welcome, μηδέν crash ✅
+
+### 2) «Ξέχασες τον κωδικό;» — μεταφορά από VerifyAccountScreen στο WelcomeScreen (Login)
+
+**Αιτία:** Το feature ζούσε ΜΟΝΟ στη σελίδα επαλήθευσης (εμφανίζεται μόνο post-registration) → χρήστης που ξέχασε τον κωδικό του δεν είχε κανένα σημείο ανάκτησης από τη σελίδα εισόδου (design gap).
+
+**Αλλαγές (2 αρχεία — κανένα νέο import, καμία νέα λογική):**
+- `welcome_screen.dart` (330→388 γρ.): κουμπί «Ξέχασες τον κωδικό;» κάτω από την Είσοδο, ορατό **ΜΟΝΟ σε login mode** · ίδιο dialog με **prefill το email από το πεδίο εισόδου** (`_emailCtrl`) · κλήση της υπάρχουσας `verifyAccountProvider.sendPasswordReset(email)` → connectivity gate + φιλικά σφάλματα + το timeout fix καλύπτονται αυτόματα (μηδέν duplication)
+- `verify_account_screen.dart` (345→287 γρ.): αφαίρεση `_showForgotPassword()` dialog (γρ. 88-136) + κουμπιού (γρ. 299-306)· `isLinked` και όλα τα υπόλοιπα ανέπαφα
+- `auth_provider.dart`: **ΔΕΝ άλλαξε** — η υπάρχουσα μέθοδος χρησιμοποιείται ως έχει
+
+**Side-effect έλεγχοι πριν το edit:** κανένα import δεν έμενε αχρησιμοποίητο στο verify screen (`DebugConfig`/`AppMessenger`/`ErrorMessages` χρησιμοποιούνται και αλλού) · `sendPasswordResetEmail` δεν εξαρτάται από currentUser (σωστό για logged-out forgot-password) · welcome screen είχε ήδη όλα τα imports ✅
+
+**Έλεγχος:** `flutter analyze` clean ✅ · `flutter test` **30/30** ✅ (γνωστά test-environment artifacts στα encryption tests) · device test χρήστη: **όλα καλά** ✅
+
+### Νέα προαιρετικά polish items → ✅ ΔΙΟΡΘΩΘΗΚΑΝ αμέσως μετά (ίδιο session)
+
+1. **Παραπλανητικό log μήνυμα:** το «late completion after timeout» του `_withAuthTimeout` τυπώνεται και όταν ΔΕΝ έγινε timeout — είναι ο γενικός error-consumer branch που δεν ξέρει αν χτύπησε timeout. Συμπεριφορά σωστή, μήνυμα μόνο παραπλανητικό (cosmetic).
+2. **Auto-verify timer μετά sign-out:** σε token-expiry/auto sign-out ο timer της οθόνης επαλήθευσης συνεχίζει κάθε 3s («Reloading user … emailVerified: null») μέχρι να φύγει ο χρήστης από την οθόνη. Προϋπάρχον, no-op με null user, απλά θορυβώδη logs.
+
+### Polish fixes των 2 ευρημάτων (✅ εφαρμογή + device validation)
+
+**Ανάλυση πριν το edit (deep re-check):** Το Dart SDK `.timeout()` έχει εσωτερικό listener που ήδη καταναλώνει late completions (guard `if (timer.isActive)`) → ο error-consumer του `_withAuthTimeout` είναι belt-and-braces telemetry, ΟΧΙ απαραίτητος για αποτροπή unhandled exception (διόρθωσε και το λάθος doc comment) · μηδενική απώλεια diagnostics από τη σιωπηλή κατανάλωση εντός 6s (όλοι οι callers έχουν τα δικά τους catches με `data: e`: auth_provider.dart:98/:121/:132) · το `checkVerificationSilent` καλείται ΜΟΝΟ από τον timer (verify_account_screen:57) · σκόπιμα ΔΕΝ αγγίχτηκαν τα logs μέσα στο `reloadUser()` (με τον guard δεν ξανατυπώνονται μετά sign-out).
+
+1. **Fix 1 — flag `timedOut`** (`auth_repository_impl.dart:190-201`): τοπική μεταβλητή, γίνεται `true` ΜΟΝΟ στο `onTimeout` → ο onError-consumer τυπώνει «late completion after timeout» πλέον ΜΟΝΟ για πραγματικά late completions· σφάλματα εντός 6s καταναλώνονται σιωπηλά. Μηδενική συμπεριφορική αλλαγή — μόνο logging. + Διόρθωση doc comment :182-189 (SDK listener, belt-and-braces πρόθεση).
+2. **Fix 2 — guard στον auto-verify timer** (`verify_account_screen.dart` `_startVerifyTimer` ~54-60): στην αρχή κάθε tick `currentUser == null || isAnonymous` → `_verifyTimer?.cancel()` + ένα log `auto-verify stopped (no linked user)` + return. Σκόπιμα ΧΩΡΙΣ `emailVerified` στο guard (stale τοπική τιμή μέχρι `reload()`· τον verified-εντοπισμό τον κάνουν `checkVerificationSilent` + υπάρχον `ref.listen`). Αποτέλεσμα: μετά sign-out/token-expiry το πολύ 1 tick (~3s) αντί για λεπτά θορύβου. `dispose()` παραμένει safety net (cancel idempotent)· `authRepositoryProvider` ήδη χρησιμοποιείται στο αρχείο — μηδέν νέα imports.
+
+**Έλεγχοι:** `flutter analyze` clean ✅ · `flutter test` **30/30** ✅ · Device validation ×2 release runs (22:50 & 22:56): cold start (verified), login ×2, tabs, anonymous browse, sign-out ×2 — μηδέν regressions, μηδέν timeout/warn, μηδέν «Reloading user» spam μετά sign-out ✅. Σημείωση ειλικρίνειας: στα 2 runs ο timer δεν άναψε ποτέ (κανένα VerifyAccountScreen στη ροή) → ο guard ασκήθηκε έμμεσα μόνο· το φυσικό σενάριο token-expiry πάνω στη σελίδα επαλήθευσης (19:55 σήμερα) παραμένει η ρεαλιστική αναπαραγωγή και εκεί ο guard κόβει στο πρώτο tick.
+
+### Εκκρεμότητες
+- ⏳ Git commit όλων των αλλαγών αυτού του session (timeout wraps + forgot-password move + 2 polish fixes) — **τον κάνει ο ίδιος ο χρήστης** (απόφαση 23 Αυγ: ο assistant δεν ασχολείται ποτέ με commits)
+- ⏳ collectionGroup scraping (εκκρεμότητα #1 — App Check + server-side rate limit)
+
+### Backups
+- `backups/auth_repository_impl_pre_reload_timeout_20260823_193916.dart`
+- `backups/verify_account_screen_pre_forgot_move_20260823_201052.dart`
+- `backups/welcome_screen_pre_forgot_move_20260823_201052.dart`
+- `backups/auth_repository_impl_pre_polish_20260823_202934.dart`
+- `backups/verify_account_screen_pre_polish_20260823_202934.dart`
+- `backups/oldsessions_20260823_202150.md` (παρόν update .md)
+- `backups/oldsessions_pre_polish_note_20260823_225939.md` (παρόν update .md)

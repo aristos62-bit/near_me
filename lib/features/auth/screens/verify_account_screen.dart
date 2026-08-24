@@ -54,6 +54,13 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
   void _startVerifyTimer() {
     _verifyTimer?.cancel();
     _verifyTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      final user = ref.read(authRepositoryProvider).currentUser;
+      if (user == null || user.isAnonymous) {
+        _verifyTimer?.cancel();
+        DebugConfig.log(DebugConfig.authFlow,
+            'VerifyAccountScreen: auto-verify stopped (no linked user)');
+        return;
+      }
       ref.read(verifyAccountProvider.notifier).checkVerificationSilent();
     });
     DebugConfig.log(DebugConfig.authFlow, 'VerifyAccountScreen: auto-verify timer started');

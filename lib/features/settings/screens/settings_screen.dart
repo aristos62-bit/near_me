@@ -201,6 +201,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               if (!isAnonymous)
                 const Divider(),
 
+              _SectionHeader(label: isGreek ? 'Διαγνωστικά' : 'Diagnostics'),
+              const _DiagnosticsSection(),
+              const Divider(),
+
               if (!isAnonymous) ...[
                 ListTile(
                   leading: const Icon(Icons.block_outlined),
@@ -308,6 +312,51 @@ class _DeviceSecuritySection extends ConsumerWidget {
             if (settings.biometricLockEnabled)
               _AutoLockTile(currentMinutes: settings.autoLockMinutes),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DiagnosticsSection extends ConsumerWidget {
+  const _DiagnosticsSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isGreek = L10n.isGreek(context);
+    final appSettingsAsync = ref.watch(appSettingsProvider);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: appSettingsAsync.when(
+        loading: () => const ListTile(
+          leading: Icon(Icons.bug_report_outlined),
+          title: Text('...'),
+        ),
+        error: (e, _) => ListTile(
+          leading: const Icon(Icons.bug_report_outlined),
+          title: Text(isGreek ? 'Σφάλμα φόρτωσης' : 'Load error'),
+        ),
+        data: (settings) => SwitchListTile(
+          secondary: const Icon(Icons.bug_report_outlined),
+          title: Text(isGreek ? 'Αναφορές Σφαλμάτων' : 'Crash Reports'),
+          subtitle: Text(isGreek
+              ? 'Αποστολή αναφορών σφαλμάτων (Crashlytics).'
+              : 'Send crash reports (Crashlytics).'),
+          value: settings.crashReportsEnabled,
+          onChanged: (v) async {
+            DebugConfig.log(DebugConfig.uiInteraction,
+                '_DiagnosticsSection: crashReportsEnabled=$v');
+            await ref.read(appSettingsProvider.notifier).setCrashReports(v);
+            if (context.mounted) {
+              AppMessenger.showInfo(
+                context,
+                ErrorMessages.get(
+                    v ? 'settings/crash-reports-on' : 'settings/crash-reports-off',
+                    isGreek),
+              );
+            }
+          },
         ),
       ),
     );

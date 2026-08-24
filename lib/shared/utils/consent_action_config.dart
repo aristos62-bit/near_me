@@ -126,6 +126,27 @@ class ConsentActionConfig {
       enLabel: 'Deactivated emergency help',
       elLabel: 'Απενεργοποίηση επείγουσας βοήθειας',
     ),
+    'crash_reports': ConsentActionInfo(
+      icon: Icons.bug_report_outlined,
+      outlinedIcon: Icons.bug_report_outlined,
+      color: AppColors.primary,
+      enLabel: 'Crash Reports',
+      elLabel: 'Αναφορές Σφαλμάτων',
+    ),
+    'crash_reports_enabled': ConsentActionInfo(
+      icon: Icons.bug_report,
+      outlinedIcon: Icons.bug_report_outlined,
+      color: AppColors.primary,
+      enLabel: 'Enabled crash reports',
+      elLabel: 'Ενεργοποίηση αναφορών σφαλμάτων',
+    ),
+    'crash_reports_disabled': ConsentActionInfo(
+      icon: Icons.bug_report_outlined,
+      outlinedIcon: Icons.bug_report_outlined,
+      color: AppColors.warning,
+      enLabel: 'Disabled crash reports',
+      elLabel: 'Απενεργοποίηση αναφορών σφαλμάτων',
+    ),
   };
 
   static ConsentActionInfo? get(String action) => actions[action];

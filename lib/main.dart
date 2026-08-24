@@ -32,8 +32,9 @@ void main() async {
   // Firebase.initializeApp() - καλείται και αλλού, αλλά δεν πειράζει
   await Firebase.initializeApp();
 
-  // Crashlytics setup - ΠΡΕΠΕΙ να γίνει ΜΕΤΑ το initializeApp
-  await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(true);
+  // Crashlytics handlers - ΠΡΕΠΕΙ να γίνουν ΜΕΤΑ το initializeApp.
+  // Collection: OFF native (AndroidManifest firebase_crashlytics_collection_enabled),
+  // ενεργοποιείται runtime από το αποθηκευμένο consent (first-load settings).
   FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
   // Uncaught async errors (εκτός Flutter framework) → Crashlytics
   PlatformDispatcher.instance.onError = (error, stack) {
@@ -283,6 +284,34 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
     }
   }
 
+  Future<void> _applyCrashConsent(bool enabled) async {
+    try {
+      await FirebaseCrashlytics.instance
+          .setCrashlyticsCollectionEnabled(enabled);
+      DebugConfig.log(DebugConfig.serviceInit,
+          'main: Crashlytics collection=$enabled (saved consent)');
+      if (!enabled) {
+        await FirebaseCrashlytics.instance.deleteUnsentReports();
+        DebugConfig.log(DebugConfig.serviceInit,
+            'main: Crashlytics unsent reports deleted (no consent)');
+        return;
+      }
+      final user = ref.read(authStateProvider).value;
+      if (user != null) {
+        await FirebaseCrashlytics.instance.setUserIdentifier(user.uid);
+        await FirebaseCrashlytics.instance
+            .setCustomKey('isAnonymous', user.isAnonymous);
+        await FirebaseCrashlytics.instance
+            .setCustomKey('emailVerified', user.emailVerified);
+        DebugConfig.log(DebugConfig.serviceInit,
+            'main: Crashlytics identifier synced uid=${user.uid}');
+      }
+    } catch (e, s) {
+      DebugConfig.error('main: apply saved crash consent failed',
+          data: e, exception: s);
+    }
+  }
+
   /// Εκτελεί το pending incoming share αν το app είναι ξεκλείδωτο και ο
   /// Navigator είναι έτοιμος. Χρησιμοποιεί ΑΠΟΚΛΕΙΣΤΙΚΑ το context του
   /// Navigator (AppRouter.navigatorKey) — ο builder context του MaterialApp
@@ -451,14 +480,24 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
               'main: auth changed — about to invalidate chatsProvider '
                   'uidChanged=$uidChanged emailVerifiedChanged=$emailVerifiedChanged');
           ref.invalidate(chatsProvider);
-          // Crashlytics: custom keys σε ΚΑΘΕ auth αλλαγή (φρεσκάρισμα emailVerified)
-          FirebaseCrashlytics.instance.setCustomKey('isAnonymous', nextUser?.isAnonymous ?? true);
-          FirebaseCrashlytics.instance.setCustomKey('emailVerified', nextUser?.emailVerified ?? false);
+          // Crashlytics keys/identifier ΜΟΝΟ όταν υπάρχει consent (crashReportsEnabled)
+          final crashConsent =
+              ref.read(appSettingsProvider).value?.crashReportsEnabled ?? false;
           if (uidChanged) {
             DebugConfig.log(DebugConfig.authFlow,
                 'main: uid changed ${prevUser?.uid ?? "null"} → ${nextUser?.uid ?? "null"}');
-            // Crashlytics: user ID μόνο σε αλλαγή χρήστη ('' στο sign-out = καθαρίζει)
-            FirebaseCrashlytics.instance.setUserIdentifier(nextUser?.uid ?? '');
+          }
+          if (crashConsent) {
+            // custom keys σε ΚΑΘΕ auth αλλαγή (φρεσκάρισμα emailVerified)
+            FirebaseCrashlytics.instance.setCustomKey(
+                'isAnonymous', nextUser?.isAnonymous ?? true);
+            FirebaseCrashlytics.instance.setCustomKey(
+                'emailVerified', nextUser?.emailVerified ?? false);
+            if (uidChanged) {
+              // user ID μόνο σε αλλαγή χρήστη ('' στο sign-out = καθαρίζει)
+              FirebaseCrashlytics.instance
+                  .setUserIdentifier(nextUser?.uid ?? '');
+            }
           }
 
           if (emailVerifiedChanged) {
@@ -517,6 +556,7 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
           ScreenProtector.enable();
         }
         _applyStartupLock();
+        _applyCrashConsent(n.crashReportsEnabled);
       }
       if (p != null && n != null) {
         if (!p.biometricLockEnabled && n.biometricLockEnabled) {

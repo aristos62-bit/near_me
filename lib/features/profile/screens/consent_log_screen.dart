@@ -27,6 +27,7 @@ class _ConsentLogScreenState extends ConsumerState<ConsentLogScreen> {
     'shared_location',
     'uploaded_photo',
     'deleted_account',
+    'crash_reports',
   ];
 
   @override
@@ -47,7 +48,9 @@ class _ConsentLogScreenState extends ConsumerState<ConsentLogScreen> {
         data: (logs) {
           final filtered = _filterAction == null
               ? logs
-              : logs.where((l) => l.action == _filterAction).toList();
+              : logs.where((l) => _filterAction == 'crash_reports'
+                  ? l.action.startsWith('crash_reports')
+                  : l.action == _filterAction).toList();
           final notifier = ref.read(consentLogProvider.notifier);
           final hasMore = notifier.hasMore;
 
@@ -213,6 +216,7 @@ class _ConsentLogScreenState extends ConsumerState<ConsentLogScreen> {
       case 'location': return greek ? 'Δεδομένα: Τοποθεσία' : 'Data: Location';
       case 'photo': return greek ? 'Δεδομένα: Φωτογραφία' : 'Data: Photo';
       case 'chat_key': return greek ? 'Δεδομένα: Κλειδί συνομιλίας' : 'Data: Chat Key';
+      case 'diagnostics': return greek ? 'Δεδομένα: Διαγνωστικά' : 'Data: Diagnostics';
       default: return greek ? 'Δεδομένα: $type' : 'Data: $type';
     }
   }

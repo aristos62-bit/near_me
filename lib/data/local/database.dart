@@ -33,7 +33,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 14;
+  int get schemaVersion => 15;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -177,6 +177,16 @@ class AppDatabase extends _$AppDatabase {
             exception: s,
           );
         }
+      }
+      if (from < 15) {
+        await m.addColumn(
+          appSettingsTable,
+          appSettingsTable.crashReportsEnabled,
+        );
+        DebugConfig.log(
+          DebugConfig.databaseLocal,
+          'Migration v14->v15: added crashReportsEnabled column to AppSettingsTable',
+        );
       }
     },
   );

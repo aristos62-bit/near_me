@@ -1651,7 +1651,7 @@ Cold start ~2s μία φορά ανά idle window στο checkSearchRateLimit �
 2. **`lib/main.dart`** (+1 import, +5 γραμμές) — το μοναδικό πραγματικό κενό του init:
    ```dart
    PlatformDispatcher.instance.onError = (error, stack) {
-     DebugConfig.error('main: uncaught async error', data: error, exception: stack);
+     DebugConfig.error('main: uncaught async error',data: error, exception: stack);
      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
      return true;
    };
@@ -1695,3 +1695,79 @@ pubspec.yaml ^5.2.3 = lock 5.2.3 ✅ · Gradle plugin application line ✅ · na
 - `backups/oldsessions_pre_crashlytics_20260824_171500.md` (παρόν update .md)
 
 ### `flutter analyze`: clean ✅ (0 issues)
+
+---
+
+## Session 238 — Crashlytics consent-gating GDPR (toggle στις Ρυθμίσεις) — υλοποίηση 9 βημάτων + επαλήθευση πλήρης + ενισχύσεις 2ου γύρου (~95%) — 24 Αυγ 2026
+
+### Σκοπός
+GDPR consent-gating του Crashlytics: η συλλογή crash reports OFF by default, ενεργοποιείται ΜΟΝΟ με ρητό toggle του χρήστη στις Ρυθμίσεις (section «Διαγνωστικά»), με εγγραφή στο ConsentLog και πλήρη διαφάνεια.
+
+### 🔍 Δύο γύροι επανέλεγχου πριν την υλοποίηση (απαίτηση χρήστη)
+**Γύρος 1 — υπάρχουσες λειτουργίες προς επαναχρησιμοποίηση (4 ευρήματα):**
+1. **`AppDatabase.logConsent()` helper ΥΠΑΡΧΕ** (database.dart:194-208: `logConsent(uid, action, dataType, {details})`) — η αρχική πρόταση έλεγε raw insert pattern από chat_repository_impl → ΔΙΟΡΘΩΣΗ: χρήση helper (SPoT). Παρατήρηση εκτός scope: request/chat repos παρακάμπτουν το helper· διπλά keys στο ConsentActionConfig (`published`/`publish`)
+2. **Official opt-in pattern = NATIVE**: AndroidManifest meta-data `firebase_crashlytics_collection_enabled=false` + runtime enable (FlutterFire docs «Enable opt-in reporting») → συλλογή OFF από process start, κλείνει το παράθυρο μέχρι τη γραμμή 36 του main.dart
+3. **Queued reports συμπεριφορά VERIFIED (docs, όχι υπόθεση)**: με collection OFF τα crashes αποθηκεύονται τοπικά και στέλνονται ΑΥΤΟΜΑΤΑ με την επόμενη ενεργοποίηση
+4. **Re-enable θέλει identifier sync**: το auth listener δεν ξανατρέχει χωρίς auth αλλαγή
+
+**Γύρος 2 — συνολική επαναξιολόγηση (9 έλεγχοι ✅ + 2 διορθώσεις):**
+- ✅ Manifest tag όνομα/θέση · column style 1:1 · κανένα raw SQL στο app_settings_table · μηδέν tests σε Crashlytics/AppSettings · cross-import authStateProvider καθιερωμένο (settings_screen.dart:14) · router global redirect → στον /settings ο χρήστης ΠΑΝΤΑ logged-in · clearAllTables σβήνει settings+consent (συνεπές) · settings_screen <500 γραμμές · hook point main.dart:515 επιβεβαιωμένος
+- **Δ1**: uid στο logConsent = `FirebaseAuth.instance.currentUser?.uid ?? ''` ΟΧΙ στατικό `''` — το consent_log_provider.dart:35 φιλτράρει `uid.equals(currentUser.uid)` → στατικό '' θα ήταν ΑΟΡΑΤΟ στο Consent History
+- **Δ2**: revoke → `setUserIdentifier('')` άμεσα (defense-in-depth)
+- **Ρίσκο #1**: διαγραφή migration chain + ξεχασμένο παλιό install → missing column → settings load error → cascade: ScreenProtector & startup lock μένουν σιωπηλά OFF. Χρήστης διάλεξε **3-γραμμη guard** `if (from < 15)` αντί για διαγραφή chain. Μηδενισμός έκδοσης σε 0/1 απορρίφθηκε (κανένα όφελος σε fresh install, ρίσκο σε stale installs)
+
+### Υλοποίηση — 9 βήματα (ένα ανά φορά, backup πριν κάθε edit)
+1. **AndroidManifest.xml** (+meta-data lines 61-63): `firebase_crashlytics_collection_enabled=false` μέσα στο `<application>` — native default OFF
+2. **app_settings_table.dart** (+2 γραμμές): `BoolColumn crashReportsEnabled` default **false** (privacy-safe)
+3. **database.dart**: schemaVersion 14→**15** + guard `if (from < 15) m.addColumn(appSettingsTable, appSettingsTable.crashReportsEnabled)` στο τέλος του chain (το chain ΚΡΑΤΗΘΗΚΕ ολόκληρο)
+4. **build_runner**: 333 outputs, 55s
+5. **app_settings_provider.dart**: `_createDefaults`+field · νέα `setCrashReports(bool)` στο ακριβές σχήμα setScreenshotPrevention: guards (no-state/unchanged — προλαβαίνει διπλά ConsentLog entries σε rapid taps) → DB write try/catch early-return (σε αποτυχία runtime flag ΔΕΝ αλλάζει) → side-effects: setCrashlyticsCollectionEnabled → logConsent(currentUser?.uid ?? '', 'crash_reports_enabled/disabled', 'diagnostics', δίγλωσσο details) → enable: setUserIdentifier+setCustomKey sync από authStateProvider / disable: setUserIdentifier(''). Imports: +firebase_auth +firebase_crashlytics +auth_provider (~250 γραμμές σύνολο)
+6. **main.dart**: αφαίρεση hardcoded `setCrashlyticsCollectionEnabled(true)` (πρώην γραμμή 36, comment ενημερώθηκε) · auth listener gated πίσω από `crashConsent` read (uid-change log βγήκε ΕΞΩ από το gate ώστε να συνεχίζει πάντα) · νέο `_applyCrashConsent(bool)` try/catch (ΟΧΙ catchError — κανόνας AGENTS.md) · first-load block (`p==null && n!=null`) +κλήση — εφαρμόζει την τιμή και στα δύο directions (native flag επιμένει across launches, Drift μένει SPoT). ⚠️ main.dart τώρα 656 γραμμές (>500, ήδη exception area — refactoring μελλοντικά με έγκριση χρήστη)
+7. **settings_screen.dart**: νέο `_SectionHeader 'Διαγνωστικά/Diagnostics'` + `_DiagnosticsSection` μετά την Ασφάλεια Συσκευής — **ορατό και σε anonymous** (consent ανά συσκευή) · ίδιο pattern με _DeviceSecuritySection (when/Padding/SwitchListTile, bug_report_outlined) · biometric variant (await + context.mounted) · subtitle GDPR: «Με επανενεργοποίηση στέλνονται και όσα αποθηκεύτηκαν τοπικά.» (468 γραμμές)
+8. **error_messages.dart**: +`settings/crash-reports-on/-off` δίγλωσσα
+9. **consent_action_config.dart**: +`crash_reports_enabled` (bug_report, primary) / `crash_reports_disabled` (bug_report_outlined, warning)
+
+### ✅ Device επαλήθευση (release build, NFT8KF4LD6XWOF7D, PID 18808)
+- **Migration guard πέτυχε σε ΠΑΛΙΟ install** (χωρίς clean install!): `Migration v14->v15: added crashReportsEnabled column to AppSettingsTable`
+- Cold start: `main: Crashlytics collection=false (saved consent)` — default OFF σωστά
+- Toggle ON: πλήρης ακολουθία uiInteraction→serviceCall→collection=true→consent logged→identifier synced→snackbar ✅
+- Toggle OFF: collection=false→consent logged→**identifier cleared** ✅
+- **Φάση Α** (`adb shell am crash`, consent OFF): reopen → Console ΚΑΜΙΑ νέα καταχώρηση ✅
+- **Φάση Β** (toggle ON, am crash): Console **2→4** = +1 νέο crash +1 queued της Φάσης Α — η τεκμηριωμένη συμπεριφορά «local storage → auto-send on re-enable» επιβεβαιωμένη στην πράξη ✅
+- **Φάση Γ** (ξανά OFF, am crash #3): Console **ΜΕΙΝΕ στο 4** — μετά από ανάκληση η προστασία ισχύει ξανά, τίποτα δεν φεύγει ✅ → **πλήρης κύκλος GDPR επαληθευμένος**
+
+### Ενισχύσεις 2ου γύρου (μετά τις Φάσεις Α-Γ)
+1. **Consent History ομαδοποίηση**: οι νέες εγγραφές εμφανίζονταν μόνο στο «Όλες» — το `_actionFilters` του consent_log_screen.dart:22 είναι hardcoded. Διόρθωση: ψευδο-φίλτρο ομάδας `'crash_reports'` + entry στο ConsentActionConfig (chip «Αναφορές Σφαλμάτων», primary, bug_report_outlined — label/χρώμα από τα ΙΔΙΑ unified paths με τα άλλα chips) · λογική: `startsWith('crash_reports')` ταιριάζει και τις δύο ενέργειες · +case `'diagnostics'` στο `_dataTypeLabel()` («Δεδομένα: Διαγνωστικά» αντί raw 'diagnostics'). Backups: `consenthist_screen_20260824_184801`, `consenthist_config_20260824_184801`
+2. **GDPR cleanup με `deleteUnsentReports()`** (αίτημα χρήστη: «αν δεν θέλει να στέλνει, δεν πρέπει να καθαρίζονται τα τοπικά;» — σωστός): provider `setCrashReports(false)` → +deleteUnsentReports() μετά τον identifier clear · main.dart `_applyCrashConsent(false)` → +deleteUnsentReports() σε ΚΑΘΕ cold start χωρίς consent (crashes που γράφτηκαν ενώ ήταν κλειστό σβήνονται στο επόμενο άνοιγμα). **Νέος κανόνας:** χωρίς συγκατάθεση κανένα δεδομένο δεν επιβιώνει πέρα από την τρέχουσα συνεδρία. Συνέπεια: το παλιό subtitle («με επανενεργοποίηση στέλνονται και όσα αποθηκεύτηκαν») πάψει να ισχύει — νέο: «Όταν είναι ανενεργό, όποιες αναφορές έχουν αποθηκευτεί τοπικά διαγράφονται.» (queued crashes της Φάσης Γ ΘΑ ΣΒΗΣΤΟΥΝ, δεν θα σταλούν ποτέ). Backups: `crashdelete_*_20260824_185732`
+
+### Έλεγχοι
+- `flutter analyze`: clean ✅ μετά από ΚΑΘΕ βήμα (τα προσωρινά expected errors μεταξύ βημάτων 2-5 κανονικά)
+- adb σημείωση: `$pid` είναι read-only στην PowerShell 5.1 (χρήση άλλου ονόματος μεταβλητής) · multi-device: target πάντα με `-s <serial>`
+
+### Εκκρεμότητες
+- ⏳ Device επαλήθευση 2ου γύρου ενισχύσεων (θέλει νέο build/reinstall): νέο subtitle · chip «Αναφορές Σφαλμάτων» στο Ιστορικό · log `Crashlytics unsent reports deleted (no consent)` στο cold start με OFF
+- ⏳ Restart persistence check (ρύθμιση παραμένει) — μπορεί να συνδυαστεί με το παραπάνω rebuild
+- 📌 iOS follow-up: Info.plist `FirebaseCrashlyticsCollectionEnabled=false` όταν πάμε iOS builds
+- ⏳ Redundant native deps στο app/build.gradle.kts (από Session 237)
+- ⏳ Git commit (τον κάνει ο χρήστης — απόφαση 23 Αυγ)
+- 📌 Pre-existing WARN `streamPublicProfile: empty uid` (18:18:40, πρώτο creation με κενό uid) — εκτός θέματος, μελλοντικό cleanup
+
+### Backups
+- `backups/crashlytics_step1_manifest_20260824_174606/AndroidManifest.xml`
+- `backups/crashlytics_step2_table_20260824_174702/app_settings_table.dart`
+- `backups/crashlytics_step3_database_20260824_174839/database.dart`
+- `backups/crashlytics_step5_provider_20260824_175631/app_settings_provider.dart`
+- `backups/crashlytics_step6_main_20260824_175851/main.dart`
+- `backups/crashlytics_step7_settings_20260824_180230/settings_screen.dart`
+- `backups/crashlytics_step8_errmsg_20260824_180422/error_messages.dart`
+- `backups/crashlytics_step9_consentconfig_20260824_180608/consent_action_config.dart`
+- `backups/oldsessions_pre_session238_20260824_184026.md` (παρόν update .md)
+- (Βήμα 4 build_runner: generated code — όχι backup, deterministic regeneration)
+- `backups/consenthist_screen_20260824_184801/consent_log_screen.dart`
+- `backups/consenthist_config_20260824_184801/consent_action_config.dart`
+- `backups/crashdelete_app_settings_provider_20260824_185732/app_settings_provider.dart`
+- `backups/crashdelete_main_20260824_185732/main.dart`
+- `backups/crashdelete_settings_screen_20260824_185732/settings_screen.dart`
+- `backups/oldsessions_pre_session238_update_20260824_190114.md` (παρόν update .md, 2ο)
+
+### `flutter analyze`: clean ✅ (0 issues, τελική κατάσταση)

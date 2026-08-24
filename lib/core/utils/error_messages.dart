@@ -295,6 +295,10 @@ class ErrorMessages {
         return isGreek ? 'Το βιομετρικό κλείδωμα ενεργοποιήθηκε' : 'Biometric lock enabled';
       case 'settings/biometric-lock-off':
         return isGreek ? 'Το βιομετρικό κλείδωμα απενεργοποιήθηκε' : 'Biometric lock disabled';
+      case 'settings/crash-reports-on':
+        return isGreek ? 'Οι αναφορές σφαλμάτων ενεργοποιήθηκαν' : 'Crash reports enabled';
+      case 'settings/crash-reports-off':
+        return isGreek ? 'Οι αναφορές σφαλμάτων απενεργοποιήθηκαν' : 'Crash reports disabled';
       case 'report/submitted':
         return isGreek ? 'Η αναφορά υποβλήθηκε' : 'Report submitted';
       case 'report/submit-failed':

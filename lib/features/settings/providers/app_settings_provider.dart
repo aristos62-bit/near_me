@@ -1,9 +1,12 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/utils/lock_screen.dart';
 import '../../../core/utils/screen_protector.dart';
 import '../../../data/local/database.dart';
 import '../../../data/local/database_service.dart';
+import '../../auth/providers/auth_provider.dart';
 
 final appSettingsProvider = NotifierProvider<AppSettingsNotifier, AsyncValue<AppSettingsTableData>>(
   AppSettingsNotifier.new,
@@ -41,6 +44,7 @@ class AppSettingsNotifier extends Notifier<AsyncValue<AppSettingsTableData>> {
       notificationsEnabled: true,
       biometricLockEnabled: false,
       screenshotPreventionEnabled: false,
+      crashReportsEnabled: false,
       autoLockMinutes: 5,
       searchRadiusKm: 10.0,
       updatedAt: now,
@@ -79,6 +83,86 @@ class AppSettingsNotifier extends Notifier<AsyncValue<AppSettingsTableData>> {
       await ScreenProtector.enable();
     } else {
       await ScreenProtector.disable();
+    }
+  }
+
+  Future<void> setCrashReports(bool enabled) async {
+    final current = state.value;
+    if (current == null) {
+      DebugConfig.warn('AppSettings: setCrashReports skipped (no state)');
+      return;
+    }
+    if (current.crashReportsEnabled == enabled) {
+      DebugConfig.log(DebugConfig.serviceCall,
+          'AppSettings: crashReportsEnabled skipped (unchanged $enabled)');
+      return;
+    }
+    DebugConfig.log(DebugConfig.serviceCall,
+        'AppSettings: crashReportsEnabled=$enabled');
+
+    final db = DatabaseService.instance;
+    try {
+      final updated = current.copyWith(
+        crashReportsEnabled: enabled,
+        updatedAt: DateTime.now(),
+      );
+      await (db.update(db.appSettingsTable)
+        ..where((t) => t.id.equals(updated.id))
+      ).write(updated.toCompanion(true));
+      state = AsyncValue.data(updated);
+    } catch (e, s) {
+      DebugConfig.error('AppSettings: failed to update crashReportsEnabled',
+          data: e, exception: s);
+      state = AsyncValue.error(e, s);
+      return;
+    }
+
+    try {
+      await FirebaseCrashlytics.instance
+          .setCrashlyticsCollectionEnabled(enabled);
+      DebugConfig.log(DebugConfig.serviceInit,
+          'AppSettings: Crashlytics collection=$enabled');
+    } catch (e, s) {
+      DebugConfig.error('AppSettings: Crashlytics toggle failed',
+          data: e, exception: s);
+    }
+
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+      await db.logConsent(
+        uid,
+        enabled ? 'crash_reports_enabled' : 'crash_reports_disabled',
+        'diagnostics',
+        details: enabled
+            ? 'Crash reporting enabled by user / Οι αναφορές σφαλμάτων ενεργοποιήθηκαν από τον χρήστη'
+            : 'Crash reporting disabled by user / Οι αναφορές σφαλμάτων απενεργοποιήθηκαν από τον χρήστη',
+      );
+      DebugConfig.log(DebugConfig.consentLogWrite,
+          'AppSettings: consent logged crashReports=$enabled');
+    } catch (e, s) {
+      DebugConfig.error('AppSettings: consent log failed',
+          data: e, exception: s);
+    }
+
+    try {
+      final user = ref.read(authStateProvider).value;
+      if (enabled && user != null) {
+        await FirebaseCrashlytics.instance.setUserIdentifier(user.uid);
+        await FirebaseCrashlytics.instance
+            .setCustomKey('isAnonymous', user.isAnonymous);
+        await FirebaseCrashlytics.instance
+            .setCustomKey('emailVerified', user.emailVerified);
+        DebugConfig.log(DebugConfig.serviceInit,
+            'AppSettings: Crashlytics identifier synced uid=${user.uid}');
+      } else if (!enabled) {
+        await FirebaseCrashlytics.instance.setUserIdentifier('');
+        await FirebaseCrashlytics.instance.deleteUnsentReports();
+        DebugConfig.log(DebugConfig.serviceInit,
+            'AppSettings: Crashlytics identifier cleared, unsent reports deleted');
+      }
+    } catch (e, s) {
+      DebugConfig.error('AppSettings: Crashlytics identifier sync failed',
+          data: e, exception: s);
     }
   }
 

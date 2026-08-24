@@ -71,7 +71,7 @@ https://github.com/aristos62-bit/near_me
 - **Release override**: `--dart-define=ENABLE_RELEASE_DEBUG=true` για να βλέπεις debugs και σε release
 - **Κατηγορίες flags**: databaseLocal, firestoreRead/Write, authFlow, gps, provider*, service*, repository*, navigation*, ui*, consentLog*, chat*, storage*
 - **Log levels**: `DebugConfig.log(flag, msg)` (υπόκειται σε flag), `warn(msg)` (debug mode μόνο), `error(msg)` (πάντα)
-- **Περιορισμός**: κανένα .dart αρχείο > 500 γραμμές (exceptions: profile_repository_impl ~570, chat_repository_impl ~590 με ρητή εντολή του χρήστη). 
+- **Περιορισμός**: κανένα .dart αρχείο > 500 γραμμές (exceptions: profile_repository_impl , chat_repository_impl , main , με ρητή εντολή του χρήστη). 
 
 ## Αρχιτεκτονική
 

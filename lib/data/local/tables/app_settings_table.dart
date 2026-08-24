@@ -13,6 +13,8 @@ class AppSettingsTable extends Table {
       boolean().withDefault(const Constant(false))();
   BoolColumn get screenshotPreventionEnabled =>
       boolean().withDefault(const Constant(false))();
+  BoolColumn get crashReportsEnabled =>
+      boolean().withDefault(const Constant(false))();
   IntColumn get autoLockMinutes =>
       integer().withDefault(const Constant(5))();
   RealColumn get searchRadiusKm =>

@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../../core/debug/debug_config.dart';
 import '../../core/utils/app_exception.dart';
+import '../../core/utils/storage_helpers.dart';
 
 class StorageService {
   final FirebaseStorage _storage;
@@ -13,8 +15,9 @@ class StorageService {
     DebugConfig.log(DebugConfig.storageUpload, 'uploadAvatar: $uid');
     final ref = _storage.ref().child('avatars/$uid/profile.jpg');
     try {
-      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
-      final url = await ref.getDownloadURL();
+      await StorageHelpers.uploadBytesWithTimeout(ref, bytes,
+          contentType: 'image/jpeg', type: 'avatar');
+      final url = await StorageHelpers.downloadUrlWithTimeout(ref);
       DebugConfig.log(DebugConfig.storageUpload, 'uploadAvatar OK: $uid');
       return url;
     } catch (e, s) {
@@ -28,8 +31,9 @@ class StorageService {
     DebugConfig.log(DebugConfig.storageUpload, 'uploadPhoto: $uid/$index');
     final ref = _storage.ref().child('photos/$uid/$index.jpg');
     try {
-      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
-      final url = await ref.getDownloadURL();
+      await StorageHelpers.uploadBytesWithTimeout(ref, bytes,
+          contentType: 'image/jpeg', type: 'photo');
+      final url = await StorageHelpers.downloadUrlWithTimeout(ref);
       DebugConfig.log(DebugConfig.storageUpload, 'uploadPhoto OK: $uid/$index');
       return url;
     } catch (e, s) {

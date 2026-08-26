@@ -746,11 +746,10 @@ mixin GroupChatMixin {
       final storageRef = FirebaseStorage.instance
           .ref().child('group_avatars').child(chatId).child('avatar.jpg');
       // Το image αναμένεται να είναι XFile (από image_picker)
-      final task = await storageRef.putData(
-        await (image as dynamic).readAsBytes(),
-        SettableMetadata(contentType: 'image/jpeg'),
-      );
-      final url = await task.ref.getDownloadURL();
+      final uploadBytes = await (image as dynamic).readAsBytes();
+      await StorageHelpers.uploadBytesWithTimeout(storageRef, uploadBytes,
+          contentType: 'image/jpeg', type: 'avatar');
+      final url = await StorageHelpers.downloadUrlWithTimeout(storageRef);
       await firestore.collection('chats').doc(chatId).update({'groupAvatarUrl': url});
       await _syncPublicProfileField(chatId, {'groupAvatarUrl': url});
       await _logAudit(chatId, 'avatar_changed', uid);

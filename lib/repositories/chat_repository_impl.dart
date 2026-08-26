@@ -15,6 +15,7 @@ import '../core/debug/debug_config.dart';
 import '../core/notifications/fcm_service.dart';
 import '../core/utils/app_exception.dart';
 import '../core/utils/encryption_utils.dart';
+import '../core/utils/storage_helpers.dart';
 import '../shared/utils/mention_utils.dart';
 import '../features/chat/utils/system_message_formatter.dart';
 import 'group_search_repository.dart';
@@ -854,9 +855,9 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
             'sendMediaMessage: uploading image chat=$chatId type=$type');
         final storageRef = FirebaseStorage.instance
             .ref().child('chat_media/$chatId/${msgRef.id}.${isGif ? 'gif' : 'jpg'}');
-        await storageRef.putData(imageBytes,
-            SettableMetadata(contentType: isGif ? 'image/gif' : 'image/jpeg'));
-        content = await storageRef.getDownloadURL();
+        await StorageHelpers.uploadBytesWithTimeout(storageRef, imageBytes,
+            contentType: isGif ? 'image/gif' : 'image/jpeg', type: isGif ? 'gif' : 'image');
+        content = await StorageHelpers.downloadUrlWithTimeout(storageRef);
       }
 
       if (audioBytes != null && type == 'audio') {
@@ -864,9 +865,9 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
             'sendMediaMessage: uploading audio chat=$chatId');
         final storageRef = FirebaseStorage.instance
             .ref().child('chat_media/$chatId/${msgRef.id}.m4a');
-        await storageRef.putData(audioBytes,
-            SettableMetadata(contentType: 'audio/mp4'));
-        content = await storageRef.getDownloadURL();
+        await StorageHelpers.uploadBytesWithTimeout(storageRef, audioBytes,
+            contentType: 'audio/mp4', type: 'audio');
+        content = await StorageHelpers.downloadUrlWithTimeout(storageRef);
       }
 
       String? thumbnailUrl;
@@ -876,17 +877,24 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
         final storageRef = FirebaseStorage.instance
             .ref().child('chat_media/$chatId/${msgRef.id}.mp4');
         final file = File(videoPath);
-        await storageRef.putFile(file,
+        final task = storageRef.putFile(file,
             SettableMetadata(contentType: 'video/mp4'));
-        content = await storageRef.getDownloadURL();
+        try {
+          await task.timeout(StorageHelpers.timeoutFor('video'));
+        } on TimeoutException {
+          DebugConfig.warn('StorageHelpers: upload TIMEOUT video chat=$chatId');
+          await task.cancel().catchError((_) => false);
+          rethrow;
+        }
+        content = await StorageHelpers.downloadUrlWithTimeout(storageRef);
 
         if (thumbnailBytes != null) {
           try {
             final thumbRef = FirebaseStorage.instance
                 .ref().child('chat_media/$chatId/${msgRef.id}_thumb.jpg');
-            await thumbRef.putData(thumbnailBytes,
-                SettableMetadata(contentType: 'image/jpeg'));
-            thumbnailUrl = await thumbRef.getDownloadURL();
+            await StorageHelpers.uploadBytesWithTimeout(thumbRef, thumbnailBytes,
+                contentType: 'image/jpeg', type: 'thumb');
+            thumbnailUrl = await StorageHelpers.downloadUrlWithTimeout(thumbRef);
           } catch (e) {
             DebugConfig.warn('sendMediaMessage: thumbnail upload failed', data: e);
           }

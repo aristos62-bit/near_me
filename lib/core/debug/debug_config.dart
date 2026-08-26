@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 
 /// Συγκεντρωτικό αρχείο ελέγχου debug μηνυμάτων.
 ///
@@ -140,6 +141,7 @@ class DebugConfig {
   /// ERROR HANDLING — Error classification & logging
   /// ─────────────────────────────────────────────────────────────
   static const bool errorHandler = true;           // error classification logs
+  static const bool crashlyticsForwardInDebug = false; // Crashlytics forwarding σε debug builds (γύρνα true για τοπικό end-to-end τεστ)
 
   /// ─────────────────────────────────────────────────────────────
   /// Εκτυπώνει debug μήνυμα ΜΟΝΟ αν [flag] == true ΚΑΙ debugMode == true.
@@ -182,13 +184,44 @@ class DebugConfig {
 
   /// ─────────────────────────────────────────────────────────────
   /// Εκτυπώνει error — πάντα σε debug mode, ανεξαρτήτως flags.
+  ///
+  /// Προαιρετική προώθηση στο Crashlytics ως non-fatal issue:
+  ///   reportToCrashlytics: true → προωθεί (mobile/macOS μόνο,
+  ///     το consent gate του SDK ελέγχει το upload)
+  ///   stack: καθαρό StackTrace· αν το [exception] είναι StackTrace
+  ///     χρησιμοποιείται αυτόματα ως stack (backwards-compat)
   /// ─────────────────────────────────────────────────────────────
-  static void error(String message, {Object? data, Object? exception}) {
+  static void error(
+    String message, {
+    Object? data,
+    Object? exception,
+    StackTrace? stack,
+    bool reportToCrashlytics = false,
+  }) {
     if (!debugMode) return;
     final timestamp = DateTime.now().toIso8601String().substring(11, 23);
     final buffer = StringBuffer('[$timestamp][ERROR] $message');
     if (data != null) buffer.write(' | data: $data');
     if (exception != null) buffer.write(' | exception: $exception');
     debugPrint(buffer.toString());
+
+    if (!reportToCrashlytics) return;
+    if (!crashlyticsForwardInDebug && kDebugMode) return;
+    // Crashlytics plugin: Android/iOS/macOS μόνο — αλλιώς νεκρό code path
+    // (ασφαλές και για widget tests σε desktop host).
+    if (kIsWeb ||
+        !(defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS ||
+            defaultTargetPlatform == TargetPlatform.macOS)) {
+      return;
+    }
+    final Object ex = (exception != null && exception is! StackTrace)
+        ? exception
+        : (data ?? StateError(message));
+    final StackTrace? st =
+        stack ?? (exception is StackTrace ? exception : null);
+    DebugConfig.log(DebugConfig.serviceError, 'Crashlytics forward: $message');
+    unawaited(FirebaseCrashlytics.instance.recordError(ex, st,
+        reason: message, fatal: false));
   }
 }

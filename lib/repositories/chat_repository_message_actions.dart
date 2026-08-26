@@ -59,9 +59,10 @@ mixin ChatMessageActionsMixin {
       messageEncryptCache[chatId]?.remove(messageId);
 
       DebugConfig.log(DebugConfig.repositoryResult, 'editMessage: success chat=$chatId msg=$messageId');
-    } catch (e) {
+    } catch (e, s) {
       if (e is AppException) rethrow;
-      DebugConfig.error('editMessage failed', data: e);
+      DebugConfig.error('editMessage failed',
+          data: e, stack: s, reportToCrashlytics: true);
       throw AppException.firestore('edit_message', 'Αποτυχία επεξεργασίας μηνύματος / Failed to edit message');
     }
   }
@@ -108,9 +109,10 @@ mixin ChatMessageActionsMixin {
       messageEncryptCache[chatId]?.remove(messageId);
 
       DebugConfig.log(DebugConfig.repositoryResult, 'deleteMessage: success chat=$chatId msg=$messageId');
-    } catch (e) {
+    } catch (e, s) {
       if (e is AppException) rethrow;
-      DebugConfig.error('deleteMessage failed', data: e);
+      DebugConfig.error('deleteMessage failed',
+          data: e, stack: s, reportToCrashlytics: true);
       throw AppException.firestore('delete_message', 'Αποτυχία διαγραφής μηνύματος / Failed to delete message');
     }
   }

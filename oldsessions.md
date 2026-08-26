@@ -259,7 +259,7 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 | Cloud Functions | 12 deployed (europe-west1, gen1, Node 22) + `fcm-utils.ts` helper |
 | Build | `flutter analyze` clean, release APK ~15.8MB |
 | Tests | 30/30 passed |
-| Schema | Drift v14, 7 tables |
+| Schema | Drift v15, 7 tables (+crashReportsEnabled σε AppSettings) |
 | Feature Flags | 21 (typesense, videoCall, groupChat, gifSupport, mediaMessages, audioMessages, videoMessages, messageExpiry, messageReactions, replyToMessage, **replyPrivately**, editMessage, deleteMessage, messageInfo, messageEmail, messageShare, groupEvents, webVersion, aiMatching, verifiedBadge, premiumTier) |
 
 ## ΚΕΦΑΛΑΙΟ 7 — KEY CONVENTIONS
@@ -1769,5 +1769,53 @@ GDPR consent-gating του Crashlytics: η συλλογή crash reports OFF by d
 - `backups/crashdelete_main_20260824_185732/main.dart`
 - `backups/crashdelete_settings_screen_20260824_185732/settings_screen.dart`
 - `backups/oldsessions_pre_session238_update_20260824_190114.md` (παρόν update .md, 2ο)
+
+### `flutter analyze`: clean ✅ (0 issues, τελική κατάσταση)
+
+---
+
+## Session 239 — Crashlytics Selective Forwarding (DebugConfig.error → non-fatal) + FirebaseInit idempotency — 24 Αυγ 2026
+
+### Μέρος Α — FirebaseInit idempotency (user edit, review + polish)
+- User πρόσθεσε μόνος του guard `if (Firebase.apps.isNotEmpty) return true;` στο `tryInitialize()` (`firebase_init.dart:6-10`) μετά από εξωτερική ανάλυση περί `[core/duplicate-app]` → splash stuck
+- **Διόρθωση premise:** σε Android/iOS το default-app init είναι ήδη idempotent (αποδείχθηκε από device logs της ίδιας μέρας: FcmService/AppRouter έτρεξαν κανονικά)· το duplicate-app exception αφορά **web builds** και named apps. Το guard είναι σωστό/πολύτιμο γιατί το project targetάρει web
+- main.dart σχόλιο ενημερώθηκε ώστε να τεκμηριώνει τον μηχανισμό («καλείται και αλλού αλλά δεν πειράζει» → αναφορά στο guard + web-only κίνδυνο)
+- Backup πραγματικού πρωτοτύπου από αρχικό commit `574b855` (το HEAD είχε ήδη τις αλλαγές του user): `backups/firebaseinit_pre_idempotent_20260824_192817/` · backup main.dart pre-commentfix ίδιο ts
+
+### Μέρος Β — Design: επιλεκτική προώθηση caught errors στο Crashlytics (3 γύροι)
+**Πρόβλημα:** η `DebugConfig.error()` (206 κλήσεις σε lib/) είχε `if (!debugMode) return;` → σε release κανένα caught error (repos/services = πλειοψηφία production issues) δεν έφτανε στο Crashlytics. Μόνο τα 2 handlers του main κάλυπταν fatal/uncaught.
+
+**Ευρήματα που διαμόρφωσαν την τελική λύση (όλα επαληθευμένα στον κώδικα):**
+1. **AppException υπάρχει ήδη** (`core/utils/app_exception.dart`, 24 αρχεία/~198 χρήσεις): δομημένο μοντέλο message/code/originalError/**stackTrace** με domain constructors — στα κρίσιμα catches το stack υπάρχει ήδη, απλά περνάμε στη νέα παράμετρο. ΔΕΝ έγινε type-detection μέσα στο DebugConfig → αποφυγή κυκλικού import (app_exception imports debug_config)
+2. **Μικτές συμβάσεις params** στα 206 sites: `data: e` (κυρίαρχη στα repos), `exception: e` (objects), `exception: s/st` (stacks) → precedence rule: ex = (exception!=null && is!StackTrace) ? exception : (data ?? StateError(message)) · st = stack ?? (exception if StackTrace)
+3. **rethrow pattern** (`catch(e){log; rethrow;}`) → κανόνας «ένα forward ανά αλυσίδα», μόνο κατώτατο επίπεδο
+4. **ΚΡΙΣΙΜΟ platform support**: Crashlytics plugin = Android/iOS/macOS ΜΟΝΟ (επίσημα docs) — χωρίς guard, κάθε instrumented site σε web/Windows/Linux θα πετούσε MissingPluginException μέσα στα catch blocks
+5. `printDetails ??= kDebugMode` επιβεβαιωμένο από πηγή εγκατεστημένου firebase_crashlytics-5.2.3 → release console καθαρό χωρίς extra param
+
+**Αποφάσεις user:** παρτίδα 1 ΝΑΙ · `crashlyticsForwardInDebug` flag (default false) NAI · main.dart hardening NAI
+
+### Υλοποίηση — 3 βήματα
+1. **debug_config.dart**: import crashlytics ξανά (χάθηκε στο revert) + flag `crashlyticsForwardInDebug=false` + `error()` upgrade: νέες παράμετροι `stack`/`reportToCrashlytics` (default false = μηδενική αλλαγή στα υπάοντα sites), debug-flag gate, platform allow-list guard (kIsWeb + android/iOS/macOS — widget tests σε desktop host αποκλείονται αυτόματα), precedence mapping, `unawaited(recordError(..., reason:, fatal:false))`. Backup `debugconfig_step1_forward_20260824_200310`
+2. **Enstrumentation 10 sites** (μόνο κατώτατο επίπεδο, `(e,s)` + `stack:`+flag):
+   - auth_repository_impl: deleteAccount · sendPhoneOtp
+   - chat_repository_impl: sendMessage · sendMediaMessage
+   - chat_repository_message_actions: editMessage · deleteMessage
+   - storage_service: uploadAvatar · uploadPhoto (legacy shape, precedence χειρίζεται)
+   - fcm_service: save-token τελική αποτυχία (**νέο lastError/lastStack capture** στον retry loop) · clear tokens
+   - Εξαιρέθηκαν τεκμηριωμένα: reads (getChats/fetchOlderMessages/search), markAsRead/reactions (εκτός scope), `_syncChatFromFirestore` (chatId PII στο μήνυμα + stream-repeat risk), consent-log best-effort, firestore_service (κανένα site — errors φτάνουν στα repos). Backups `step2_*_20260824_200730` ×6
+3. **main.dart hardening (pre-existing latent bug)**: `crashlyticsSupported` bool (!kIsWeb && android/iOS/macOS) γύρω και από τα ΔΥΟ handlers (FlutterError.onError + recordError fatal) — μέχρι τώρα unconditional. +import foundation, −περιττό `dart:ui show PlatformDispatcher`. Backup `step2_main_20260824_200730`
+
+### GDPR/Consent συμβατότητα (μηδέν νέος κώδικας)
+Collection OFF → SDK τοπική αποθήκευση → purge στο επόμενο cold start από το υφιστάμενο `deleteUnsentReports()` (_applyCrashConsent false-path) · ON → κανονικό upload. Το collection flag παραμένει το ενιαίο consent gate (SPoT).
+
+### Εκκρεμότητες
+- ⏳ Device verification: release build, consent ON → 1 αποτυχία sendMessage (αεροπλάνο-mode) → ακριβώς 1 non-fatal issue «sendMessage failed» στο Console · consent OFF → τίποτα + `unsent reports deleted` log
+- ⏳ Όλες οι εκκρεμότητες του Session 238 (iOS Info.plist, redundant deps, restart persistence, 2ου γύρου device check)
+
+### Backups
+- `backups/firebaseinit_pre_idempotent_20260824_192817/` (+main_pre_commentfix ίδιο ts)
+- `backups/debugconfig_step1_forward_20260824_200310/debug_config.dart`
+- `backups/step2_{auth_repository_impl,chat_repository_impl,chat_repository_message_actions,storage_service,fcm_service,main}_20260824_200730/`
+- `backups/oldsessions_pre_session239_20260824_231413.md` (παρόν update .md)
 
 ### `flutter analyze`: clean ✅ (0 issues, τελική κατάσταση)

@@ -18,7 +18,8 @@ class StorageService {
       DebugConfig.log(DebugConfig.storageUpload, 'uploadAvatar OK: $uid');
       return url;
     } catch (e, s) {
-      DebugConfig.error('uploadAvatar failed', data: e, exception: s);
+      DebugConfig.error('uploadAvatar failed', data: e, exception: s,
+          reportToCrashlytics: true);
       throw AppException.storage('uploadAvatar', e, s);
     }
   }
@@ -32,7 +33,8 @@ class StorageService {
       DebugConfig.log(DebugConfig.storageUpload, 'uploadPhoto OK: $uid/$index');
       return url;
     } catch (e, s) {
-      DebugConfig.error('uploadPhoto failed', data: e, exception: s);
+      DebugConfig.error('uploadPhoto failed', data: e, exception: s,
+          reportToCrashlytics: true);
       throw AppException.storage('uploadPhoto', e, s);
     }
   }

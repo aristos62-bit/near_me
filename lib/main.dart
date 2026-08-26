@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'data/local/database_service.dart';
@@ -8,7 +9,6 @@ import 'core/router/app_router.dart';
 import 'core/firebase/firebase_init.dart';
 import 'core/debug/debug_config.dart';
 import 'dart:async';
-import 'dart:ui' show PlatformDispatcher;
 import 'core/notifications/fcm_service.dart';
 import 'core/config/feature_flags.dart';
 import 'core/services/incoming_share_service.dart';
@@ -37,11 +37,21 @@ void main() async {
   // Crashlytics handlers - ΠΡΕΠΕΙ να γίνουν ΜΕΤΑ το initializeApp.
   // Collection: OFF native (AndroidManifest firebase_crashlytics_collection_enabled),
   // ενεργοποιείται runtime από το αποθηκευμένο consent (first-load settings).
-  FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+  // Το plugin υποστηρίζει μόνο Android/iOS/macOS — σε web/Windows/Linux
+  // οι κλήσεις παραλείπονται (default Flutter error handling παραμένει).
+  final bool crashlyticsSupported = !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS ||
+          defaultTargetPlatform == TargetPlatform.macOS);
+  if (crashlyticsSupported) {
+    FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+  }
   // Uncaught async errors (εκτός Flutter framework) → Crashlytics
   PlatformDispatcher.instance.onError = (error, stack) {
     DebugConfig.error('main: uncaught async error', data: error, exception: stack);
-    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    if (crashlyticsSupported) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    }
     return true;
   };
 

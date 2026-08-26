@@ -116,8 +116,9 @@ class AuthRepositoryImpl implements AuthRepository {
       } else {
         rethrow;
       }
-    } catch (e) {
-      DebugConfig.error('deleteAccount: Auth deletion failed', data: e);
+    } catch (e, s) {
+      DebugConfig.error('deleteAccount: Auth deletion failed',
+          data: e, stack: s, reportToCrashlytics: true);
       rethrow;
     }
     } finally {
@@ -284,8 +285,9 @@ class AuthRepositoryImpl implements AuthRepository {
         },
         timeout: const Duration(seconds: 60),
       );
-    } catch (e) {
-      DebugConfig.error('Phone: sendPhoneOtp failed', data: e);
+    } catch (e, s) {
+      DebugConfig.error('Phone: sendPhoneOtp failed',
+          data: e, stack: s, reportToCrashlytics: true);
       if (!completer.isCompleted) completer.completeError(_mapPhoneError(e));
     }
     return completer.future.timeout(

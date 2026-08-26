@@ -122,6 +122,8 @@ class FcmService {
 
     DebugConfig.log(DebugConfig.chatFcm, 'Save token for ${user.uid}');
 
+    Object? lastError;
+    StackTrace? lastStack;
     for (var attempt = 0; attempt < 2; attempt++) {
       try {
         await FirebaseFirestore.instance
@@ -132,12 +134,15 @@ class FcmService {
           'createdAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
         return;
-      } catch (e) {
+      } catch (e, s) {
+        lastError = e;
+        lastStack = s;
         DebugConfig.warn('FCM save token attempt $attempt failed', data: e);
         if (attempt == 0) await Future.delayed(const Duration(seconds: 2));
       }
     }
-    DebugConfig.error('FCM save token failed after 2 attempts');
+    DebugConfig.error('FCM save token failed after 2 attempts',
+        data: lastError, stack: lastStack, reportToCrashlytics: true);
   }
 
   static String get _platform {
@@ -239,8 +244,9 @@ class FcmService {
       await batch.commit();
       DebugConfig.log(DebugConfig.chatFcm,
         'Cleared ${snap.docs.length} tokens');
-    } catch (e) {
-      DebugConfig.error('FCM clear tokens failed', exception: e);
+    } catch (e, s) {
+      DebugConfig.error('FCM clear tokens failed',
+          data: e, stack: s, reportToCrashlytics: true);
     }
   }
 }

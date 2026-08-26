@@ -298,8 +298,9 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
       DebugConfig.log(DebugConfig.repositoryResult, 'sendMessage: success chat=$chatId');
 
       await updateChatCache(chatId, hasUnread: false);
-    } catch (e) {
-      DebugConfig.error('sendMessage failed', data: e);
+    } catch (e, s) {
+      DebugConfig.error('sendMessage failed',
+          data: e, stack: s, reportToCrashlytics: true);
       throw AppException.firestore('send_message', 'Αποτυχία αποστολής μηνύματος / Failed to send message');
     }
   }
@@ -935,8 +936,9 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
       DebugConfig.log(DebugConfig.repositoryResult, 'sendMediaMessage: success chat=$chatId type=$type');
 
       await updateChatCache(chatId, hasUnread: false);
-    } catch (e) {
-      DebugConfig.error('sendMediaMessage failed', data: e);
+    } catch (e, s) {
+      DebugConfig.error('sendMediaMessage failed',
+          data: e, stack: s, reportToCrashlytics: true);
       throw AppException.firestore('send_media', 'Αποτυχία αποστολής / Failed to send');
     }
   }

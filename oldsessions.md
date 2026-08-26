@@ -1908,9 +1908,6 @@ Device: NFT8KF4LD6XWOF7D · Χρόνος run: ~12:30-12:37
 | Video (`putFile` Timer) | 120s | **30s** |
 | Download URL | 10s | 10s (ίδιο) |
 
-### Σημείωση — `Future.timeout()` σε `putData` (uploadBytesWithTimeout)
-Η μέθοδος `uploadBytesWithTimeout` (image/audio/thumb) χρησιμοποιεί `Future.timeout()` σε `putData()`. Η συμπεριφορά ΔΕΝ επιβεβαιώθηκε άμεσα σε network-cut test — αν υπάρχει το ίδιο πρόβλημα, θα χρειαστεί αντικατάσταση με Timer+Completer. Προς το παρόν: ανεπιβεβαίωτο.
-
 ### `flutter analyze`: clean ✅ (0 issues)
 
 ### Backups

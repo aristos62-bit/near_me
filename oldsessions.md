@@ -1774,7 +1774,7 @@ GDPR consent-gating του Crashlytics: η συλλογή crash reports OFF by d
 
 ---
 
-## Session 239 — Crashlytics Selective Forwarding (DebugConfig.error → non-fatal) + FirebaseInit idempotency — 24 Αυγ 2026
+## Session 239 — Crashlytics Selective Forwarding (DebugConfig.error → non-fatal) + FirebaseInit idempotency + Production Build Verification — 24-26 Αυγ 2026
 
 ### Μέρος Α — FirebaseInit idempotency (user edit, review + polish)
 - User πρόσθεσε μόνος του guard `if (Firebase.apps.isNotEmpty) return true;` στο `tryInitialize()` (`firebase_init.dart:6-10`) μετά από εξωτερική ανάλυση περί `[core/duplicate-app]` → splash stuck
@@ -1808,8 +1808,39 @@ GDPR consent-gating του Crashlytics: η συλλογή crash reports OFF by d
 ### GDPR/Consent συμβατότητα (μηδέν νέος κώδικας)
 Collection OFF → SDK τοπική αποθήκευση → purge στο επόμενο cold start από το υφιστάμενο `deleteUnsentReports()` (_applyCrashConsent false-path) · ON → κανονικό upload. Το collection flag παραμένει το ενιαίο consent gate (SPoT).
 
+### ⚠️ ΚΡΙΣΙΜΟ BUG & FIX (26 Αυγ 2026) — forwarding νεκρό σε production
+**Εύρημα (εξωτερικό review):** η `error()` είχε `if (!debugMode) return;` στην κορυφή — σε πραγματικό production release (χωρίς dart-define) το debugMode=false → early return ΠΡΙΝ τη λογική forward → **κανένα από τα 10 sites δεν θα προωθούσε ποτέ**, ό,τι consent κι αν έχει ο χρήστης. Το ίδιο bug που ήρθε να λύσει το feature, επανεμφανίστηκε επειδή η νέα λογική κρεμόταν από το ίδιο master switch.
+
+**Γιατί διέφυγε:** όλες οι device επαληθεύσεις έγιναν με `--dart-define=ENABLE_RELEASE_DEBUG=true` → debugMode=true → μάσκαρε πλήρως το bug. Οι αναφερόμενες παραπάνω «επαληθεύσεις» ισχύουν ΜΟΝΟ για dev-flag builds, ΟΧΙ για production.
+
+**Fix (26 Αυγ, έκδοση κώδικα του user):** διαχωρισμός ανησυχιών — το print τυλίχθηκε σε `if (debugMode) { ... }` (χωρίς early return), το forward πλέον gated ΜΟΝΟ από: reportToCrashlytics (ανά site) + crashlyticsForwardInDebug (kDebugMode builds μόνο) + platform allow-list. Doc-header διορθώθηκε. **Νέα matrix:** production release = σιωπηλό console + ενεργό forward ✅ · release+dev-flag = print+forward ✅ · debug build flag=false = print χωρίς forward ✅
+
+**Observability (+1 γραμμή):** `DebugConfig.log(DebugConfig.serviceError, 'Crashlytics forward: $message')` μέσα στο forward block — **επανάχρηση του νεκρού serviceError flag** — κάνει κάθε forward ορατό στο logcat των test builds.
+
+Backups: `backups/debugconfig_prefix_earlyreturn_20260826_110004/` · `backups/debugconfig_forwardlog_20260826_104523/`
+
+### Device Verification — Release Build + Dev-Flag (26 Αυγ 2026)
+Build: `flutter build apk --release --dart-define=ENABLE_RELEASE_DEBUG=true` (dev-flag = debugMode=true, print logs visible)
+Device: NFT8KF4LD6XWOF7D · Χρόνος run: ~12:30-12:37
+
+**Δύο cold starts, ορισμός consent ON (mid-session toggle)**
+
+| Έλεγχος | Αποτέλεσμα |
+|---|---|
+| Cold start ×2 — baseline | ✅ Καθαρό, καμία νέα σφάλματος γραμμή, μηδέν MissingPluginException |
+| GDPR purge ×2 | ✅ `Crashlytics unsent reports deleted (no consent)` |
+| Consent gating OFF | ✅ `collection=false (saved consent)` |
+| Toggle ON offline | ✅ `collection=true` → `consent logged crashReports=true` → **identifier synced uid=...** |
+| Offline guards (provider level) | ✅ `_performSearch: no connectivity` · send attempts while OFFLINE **blocked at provider** — δεν έφτασαν ποτέ στα repos |
+| Regression μετά επαναφορά δικτύου | ✅ text + photo send επιτυχείς, μηδέν `[ERROR]` σε ΟΛΟ το session |
+| Mid-flight trigger | ❌ **ΑΠΕΤΥΧΕ** — οι αποστολές έγιναν ΟΛΕ online (post-recovery), δεν προληφθηκε network cut |
+
+**Αποτέλεσμα:** zero side effects επιβεβαιωμένα · zero forwards triggered (λογικό: κανένα instrumented failure δεν συνέβη)
+
 ### Εκκρεμότητες
-- ⏳ Device verification: release build, consent ON → 1 αποτυχία sendMessage (αεροπλάνο-mode) → ακριβώς 1 non-fatal issue «sendMessage failed» στο Console · consent OFF → τίποτα + `unsent reports deleted` log
+- ⏳ **Mid-flight trigger τεστ** (Phase Β): consent ON → start upload → cut network DURING → `[ERROR]` + `Crashlytics forward:` logcat lines → Console +1 non-fatal issue (10-15 min delay)
+- ⏳ Phase Γ: consent OFF → trigger → τίποτα Console + cold start purge
+- ⏳ Phase Ζ: true production build (χωρίς dart-define) → silent logcat + Console +1 non-fatal issue
 - ⏳ Όλες οι εκκρεμότητες του Session 238 (iOS Info.plist, redundant deps, restart persistence, 2ου γύρου device check)
 
 ### Backups
@@ -1817,5 +1848,6 @@ Collection OFF → SDK τοπική αποθήκευση → purge στο επό
 - `backups/debugconfig_step1_forward_20260824_200310/debug_config.dart`
 - `backups/step2_{auth_repository_impl,chat_repository_impl,chat_repository_message_actions,storage_service,fcm_service,main}_20260824_200730/`
 - `backups/oldsessions_pre_session239_20260824_231413.md` (παρόν update .md)
+- `backups/oldsessions_session239_verificationupdate_20260826_114500.md` (αυτό update)
 
 ### `flutter analyze`: clean ✅ (0 issues, τελική κατάσταση)

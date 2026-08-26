@@ -183,13 +183,14 @@ class DebugConfig {
   }
 
   /// ─────────────────────────────────────────────────────────────
-  /// Εκτυπώνει error — πάντα σε debug mode, ανεξαρτήτως flags.
+  /// Error logging + προαιρετική προώθηση στο Crashlytics.
   ///
-  /// Προαιρετική προώθηση στο Crashlytics ως non-fatal issue:
-  ///   reportToCrashlytics: true → προωθεί (mobile/macOS μόνο,
-  ///     το consent gate του SDK ελέγχει το upload)
-  ///   stack: καθαρό StackTrace· αν το [exception] είναι StackTrace
-  ///     χρησιμοποιείται αυτόματα ως stack (backwards-compat)
+  /// Print: ΜΟΝΟ όταν debugMode (OFF σε production release).
+  /// Forward: ΑΝΕΞΑΡΤΗΤΟ από debugMode — gated από reportToCrashlytics
+  ///   (ανά call-site), crashlyticsForwardInDebug (μόνο dev testing)
+  ///   και platform allow-list (Android/iOS/macOS).
+  /// stack: καθαρό StackTrace· αν το [exception] είναι StackTrace
+  ///   χρησιμοποιείται αυτόματα ως stack (backwards-compat).
   /// ─────────────────────────────────────────────────────────────
   static void error(
     String message, {
@@ -198,13 +199,20 @@ class DebugConfig {
     StackTrace? stack,
     bool reportToCrashlytics = false,
   }) {
-    if (!debugMode) return;
-    final timestamp = DateTime.now().toIso8601String().substring(11, 23);
-    final buffer = StringBuffer('[$timestamp][ERROR] $message');
-    if (data != null) buffer.write(' | data: $data');
-    if (exception != null) buffer.write(' | exception: $exception');
-    debugPrint(buffer.toString());
+    // Το τοπικό console print παραμένει gated από debugMode (OFF σε release
+    // by default) — καμία αλλαγή εδώ.
+    if (debugMode) {
+      final timestamp = DateTime.now().toIso8601String().substring(11, 23);
+      final buffer = StringBuffer('[$timestamp][ERROR] $message');
+      if (data != null) buffer.write(' | data: $data');
+      if (exception != null) buffer.write(' | exception: $exception');
+      debugPrint(buffer.toString());
+    }
 
+    // Το Crashlytics forwarding ΔΕΝ πρέπει να εξαρτάται από debugMode:
+    // ο σκοπός του είναι να δουλεύει ΑΚΡΙΒΩΣ σε production release, όπου
+    // debugMode == false by default. Η μόνη πύλη εδώ είναι reportToCrashlytics
+    // (ανά call-site) + crashlyticsForwardInDebug (μόνο για local dev testing).
     if (!reportToCrashlytics) return;
     if (!crashlyticsForwardInDebug && kDebugMode) return;
     // Crashlytics plugin: Android/iOS/macOS μόνο — αλλιώς νεκρό code path

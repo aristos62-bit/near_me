@@ -6,10 +6,10 @@ import '../debug/debug_config.dart';
 class StorageHelpers {
   StorageHelpers._();
 
-  static const _uploadImage = Duration(seconds: 30);
-  static const _uploadAudio = Duration(seconds: 30);
-  static const _uploadVideo = Duration(seconds: 120);
-  static const _uploadThumbnail = Duration(seconds: 15);
+  static const _uploadImage = Duration(seconds: 15);
+  static const _uploadAudio = Duration(seconds: 15);
+  static const _uploadVideo = Duration(seconds: 30);
+  static const _uploadThumbnail = Duration(seconds: 10);
   static const _downloadUrl = Duration(seconds: 10);
 
   static Duration timeoutFor(String type) => switch (type) {
@@ -29,7 +29,13 @@ class StorageHelpers {
     DebugConfig.log(DebugConfig.storageUpload,
         'StorageHelpers: upload ${ref.fullPath} type=$type timeout=${timeout.inSeconds}s');
     final task = ref.putData(bytes, SettableMetadata(contentType: contentType));
-    return _awaitTaskWithTimeout(task, timeout, ref.fullPath);
+    try {
+      return await task.timeout(timeout);
+    } on TimeoutException {
+      DebugConfig.warn('StorageHelpers: upload TIMEOUT ${ref.fullPath} after ${timeout.inSeconds}s');
+      await task.cancel().catchError((_) => false);
+      rethrow;
+    }
   }
 
   static Future<TaskSnapshot> uploadFileWithTimeout(
@@ -39,14 +45,6 @@ class StorageHelpers {
   }) {
     DebugConfig.log(DebugConfig.storageUpload,
         'StorageHelpers: upload $path timeout=${timeout.inSeconds}s');
-    return _awaitTaskWithTimeout(task, timeout, path);
-  }
-
-  static Future<TaskSnapshot> _awaitTaskWithTimeout(
-    UploadTask task,
-    Duration timeout,
-    String path,
-  ) {
     final completer = Completer<TaskSnapshot>();
     final timer = Timer(timeout, () {
       if (!completer.isCompleted) {

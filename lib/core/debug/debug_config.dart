@@ -138,6 +138,12 @@ class DebugConfig {
   static const bool helpRequest = true;            // SOS activation/TTL/priority partition
 
   /// ─────────────────────────────────────────────────────────────
+  /// CONTENT MODERATION — SafeSearch / Vision (Φάση 4)
+  /// ─────────────────────────────────────────────────────────────
+  static const bool moderation = true;             // Vision calls, SafeSearch results
+  static const bool moderationVerbose = false;     // full annotations dump
+
+  /// ─────────────────────────────────────────────────────────────
   /// ERROR HANDLING — Error classification & logging
   /// ─────────────────────────────────────────────────────────────
   static const bool errorHandler = true;           // error classification logs

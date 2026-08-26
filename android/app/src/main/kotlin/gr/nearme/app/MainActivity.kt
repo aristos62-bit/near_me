@@ -1,4 +1,4 @@
-package com.example.near_me
+package gr.nearme.app
 
 import android.content.Intent
 import android.net.Uri

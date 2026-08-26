@@ -46,4 +46,10 @@ class FeatureFlags {
   static const bool messageInfoEnabled = true;
   static const bool messageEmailEnabled = true;
   static const bool messageShareEnabled = true;
+
+  // Content Moderation (SafeSearch / Vision) — master OFF for v1
+  static const bool contentModerationEnabled = false;
+  static const bool autoModerateProfilePhotos = false;
+  static const bool autoModerateChatMedia = false;
+  static const bool blurExplicitByDefault = true;
 }

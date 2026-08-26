@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:firebase_storage/firebase_storage.dart';
+import '../../core/config/feature_flags.dart';
 import '../../core/debug/debug_config.dart';
+import '../../core/services/vision_moderation_service.dart';
 import '../../core/utils/app_exception.dart';
 import '../../core/utils/storage_helpers.dart';
 
@@ -13,6 +15,13 @@ class StorageService {
 
   Future<String> uploadAvatar(String uid, Uint8List bytes) async {
     DebugConfig.log(DebugConfig.storageUpload, 'uploadAvatar: $uid');
+    if (FeatureFlags.contentModerationEnabled && FeatureFlags.autoModerateProfilePhotos) {
+      final safe = await VisionModerationService.isProfilePhotoSafe(bytes);
+      if (!safe) {
+        DebugConfig.log(DebugConfig.moderation, 'uploadAvatar blocked by moderation: $uid');
+        throw AppException(message: 'Moderation rejected avatar', code: 'moderation/blocked-explicit');
+      }
+    }
     final ref = _storage.ref().child('avatars/$uid/profile.jpg');
     try {
       await StorageHelpers.uploadBytesWithTimeout(ref, bytes,
@@ -29,6 +38,13 @@ class StorageService {
 
   Future<String> uploadPhoto(String uid, int index, Uint8List bytes) async {
     DebugConfig.log(DebugConfig.storageUpload, 'uploadPhoto: $uid/$index');
+    if (FeatureFlags.contentModerationEnabled && FeatureFlags.autoModerateProfilePhotos) {
+      final safe = await VisionModerationService.isProfilePhotoSafe(bytes);
+      if (!safe) {
+        DebugConfig.log(DebugConfig.moderation, 'uploadPhoto blocked by moderation: $uid/$index');
+        throw AppException(message: 'Moderation rejected photo', code: 'moderation/blocked-explicit');
+      }
+    }
     final ref = _storage.ref().child('photos/$uid/$index.jpg');
     try {
       await StorageHelpers.uploadBytesWithTimeout(ref, bytes,

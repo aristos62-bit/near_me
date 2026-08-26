@@ -1,8 +1,8 @@
 # NearMe — Αναλυτική Αναφορά Ελέγχου & Προτάσεων
 
-> Ημερομηνία: 28 Ιουλίου 2026 — Sessions 1-208
-> Πηγή: nearme_blueprint.md, oldsessions.md, sound_message.md, πλήρης ανάλυση codebase (~122 .dart files)
-> `flutter analyze`: clean ✅ (0 issues)
+> Ημερομηνία: 26 Αυγούστου 2026 — Sessions 1-242 (B1/B2 store blockers fixed)
+> Πηγή: nearme_blueprint.md, oldsessions.md (Sessions 209-242), launch.md, πλήρης ανάλυση codebase (~122 .dart files + 12 Cloud Functions eur3)
+> `flutter analyze`: clean ✅ (0 issues) · `flutter build apk --release` 41.6MB signed `gr.nearme.app` ✅
 
 ---
 
@@ -17,6 +17,7 @@
 | **Media Input** | **100%** (15/15) | — | — | — |
 | **Chat UI Redesign** | **100%** (13/13) | — | — | — |
 | **Audio Messages** | **100%** (22/22) | — | — | — |
+| **Store Blockers B1/B2** | **FIXED** (gr.nearme.app + release signing) | — | — | — |
 | **Σύνολο** | **~99.9%** | **—** | **—** | **0 ασφάλειας** |
 
 ---
@@ -28,9 +29,9 @@
 | # | Απαίτηση | Απόδειξη |
 |---|----------|----------|
 | 1 | Firebase Init + Anonymous Auth | `firebase_init.dart`, `auth_repository_impl.dart` |
-| 2 | Local Database (Drift 2.33, 7 tables, schema v12) | `database.dart`, `database_service.dart`, tables/ |
+| 2 | Local Database (Drift 2.33, 7 tables, schema **v15** — B1/B2: +crashReportsEnabled) | `database.dart:36` v15, `database_service.dart`, tables/ |
 | 3 | UserProfile CRUD (local, 23 fields, lat/lng ΠΟΤΕ στο cloud) | `profile_repository_impl.dart` |
-| 4 | PrivacySettings (13 toggles: +showAvatar Session 164, schema v11→v12) | `privacy_settings_table.dart`, `privacy_editor_screen.dart` |
+| 4 | PrivacySettings (13 toggles: +showAvatar Session 164, schema v11→v12, SPoT allowVideoCall/DirectChat Session 234) | `privacy_settings_table.dart`, `privacy_editor_screen.dart` |
 | 5 | ConsentLog (GDPR, local-only, UI με φίλτρα) | `consent_log_screen.dart`, `consent_log_provider.dart` |
 | 6 | Publish/Unpublish (privacy-respecting, isOnline preserved, null filtering) | `profile_repository_impl.dart` |
 | 7 | GPS + GeoHash (precision levels, auto-fill city/country) | `location_service.dart`, `discovery_screen.dart` |
@@ -49,8 +50,10 @@
 | 20 | Delete Account CF (storage cleanup, requests, chats anonymize) | `index.ts:deleteUserData`, `auth_repository_impl.dart` |
 | 21 | Screenshot Prevention (FLAG_SECURE, MethodChannel, toggle) | `screen_protector.dart`, `settings_screen.dart` |
 | 22 | Biometric Lock + Auto-lock timer (LockScreen, lifecycle, provider, settings UI) | `lock_screen.dart`, `app_settings_provider.dart`, `settings_screen.dart`, `main.dart` |
-| 23 | Feature Flags (16 flags από blueprint §14 + επεκτάσεις) | `feature_flags.dart` (typesense, videoCall, **groupChat**, gifSupport, mediaMessages, **audioMessages**, messageReactions, replyToMessage, editMessage, deleteMessage, messageInfo, aiMatching, verifiedBadge, premiumTier, groupEvents, webVersion) |
+| 23 | Feature Flags (21 flags — Session 242: +replyPrivately, messageExpiry, videoMessages, incomingShare) | `feature_flags.dart:1` (typesense, videoCall, groupChat, gifSupport, mediaMessages, audioMessages, videoMessages, messageReactions, replyToMessage, replyPrivately, editMessage, deleteMessage, messageInfo, etc.) |
 | 24 | GoRouter errorBuilder (themed error page) | `app_router.dart` |
+| 25 | **ApplicationId** `gr.nearme.app` (B1 Session 241 — 12 files, MainActivity move) | `android/app/build.gradle.kts:10,20`, `ios/project.pbxproj:385`, `google-services.json:27` |
+| 26 | **Release Signing** `upload-keystore.jks` + R8 (B2 Session 242 — 41.6MB signed, CN=NearMe) | `android/app/build.gradle.kts:35`, `android/key.properties`, `proguard-rules.pro` |
 
 ---
 
@@ -228,6 +231,13 @@ Routing logic: `hasGeoSearch && (!hasLocationFilter || hasRadiusFilter)` → `_g
 | 18 | **notBanned() gaps** — 17 chat/request rules missing ban check — isGroupMember() helper + memberCount OR rule | 170 | ✅ |
 | 19 | **Server-side authoritative geoHash** — computeGeoHash CF, update rule blocks client geoHash write, privacy subcollection SPoT | 206 | ✅ |
 | 20 | **Mock-location detection** — isMocked check, GPS rejection + user message | 207 | ✅ |
+| 21 | **Search rate limiting** — 30/5min CF + offline gate + 4s fail-open | 208 | ✅ |
+| 22 | **Crashlytics consent-gating GDPR** — native OFF + Drift + toggle + purge + deleteUnsentReports | 238 | ✅ |
+| 23 | **Crashlytics selective forwarding** — `DebugConfig.error` → non-fatal + early-return bug fix | 239 | ✅ |
+| 24 | **Storage upload timeout** — `StorageHelpers` Timer+Completer 15/30s + Future.timeout fix | 240 | ✅ |
+| 25 | **GlobalConnectivityBanner** — MaterialApp Stack Positioned, viewPadding.top | 240 | ✅ |
+| 26 | **ApplicationId** `gr.nearme.app` — 12 files + MainActivity move + Firebase 2 clients | 241 | ✅ |
+| 27 | **Release Signing** — `upload-keystore.jks` + R8 + `-dontwarn` Play Core 41.6MB | 242 | ✅ |
  
 ---
 
@@ -326,23 +336,32 @@ Routing logic: `hasGeoSearch && (!hasLocationFilter || hasRadiusFilter)` → `_g
 | **201** | EmojiOnlyBubble _buildCounts cleanup + markAsRead guard (unreadCount==0 skip) |
 | **201+** | **Bubble Width Bug fix** — IntrinsicWidth wrapper (text_message_bubble.dart) |
 | **204-205** | **Audio Messages (Voice Messages)** — 22 SPoTs, record+audioplayers packages, AudioRecorderSheet, AudioMessageBubble, flutter analyze clean ✅ |
-| **206** | **Server-side authoritative geoHash** — computeGeoHash CF (πιστό GeoHashUtils port), Firestore SPoT geoPrecision, update rule blocks client geoHash write, auto-publish σε κάθε save, live distance από geoHash αντί searchState.distances |
-| **207** | **Mock-location detection** — `position.isMocked` check σε GPS + lastKnown, LocationFailure.mockLocationDetected, εμφάνιση μηνύματος fake GPS |
-| **208** | **Client-side search rate limiting** — `_checkRateLimit()` στο SearchNotifier (search_provider.dart:118-143), CF `checkSearchRateLimit` (fixed-window 30/5min, transaction σε `users/{uid}/rateLimits/search`), firestore.rules rateLimits write:false, fail-open σε network/CF error |
-| **209** | **deleteUserData orphaned subcollections fix** — +3 subcollection deletes σε CF `deleteUserData` (index.ts): privacy/settings (single doc), blocked/ (collection batch), rateLimits/search (single doc). + Client-side defense-in-depth (`auth_repository_impl.dart:76-89`): 3 subcollection deletes στη best-effort Firestore cleanup. + UI list update (`delete_account_screen.dart:213-221`): Blocked users + Privacy settings + "Isar"→"Drift". Backup: `backups/deleteUserData_fix_20260728_*` |
+| **206** | **Server-side authoritative geoHash** — computeGeoHash CF, SPoT geoPrecision, update rule blocks client geoHash write |
+| **207** | **Mock-location detection** — `position.isMocked` check, LocationFailure.mockLocationDetected |
+| **208** | **Client-side search rate limiting** — `_checkRateLimit()` 30/5min, CF `checkSearchRateLimit`, fail-open |
+| **209** | **deleteUserData orphaned subcollections fix** — +3 deletes σε CF + client defense-in-depth |
+| **237-239** | **Crashlytics** — fix broken setup + consent-gating GDPR (native OFF, Drift, toggle, purge) + selective forwarding (early-return bug fix, 10 sites) |
+| **240** | **Storage upload timeout** — `StorageHelpers` Timer+Completer (putFile 30s, putData 15s), Future.timeout() fix verified device |
+| **241** | **ApplicationId** `gr.nearme.app` — 12 files + MainActivity move + Firebase 2 clients + `flutter analyze` clean |
+| **242** | **Release Signing** — `upload-keystore.jks` (RSA 4096, `Kwdiko5keystore0)`) + `android/key.properties` + R8 `isMinifyEnabled` + `proguard-rules.pro` (`-dontwarn` Play Core) → 41.6MB signed `CN=NearMe` |
+| **Global** | **EU migration** nearme-gr→nearme-eu (eur3, europe-west1, 12 CFs `REGION`) + IPv6 diagnosis + offline gate + auth timeouts 6s |
 
 ---
 
-# Τρέχουσα Κατάσταση (Session 208)
+# Τρέχουσα Κατάσταση (Session 242)
 
 | Μέτρο | Τιμή |
 |---|---|
 | Σύνολο `.dart` files | ~122 (μη generated) |
 | Firestore indexes | 21 composite deployed |
-| Cloud Functions | 8 deployed (+ computeGeoHash, + checkSearchRateLimit) + `fcm-utils.ts` helper |
-| Build | `flutter analyze` clean ✅, release APK ~15.8MB |
+| Cloud Functions | 12 deployed (europe-west1, gen1, Node 22) + `fcm-utils.ts` + computeGeoHash + checkSearchRateLimit + expireStaleMessages |
+| Build | `flutter analyze` clean ✅, `flutter build apk --release` **41.6MB** signed `gr.nearme.app` (CN=NearMe, SHA-256 5c1b9ca4…) · `flutter build appbundle` ready for Play |
+| App ID | `gr.nearme.app` (Android) / `gr.nearme.app` (iOS) — migrated Session 241 from `com.example.*` |
+| Signing | `C:\Users\Vaggelis\keys\upload-keystore.jks` (RSA 4096, JKS) + `android/key.properties` + R8 minify/shrink + `proguard-rules.pro` |
+| Schema | Drift **v15** (7 tables: UserProfile, PrivacySettings, ConsentLog, ChatCache, SavedSearch, AppSettings, BlockedUser) |
+| Firebase | `nearme-eu` (eur3) / europe-west1 — migrated 22 Αυγ 2026 from `nearme-gr/nam5` |
 | Tests | 30/30 passed ✅ |
-| Backup files | `backups/sound_message_20260724_130843/` |
+| Backups | `backups/appid_pre_fix_20260826_170000/` + `backups/b2_signing_20260826_193000/` |
 
 ## Υπόλοιπα Gaps
 
@@ -356,14 +375,20 @@ Routing logic: `hasGeoSearch && (!hasLocationFilter || hasRadiusFilter)` → `_g
 - Riverpod scheduler race (debug-only) — `Only one task can be scheduled at a time` σε respondToRequest. Deferred.
 
 ## Key Conventions
-- File size ≤ 500 lines (exceptions: profile_repository_impl ~570, chat_repository_impl ~590, group_chat_mixin ~971 with user permission)
-- `DebugConfig.log(flag, msg)` σε κάθε operational action (34 flags, 3 levels)
-- `ErrorView`/`LoadingView`/`EmptyView` + `AppMessenger` — ποτέ raw ScaffoldMessenger
+- File size ≤ 500 lines (exceptions: profile_repository_impl ~570, chat_repository_impl ~590/1182 with permission, group_chat_mixin ~971)
+- `DebugConfig.log(flag, msg)` σε κάθε operational action (34 flags, 3 levels) + `crashlyticsForwardInDebug=false`
+- `ErrorView`/`LoadingView`/`EmptyView` + `AppMessenger` — ποτέ raw ScaffoldMessenger — 210+ `ErrorMessages.get()` SPoT
 - Bilingual el/en: `L10n.isGreek()` + `L10n.localizedMessage()`
 - Repository pattern: abstract + impl, ποτέ raw Firestore στο UI
 - Privacy-first: πλήρες profile στο Drift, minimal public snapshot στο Firestore
 - GPS-first location → session cache (5min) → last known → failure
-- Shared AudioPlayer instance στο ChatScreen (StatefulWidget) — cascade prevention
+- Shared AudioPlayer/VideoPlayer via `videoPlaybackProvider` — cascade prevention (Session 232)
+- Network timeouts: auth 6s (`_withAuthTimeout`) · search CF 4s fail-open · Storage upload 15/30s (`StorageHelpers` Timer+Completer) — `unawaited(f.then<void>((_) {}, onError))`
+- Offline gate: fresh `Connectivity().checkConnectivity()` πριν CF → offline = error, 0 call
+- Client CF: πάντα `FirebaseFunctions.instanceFor(region: 'europe-west1')`
+- Firebase project: **nearme-eu / eur3** + `gr.nearme.app` — migrated 22 Αυγ 2026
+- GlobalConnectivityBanner `shared/widgets/global_connectivity_banner.dart` (Positioned, leaf ConsumerWidget, viewPadding.top)
+- Release: `gr.nearme.app` + `upload-keystore.jks` + R8 (`proguard-rules.pro` + `-dontwarn` Play Core)
 
 ## Firestore Security Rules (10+ helpers)
 - `isAuthenticated()`, `isOwner(uid)`, `isParticipant(chatData)`

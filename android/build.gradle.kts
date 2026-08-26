@@ -54,7 +54,7 @@ subprojects {
         project.plugins.whenPluginAdded {
             if (this is com.android.build.gradle.LibraryPlugin) {
                 project.extensions.configure<LibraryExtension> {
-                    namespace = "com.example.near_me.${project.name.replace("-", "_")}"
+                    namespace = "gr.nearme.app.${project.name.replace("-", "_")}"
                     val filtered = project.extensions.findByName("nearme_filtered_manifest") as? File
                     if (filtered != null) {
                         sourceSets {

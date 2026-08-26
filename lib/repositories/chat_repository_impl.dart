@@ -11,7 +11,9 @@ import '../data/local/database.dart';
 import '../data/local/database_service.dart';
 import 'auth_repository.dart';
 import 'chat_repository.dart';
+import '../core/config/feature_flags.dart';
 import '../core/debug/debug_config.dart';
+import '../core/services/vision_moderation_service.dart';
 import '../core/notifications/fcm_service.dart';
 import '../core/utils/app_exception.dart';
 import '../core/utils/encryption_utils.dart';
@@ -850,6 +852,13 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
       final batch = firestore.batch();
 
       if (imageBytes != null && (type == 'image' || type == 'gif')) {
+        if (FeatureFlags.contentModerationEnabled && FeatureFlags.autoModerateChatMedia) {
+          final safe = await VisionModerationService.isChatMediaSafe(imageBytes);
+          if (!safe) {
+            DebugConfig.log(DebugConfig.moderation, 'sendMediaMessage blocked by moderation: chat=$chatId type=$type');
+            throw AppException(message: 'Moderation rejected image', code: 'moderation/blocked-explicit');
+          }
+        }
         final isGif = type == 'gif';
         DebugConfig.log(DebugConfig.storageUpload,
             'sendMediaMessage: uploading image chat=$chatId type=$type');

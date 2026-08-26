@@ -1913,3 +1913,80 @@ Device: NFT8KF4LD6XWOF7D · Χρόνος run: ~12:30-12:37
 ### Backups
 - `backups/storage_helpers_timer_revert_20260826_143000/` (storage_helpers.dart + chat_repository_impl.dart)
 - `backups/storage_helpers_pre_timeout_reduction_20260826_145500/storage_helpers.dart`
+
+---
+
+## Session 241 — ApplicationId Migration `com.example.near_me` → `gr.nearme.app` (100%) — 26 Αυγ 2026
+
+### Σκοπός
+Διόρθωση B1 hard blocker: placeholder `com.example.*` απορρίπτεται από Play/App Store. Μόνιμο reverse-domain `gr.nearme.app` (GR signal, ταιριάζει `nearme-eu`). App σε ανάπτυξη, μόνο test users, καμία δημοσίευση — 0 production risk.
+
+### Προετοιμασία (2 γύροι review + Windows constraint)
+- **Επανέλεγχος SPoT:** 9 ανεξάρτητες πηγές για ίδιο ID (gradle, pbxproj, json, xcconfig, CMake, rc) — καμία single source (Flutter template). Συγχρονισμός όλων.
+- **Τι ΔΕΝ επηρεάζεται:** `pubspec.yaml:1` `name: near_me` (Dart imports), `lib/**` 0 hits (MethodChannel `near_me/...` ≠ bundle), `.firebaserc`/`firebase.json`/`l10n.dart`/`debug_config.dart`/`error_messages.dart`.
+- **Windows constraint:** iOS/macOS edits χωρίς `xcodebuild` compile — extra file-level verification via `Select-String`/`Get-Content`.
+
+### Υλοποίηση — 12 αρχεία + 1 μετακίνηση (2 φάσεις, backups πριν κάθε edit)
+
+**Φάση 1 — Android (επαληθεύσιμο σε Windows):**
+- `android/app/build.gradle.kts:10` `namespace` → `gr.nearme.app`
+- `android/app/build.gradle.kts:20-21` διαγραφή TODO + `applicationId` → `gr.nearme.app`
+- `android/app/src/main/kotlin/gr/nearme/app/MainActivity.kt:1` `package gr.nearme.app` + μετακίνηση φακέλου `com/example/near_me` → `gr/nearme/app` (old deleted)
+- `android/build.gradle.kts:57` template → `gr.nearme.app.${project.name...}`
+- `android/app/google-services.json:12,31` — Firebase Console Add Android app `gr.nearme.app` → JSON με 2 clients (old `com.example` + new `gr.nearme.app`, `edf299...` vs `3e02c...`) — transition OK
+
+**Φάση 2 — Apple/Linux/Windows (edits τώρα, compile deferred):**
+- `ios/Runner.xcodeproj/project.pbxproj:385,564,586` Runner → `gr.nearme.app` + `401,418,433` RunnerTests → `gr.nearme.app.RunnerTests` (6 hits)
+- `ios/Runner/GoogleService-Info.plist:12` `BUNDLE_ID` → `gr.nearme.app` (νέο `GOOGLE_APP_ID` `461e9...`)
+- `macos/Runner/Configs/AppInfo.xcconfig:11` → `gr.nearme.app` + `14` copyright → `gr.nearme.app`
+- `macos/Runner.xcodeproj/project.pbxproj:398,412,426` RunnerTests → `gr.nearme.app.RunnerTests` (3 hits)
+- `linux/CMakeLists.txt:10` `APPLICATION_ID` → `gr.nearme.app`
+- `windows/runner/Runner.rc:92,96` `CompanyName`/`LegalCopyright` → `gr.nearme.app`
+
+### Επαλήθευση (Windows, 26 Αυγ)
+- `flutter clean` → `flutter pub get` → `flutter analyze` → **clean ✅ (0 issues)**
+- `MainActivity` new exists ✅, old gone ✅, `package gr.nearme.app` ✅
+- `Select-String com.example` σε `android/ios/macos/linux/windows` → 0 hits (εκτός docs)
+- `ios pbxproj` 6× `gr.nearme.app` ✅, `macos` 3× ✅, `google-services.json` 2 clients ✅, `GoogleService-Info.plist` `gr.nearme.app` ✅
+- SHA: `phoneVerificationEnabled=false` → skip (debug SHA για αργότερα αν ενεργοποιηθεί)
+
+### Backups
+- `backups/appid_pre_fix_20260826_170000/` (11 αρχεία: app_build.gradle.kts, build.gradle.kts, MainActivity.kt, google-services.json, ios_project.pbxproj, GoogleService-Info.plist, AppInfo.xcconfig, macos_project.pbxproj, CMakeLists.txt, Runner.rc, Info.plist)
+- `backups/oldsessions_pre_session241_20260826_173000.md`
+
+### `flutter analyze`: clean ✅ (0 issues)
+
+---
+
+## Session 242 — B2 Release Signing (`debug` → `upload-keystore.jks` + R8 minify) (100%) — 26 Αυγ 2026
+
+### Σκοπός
+Διόρθωση B2 hard blocker: `signingConfig = debug` `android/app/build.gradle.kts:33` — Play απορρίπτει debug key. Release signing με upload keystore + R8 minify/shrink για store.
+
+### Προετοιμασία (επανέλεγχος what exists / what can be reused)
+- **Υπάρχει:** `android/app/build.gradle.kts:10,20` ήδη `gr.nearme.app` (B1 done) — reuse · `google-services.json:27` 2ο client `gr.nearme.app` — reuse · `android/.gitignore:12-14` ήδη `key.properties`/`**/*.keystore`/`**/*.jks` — reuse · `launch.md:139-165` snippet ready
+- **Λείπει:** `android/key.properties` MISSING · `*.jks` MISSING · `android/app/proguard-rules.pro` MISSING · `signingConfigs` block MISSING · `isMinifyEnabled`/`isShrinkResources` MISSING
+- **Κανόνες:** resize 0 (Gradle only), l10n 0, SPoT (`key.properties` single source), error_messages 0 (Gradle error), debug_config 0
+
+### Υλοποίηση — 4 αρχεία + 1 keystore (backups πριν κάθε edit)
+
+1. **Keystore εκτός repo:** `C:\Users\Vaggelis\keys\upload-keystore.jks` — `keytool -genkeypair -alias upload -keyalg RSA -keysize 4096 -validity 9125 -storetype JKS` + `Kwdiko5keystore0)` (store+key same) + `CN=NearMe, OU=Mobile, O=NearMe, L=Athens, ST=Attica, C=GR` — verified `keytool -list` 1 entry
+2. **`android/key.properties` (νέο, gitignored):** `storeFile=C:/Users/Vaggelis/keys/upload-keystore.jks` + `storePassword`/`keyAlias`/`keyPassword` — `android/.gitignore` ήδη καλύπτει
+3. **`android/app/build.gradle.kts`:** `import java.util.Properties`/`java.io.FileInputStream` + `val keystoreProperties`/`keystorePropertiesFile` load + `signingConfigs { create("release") {...} }` + `buildTypes.release` → `signingConfig = if (exists) release else debug` + `isMinifyEnabled=true` + `isShrinkResources=true` + `proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")` — TODO `L31-32` διαγράφηκε
+4. **`android/app/proguard-rules.pro` (νέο):** Flutter/Drift/Firebase/Geolocator/encrypt/secure_storage keeps + `-dontwarn` Play Core 11 rules (generated `missing_rules.txt` → `com.google.android.play.core.**`)
+
+### Επαλήθευση (Windows, 26 Αυγ)
+- `flutter clean` → `flutter pub get` → `flutter analyze` → **clean ✅ (0 issues)**
+- Initial `flutter build appbundle` → `Unresolved reference 'util'/'io'` → fix imports → `daemon disappeared` (Xmx8G OOM) → `flutter build apk --release` → **R8 missing Play Core** → add `-dontwarn` 11 rules → **`flutter build apk --release` → 41.6MB (136s) ✅**
+- `apksigner verify --print-certs` → `CN=NearMe, OU=Mobile, O=NearMe, L=Athens, ST=Attica, C=GR` + `SHA-256: 5c1b9ca4...` + `SHA-1: 060656b4...` ✅
+- `jarsigner -verify` → `signature was verified` ✅
+- Dev impact 0: `flutter run` (debug) uses debug signing, no minify, hot reload OK · `flutter run --release` uses release signing only if `key.properties` exists (fallback debug)
+
+### Backups
+- `backups/b2_signing_20260826_193000/` (app_build.gradle.kts, .gitignore, android.gitignore)
+- `backups/oldsessions_pre_session242_20260826_203000.md`
+
+### `flutter analyze`: clean ✅ (0 issues)
+
+### Σημείωση
+`flutter build apk --release --dart-define=ENABLE_RELEASE_DEBUG=true --dart-define=GIPHY_API_KEY=...` → apk με debug logs (dev) · `flutter build appbundle --release --dart-define=GIPHY_API_KEY=...` → aab **χωρίς** `ENABLE_RELEASE_DEBUG` για Play upload · APK 41.6MB (keep `androidx.**` broad — polish: στένεμα σε επόμενο session)

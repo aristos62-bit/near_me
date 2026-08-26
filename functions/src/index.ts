@@ -1311,3 +1311,30 @@ interface ReportData {
   details?: string;
   createdAt: admin.firestore.Timestamp;
 }
+
+// ─────────────────────────────────────────────────────────────
+// Content Moderation — SafeSearch / Vision (kill-switch OFF by default)
+// ─────────────────────────────────────────────────────────────
+// Master flag: contentModerationEnabled = false → no Vision calls, $0, 0 latency.
+// Enable via Firestore: config/moderation {enabled: true} or env.
+// Requires: npm i @google-cloud/vision + gcloud services enable vision.googleapis.com
+//           + IAM roles/vision.user + eu-vision.googleapis.com (GDPR)
+export const moderateImage = functions.region(REGION).storage.object().onFinalize(async (object) => {
+  // Kill-switch: read Firestore config/moderation (fail-open if missing)
+  try {
+    const cfg = await admin.firestore().doc('config/moderation').get();
+    if (!cfg.exists || cfg.data()?.enabled !== true) {
+      return null;
+    }
+  } catch (_) {
+    return null; // fail-open
+  }
+  const path = object.name ?? '';
+  if (!path.startsWith('avatars/') && !path.startsWith('photos/') && !path.startsWith('chat_media/')) {
+    return null;
+  }
+  // TODO: Vision SafeSearch — @google-cloud/vision client.safeSearchDetection(`gs://${object.bucket}/${path}`)
+  // if (adult >= LIKELY || violence >= LIKELY) → bucket.file(path).delete() + public/profile isVisible=false
+  functions.logger.log(`moderateImage: checked ${path} (Vision TODO — flag ON)`);
+  return null;
+});

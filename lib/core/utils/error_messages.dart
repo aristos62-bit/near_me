@@ -369,6 +369,14 @@ class ErrorMessages {
         return isGreek ? 'Σφάλμα φόρτωσης. Δοκίμασε ξανά.' : 'Failed to load. Try again.';
       case 'request/send-failed':
         return isGreek ? 'Αποτυχία αποστολής' : 'Failed to send';
+      case 'moderation/blocked-explicit':
+        return isGreek ? 'Η φωτογραφία απορρίφθηκε (ακατάλληλο περιεχόμενο)' : 'Photo rejected (explicit content)';
+      case 'moderation/flagged-review':
+        return isGreek ? 'Η φωτογραφία στάλθηκε για έλεγχο' : 'Photo flagged for review';
+      case 'moderation/upload-retry':
+        return isGreek ? 'Ο έλεγχος περιεχομένου απέτυχε. Δοκίμασε ξανά.' : 'Content check failed. Try again.';
+      case 'moderation/banned-explicit':
+        return isGreek ? 'Ο λογαριασμός αποκλείστηκε λόγω ακατάλληλου περιεχομένου' : 'Account banned for explicit content';
       case 'database_error':
       case 'firestore_error':
       case 'storage_error':

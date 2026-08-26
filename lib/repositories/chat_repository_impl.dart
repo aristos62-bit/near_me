@@ -879,13 +879,9 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
         final file = File(videoPath);
         final task = storageRef.putFile(file,
             SettableMetadata(contentType: 'video/mp4'));
-        try {
-          await task.timeout(StorageHelpers.timeoutFor('video'));
-        } on TimeoutException {
-          DebugConfig.warn('StorageHelpers: upload TIMEOUT video chat=$chatId');
-          await task.cancel().catchError((_) => false);
-          rethrow;
-        }
+        await StorageHelpers.uploadFileWithTimeout(task,
+            'chat_media/$chatId/${msgRef.id}.mp4',
+            timeout: StorageHelpers.timeoutFor('video'));
         content = await StorageHelpers.downloadUrlWithTimeout(storageRef);
 
         if (thumbnailBytes != null) {

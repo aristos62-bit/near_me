@@ -29,13 +29,42 @@ class StorageHelpers {
     DebugConfig.log(DebugConfig.storageUpload,
         'StorageHelpers: upload ${ref.fullPath} type=$type timeout=${timeout.inSeconds}s');
     final task = ref.putData(bytes, SettableMetadata(contentType: contentType));
-    try {
-      return await task.timeout(timeout);
-    } on TimeoutException {
-      DebugConfig.warn('StorageHelpers: upload TIMEOUT ${ref.fullPath} after ${timeout.inSeconds}s');
-      await task.cancel().catchError((_) => false);
-      rethrow;
-    }
+    return _awaitTaskWithTimeout(task, timeout, ref.fullPath);
+  }
+
+  static Future<TaskSnapshot> uploadFileWithTimeout(
+    UploadTask task,
+    String path, {
+    required Duration timeout,
+  }) {
+    DebugConfig.log(DebugConfig.storageUpload,
+        'StorageHelpers: upload $path timeout=${timeout.inSeconds}s');
+    return _awaitTaskWithTimeout(task, timeout, path);
+  }
+
+  static Future<TaskSnapshot> _awaitTaskWithTimeout(
+    UploadTask task,
+    Duration timeout,
+    String path,
+  ) {
+    final completer = Completer<TaskSnapshot>();
+    final timer = Timer(timeout, () {
+      if (!completer.isCompleted) {
+        DebugConfig.warn('StorageHelpers: upload TIMEOUT $path after ${timeout.inSeconds}s');
+        task.cancel().catchError((_) => false);
+        completer.completeError(
+          TimeoutException('Upload timed out after ${timeout.inSeconds}s'),
+        );
+      }
+    });
+    task.then((snapshot) {
+      timer.cancel();
+      if (!completer.isCompleted) completer.complete(snapshot);
+    }, onError: (Object error, StackTrace stack) {
+      timer.cancel();
+      if (!completer.isCompleted) completer.completeError(error, stack);
+    });
+    return completer.future;
   }
 
   static Future<String> downloadUrlWithTimeout(Reference ref) {

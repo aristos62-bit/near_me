@@ -1838,7 +1838,6 @@ Device: NFT8KF4LD6XWOF7D · Χρόνος run: ~12:30-12:37
 **Αποτέλεσμα:** zero side effects επιβεβαιωμένα · zero forwards triggered (λογικό: κανένα instrumented failure δεν συνέβη)
 
 ### Εκκρεμότητες
-- ⏳ **Mid-flight trigger τεστ** (Phase Β): consent ON → start upload → cut network DURING → `[ERROR]` + `Crashlytics forward:` logcat lines → Console +1 non-fatal issue (10-15 min delay)
 - ⏳ Phase Γ: consent OFF → trigger → τίποτα Console + cold start purge
 - ⏳ Phase Ζ: true production build (χωρίς dart-define) → silent logcat + Console +1 non-fatal issue
 - ⏳ Όλες οι εκκρεμότητες του Session 238 (iOS Info.plist, redundant deps, restart persistence, 2ου γύρου device check)
@@ -1849,5 +1848,71 @@ Device: NFT8KF4LD6XWOF7D · Χρόνος run: ~12:30-12:37
 - `backups/step2_{auth_repository_impl,chat_repository_impl,chat_repository_message_actions,storage_service,fcm_service,main}_20260824_200730/`
 - `backups/oldsessions_pre_session239_20260824_231413.md` (παρόν update .md)
 - `backups/oldsessions_session239_verificationupdate_20260826_114500.md` (αυτό update)
+- `backups/storage_helpers_timer_revert_20260826_143000/` (storage_helpers.dart + chat_repository_impl.dart — Timer+Completer for putFile, Future.timeout for putData)
+- `backups/storage_helpers_pre_timeout_reduction_20260826_145500/storage_helpers.dart` (πριν μείωση timeouts)
 
 ### `flutter analyze`: clean ✅ (0 issues, τελική κατάσταση)
+
+---
+
+## Session 240 — Firebase Storage Upload Timeout: Future.timeout() εγκατάλειψη + Timer+Completer λύση (100%) — 26 Αυγ 2026
+
+### Σκοπός
+Προσθήκη upload timeout στα Firebase Storage uploads για αποφυγή infinite spinner όταν χάνεται το δίκτυο μέσα σε upload.
+
+### Το πρόβλημα
+`storageRef.putFile()` / `putData()` δεν έχουν ενσωματωμένο timeout. Όταν κόβεται το δίκτυο μέσα σε upload, το `await` κολλάει επ' αόριστον (spinner stuck) μέχρι να επανέλθει το δίκτυο. Στη συνέχεια, το upload συνεχίζει και ολοκληρώνεται (native Firebase SDK κάνει auto-resume).
+
+### Εύρημα: `Future.timeout()` ΔΕΝ δουλεύει σε `UploadTask`
+Η πρώτη υλοποίηση χρησιμοποιούσε `task.timeout(Duration(seconds: X))` — η οποία δεν έπιασε ΠΟΤΕ. Αποδείχθηκε με device test: `StorageHelpers: upload TIMEOUT` log ΑΠΟΥΣΙΑΖΕ παρόλο που ο χρόνος είχε υπερβεί (120δεπ). Αντ' αυτού: ο spinner έκανε spin για 5+ λεπτά, και μόλις επέστρεψε το δίκτυο, το upload ολοκληρώθηκε.
+
+**Αιτία:** Ο `UploadTask` του Firebase Storage υλοποιεί το `Future` interface μέσω internal stream-based mechanism. Το `Future.timeout()` δεν μπορεί να διακόψει τον υποκείμενο stream — ο Timer πυροδοτείται, αλλά ο Completer του `Future.timeout` δεν ολοκληρώνεται ποτέ γιατί η stream παραμένει ανοιχτή.
+
+### Η λύση: `Timer` + `Completer` + `task.cancel()`
+
+**Σχεδιασμός (2 γύροι review + τελικό correctness audit):**
+- `Timer` ξεχωριστός + `Completer<TaskSnapshot>` — ο timer κάνει `task.cancel()` χειροκίνητα
+- `task.then()` / `task.onError` για ολοκλήρωση του completer + ακύρωση timer
+- Ασφάλεια: `completer.isCompleted` guard σε όλα τα paths (timer και task completion μπορούν να συγκρουστούν)
+- `task.cancel().catchError((_) => false)` — cancel μπορεί να αποτύχει (ήδη ολοκληρωμένο upload)
+
+**Υλοποίηση:**
+- `lib/core/utils/storage_helpers.dart` (νέο αρχείο):
+  - `uploadBytesWithTimeout()` — `putData()` + `Future.timeout()` (μεταφέρθηκε από προηγούμενο session)
+  - `uploadFileWithTimeout()` — `UploadTask` + `Timer` + `Completer` (νέο pattern)
+  - `_awaitTaskWithTimeout()` — shared helper (Timer+Completer+task.then)
+  - `downloadUrlWithTimeout()` — `getDownloadURL()` + `Future.timeout()` (αυτό δουλεύει, κανονικό Future)
+- `lib/data/remote/storage_service.dart` — uploadAvatar/uploadPhoto χρησιμοποιούν `StorageHelpers`
+- `lib/repositories/chat_repository_impl.dart` — image+audio+thumbnail μέσω `StorageHelpers`, video μέσω `StorageHelpers.uploadFileWithTimeout`
+- `lib/repositories/group_chat_mixin.dart` — updateGroupAvatar χρησιμοποιεί `StorageHelpers`
+
+### ✅ Device επαλήθευση — Video upload + network cut (release build + dev-flag)
+```
+13:54:46.558  StorageHelpers: upload chat_media/.../<id>.mp4 timeout=120s  ← νέος κώδικας ενεργός
+13:56:46.475  StorageHelpers: upload TIMEOUT ... after 120s              ← Timer πυροδοτήθηκε ✅
+13:56:46.477  sendMediaMessage failed | data: TimeoutException
+13:56:46.485  AppException(firestore_error): Firestore error during send_media
+13:56:47.480  Crashlytics forward: sendMediaMessage failed               ← forwarding ενεργό ✅
+```
+- Timeout ακριβώς 120δεπ από το `task.cancel()` — **Timer+Completer δουλεύει** ✅
+- Spinner σταμάτησε αμέσως (AppException → ChatActionState.error) ✅
+- Error forwarding σε Crashlytics ✅
+- Μικρό note: error code `firestore_error` αντί `storage_error` στο catch block (γρ. 946)
+
+### Μείωση timeouts (με έγκριση user)
+| Τι | Πριν | Τώρα |
+|---|---|---|
+| Image (`putData`) | 30s | **15s** |
+| Audio (`putData`) | 30s | **15s** |
+| Thumbnail (`putData`) | 15s | **10s** |
+| Video (`putFile` Timer) | 120s | **30s** |
+| Download URL | 10s | 10s (ίδιο) |
+
+### Σημείωση — `Future.timeout()` σε `putData` (uploadBytesWithTimeout)
+Η μέθοδος `uploadBytesWithTimeout` (image/audio/thumb) χρησιμοποιεί `Future.timeout()` σε `putData()`. Η συμπεριφορά ΔΕΝ επιβεβαιώθηκε άμεσα σε network-cut test — αν υπάρχει το ίδιο πρόβλημα, θα χρειαστεί αντικατάσταση με Timer+Completer. Προς το παρόν: ανεπιβεβαίωτο.
+
+### `flutter analyze`: clean ✅ (0 issues)
+
+### Backups
+- `backups/storage_helpers_timer_revert_20260826_143000/` (storage_helpers.dart + chat_repository_impl.dart)
+- `backups/storage_helpers_pre_timeout_reduction_20260826_145500/storage_helpers.dart`

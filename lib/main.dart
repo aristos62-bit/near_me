@@ -25,6 +25,7 @@ import 'core/utils/media_share_cache.dart';
 import 'core/utils/image_cache_guard.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'shared/widgets/global_connectivity_banner.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -616,6 +617,7 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
               onPointerSignal: (_) => _resetIdleTimer(),
               child: child ?? const SizedBox.shrink(),
             ),
+            const GlobalConnectivityBanner(),
             if (_isLocked)
               LockScreen(
                 onUnlock: () {

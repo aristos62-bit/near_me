@@ -51,5 +51,6 @@ class FeatureFlags {
   static const bool contentModerationEnabled = true;
   static const bool autoModerateProfilePhotos = true;
   static const bool autoModerateChatMedia = true;
+  static const bool autoModerateGroupAvatars = true;
   static const bool blurExplicitByDefault = true;
 }

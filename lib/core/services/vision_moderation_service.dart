@@ -90,4 +90,14 @@ class VisionModerationService {
     }
     return isSafe(bytes);
   }
+
+  /// Group avatars — ξεχωριστό granular από το chat media, ώστε το group
+  /// avatar moderation να μην εξαρτάται από το `autoModerateChatMedia`.
+  static Future<bool> isGroupAvatarSafe(Uint8List bytes) async {
+    if (!FeatureFlags.contentModerationEnabled ||
+        !FeatureFlags.autoModerateGroupAvatars) {
+      return true;
+    }
+    return isSafe(bytes);
+  }
 }

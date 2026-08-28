@@ -1368,7 +1368,7 @@ export const moderateImage = functions.region(REGION).storage.object().onFinaliz
     return null; // fail-open
   }
   const path = object.name ?? '';
-  if (!path.startsWith('avatars/') && !path.startsWith('photos/') && !path.startsWith('chat_media/')) {
+  if (!path.startsWith('avatars/') && !path.startsWith('photos/') && !path.startsWith('chat_media/') && !path.startsWith('group_avatars/')) {
     return null;
   }
   // Vision SafeSearch δουλεύει μόνο σε στατικές εικόνες — chat_media
@@ -1428,6 +1428,15 @@ export const moderateImage = functions.region(REGION).storage.object().onFinaliz
       if (chatId && msgId) {
         await db.collection('chats').doc(chatId)
           .collection('messages').doc(msgId).delete();
+      }
+    } else if (path.startsWith('group_avatars/')) {
+      // group_avatars/{chatId}/avatar.jpg — αντικατοπτρίζει το
+      // removeGroupAvatar (group_chat_mixin.dart): σβήνουμε το groupAvatarUrl
+      // ώστε το UI να μη δείχνει νεκρό URL μετά από moderation reject.
+      const chatId = segments[1];
+      if (chatId) {
+        await db.collection('chats').doc(chatId)
+          .update({ groupAvatarUrl: admin.firestore.FieldValue.delete() });
       }
     }
   } catch (e) {

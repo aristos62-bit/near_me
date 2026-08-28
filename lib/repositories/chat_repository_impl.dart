@@ -18,6 +18,7 @@ import '../core/notifications/fcm_service.dart';
 import '../core/utils/app_exception.dart';
 import '../core/utils/encryption_utils.dart';
 import '../core/utils/storage_helpers.dart';
+import '../shared/utils/image_utils.dart';
 import '../shared/utils/mention_utils.dart';
 import '../features/chat/utils/system_message_formatter.dart';
 import 'group_search_repository.dart';

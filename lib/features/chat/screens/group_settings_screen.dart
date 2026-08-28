@@ -55,6 +55,10 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
       if (success) {
         ref.invalidate(chatDocProvider(widget.chatId));
         AppMessenger.showSuccess(context, ErrorMessages.get('group/avatar-updated', greek));
+      } else {
+        final st = ref.read(chatActionsProvider);
+        AppMessenger.showError(context, ErrorMessages.get(
+            st.errorMessage ?? 'group/avatar-update-failed', greek));
       }
     } catch (e, s) {
       DebugConfig.error('GroupSettings: pickAndUploadAvatar failed', data: e, exception: s);

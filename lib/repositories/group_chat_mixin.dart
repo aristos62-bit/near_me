@@ -747,7 +747,16 @@ mixin GroupChatMixin {
           .ref().child('group_avatars').child(chatId).child('avatar.jpg');
       // Το image αναμένεται να είναι XFile (από image_picker)
       final uploadBytes = await (image as dynamic).readAsBytes();
-      await StorageHelpers.uploadBytesWithTimeout(storageRef, uploadBytes,
+      final stripped = await ImageUtils.stripExif(uploadBytes);
+      final safe = await VisionModerationService.isGroupAvatarSafe(stripped);
+      if (!safe) {
+        DebugConfig.log(DebugConfig.moderation,
+            'updateGroupAvatar blocked by moderation: chat=$chatId');
+        throw AppException(
+            message: 'Moderation rejected group avatar',
+            code: 'moderation/blocked-explicit');
+      }
+      await StorageHelpers.uploadBytesWithTimeout(storageRef, stripped,
           contentType: 'image/jpeg', type: 'avatar');
       final url = await StorageHelpers.downloadUrlWithTimeout(storageRef);
       await firestore.collection('chats').doc(chatId).update({'groupAvatarUrl': url});
@@ -757,6 +766,9 @@ mixin GroupChatMixin {
       await updateChatCache(chatId, groupAvatarUrl: url);
       DebugConfig.log(DebugConfig.repositoryResult, 'updateGroupAvatar: done $chatId');
     } catch (e, s) {
+      if (e is AppException && e.code == 'moderation/blocked-explicit') {
+        rethrow;
+      }
       DebugConfig.error('updateGroupAvatar failed', data: e, exception: s);
       throw AppException.firestore('update_avatar', 'Αποτυχία αλλαγής εικόνας / Failed to update avatar');
     }

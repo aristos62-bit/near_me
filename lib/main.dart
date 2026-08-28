@@ -123,12 +123,22 @@ class _AppBootstrapState extends State<AppBootstrap> with WidgetsBindingObserver
 
     // Fire-and-forget: δεν μπλοκάρει το startup timing, καθαρίζει
     // τυχόν "ορφανά" temp αρχεία media από προηγούμενα email/share.
-    unawaited(MediaShareCache.sweep());
+    // catchError ΥΠΟΧΡΕΩΤΙΚΟ εδώ: bare unawaited() χωρίς error handler
+    // αφήνει exception να φτάσει σε PlatformDispatcher.instance.onError
+    // (main.dart πάνω) → καταγράφεται ως FATAL στο Crashlytics, ψευδές
+    // crash για ένα απλό cache-cleanup που απέτυχε.
+    unawaited(MediaShareCache.sweep().catchError((Object e, StackTrace s) {
+      DebugConfig.error('main: MediaShareCache.sweep failed',
+          data: e, exception: s, reportToCrashlytics: true);
+    }));
 
     // Fire-and-forget: ελέγχει το μέγεθος του CachedNetworkImage disk
     // cache και το αδειάζει αν ξεπεράσει το όριο (flutter_cache_manager
     // δεν έχει byte-cap, μόνο count/age — βλ. αξιολόγηση 2GB storage).
-    unawaited(ImageCacheGuard.checkAndPrune());
+    unawaited(ImageCacheGuard.checkAndPrune().catchError((Object e, StackTrace s) {
+      DebugConfig.error('main: ImageCacheGuard.checkAndPrune failed',
+          data: e, exception: s, reportToCrashlytics: true);
+    }));
 
     final firebaseReady = await firebaseFuture;
     final tFirebaseEnd = DateTime.now();

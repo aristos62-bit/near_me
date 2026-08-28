@@ -50,7 +50,10 @@ class DatabaseService {
     if (_instance == null) return;
     try {
       DebugConfig.log(DebugConfig.serviceInit, 'Closing Drift database...');
-      _instance!.close();
+      // await ΥΠΟΧΡΕΩΤΙΚΟ: το close() είναι Future<void> — χωρίς await, το
+      // _instance=null παρακάτω τρέχει ΠΡΙΝ ολοκληρωθεί το πραγματικό
+      // close, ρίσκο "database is locked" σε επόμενο άνοιγμα (hot-restart).
+      await _instance!.close();
     } catch (e, s) {
       DebugConfig.error('Error closing Drift database', data: e, exception: s);
     } finally {

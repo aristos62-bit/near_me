@@ -244,6 +244,7 @@ Routing logic: `hasGeoSearch && (!hasLocationFilter || hasRadiusFilter)` → `_g
 | 27 | **Release Signing** — `upload-keystore.jks` + R8 + `-dontwarn` Play Core 41.6MB | 242 | ✅ |
 | 28 | **Content Moderation** — `contentModerationEnabled=false` + Vision stub fail-open + CF `moderateImage` kill-switch `config/moderation` + 4 error codes | 243 | ✅ |
 | 29 | **Photo Unmodifiable** — `_interests`/`_photoUrls` `List.from` fix + rebuild safe (Chapter 10) | 244 | ✅ |
+| 30 | **P0 Startup Fixes** — `unawaited` `then<void> onError` + `await close()` + `chatId!` null check | 245 | ✅ |
  
 ---
 
@@ -352,22 +353,24 @@ Routing logic: `hasGeoSearch && (!hasLocationFilter || hasRadiusFilter)` → `_g
 | **242** | **Release Signing** — `upload-keystore.jks` (RSA 4096, `Kwdiko5keystore0)`) + `android/key.properties` + R8 `isMinifyEnabled` + `proguard-rules.pro` (`-dontwarn` Play Core) → 41.6MB signed `CN=NearMe` |
 | **243** | **Content Moderation Scaffolding** — `contentModerationEnabled=false` + Vision stub `vision_moderation_service.dart` + `moderation` flags + `moderation/*` errors + CF `moderateImage` kill-switch |
 | **244** | **Photo Unmodifiable Fix** — `EqualUnmodifiableListView` → `List.from` σε `_interests`/`_photoUrls` `profile_editor_screen.dart:153,161` |
+| **245** | **P0 Startup Fixes** — `main.dart` `unawaited` + `database_service.dart` `await close()` + `app_router.dart` `chatId` null check (3 αρχεία, 5 γραμμές, 0 side effects) |
 | **Global** | **EU migration** nearme-gr→nearme-eu (eur3, europe-west1, 12 CFs `REGION`) + IPv6 diagnosis + offline gate + auth timeouts 6s |
 
 ---
 
-# Τρέχουσα Κατάσταση (Session 244)
+# Τρέχουσα Κατάσταση (Session 245)
 
 | Μέτρο | Τιμή |
 |---|---|
 | Σύνολο `.dart` files | ~123 (μη generated, +`vision_moderation_service.dart`) |
 | Firestore indexes | 21 composite deployed |
 | Cloud Functions | 13 (12 deployed + `moderateImage` scaffolding, `europe-west1`, gen1, Node 22) + `fcm-utils.ts` + computeGeoHash + checkSearchRateLimit + expireStaleMessages |
-| Build | `flutter analyze` clean ✅, `flutter build apk --release` **41.6MB** signed `gr.nearme.app` (CN=NearMe, SHA-256 5c1b9ca4…) · `flutter build appbundle` ready for Play |
+| Build | `flutter analyze` clean ✅, `flutter build apk --release` **20.8MB** (R8) signed `gr.nearme.app` (CN=NearMe, SHA-256 5c1b9ca4…) · `flutter build appbundle` ready for Play |
 | App ID | `gr.nearme.app` (Android) / `gr.nearme.app` (iOS) — migrated Session 241 from `com.example.*` |
 | Signing | `C:\Users\Vaggelis\keys\upload-keystore.jks` (RSA 4096, JKS) + `android/key.properties` + R8 minify/shrink + `proguard-rules.pro` |
 | Moderation | `contentModerationEnabled=false` (Session 243) — 0 Vision calls, $0, stub `vision_moderation_service.dart` + CF kill-switch `config/moderation` |
 | Photo Fix | `EqualUnmodifiableListView` → `List.from` `profile_editor_screen.dart:153,161` (Session 244) |
+| P0 Fixes | `unawaited` `then<void> onError` + `await close()` + `chatId` null check (Session 245, 3 αρχεία, 5 γραμμές) |
 | Schema | Drift **v15** (7 tables: UserProfile, PrivacySettings, ConsentLog, ChatCache, SavedSearch, AppSettings, BlockedUser) |
 | Firebase | `nearme-eu` (eur3) / europe-west1 — migrated 22 Αυγ 2026 from `nearme-gr/nam5` |
 | Tests | 30/30 passed ✅ |

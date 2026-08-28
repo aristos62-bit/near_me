@@ -2,7 +2,9 @@ import * as vision from '@google-cloud/vision';
 
 // SPoT — Google Cloud Vision SafeSearch client (server-only, ποτέ client-side
 // γιατί απαιτεί service-account credentials).
-const visionClient = new vision.ImageAnnotatorClient();
+const visionClient = new vision.ImageAnnotatorClient({
+  apiEndpoint: 'eu-vision.googleapis.com',
+});
 
 export interface ModerationVerdict {
   approved: boolean;

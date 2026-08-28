@@ -444,5 +444,16 @@ service cloud.firestore {
       allow read: if isAuthenticated() && isOwner(uid);
       allow write: if false;
     }
+
+    // ─────────────────────────────────────────────────────────
+    // Moderation log (written only by Admin SDK / Cloud Functions)
+    // Server-only audit trail για content moderation (SafeSearch).
+    // Ο client ΠΟΤΕ δεν διαβάζει/γράφει εδώ — μόνο το moderateImage
+    // function (Admin SDK, index.ts). Ίδιο "no client access" pattern
+    // με το /banned/{uid} παραπάνω.
+    // ─────────────────────────────────────────────────────────
+    match /moderationLog/{doc} {
+      allow read, write: if false;
+    }
   }
 }

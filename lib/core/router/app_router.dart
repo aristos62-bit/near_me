@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'main_shell.dart';
 import '../debug/debug_config.dart';
+import '../../shared/widgets/app_state_widget.dart';
 import '../l10n/l10n.dart';
 import '../../repositories/auth_repository.dart';
 import '../../features/discovery/screens/discovery_screen.dart';
@@ -145,7 +146,16 @@ class AppRouter {
         ],
       ),
       GoRoute(path: '/chat/:chatId', pageBuilder: (context, state) {
-        final chatId = state.pathParameters['chatId']!;
+        final chatId = state.pathParameters['chatId'];
+        // Defensive guard: malformed/stale deep link (π.χ. από παλιό FCM
+        // payload) θα έριχνε StateError → hard crash. Graceful ErrorView
+        // αντί για crash σε αυτό το untrusted-input μονοπάτι.
+        if (chatId == null || chatId.isEmpty) {
+          DebugConfig.warn('AppRouter: /chat/:chatId χωρίς έγκυρο chatId — malformed deep link');
+          return _slideUp(const ErrorView(
+            message: 'Μη έγκυρος σύνδεσμος συνομιλίας / Invalid chat link',
+          ));
+        }
         final navExtra = state.extra is ChatNavExtra ? state.extra as ChatNavExtra : null;
         return _slideUp(ChatScreen(chatId: chatId, navExtra: navExtra));
       }),

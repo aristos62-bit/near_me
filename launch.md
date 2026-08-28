@@ -1,7 +1,7 @@
 # NearMe — Launch Readiness & Action Plan
 
 > **Έκδοση:** 1.1.0+1 · **Schema:** v15 · **Firebase:** `nearme-eu` (eur3 / europe-west1) · **Ημερομηνία:** 26 Αυγ 2026
-> **Κατάσταση:** Φάσεις 1-3 λειτουργικές, **ΟΧΙ έτοιμο για store upload** — 6 hard blockers + 3 high warnings
+> **Κατάσταση:** Φάσεις 1-3 λειτουργικές, B1/B2 FIXED, moderation scaffolding (flag OFF), photo fix — 4 hard blockers παραμένουν + 3 high warnings
 
 ---
 

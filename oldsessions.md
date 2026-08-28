@@ -1990,3 +1990,56 @@ Device: NFT8KF4LD6XWOF7D · Χρόνος run: ~12:30-12:37
 
 ### Σημείωση
 `flutter build apk --release --dart-define=ENABLE_RELEASE_DEBUG=true --dart-define=GIPHY_API_KEY=...` → apk με debug logs (dev) · `flutter build appbundle --release --dart-define=GIPHY_API_KEY=...` → aab **χωρίς** `ENABLE_RELEASE_DEBUG` για Play upload · APK 41.6MB (keep `androidx.**` broad — polish: στένεμα σε επόμενο session)
+
+---
+
+## Session 243 — Content Moderation Scaffolding (`contentModerationEnabled=false`, 0 behavior change) (100%) — 26 Αυγ 2026
+
+### Σκοπός
+CSAE / Play Child Safety — automated SafeSearch/Vision scaffolding με master kill-switch **OFF** (0 Vision calls, $0, 0 latency, 0 UX change) — έτοιμο για staged rollout.
+
+### Προετοιμασία (reuse-first)
+- **Υπάρχει:** `onReportCreated` `index.ts:208` ban pattern + `isVisible` `public_profile.dart:37` + `stripExif` `shared/utils/image_utils.dart:9` + `StorageHelpers` `storage_helpers.dart:9` timeout + `FeatureFlags` 21 + `DebugConfig` 34 flags + `ErrorMessages` 210+ — reuse
+- **Λείπει:** `contentModerationEnabled` flag, `moderation` debug, `moderation/*` errors, `VisionModerationService`, CF `moderateImage` storage trigger — MUST CREATE
+
+### Υλοποίηση — 7 αρχεία (backups `moderation_init_20260826_213000/`)
+
+1. **`feature_flags.dart`** +`contentModerationEnabled=false` + `autoModerateProfilePhotos=false` + `autoModerateChatMedia=false` + `blurExplicitByDefault=true`
+2. **`debug_config.dart`** +`moderation:true` + `moderationVerbose:false` (`SOS` section)
+3. **`error_messages.dart`** +`moderation/blocked-explicit`, `/flagged-review`, `/upload-retry`, `/banned-explicit` (4 codes)
+4. **`vision_moderation_service.dart` (νέο, 45 γραμμές):** SPoT, flag-gated fail-open `isSafe()` + `isProfilePhotoSafe()` + `isChatMediaSafe()` — `false` → return true, empty bytes → allow, TODO Vision όταν ON
+5. **`storage_service.dart`** `uploadAvatar/Photo` + pre-check `if (contentModerationEnabled && autoModerateProfilePhotos) await VisionModerationService.isProfilePhotoSafe(bytes) → AppException('moderation/blocked-explicit')` — flag OFF → no-op
+6. **`chat_repository_impl.dart`** `sendMediaMessage` image/gif + same pre-check `isChatMediaSafe` — flag OFF → no-op
+7. **`functions/src/index.ts`** +`moderateImage` `storage.object().onFinalize` `europe-west1` — kill-switch `config/moderation {enabled:true}` Firestore doc (fail-open), path `avatars/`/`photos/`/`chat_media/` — TODO Vision `safeSearchDetection`
+
+### Επαλήθευση
+- `flutter analyze` → 6 errors `AppException('code','msg')` positional → fix `message:`/`code:` named → **clean ✅ (0 issues)**
+- Device test `22:37:56-22:42:34` — signIn → Discovery → Profile Edit avatar/photo → chat image/GIF → search 25km → GlobalConnectivityBanner → 0 `moderation` logs, 0 `moderation/blocked` (flag OFF), `uploadAvatar/Photo OK`, `sendMediaMessage success` — 0 side effects ✅
+- CF `moderateImage` not deployed yet (requires `npm i @google-cloud/vision` + Vision enable) — kill-switch OFF → no billing
+
+### Backups
+- `backups/moderation_init_20260826_213000/` (feature_flags, debug_config, error_messages, index.ts)
+- `backups/oldsessions_pre_243_244_20260826_230000.md`
+
+### `flutter analyze`: clean ✅ (0 issues)
+
+---
+
+## Session 244 — Photo `UnmodifiableListView` Fix (`_interests` + `_photoUrls`) (100%) — 26 Αυγ 2026
+
+### Σκοπός
+`_photoUrls = profile.photoUrls ?? []` `profile_editor_screen.dart:161` + `_interests` `153` παίρνουν `EqualUnmodifiableListView` από `PublicProfile` `freezed.dart:551` via `profile_repository_impl:78,125` → `345` `add` / `359` `removeAt` / `665` `FilterChip` πετούν → `setState` no `markNeedsBuild` → UI stale μέχρι re-enter.
+
+### Η λύση (reuse `List<String>.from` — 3 precedents)
+- `profile_storage_mixin.dart:92,126` `List<String>.from(profile.photoUrls ?? [])` + `search_filters_screen.dart:76` `_interests = List<String>.from(...)` — SPoT idiom
+- Edit: `153` `_interests = List<String>.from(profile.interests ?? [])` + `161` `_photoUrls = List<String>.from(profile.photoUrls ?? [])` — `345`/`359`/`665` μένουν, δουλεύουν σε mutable
+
+### Επαλήθευση
+- `flutter analyze` → **clean ✅ (0 issues)**
+- Backup `backups/photo_unmodifiable_20260826_225000/` — `flutter clean; flutter pub get; flutter analyze` OK
+- Rebuild storm: 0 — `_loadProfile` async `addPostFrameCallback` `initState:124` → single `setState` `163` — pure alloc, 0 `MediaQuery`/`Localizations` in build (Chapter 10 fix6 `224` locale-cache, fix3 `221` LayoutBuilder)
+
+### Backups
+- `backups/photo_unmodifiable_20260826_225000/profile_editor_screen.dart`
+
+### `flutter analyze`: clean ✅ (0 issues)

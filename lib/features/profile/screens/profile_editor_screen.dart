@@ -150,7 +150,7 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
     _phoneCtrl.text = profile.phone ?? '';
     _gender = profile.gender;
     _lookingFor = profile.lookingFor;
-    _interests = profile.interests ?? [];
+    _interests = List<String>.from(profile.interests ?? []);
     _latitude = profile.latitudeExact;
     _longitude = profile.longitudeExact;
     _locationDetectedViaGps = false;
@@ -158,7 +158,7 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
     _avatarErrorShown = false;
     DebugConfig.log(DebugConfig.uiRebuild,
         'ProfileEditor _loadProfile: avatarUrl=${_avatarUrl != null && _avatarUrl!.isNotEmpty ? "present (${_avatarUrl!.length} chars)" : "null or empty"}');
-    _photoUrls = profile.photoUrls ?? [];
+    _photoUrls = List<String>.from(profile.photoUrls ?? []);
     _loadedProfile = profile;
     if (mounted) setState(() {});
   }

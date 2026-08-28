@@ -169,8 +169,8 @@ class _AppBootstrapState extends State<AppBootstrap> with WidgetsBindingObserver
     );
 
     final elapsed = DateTime.now().difference(_t0);
-    if (elapsed < const Duration(seconds: 3)) {
-      await Future.delayed(const Duration(seconds: 3) - elapsed);
+    if (elapsed < const Duration(milliseconds: 800)) {
+      await Future.delayed(const Duration(milliseconds: 800) - elapsed);
     }
 
     if (mounted) {

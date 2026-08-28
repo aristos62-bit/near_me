@@ -1,6 +1,7 @@
 import * as functions from 'firebase-functions/v1';
 import * as admin from 'firebase-admin';
 import { sendWithRetry } from './fcm-utils';
+import { runSafeSearch, runSafeSearchGcs } from './moderation';
 
 admin.initializeApp();
 
@@ -1313,16 +1314,53 @@ interface ReportData {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Content Moderation — SafeSearch / Vision (kill-switch OFF by default)
+// checkImageModeration — callable, πραγματικό Vision SafeSearch.
+// Καλείται ΠΡΙΝ το upload από τον client (VisionModerationService.isSafe).
+// Client-side gate: FeatureFlags.contentModerationEnabled (Dart const) —
+// όταν false, ο client δεν καλεί καν αυτό το function (0 κόστος).
+// Fail-open στον client σε σφάλμα/timeout· εδώ πετάμε HttpsError.
 // ─────────────────────────────────────────────────────────────
-// Master flag: contentModerationEnabled = false → no Vision calls, $0, 0 latency.
-// Enable via Firestore: config/moderation {enabled: true} or env.
-// Requires: npm i @google-cloud/vision + gcloud services enable vision.googleapis.com
-//           + IAM roles/vision.user + eu-vision.googleapis.com (GDPR)
+
+const MODERATION_MAX_BASE64_CHARS = 8 * 1024 * 1024; // ~6MB δυαδικά, ασφαλές όριο callable payload
+
+export const checkImageModeration = functions.region(REGION).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+  }
+  const base64Image = data?.image as string | undefined;
+  if (!base64Image || typeof base64Image !== 'string') {
+    throw new functions.https.HttpsError('invalid-argument', 'Missing image data');
+  }
+  if (base64Image.length > MODERATION_MAX_BASE64_CHARS) {
+    throw new functions.https.HttpsError('invalid-argument', 'Image too large for moderation');
+  }
+  try {
+    const verdict = await runSafeSearch(base64Image);
+    functions.logger.info(
+      `checkImageModeration: uid=${context.auth.uid} approved=${verdict.approved}` +
+      (verdict.reasons.length ? ` reasons=${verdict.reasons.join(',')}` : ''),
+    );
+    return verdict;
+  } catch (e) {
+    functions.logger.error(`checkImageModeration failed for uid=${context.auth.uid}`, e);
+    throw new functions.https.HttpsError('internal', 'Moderation check failed');
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// moderateImage — server-side backstop, ανεξάρτητο από τον client.
+// Τρέχει σε ΚΑΘΕ upload σε avatars/photos/chat_media, ό,τι client version
+// κι αν έχει ο χρήστης εγκατεστημένη — προστασία ακόμα κι αν παρακαμφθεί
+// το VisionModerationService.isSafe (modified APK, κ.λπ.).
+// Kill-switch ΔΙΚΟ ΤΟΥ, ξεχωριστό από το Dart FeatureFlags.contentModerationEnabled:
+// Firestore doc config/moderation {enabled: true|false} — instant on/off,
+// χωρίς rebuild/redeploy του app. Default: doc δεν υπάρχει → OFF (fail-open).
+// Requires: npm i @google-cloud/vision (έγινε) + gcloud services enable
+//           vision.googleapis.com + IAM roles/vision.user.
 export const moderateImage = functions.region(REGION).storage.object().onFinalize(async (object) => {
   // Kill-switch: read Firestore config/moderation (fail-open if missing)
   try {
-    const cfg = await admin.firestore().doc('config/moderation').get();
+    const cfg = await db.doc('config/moderation').get();
     if (!cfg.exists || cfg.data()?.enabled !== true) {
       return null;
     }
@@ -1333,8 +1371,80 @@ export const moderateImage = functions.region(REGION).storage.object().onFinaliz
   if (!path.startsWith('avatars/') && !path.startsWith('photos/') && !path.startsWith('chat_media/')) {
     return null;
   }
-  // TODO: Vision SafeSearch — @google-cloud/vision client.safeSearchDetection(`gs://${object.bucket}/${path}`)
-  // if (adult >= LIKELY || violence >= LIKELY) → bucket.file(path).delete() + public/profile isVisible=false
-  functions.logger.log(`moderateImage: checked ${path} (Vision TODO — flag ON)`);
+  // Vision SafeSearch δουλεύει μόνο σε στατικές εικόνες — chat_media
+  // περιέχει και audio/mp4, video/mp4 (τα video thumbnails είναι ξεχωριστό
+  // image/jpeg αρχείο, αυτό ελέγχεται κανονικά).
+  if (!object.contentType?.startsWith('image/')) {
+    return null;
+  }
+
+  const bucket = admin.storage().bucket(object.bucket);
+  const gcsUri = `gs://${object.bucket}/${path}`;
+
+  let verdict;
+  try {
+    verdict = await runSafeSearchGcs(gcsUri);
+  } catch (e) {
+    functions.logger.error(`moderateImage: Vision call failed for ${path}`, e);
+    return null; // fail-open — δεν μπλοκάρουμε λόγω σφάλματος του ίδιου του Vision
+  }
+
+  functions.logger.info(
+    `moderateImage: checked ${path} approved=${verdict.approved}` +
+    (verdict.reasons.length ? ` reasons=${verdict.reasons.join(',')}` : ''),
+  );
+
+  if (verdict.approved) {
+    return null;
+  }
+
+  // ── Απόρριψη: διαγραφή αρχείου + ενέργεια ανά κατηγορία ──
+  try {
+    await bucket.file(path).delete();
+  } catch (e) {
+    functions.logger.error(`moderateImage: failed to delete ${path}`, e);
+  }
+
+  const segments = path.split('/');
+  try {
+    if (path.startsWith('avatars/') || path.startsWith('photos/')) {
+      // segments[1] = uid και στα δύο patterns (avatars/{uid}/profile.jpg,
+      // photos/{uid}/{index}.jpg). Κρύβουμε ολόκληρο το προφίλ από το
+      // discovery μέχρι χειροκίνητο review — δεν επιχειρούμε surgical
+      // αφαίρεση από το photoUrls[] array (δεν έχουμε αξιόπιστα το
+      // download-token URL server-side).
+      const uid = segments[1];
+      if (uid) {
+        await db.doc(`users/${uid}/public/profile`).set(
+          { isVisible: false },
+          { merge: true },
+        );
+      }
+    } else if (path.startsWith('chat_media/')) {
+      // chat_media/{chatId}/{msgId}.{ext} — ίδιο hard-delete pattern με το
+      // user-initiated deleteMessage (chat_repository_message_actions.dart).
+      const chatId = segments[1];
+      const msgId = segments[2]?.split('.')[0];
+      if (chatId && msgId) {
+        await db.collection('chats').doc(chatId)
+          .collection('messages').doc(msgId).delete();
+      }
+    }
+  } catch (e) {
+    functions.logger.error(`moderateImage: cleanup action failed for ${path}`, e);
+  }
+
+  // Audit trail — χρήσιμο για support/appeals, ανεξάρτητο από την ενέργεια
+  // πάνω παραπάνω (best-effort, δεν μπλοκάρει τίποτα αν αποτύχει).
+  try {
+    await db.collection('moderationLog').add({
+      path,
+      reasons: verdict.reasons,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  } catch (e) {
+    functions.logger.error(`moderateImage: audit log write failed for ${path}`, e);
+  }
+
   return null;
 });

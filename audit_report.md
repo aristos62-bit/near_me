@@ -1,8 +1,8 @@
 # NearMe — Αναλυτική Αναφορά Ελέγχου & Προτάσεων
 
-> Ημερομηνία: 26 Αυγούστου 2026 — Sessions 1-242 (B1/B2 store blockers fixed)
-> Πηγή: nearme_blueprint.md, oldsessions.md (Sessions 209-242), launch.md, πλήρης ανάλυση codebase (~122 .dart files + 12 Cloud Functions eur3)
-> `flutter analyze`: clean ✅ (0 issues) · `flutter build apk --release` 41.6MB signed `gr.nearme.app` ✅
+> Ημερομηνία: 26 Αυγούστου 2026 — Sessions 1-244 (B1/B2 + moderation scaffolding + photo fix)
+> Πηγή: nearme_blueprint.md, oldsessions.md (Sessions 209-244), launch.md, πλήρης ανάλυση codebase (~123 .dart files + 13 Cloud Functions eur3)
+> `flutter analyze`: clean ✅ (0 issues) · `flutter build apk --release` 41.6MB signed `gr.nearme.app` ✅ · `contentModerationEnabled=false` (0 Vision calls)
 
 ---
 
@@ -18,6 +18,8 @@
 | **Chat UI Redesign** | **100%** (13/13) | — | — | — |
 | **Audio Messages** | **100%** (22/22) | — | — | — |
 | **Store Blockers B1/B2** | **FIXED** (gr.nearme.app + release signing) | — | — | — |
+| **Content Moderation** | **SCAFFOLDING** (flag OFF, 0 cost, Vision stub + CF kill-switch) | — | — | — |
+| **Photo Unmodifiable Fix** | **FIXED** (List.from) | — | — | — |
 | **Σύνολο** | **~99.9%** | **—** | **—** | **0 ασφάλειας** |
 
 ---
@@ -54,6 +56,8 @@
 | 24 | GoRouter errorBuilder (themed error page) | `app_router.dart` |
 | 25 | **ApplicationId** `gr.nearme.app` (B1 Session 241 — 12 files, MainActivity move) | `android/app/build.gradle.kts:10,20`, `ios/project.pbxproj:385`, `google-services.json:27` |
 | 26 | **Release Signing** `upload-keystore.jks` + R8 (B2 Session 242 — 41.6MB signed, CN=NearMe) | `android/app/build.gradle.kts:35`, `android/key.properties`, `proguard-rules.pro` |
+| 27 | **Content Moderation** `contentModerationEnabled=false` + Vision stub + CF kill-switch (Session 243) | `feature_flags.dart:50`, `vision_moderation_service.dart`, `index.ts:moderateImage` |
+| 28 | **Photo Fix** `EqualUnmodifiableListView` → `List.from` (Session 244) | `profile_editor_screen.dart:153,161` |
 
 ---
 
@@ -238,6 +242,8 @@ Routing logic: `hasGeoSearch && (!hasLocationFilter || hasRadiusFilter)` → `_g
 | 25 | **GlobalConnectivityBanner** — MaterialApp Stack Positioned, viewPadding.top | 240 | ✅ |
 | 26 | **ApplicationId** `gr.nearme.app` — 12 files + MainActivity move + Firebase 2 clients | 241 | ✅ |
 | 27 | **Release Signing** — `upload-keystore.jks` + R8 + `-dontwarn` Play Core 41.6MB | 242 | ✅ |
+| 28 | **Content Moderation** — `contentModerationEnabled=false` + Vision stub fail-open + CF `moderateImage` kill-switch `config/moderation` + 4 error codes | 243 | ✅ |
+| 29 | **Photo Unmodifiable** — `_interests`/`_photoUrls` `List.from` fix + rebuild safe (Chapter 10) | 244 | ✅ |
  
 ---
 
@@ -344,24 +350,28 @@ Routing logic: `hasGeoSearch && (!hasLocationFilter || hasRadiusFilter)` → `_g
 | **240** | **Storage upload timeout** — `StorageHelpers` Timer+Completer (putFile 30s, putData 15s), Future.timeout() fix verified device |
 | **241** | **ApplicationId** `gr.nearme.app` — 12 files + MainActivity move + Firebase 2 clients + `flutter analyze` clean |
 | **242** | **Release Signing** — `upload-keystore.jks` (RSA 4096, `Kwdiko5keystore0)`) + `android/key.properties` + R8 `isMinifyEnabled` + `proguard-rules.pro` (`-dontwarn` Play Core) → 41.6MB signed `CN=NearMe` |
+| **243** | **Content Moderation Scaffolding** — `contentModerationEnabled=false` + Vision stub `vision_moderation_service.dart` + `moderation` flags + `moderation/*` errors + CF `moderateImage` kill-switch |
+| **244** | **Photo Unmodifiable Fix** — `EqualUnmodifiableListView` → `List.from` σε `_interests`/`_photoUrls` `profile_editor_screen.dart:153,161` |
 | **Global** | **EU migration** nearme-gr→nearme-eu (eur3, europe-west1, 12 CFs `REGION`) + IPv6 diagnosis + offline gate + auth timeouts 6s |
 
 ---
 
-# Τρέχουσα Κατάσταση (Session 242)
+# Τρέχουσα Κατάσταση (Session 244)
 
 | Μέτρο | Τιμή |
 |---|---|
-| Σύνολο `.dart` files | ~122 (μη generated) |
+| Σύνολο `.dart` files | ~123 (μη generated, +`vision_moderation_service.dart`) |
 | Firestore indexes | 21 composite deployed |
-| Cloud Functions | 12 deployed (europe-west1, gen1, Node 22) + `fcm-utils.ts` + computeGeoHash + checkSearchRateLimit + expireStaleMessages |
+| Cloud Functions | 13 (12 deployed + `moderateImage` scaffolding, `europe-west1`, gen1, Node 22) + `fcm-utils.ts` + computeGeoHash + checkSearchRateLimit + expireStaleMessages |
 | Build | `flutter analyze` clean ✅, `flutter build apk --release` **41.6MB** signed `gr.nearme.app` (CN=NearMe, SHA-256 5c1b9ca4…) · `flutter build appbundle` ready for Play |
 | App ID | `gr.nearme.app` (Android) / `gr.nearme.app` (iOS) — migrated Session 241 from `com.example.*` |
 | Signing | `C:\Users\Vaggelis\keys\upload-keystore.jks` (RSA 4096, JKS) + `android/key.properties` + R8 minify/shrink + `proguard-rules.pro` |
+| Moderation | `contentModerationEnabled=false` (Session 243) — 0 Vision calls, $0, stub `vision_moderation_service.dart` + CF kill-switch `config/moderation` |
+| Photo Fix | `EqualUnmodifiableListView` → `List.from` `profile_editor_screen.dart:153,161` (Session 244) |
 | Schema | Drift **v15** (7 tables: UserProfile, PrivacySettings, ConsentLog, ChatCache, SavedSearch, AppSettings, BlockedUser) |
 | Firebase | `nearme-eu` (eur3) / europe-west1 — migrated 22 Αυγ 2026 from `nearme-gr/nam5` |
 | Tests | 30/30 passed ✅ |
-| Backups | `backups/appid_pre_fix_20260826_170000/` + `backups/b2_signing_20260826_193000/` |
+| Backups | `backups/appid_pre_fix_20260826_170000/` + `backups/b2_signing_20260826_193000/` + `backups/moderation_init_20260826_213000/` + `backups/photo_unmodifiable_20260826_225000/` |
 
 ## Υπόλοιπα Gaps
 

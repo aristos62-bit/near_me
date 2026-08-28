@@ -10,6 +10,7 @@ import '../../../core/debug/debug_config.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../core/utils/app_exception.dart';
 import '../../../core/utils/app_messenger.dart';
 import '../../../core/utils/connectivity_guard.dart';
 import '../../../core/utils/error_messages.dart';
@@ -281,7 +282,12 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
       if (mounted) AppMessenger.showSuccess(ctx, ErrorMessages.get('profile/photo-saved', L10n.isGreek(ctx)));
     } catch (e, s) {
       DebugConfig.error('Avatar upload failed', data: e, exception: s);
-      if (mounted) AppMessenger.showError(ctx, ErrorMessages.get('profile/upload-failed', L10n.isGreek(ctx)));
+      if (!mounted) return;
+      if (e is AppException && e.code == 'moderation/blocked-explicit') {
+        AppMessenger.showError(ctx, ErrorMessages.get('moderation/blocked-explicit', g));
+      } else {
+        AppMessenger.showError(ctx, ErrorMessages.get('profile/upload-failed', g));
+      }
     } finally {
       if (mounted) setState(() => _isUploadingAvatar = false);
     }
@@ -346,7 +352,13 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
     } catch (e, s) {
       DebugConfig.error('Photo upload failed', data: e, exception: s);
       if (!context.mounted) return;
-      if (mounted) AppMessenger.showError(ctx, ErrorMessages.get('profile/photo-upload-failed', L10n.isGreek(ctx)));
+      if (mounted) {
+        if (e is AppException && e.code == 'moderation/blocked-explicit') {
+          AppMessenger.showError(ctx, ErrorMessages.get('moderation/blocked-explicit', g));
+        } else {
+          AppMessenger.showError(ctx, ErrorMessages.get('profile/photo-upload-failed', g));
+        }
+      }
     } finally {
       if (mounted) setState(() => _uploadingPhotoIndex = null);
     }

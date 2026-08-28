@@ -951,6 +951,7 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
 
       await updateChatCache(chatId, hasUnread: false);
     } catch (e, s) {
+      if (e is AppException) rethrow;
       DebugConfig.error('sendMediaMessage failed',
           data: e, stack: s, reportToCrashlytics: true);
       throw AppException.firestore('send_media', 'Αποτυχία αποστολής / Failed to send');

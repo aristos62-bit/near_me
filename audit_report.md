@@ -354,11 +354,13 @@ Routing logic: `hasGeoSearch && (!hasLocationFilter || hasRadiusFilter)` → `_g
 | **243** | **Content Moderation Scaffolding** — `contentModerationEnabled=false` + Vision stub `vision_moderation_service.dart` + `moderation` flags + `moderation/*` errors + CF `moderateImage` kill-switch |
 | **244** | **Photo Unmodifiable Fix** — `EqualUnmodifiableListView` → `List.from` σε `_interests`/`_photoUrls` `profile_editor_screen.dart:153,161` |
 | **245** | **P0 Startup Fixes** — `main.dart` `unawaited` + `database_service.dart` `await close()` + `app_router.dart` `chatId` null check (3 αρχεία, 5 γραμμές, 0 side effects) |
+| **246-247** | **Vision P0 GDPR** — EU endpoint `eu-vision.googleapis.com` (`moderation.ts:5-7`) + `moderationLog` rules server-only · **Group avatar moderation** (client + server backstop) live-verified (approve & reject paths) |
+| **248** | **Οριζόντιο SPoT error handling για moderation** — rethrow στο `sendMediaMessage` + `ChatInputBar` χρήση `errorMessage` + `profile_editor` moderation-specific message (3 αρχεία + 1 import, zero rebuild storm) |
 | **Global** | **EU migration** nearme-gr→nearme-eu (eur3, europe-west1, 12 CFs `REGION`) + IPv6 diagnosis + offline gate + auth timeouts 6s |
 
 ---
 
-# Τρέχουσα Κατάσταση (Session 245)
+# Τρέχουσα Κατάσταση (Session 248)
 
 | Μέτρο | Τιμή |
 |---|---|
@@ -368,13 +370,13 @@ Routing logic: `hasGeoSearch && (!hasLocationFilter || hasRadiusFilter)` → `_g
 | Build | `flutter analyze` clean ✅, `flutter build apk --release` **20.8MB** (R8) signed `gr.nearme.app` (CN=NearMe, SHA-256 5c1b9ca4…) · `flutter build appbundle` ready for Play |
 | App ID | `gr.nearme.app` (Android) / `gr.nearme.app` (iOS) — migrated Session 241 from `com.example.*` |
 | Signing | `C:\Users\Vaggelis\keys\upload-keystore.jks` (RSA 4096, JKS) + `android/key.properties` + R8 minify/shrink + `proguard-rules.pro` |
-| Moderation | `contentModerationEnabled=false` (Session 243) — 0 Vision calls, $0, stub `vision_moderation_service.dart` + CF kill-switch `config/moderation` |
+| Moderation | `contentModerationEnabled=true` + `autoModerateChatMedia/ProfilePhotos/GroupAvatars=true` (Session 243+, live-verified approval & reject) · EU `eu-vision.googleapis.com` endpoint (Session 247) · CF kill-switch `config/moderation` ON · **SPoT error handling για moderation σε chat/avatar/photos (Session 248)** |
 | Photo Fix | `EqualUnmodifiableListView` → `List.from` `profile_editor_screen.dart:153,161` (Session 244) |
 | P0 Fixes | `unawaited` `then<void> onError` + `await close()` + `chatId` null check (Session 245, 3 αρχεία, 5 γραμμές) |
 | Schema | Drift **v15** (7 tables: UserProfile, PrivacySettings, ConsentLog, ChatCache, SavedSearch, AppSettings, BlockedUser) |
 | Firebase | `nearme-eu` (eur3) / europe-west1 — migrated 22 Αυγ 2026 from `nearme-gr/nam5` |
 | Tests | 30/30 passed ✅ |
-| Backups | `backups/appid_pre_fix_20260826_170000/` + `backups/b2_signing_20260826_193000/` + `backups/moderation_init_20260826_213000/` + `backups/photo_unmodifiable_20260826_225000/` |
+| Backups | `backups/appid_pre_fix_20260826_170000/` + `backups/b2_signing_20260826_193000/` + `backups/moderation_init_20260826_213000/` + `backups/photo_unmodifiable_20260826_225000/` + `*_pre_groupavatar_20260828.bak` (6) + `*_pre_moderation_spot_20260828.bak` (3) + `oldsessions/audit_report_pre_248_20260828.bak` |
 
 ## Υπόλοιπα Gaps
 

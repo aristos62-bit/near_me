@@ -261,7 +261,8 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
       if (!mounted) return;
       setState(() => _isLoading = false);
       if (!ok) {
-        _showInlineError('chat/image-send-failed');
+        final chatState = ref.read(chatActionsProvider);
+        _showInlineError(chatState.errorMessage ?? 'chat/image-send-failed');
       }
     } catch (e, s) {
       DebugConfig.error('ChatInputBar: _$debugLabel pick failed', data: e, exception: s);

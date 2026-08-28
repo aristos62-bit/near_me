@@ -1931,3 +1931,52 @@ CSAE / Play Child Safety — automated SafeSearch/Vision scaffolding με master
 - ⏳ (προαιρετικό) Device test τελικό: upload φωτογραφίας → επιβεβαίωση EU Vision call στα CF logs.
 
 > Αυτό το μπλοκ πρέπει να «κληρονομείται» σε κάθε επόμενο session στο τέλος του αρχείου.
+
+---
+
+## Session 248 — Οριζόντιο SPoT error handling για moderation (100%, εκκρεμεί device test) — 28 Αυγ 2026
+
+### Σκοπός
+Κλείσιμο του «οριζόντιου» προβλήματος: το moderation error (`moderation/blocked-explicit`) **έφτανε στο Vision αλλά χανόταν στο error-handling** σε 3 σημεία, με αποτέλεσμα λάθος/generic μηνύματα αντί του σωστού «Η φωτογραφία απορρίφθηκε (ακατάλληλο περιεχόμενο)» σε chat image, profile avatar και profile photos.
+
+**Βάση:** Κώδικας τελευταίας έκδοσης (Flutter 3.44.4). Επιβεβαιώθηκε ο SPoT αγωγός: `AppException(code)` → `toFriendlyMessage` → `ErrorMessages.get(code, greek)` → `AppMessenger` / `_showInlineError`.
+
+### Διάγνωση (3 σημεία break του SPoT)
+1. **`chat_repository_impl.dart:953`** — το main catch της `sendMediaMessage` μετέτρεπε **κάθε** σφάλμα (και το `AppException(blocked-explicit)` από το :860) σε `firestore_error` → «Αποτυχία αποστολής». Κρίσιμο εύρημα: το pattern `if (e is AppException) rethrow;` **ήδη υπήρχε** στο block-check catch (`:845`) — το Fix το κάνει consistent, δεν το εισάγει.
+2. **`chat_input_bar.dart:263`** — μετά `sendMediaMessage`, το image path έδειχνε πάντα στατικό `'chat/image-send-failed'` αγνοώντας το `chatState.errorMessage`. Τα text/edit paths (`:137`, `:153`) **ήδη** χρησιμοποιούν `chatState.errorMessage ?? fallback` — το Fix απλώς ακολουθεί το υπάρχον pattern (zero νέο, zero rebuild storm: `ref.read` όχι `ref.watch`, επιβεβαιωμένο με grep ότι δεν υπάρχει `ref.watch(chatActionsProvider)`).
+3. **`profile_editor_screen.dart:282,346`** — τα catch έδειχναν πάντα `'profile/upload-failed'`/`'profile/photo-upload-failed'` αγνοώντας το `e.code`. Το `profile_storage_mixin` **ήδη** rethrow-άρει σωστά το `AppException` (`:47`,`:106`). Το `ctx`/`g` ήταν **ήδη στο scope** (avatar `:238-239`, photo `:295-296`) → DRY, καμία νέα κλήση locale.
+
+### Αποφάσεις σχεδιασμού (επαναξιολόγηση πριν την εφαρμογή)
+- **Reuse έναντι νέων λειτουργιών:** Τα Fix 1-2 χρησιμοποιούν **ήδη υπάρχοντα** patterns (rethrow `:845`, `chatState.errorMessage` `:137/:153`). Δεν δημιουργήθηκε νέα λειτουργία.
+- **Fix 3 επιλογή (ρωτήθηκε ο χρήστης):** ειδικό case **μόνο** για `moderation/blocked-explicit`. Αιτία: το `AppException.storage_error` map-άρεται σε «Σφάλμα συστήματος» (error_messages:380-386) — χειρότερο από το υπάρχον «Αποτυχία μεταφόρτωσης». Άρα κρατάμε generic για μη-moderation AppException.
+- **Zero rebuild storm:** όλα τα fixes χρησιμοποιούν `ref.read` (μη-reactive) — κανένα νέο `ref.watch` → καμία προσθήκη rebuild. Σύμφωνο με τους κανόνες Sessions 215-233 (Κεφ.10 rebuild storms).
+
+### Αλλαγές (3 αρχεία + 1 import, backups `*_pre_moderation_spot_20260828.bak`)
+- **`chat_repository_impl.dart`** — προσθήκη `if (e is AppException) rethrow;` στο catch της `sendMediaMessage` (πριν το `throw AppException.firestore`).
+- **`chat_input_bar.dart`** — image path: `final chatState = ref.read(chatActionsProvider); _showInlineError(chatState.errorMessage ?? 'chat/image-send-failed');` (match :137/:153). Bonus: καλύπτει και `network/no-connectivity`.
+- **`profile_editor_screen.dart`** — σε avatar (catch ~:282) και photo (catch ~:346): `if (e is AppException && e.code == 'moderation/blocked-explicit')` → `showError(ErrorMessages.get('moderation/blocked-explicit', g))`, αλλιώς το υπάρχον generic. + import `app_exception.dart`.
+
+### Τι ΔΕΝ άλλαξε
+- **Video/Audio:** εκτός scope — δεν περνούν από Vision moderation (κανένα `isChatMediaSafe` σε video/audio path). Τα generic `send-failed` τους μένουν.
+- **GIF:** καλύπτεται αυτόματα από Fix 1+2 (ίδιο μήνυμα εικόνας, αποδεκτό — και τα δύο εικόνες).
+- **Group avatar:** ήδη σωστό (mixin:769 rethrow + settings:58-62) — δεν θίγεται.
+- **Fail-open:** >6MB / CF timeout/error → `isSafe=true` → περνάει (δεν μπλοκάρει legit). Δεν αλλάχθηκε.
+- **Server backstop (B4/B5):** deployed + `config/moderation` ON — ανεξάρτητο, άθικτο.
+
+### `flutter analyze`: clean ✅ (0 issues, full project)
+
+### ✅ Device test PASS (release build, 28 Αυγ 23:41-23:44) — ΟΛΑ verified
+Και τα 3 reject paths δείχνουν πλέον το σωστό μήνυμα «Η φωτογραφία απορρίφθηκε (ακατάλληλο περιεχόμενο)»:
+1. **Chat image** reject → `VisionModeration: REJECTED reasons=adult, racy` → `sendMediaMessage blocked by moderation` → `AppException.toFriendlyMessage: code → "moderation/blocked-explicit"` → **inline** σωστό μήνυμα. ✅
+2. **Profile avatar** reject → `REJECTED reasons=adult, racy` → `uploadAvatar blocked by moderation` → `AppMessenger showError: Η φωτογραφία απορρίφθηκε (ακατάλληλο περιεχόμενο)`. ✅
+3. **Profile photo** reject → `REJECTED reasons=racy` → `uploadPhoto blocked by moderation` → `AppMessenger showError: Η φωτογραφία απορρίφθηκε (ακατάλληλο περιεχόμενο)`. ✅
+4. **Το `firestore_error` / «Αποστολή φωτογραφίας απέτυχε» ΔΕΝ εμφανίζεται πια** για moderation — Fix 1 (rethrow) + Fix 2 (χρήση `errorMessage`) επιβεβαιωμένα.
+
+**Side effects μηδέν:**
+- **Υγιής φωτογραφία** (αθώα) πέρασε κανονικά στο profile photo → `uploadPhoto OK` → `saveProfile`/`publish` → success. Fail-open δεν μπλοκάρει legit. ✅
+- **Profile publish** δεν άλλαξε σε reject (μόνο σωστό μήνυμα — moderation throw πριν `saveProfile`/`publish`). ✅
+- **Zero rebuild storm** — καμία ανωμαλία logs. ✅
+- **Group avatar** moderation παραμένει σωστό (`REJECTED reasons=racy` → σωστό μήνυμα). ✅
+- Σημείωση: το chat image μήνυμα εμφανίζεται **inline** στο `ChatInputBar` (όχι snackbar `AppMessenger showError`) — καμία γραμμή `AppMessenger showError` είναι αναμενόμενη εκεί (είναι το υπάρχον pattern `_showInlineError`).
+
+> Αυτό το μπλοκ πρέπει να «κληρονομείται» σε κάθε επόμενο session στο τέλος του αρχείου.

@@ -255,11 +255,11 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 | Completion | ~99.9% (Phases 1-3 100%, MultiChat 100%, Media 100%, Chat Redesign 100%, Audio Messages 100%) |
 | `.dart` files | ~123 (non-generated, +`vision_moderation_service.dart`) |
 | Firestore indexes | 21 composite deployed |
-| Cloud Functions | 13 (12 deployed + `moderateImage` scaffolding `europe-west1`, gen1, Node 22) + `fcm-utils.ts` + computeGeoHash + checkSearchRateLimit + expireStaleMessages |
+| Cloud Functions | 13 deployed `europe-west1` (gen1, Node 22), συμπ. `checkImageModeration` + `moderateImage` (Vision moderation, deployed Session 247) + `fcm-utils.ts` + computeGeoHash + checkSearchRateLimit + expireStaleMessages |
 | Build | `flutter analyze` clean ✅, release APK ~20.8MB (R8), signed `gr.nearme.app` (CN=NearMe) |
 | Tests | 30/30 passed |
 | Schema | Drift v15, 7 tables (+crashReportsEnabled σε AppSettings) |
-| Moderation | `contentModerationEnabled=false` (Session 243) — 0 Vision calls/$0, stub + CF kill-switch `config/moderation` |
+| Moderation | Active (Session 246-247): all 4 flags `true` (contentModerationEnabled, autoModerateProfilePhotos, autoModerateChatMedia, blurExplicitByDefault) · Vision SafeSearch **EU endpoint** `eu-vision.googleapis.com` + `moderationLog` rules (Session 247 P0s) · CF `checkImageModeration` + `moderateImage` deployed + kill-switch `config/moderation` |
 | Photo Fix | `EqualUnmodifiableListView` → `List.from` `profile_editor_screen.dart:153,161` (Session 244) |
 | P0 Fixes | `unawaited` `then<void> onError` + `await close()` + `chatId` null check (Session 245) |
 | Feature Flags | ~24 (core 21: typesense, videoCall, groupChat, gifSupport, mediaMessages, audioMessages, videoMessages, messageExpiry, messageReactions, replyToMessage, **replyPrivately**, editMessage, deleteMessage, messageInfo, messageEmail, messageShare, groupEvents, webVersion, aiMatching, verifiedBadge, premiumTier + moderation: contentModerationEnabled, autoModerateProfilePhotos, autoModerateChatMedia, blurExplicitByDefault) |
@@ -1892,3 +1892,42 @@ CSAE / Play Child Safety — automated SafeSearch/Vision scaffolding με master
 > Αυτό το μπλοκ πρέπει να «κληρονομείται» σε κάθε επόμενο session στο τέλος του αρχείου.
 
 ### `flutter analyze`: clean ✅ (0 issues — μόνο .md αλλαγές)
+
+
+---
+
+## Session 247 — Vision P0 GDPR fixes: EU endpoint + moderationLog rules (100%) — 28 Αυγ 2026
+
+### Σκοπός
+Κλείσιμο των 2 P0 issues του Vision moderation που εντοπίστηκαν στην αξιολόγηση (Sessions 243-246): (1) GDPR/EU data residency, (2) server-only `moderationLog` rules.
+
+### Επιβεβαίωση προβλήματος (100% πριν το fix)
+- **P0 #1 — EU endpoint:** `moderation.ts:5` ήταν `new vision.ImageAnnotatorClient()` **χωρίς** `apiEndpoint` → χρησιμοποιεί default **`vision.googleapis.com`** (US global endpoint). Τριπλή επαλήθευση:
+  1. Πηγαίος κώδικας installed `@google-cloud/vision` (`image_annotator_client.js`): `this._servicePath = 'vision.' + this._universeDomain` → default `vision.googleapis.com` (US).
+  2. Επίσημο Google «Set endpoint» ντοκ: Node.js snippet = `{ apiEndpoint: 'eu-vision.googleapis.com' }` — το σωστό για EU.
+  3. Αντιπαραβολή με το τρέχον `moderation.ts:5` → έλειπε.
+  **Κρίσιμο:** CF `checkImageModeration`/`moderateImage` ήταν ήδη `deployed` + flags `true` (feature_flags.dart:51-54) + Vision API enabled → οι φωτογραφίες χρηστών **επεξεργάζονταν ΗΔΗ σε US datacenter** (έκθεση προτού γίνει το fix).
+- **P0 #2 — moderationLog rules:** Το CF `moderateImage` (index.ts:1440) γράφει `/moderationLog/{id}` (Admin SDK, server-only audit). `firestore.rules` ΔΕΝ είχε rule → ανοιχτό σε client.
+
+### Επιπλέον διάγνωση (γιατί τα logs δεν έδειχναν moderation με flags true)
+- CF deployed ✅ · flags true ✅ · Vision API enabled ✅
+- Τα 3 uploads (avatar/chat/profile photo) πέρασαν clean, χωρίς moderation logs **γιατί το «approved» είναι εσκεμμένα σιωπηλό**: `moderationVerbose=false` (debug_config.dart:144) → το approved (vision_moderation_service.dart:60-62) δεν τυπώνεται. `[WARN]` fail-open μόνο σε error, `REJECTED` μόνο σε reject — τίποτα δεν συνέβη. ✅ Σωστή συμπεριφορά, όχι bug.
+
+### Υλοποίηση — 2 αρχεία
+1. **`functions/src/moderation.ts:5-7`** — `new vision.ImageAnnotatorClient({ apiEndpoint: 'eu-vision.googleapis.com' })`. TypeScript compile clean (exit 0). Deploy `--only functions:checkImageModeration,functions:moderateImage` → **Success** (europe-west1).
+2. **`firestore.rules:455-457`** — `match /moderationLog/{doc} { allow read, write: if false; }` — server-only, ίδιο «no client access» pattern με `/banned/{uid}`. Emulator parse clean · Deploy `--only firestore:rules` → compiled + released.
+
+### Backups
+- `backups/moderation_pre_eu_apiEndpoint_20260828_144410.ts`
+- `backups/firestore_rules_pre_moderationLog_20260828_144756.rules`
+
+### Έλεγχος
+- TypeScript `tsc --noEmit`: exit 0 ✅
+- `firebase emulators:exec --only firestore`: rules parse clean ✅
+- Deploy (CF + rules): Success ✅
+
+### Παραλείψεις / εκκρεμότητες
+- ⏳ Ενημέρωση Κεφ.6 Current State (βλ. ανανέωση παρακάτω).
+- ⏳ (προαιρετικό) Device test τελικό: upload φωτογραφίας → επιβεβαίωση EU Vision call στα CF logs.
+
+> Αυτό το μπλοκ πρέπει να «κληρονομείται» σε κάθε επόμενο session στο τέλος του αρχείου.

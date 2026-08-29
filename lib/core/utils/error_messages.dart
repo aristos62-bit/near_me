@@ -371,6 +371,8 @@ class ErrorMessages {
         return isGreek ? 'Αποτυχία αποστολής' : 'Failed to send';
       case 'moderation/blocked-explicit':
         return isGreek ? 'Η φωτογραφία απορρίφθηκε (ακατάλληλο περιεχόμενο)' : 'Photo rejected (explicit content)';
+      case 'moderation/blocked-explicit-video':
+        return isGreek ? 'Το βίντεο απορρίφθηκε (ακατάλληλο περιεχόμενο)' : 'Video rejected (explicit content)';
       case 'moderation/flagged-review':
         return isGreek ? 'Η φωτογραφία στάλθηκε για έλεγχο' : 'Photo flagged for review';
       case 'moderation/upload-retry':

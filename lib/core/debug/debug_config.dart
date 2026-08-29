@@ -11,7 +11,7 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 class DebugConfig {
   DebugConfig._();
 
-  static final Map<String, int> _logBuffer = {};
+  static final Map<String, (DateTime, int)> _logBuffer = {};
   static Timer? _flushTimer;
 
   /// ─────────────────────────────────────────────────────────────
@@ -155,21 +155,25 @@ class DebugConfig {
   static void log(bool flag, String message, {Object? data}) {
     if (!debugMode || !flag) return;
     final key = data != null ? '$message | $data' : message;
-    _logBuffer[key] = (_logBuffer[key] ?? 0) + 1;
+    final existing = _logBuffer[key];
+    final firstSeen = existing?.$1 ?? DateTime.now();
+    final count = (existing?.$2 ?? 0) + 1;
+    _logBuffer[key] = (firstSeen, count);
     _flushTimer ??= Timer(const Duration(seconds: 1), _flushLogBuffer);
   }
 
   static void _flushLogBuffer() {
     _flushTimer = null;
     if (_logBuffer.isEmpty) return;
-    final snapshot = Map<String, int>.from(_logBuffer);
+    final snapshot = Map<String, (DateTime, int)>.from(_logBuffer);
     _logBuffer.clear();
-    final ts = DateTime.now().toIso8601String().substring(11, 23);
     for (final e in snapshot.entries) {
-      if (e.value == 1) {
+      final ts = e.value.$1.toIso8601String().substring(11, 23);
+      final count = e.value.$2;
+      if (count == 1) {
         debugPrint('[$ts][DEBUG] ${e.key}');
       } else {
-        debugPrint('[$ts][DEBUG] ${e.key} (×${e.value})');
+        debugPrint('[$ts][DEBUG] ${e.key} (×$count)');
       }
     }
   }

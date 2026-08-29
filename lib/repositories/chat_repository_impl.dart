@@ -882,6 +882,22 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
 
       String? thumbnailUrl;
       if (videoPath != null && type == 'video') {
+        if (FeatureFlags.contentModerationEnabled &&
+            FeatureFlags.autoModerateChatVideoThumbnail) {
+          if (thumbnailBytes != null) {
+            final safe = await VisionModerationService.isChatMediaSafe(thumbnailBytes);
+            if (!safe) {
+              DebugConfig.log(DebugConfig.moderation,
+                  'sendMediaMessage blocked by moderation (video thumbnail): chat=$chatId');
+              throw AppException(
+                  message: 'Moderation rejected video',
+                  code: 'moderation/blocked-explicit-video');
+            }
+          } else {
+            DebugConfig.log(DebugConfig.moderation,
+                'sendMediaMessage: video moderation skipped (no thumbnail) chat=$chatId — fail-open');
+          }
+        }
         DebugConfig.log(DebugConfig.chatVideo,
             'sendMediaMessage: uploading video chat=$chatId');
         final storageRef = FirebaseStorage.instance

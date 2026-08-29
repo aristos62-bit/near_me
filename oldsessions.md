@@ -1980,3 +1980,65 @@ CSAE / Play Child Safety — automated SafeSearch/Vision scaffolding με master
 - Σημείωση: το chat image μήνυμα εμφανίζεται **inline** στο `ChatInputBar` (όχι snackbar `AppMessenger showError`) — καμία γραμμή `AppMessenger showError` είναι αναμενόμενη εκεί (είναι το υπάρχον pattern `_showInlineError`).
 
 > Αυτό το μπλοκ πρέπει να «κληρονομείται» σε κάθε επόμενο session στο τέλος του αρχείου.
+
+---
+
+## Session 249 — Content Moderation για video (απλή εκδοχή): `autoModerateChatVideoThumbnail` (100%) — 29 Αυγ 2026
+
+### Στόχος
+Επέκταση του SPoT image moderation στο video chat: **έλεγχος μόνο του thumbnail frame** (όχι ολόκληρο το video) με νέο flag `autoModerateChatVideoThumbnail`, ίδιο pattern με Session 243 (OFF → device test → flip true).
+
+### Τι υλοποιήθηκε (έλεγχος κώδικα — όλα σωστά/SPoT-compliant)
+- **`lib/core/config/feature_flags.dart:55-57`** — νέο flag (αρχικά `false`, τώρα `true`):
+  ```dart
+  // Video: μόνο το thumbnail frame ελέγχεται (όχι ολόκληρο το video)
+  static const bool autoModerateChatVideoThumbnail = true;
+  ```
+- **`lib/repositories/chat_repository_impl.dart:884-900`** — στο video branch, **πριν το upload**:
+  ```dart
+  if (contentModerationEnabled && autoModerateChatVideoThumbnail) {
+    if (thumbnailBytes != null) {
+      final safe = await VisionModerationService.isChatMediaSafe(thumbnailBytes);
+      if (!safe) {
+        DebugConfig.log(DebugConfig.moderation,
+            'sendMediaMessage blocked by moderation (video thumbnail): chat=$chatId');
+        throw AppException(message: 'Moderation rejected video', code: 'moderation/blocked-explicit-video');
+      }
+    } else {
+      DebugConfig.log(DebugConfig.moderation,
+          'sendMediaMessage: video moderation skipped (no thumbnail) chat=$chatId — fail-open');
+    }
+  }
+  ```
+  - **Reuse** `isChatMediaSafe` (υπάρχουσα λειτουργία, όχι νέα).
+  - **Fail-open** αν δεν υπάρχει thumbnail (δεν μπλοκάρει legit video χωρίς preview).
+  - **Throw πριν το upload** → καθαρό rollback (τίποτα δεν ανεβαίνει).
+  - **Ξεχωριστό code** `moderation/blocked-explicit-video` — granularity σωστό.
+- **`lib/core/utils/error_messages.dart:374-375`** — mapping:
+  `'Το βίντεο απορρίφθηκε (ακατάλληλο περιεχόμενο)' / 'Video rejected (explicit content)'`.
+- **UI (ήδη σωστό, δεν άλλαξε)** — `chat_input_bar.dart:368-370` χρησιμοποιεί `chatState.errorMessage ?? 'chat/video-send-failed'` (ίδιο pattern Fix 2 Session 248) → το moderation code περνάει σωστά στο `ErrorMessages.get`.
+
+### `flutter analyze`: clean ✅ (0 issues, full project)
+
+### ✅ Device test approve path PASS (29 Αυγ 11:01, release, flag open)
+Αθώο video, κυριολεκτικά `isChatMediaSafe(thumbnailBytes)` → `safe` → **κανένα moderation log** (`moderationVerbose=false`) → upload κανονικά:
+```
+[11:01:44.953] sendMediaMessage: chat=... type=video
+[11:01:47.574] sendMediaMessage: uploading video chat=...   ← moderation check πέρασε (safe)
+[11:01:47.574] StorageHelpers: upload ...mp4
+[11:01:53.593] StorageHelpers: upload ..._thumb.jpg
+[11:01:55.140] sendMediaMessage: success chat=... type=video
+```
+- **Δεν εμφανίστηκε** `REJECTED` / `blocked by moderation (video thumbnail)`. ✅
+- Video + thumbnail ανέβηκαν → success. ✅
+- **Zero rebuild storm** — καθαρό flow, χωρίς ανωμαλίες/loop. ✅
+- Fail-open/safe: αθώο video **δεν μπλοκάρεται** με moderation ενεργό. ✅
+- Σημείωση: **reject path** δεν δοκιμάζεται εύκολα (χρειάζεται video με explicit thumbnail), αλλά καλύπτεται έμμεσα από Sessions 243/248 (ίδιο `isChatMediaSafe`, throw πριν upload, mapping υπάρχει, UI pattern σωστό).
+
+### Debt / αποφάσεις
+- **Fail-open**: >6MB thumbnail / CF timeout/error → `isSafe=true` → περνάει (δεν μπλοκάρει legit). Ίδιο με images.
+- **Video/Audio ολόκληρα**: εκτός scope — ελέγχεται ΜΟΝΟ το thumbnail frame, όχι το πλήρες video.
+- **Backups**: `feature_flags_pre_videomod_20260829.bak`, `oldsessions_pre_249_20260829.bak`, `audit_report_pre_249_20260829.bak`.
+- **Flag τώρα `true`** — ενεργό.
+
+> Αυτό το μπλοκ πρέπει να «κληρονομείται» σε κάθε επόμενο session στο τέλος του αρχείου.

@@ -52,5 +52,8 @@ class FeatureFlags {
   static const bool autoModerateProfilePhotos = true;
   static const bool autoModerateChatMedia = true;
   static const bool autoModerateGroupAvatars = true;
+  // Video: μόνο το thumbnail frame ελέγχεται (όχι ολόκληρο το video) —
+  // OFF αρχικά μέχρι device test, μετά flip σε true (ίδιο pattern με Session 243).
+  static const bool autoModerateChatVideoThumbnail = true;
   static const bool blurExplicitByDefault = true;
 }

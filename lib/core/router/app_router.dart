@@ -36,6 +36,18 @@ import '../../features/requests/screens/requests_dashboard_screen.dart';
 import '../../features/requests/screens/send_request_screen.dart';
 import '../../features/block/screens/blocked_users_screen.dart';
 
+/// SPoT routing: `GoRouter 53` + `GlobalKey<NavigatorState> 46` (SPoT `MaterialApp.router 627`) + `refreshListenable _authNotifier 56 -> notify() 323` (1 per app `4.6`).
+///
+/// Guards `redirect 57` (pure, όχι `setState`):
+/// | `/welcome` | `user==null` | `/welcome` else `/anonymous-info` / `/` `67-70` |
+/// | `/` | `!verified && !_verifyDismissed 73` | `/auth` |
+/// | `/auth` | `verified 72` | `/` |
+/// | `/chats /chat/:id /requests/* /groups*` | `!canComm 76-81` | `/auth` |
+/// | `/chat/:chatId 148` | `chatId null/empty` `153 warn` | `ErrorView` `155` (P0 4.5 untrusted FCM) |
+/// Routes SPoT `133-267`: `StatefulShell 134` `/ /chats /profile` + `/user/:uid /discovery/* /profile/* /settings /requests/* /groups 12 routes /join`.
+/// Error: `errorBuilder 91` `warn 92` -> `Page not found` bilingual `L10n 109`.
+/// Lifecycle: `init 301 authStateChanges 302 -> reload 308 timeout 6s -> notify 323` SPoT.
+/// Debug: `navigationRoute 63 log redirect` + `warn 92,153`.
 class AppRouter {
   AppRouter._();
 

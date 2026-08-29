@@ -7,7 +7,7 @@ import 'package:near_me/core/utils/app_messenger.dart';
 void main() {
   testWidgets('NearMeApp renders MaterialApp without error', (WidgetTester tester) async {
     await tester.pumpWidget(
-      const ProviderScope(child: NearMeApp(dbReady: true, firebaseReady: true)),
+      const ProviderScope(child: NearMeApp(isDatabaseReady: true, isFirebaseReady: true)),
     );
     await tester.pump(const Duration(seconds: 7));
     await tester.pump();

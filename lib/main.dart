@@ -26,6 +26,7 @@ import 'core/utils/image_cache_guard.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'shared/widgets/global_connectivity_banner.dart';
+import 'shared/widgets/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -63,6 +64,12 @@ void main() async {
   );
 }
 
+/// SPoT splash + parallel boot (`addPostFrameCallback 87`).
+/// - Parallel: `FirebaseInit.tryInitialize() 6s timeout` SPoT `firebase_init:5` + `DatabaseService.tryInit()` SPoT + `Stopwatch` SPoT `1.2` -> `TIMING` `serviceInit 84` (`oldsessions:986`).
+/// - Fire-and-forget `MediaShareCache.sweep / ImageCacheGuard` `unawaited catchError` SPoT `1.4` (όχι `PlatformDispatcher fatal`).
+/// - UX: `_kSplashMinDuration 800ms` min + `AnimatedSwitcher 400ms` `196` transition.
+/// - Fail-open: `false` -> `_errorScreen 617/622` (Firebase/DB).
+/// - Lifecycle: `_hasFirebaseInitCompleted 98` guard -> `PresenceService 104` (όχι πριν init).
 class AppBootstrap extends StatefulWidget {
   const AppBootstrap({super.key});
 
@@ -71,10 +78,11 @@ class AppBootstrap extends StatefulWidget {
 }
 
 class _AppBootstrapState extends State<AppBootstrap> with WidgetsBindingObserver {
-  bool _firebaseReady = false;
-  bool _dbReady = false;
-  bool _ready = false;
-  bool _firebaseInitDone = false;
+  static const _kSplashMinDuration = Duration(milliseconds: 800);
+  bool _isFirebaseInitialized = false;
+  bool _isDatabaseInitialized = false;
+  bool _isAppReady = false;
+  bool _hasFirebaseInitCompleted = false;
   late final DateTime _t0;
 
   @override
@@ -95,8 +103,8 @@ class _AppBootstrapState extends State<AppBootstrap> with WidgetsBindingObserver
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!_firebaseInitDone) return;
-    if (_ready) {
+    if (!_hasFirebaseInitCompleted) return;
+    if (_isAppReady) {
       DebugConfig.log(DebugConfig.serviceInit,
           'AppBootstrap: lifecycle $state (NearMeApp handles it)');
     } else {
@@ -111,15 +119,13 @@ class _AppBootstrapState extends State<AppBootstrap> with WidgetsBindingObserver
     DebugConfig.log(DebugConfig.serviceInit,
         '[TIMING] addPostFrameCallback fired at ${tPostFrame.difference(_t0).inMilliseconds}ms');
 
-    final tFirebaseStart = DateTime.now();
+    final firebaseSw = Stopwatch()..start();
     DebugConfig.log(DebugConfig.serviceInit, '[TIMING] Firebase start');
+    final firebaseFuture = FirebaseInit.tryInitialize().whenComplete(() => firebaseSw.stop());
 
-    final firebaseFuture = FirebaseInit.tryInitialize();
-
-    final tDbStart = DateTime.now();
+    final dbSw = Stopwatch()..start();
     DebugConfig.log(DebugConfig.serviceInit, '[TIMING] Database start');
-
-    final dbFuture = DatabaseService.tryInit();
+    final dbFuture = DatabaseService.tryInit().whenComplete(() => dbSw.stop());
 
     // Fire-and-forget: δεν μπλοκάρει το startup timing, καθαρίζει
     // τυχόν "ορφανά" temp αρχεία media από προηγούμενα email/share.
@@ -141,11 +147,9 @@ class _AppBootstrapState extends State<AppBootstrap> with WidgetsBindingObserver
     }));
 
     final firebaseReady = await firebaseFuture;
-    final tFirebaseEnd = DateTime.now();
-
     DebugConfig.log(
       DebugConfig.serviceInit,
-      '[TIMING] Firebase init: ${tFirebaseEnd.difference(tFirebaseStart).inMilliseconds}ms',
+      '[TIMING] Firebase init: ${firebaseSw.elapsedMilliseconds}ms',
     );
 
     if (firebaseReady) {
@@ -154,7 +158,7 @@ class _AppBootstrapState extends State<AppBootstrap> with WidgetsBindingObserver
       FcmService.init();
       IncomingShareService.init();
       PresenceService.init();
-      _firebaseInitDone = true;
+      _hasFirebaseInitCompleted = true;
       final current = WidgetsBinding.instance.lifecycleState;
       if (current != null && current != AppLifecycleState.resumed) {
         DebugConfig.log(DebugConfig.presence,
@@ -164,11 +168,9 @@ class _AppBootstrapState extends State<AppBootstrap> with WidgetsBindingObserver
     }
 
     final dbReady = await dbFuture;
-    final tDbEnd = DateTime.now();
-
     DebugConfig.log(
       DebugConfig.serviceInit,
-      '[TIMING] Database init: ${tDbEnd.difference(tDbStart).inMilliseconds}ms',
+      '[TIMING] Database init: ${dbSw.elapsedMilliseconds}ms',
     );
 
     final tParallelEnd = DateTime.now();
@@ -179,15 +181,15 @@ class _AppBootstrapState extends State<AppBootstrap> with WidgetsBindingObserver
     );
 
     final elapsed = DateTime.now().difference(_t0);
-    if (elapsed < const Duration(milliseconds: 800)) {
-      await Future.delayed(const Duration(milliseconds: 800) - elapsed);
+    if (elapsed < _kSplashMinDuration) {
+      await Future.delayed(_kSplashMinDuration - elapsed);
     }
 
     if (mounted) {
       setState(() {
-        _firebaseReady = firebaseReady;
-        _dbReady = dbReady;
-        _ready = true;
+        _isFirebaseInitialized = firebaseReady;
+        _isDatabaseInitialized = dbReady;
+        _isAppReady = true;
       });
     }
   }
@@ -198,49 +200,22 @@ class _AppBootstrapState extends State<AppBootstrap> with WidgetsBindingObserver
       duration: const Duration(milliseconds: 400),
       switchInCurve: Curves.easeInOut,
       switchOutCurve: Curves.easeInOut,
-      child: !_ready
-          ? _splashScreen(key: const ValueKey('splash'))
+      child: !_isAppReady
+          ? const SplashScreen(key: ValueKey('splash'))
           : NearMeApp(
               key: const ValueKey('app'),
-              dbReady: _dbReady,
-              firebaseReady: _firebaseReady,
+              isDatabaseReady: _isDatabaseInitialized,
+              isFirebaseReady: _isFirebaseInitialized,
             ),
-    );
-  }
-
-  Widget _splashScreen({Key? key}) {
-    return Directionality(
-      key: key,
-      textDirection: TextDirection.ltr,
-      child: Material(
-        color: Colors.black12,
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Image.asset('assets/icons/near_me.webp', width: 250, height: 250),
-              const SizedBox(height: 32),
-              const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white70),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
 
 class NearMeApp extends ConsumerStatefulWidget {
-  final bool dbReady;
-  final bool firebaseReady;
+  final bool isDatabaseReady;
+  final bool isFirebaseReady;
 
-  const NearMeApp({super.key, required this.dbReady, required this.firebaseReady});
+  const NearMeApp({super.key, required this.isDatabaseReady, required this.isFirebaseReady});
 
   @override
   ConsumerState<NearMeApp> createState() => _NearMeAppState();
@@ -249,7 +224,6 @@ class NearMeApp extends ConsumerStatefulWidget {
 class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserver {
   static const _pauseThresholdSeconds = 60;
 
-  BuildContext? _appContext;
   StreamSubscription<RemoteMessage>? _fcmSub;
   bool _isLocked = false;
   bool _authInProgress = false;
@@ -260,7 +234,7 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
   Timer? _idleTimer;
   int _cachedAutoLockMinutes = 0;
   bool _cachedBiometricEnabled = false;
-  late final Locale? _deviceLocale;
+  late final Locale _deviceLocale;
 
   @override
   void initState() {
@@ -284,26 +258,40 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
         _executeIncomingShareSafely();
         return;
       }
-      DebugConfig.log(DebugConfig.serviceCall,
-          'main: startup biometric lock check');
       FcmService.isLocked = true;
-      final locale = _deviceLocale!;
-      final appName = L10n.appNameFromLocale(locale);
-      final unlockedLabel = L10n.isGreekLocale(locale) ? 'Ξεκλείδωσε το' : 'Unlock';
-      final authed = await LockScreen.authenticate(
-        reason: '$unlockedLabel $appName',
-      );
-      if (authed) {
+      await _authenticateWithBiometrics(debugLabel: 'startup');
+    } catch (e, s) {
+      FcmService.isLocked = false;
+      DebugConfig.error('main: startup biometric lock failed', data: e, exception: s);
+    }
+  }
+
+  Future<bool> _authenticateWithBiometrics({required String debugLabel}) async {
+    DebugConfig.log(DebugConfig.serviceCall, 'main: $debugLabel biometric start');
+    final locale = _deviceLocale;
+    final appName = L10n.appNameFromLocale(locale);
+    final unlock = L10n.isGreekLocale(locale) ? 'Ξεκλείδωσε το' : 'Unlock';
+    try {
+      final ok = await LockScreen.authenticate(reason: '$unlock $appName');
+      if (ok) {
         FcmService.isLocked = false;
         _lastUnlockTime = DateTime.now();
+        DebugConfig.log(DebugConfig.serviceCall, 'main: $debugLabel biometric success');
         FcmService.tryExecutePendingNav();
         _executeIncomingShareSafely();
-      } else if (mounted) {
-        setState(() => _isLocked = true);
+        return true;
       }
-    } catch (e) {
+      DebugConfig.warn('main: $debugLabel biometric rejected, locking');
+      if (mounted) {
+        setState(() => _isLocked = true);
+      } else {
+        FcmService.isLocked = true;
+      }
+      return false;
+    } catch (e, s) {
+      DebugConfig.error('main: $debugLabel biometric failed', data: e, exception: s);
       FcmService.isLocked = false;
-      DebugConfig.error('main: startup biometric lock failed', data: e);
+      return false;
     }
   }
 
@@ -397,27 +385,11 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
     try {
       final settings = ref.read(appSettingsProvider).value;
       if (settings == null || !settings.biometricLockEnabled) return;
-      DebugConfig.log(DebugConfig.serviceCall,
-          'main: checking biometric lock on resume');
       FcmService.isLocked = true;
-      final locale = _deviceLocale!;
-      final appName = L10n.appNameFromLocale(locale);
-      final unlockedLabel = L10n.isGreekLocale(locale) ? 'Ξεκλείδωσε το' : 'Unlock';
-      final authed = await LockScreen.authenticate(
-        reason: '$unlockedLabel $appName',
-      );
-      if (authed) {
-        FcmService.isLocked = false;
-        _lastUnlockTime = DateTime.now();
-        FcmService.tryExecutePendingNav();
-        _executeIncomingShareSafely();
-      } else if (mounted) {
-        DebugConfig.warn('main: biometric auth failed, locking app');
-        setState(() => _isLocked = true);
-      }
-    } catch (e) {
+      await _authenticateWithBiometrics(debugLabel: 'resume');
+    } catch (e, s) {
       FcmService.isLocked = false;
-      DebugConfig.error('main: biometric lock check failed', data: e);
+      DebugConfig.error('main: biometric lock check failed', data: e, exception: s);
     } finally {
       _authInProgress = false;
     }
@@ -474,10 +446,31 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
   }
 
   void _onFcmForeground(RemoteMessage msg) {
-    if (!mounted) return;
-    final ctx = _appContext;
-    if (ctx == null) return;
-    if (FcmService.shouldSuppressForeground(msg)) return;
+    DebugConfig.log(DebugConfig.chatFcm, 'main: FCM foreground ${msg.messageId} type=${msg.data['type']}');
+    if (!mounted) {
+      DebugConfig.log(DebugConfig.chatFcm, 'main: FCM foreground skip !mounted');
+      return;
+    }
+    if (FcmService.shouldSuppressForeground(msg)) {
+      DebugConfig.log(DebugConfig.chatFcm, 'main: FCM foreground suppressed (in-chat)');
+      return;
+    }
+    if (_isLocked) {
+      DebugConfig.log(DebugConfig.chatFcm, 'main: FCM foreground suppressed locked');
+      return;
+    }
+    final ctx = AppRouter.navigatorKey.currentContext;
+    if (ctx == null) {
+      DebugConfig.warn('main: FCM foreground no Navigator context (splash)');
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final c = AppRouter.navigatorKey.currentContext;
+        if (c != null && mounted && !_isLocked && !FcmService.shouldSuppressForeground(msg)) {
+          final notif = msg.notification;
+          if (notif != null) AppMessenger.showInfo(c, '${notif.title ?? ''}: ${notif.body ?? ''}');
+        }
+      });
+      return;
+    }
     final notif = msg.notification;
     if (notif != null) {
       AppMessenger.showInfo(ctx, '${notif.title ?? ''}: ${notif.body ?? ''}');
@@ -602,23 +595,22 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
         }
       }
     });
-    if (!widget.firebaseReady) {
+    if (!widget.isFirebaseReady) {
       return _errorScreen(context, Icons.warning_amber, 'Firebase initialization failed',
           'Please check your internet connection and google-services.json');
     }
 
-    if (!widget.dbReady) {
+    if (!widget.isDatabaseReady) {
       return _errorScreen(context, Icons.storage, 'Database initialization failed',
           'Please restart the app. If the issue persists, reinstall the app.');
     }
 
     return MaterialApp.router(
-      title: L10n.appNameFromLocale(_deviceLocale!),
+      title: L10n.appNameFromLocale(_deviceLocale),
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       builder: (context, child) {
-        _appContext = context;
         return Stack(
           children: [
             Listener(

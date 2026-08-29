@@ -2033,12 +2033,27 @@ CSAE / Play Child Safety — automated SafeSearch/Vision scaffolding με master
 - Video + thumbnail ανέβηκαν → success. ✅
 - **Zero rebuild storm** — καθαρό flow, χωρίς ανωμαλίες/loop. ✅
 - Fail-open/safe: αθώο video **δεν μπλοκάρεται** με moderation ενεργό. ✅
-- Σημείωση: **reject path** δεν δοκιμάζεται εύκολα (χρειάζεται video με explicit thumbnail), αλλά καλύπτεται έμμεσα από Sessions 243/248 (ίδιο `isChatMediaSafe`, throw πριν upload, mapping υπάρχει, UI pattern σωστό).
+
+### ✅ Device test reject path PASS (29 Αυγ 11:17, release)
+Για να δοκιμάσουμε το reject χωρίς πραγματικό ακατάλληλο video, χρησιμοποιήθηκε **προσωρινό forced-reject override** στο `isSafe` (αρχείο `vision_moderation_service.dart`, με σαφές `⚠️ ΠΡΟΣΩΡΙΝΟ (TEST ONLY)` + log `FORCED REJECT`). Αθώο video → reject:
+```
+[11:17:38.646] sendMediaMessage: chat=... type=video
+[11:17:38.762] VisionModeration: FORCED REJECT (temporary test override)
+[11:17:38.762] sendMediaMessage blocked by moderation (video thumbnail): chat=...
+[11:17:38.763] AppException.toFriendlyMessage: code → "moderation/blocked-explicit-video"
+[11:17:38.762][ERROR] ChatActions: sendMediaMessage failed | data: AppException(moderation/blocked-explicit-video): Moderation rejected video (stack: chat_repository_impl:892 → chat_provider:280 → _pickVideo:359)
+```
+- **`FORCED REJECT`** → το override ενεργοποιήθηκε. ✅
+- **`blocked by moderation (video thumbnail)`** → σωστό repo μήνυμα. ✅
+- **`toFriendlyMessage: code → "moderation/blocked-explicit-video"`** → ο σωστός κώδικας έφτασε στο UI (`errorMessage` path) → inline «Το βίντεο απορρίφθηκε (ακατάλληλο περιεχόμενο)». ✅
+- **Δεν έγινε upload** — throw πριν το upload (καθαρό rollback). ✅
+- **No rebuild storm** — καθαρό. ✅
+- **Override ΑΦΑΙΡΈΘΗΚΕ μετά το test** (restore από backup) — το `vision_moderation_service.dart` επανήλθε στο production state, `flutter analyze` clean. ✅
 
 ### Debt / αποφάσεις
 - **Fail-open**: >6MB thumbnail / CF timeout/error → `isSafe=true` → περνάει (δεν μπλοκάρει legit). Ίδιο με images.
 - **Video/Audio ολόκληρα**: εκτός scope — ελέγχεται ΜΟΝΟ το thumbnail frame, όχι το πλήρες video.
-- **Backups**: `feature_flags_pre_videomod_20260829.bak`, `oldsessions_pre_249_20260829.bak`, `audit_report_pre_249_20260829.bak`.
+- **Backups**: `feature_flags_pre_videomod_20260829.bak`, `vision_moderation_service_pre_rejecttest_20260829.bak`, `oldsessions_pre_249_20260829.bak`, `audit_report_pre_249_20260829.bak`.
 - **Flag τώρα `true`** — ενεργό.
 
 > Αυτό το μπλοκ πρέπει να «κληρονομείται» σε κάθε επόμενο session στο τέλος του αρχείου.

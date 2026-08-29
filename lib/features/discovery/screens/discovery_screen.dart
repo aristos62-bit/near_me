@@ -28,7 +28,7 @@ class DiscoveryScreen extends ConsumerStatefulWidget {
 
 class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
   // ── State flags ────────────────────────────────────────────────
-  bool _isDetecting = false;
+  bool _isSearching = false;
   bool _hasAttemptedAutoSearch = false; // τίθεται ΑΜΕΣΩΣ για race-condition fix
   DateTime? _lastAutoPublish;
   double _defaultRadius = 10.0;           // debounce για auto-publish
@@ -40,11 +40,6 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
     super.initState();
     DebugConfig.log(DebugConfig.uiInteraction, 'DiscoveryScreen init');
     WidgetsBinding.instance.addPostFrameCallback((_) => _autoSearch());
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
   }
 
   Future<void> _autoSearch() async {
@@ -76,8 +71,8 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
   }
 
   Future<void> _performSearch() async {
-    if (_isDetecting) return;
-    if (mounted) setState(() => _isDetecting = true);
+    if (_isSearching) return;
+    if (mounted) setState(() => _isSearching = true);
 
     try {
       if (!await _checkConnectivity()) return;
@@ -109,7 +104,7 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
       DebugConfig.error('DiscoveryScreen location/search failed',
           data: e, exception: s);
     } finally {
-      if (mounted) setState(() => _isDetecting = false);
+      if (mounted) setState(() => _isSearching = false);
     }
   }
 
@@ -243,17 +238,20 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final savedRadius = ref.watch(
-      appSettingsProvider.select((s) => s.asData?.value.searchRadiusKm),
-    );
-    if (savedRadius != null && mounted) {
-      final clamped = savedRadius.clamp(1.0, 500.0);
+    ref.listen(appSettingsProvider.select((s) => s.asData?.value.searchRadiusKm),
+        (prev, next) {
+      if (next == null || !mounted) return;
+      final clamped = next.clamp(1.0, 500.0);
+      if (prev == null) {
+        if (clamped != _defaultRadius) _defaultRadius = clamped;
+        return;
+      }
       if (clamped != _defaultRadius) {
-        _defaultRadius = clamped;
+        setState(() => _defaultRadius = clamped);
         DebugConfig.log(DebugConfig.uiInteraction,
             'DiscoveryScreen: loaded radius=$_defaultRadius km from AppSettings');
       }
-    }
+    });
 
     final searchState = ref.watch(searchProvider);
     final theme = Theme.of(context);
@@ -352,14 +350,14 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
                     ),
                     const SizedBox(height: 24),
                     FilledButton.icon(
-                      onPressed: _isDetecting ? null : _performSearch,
-                      icon: _isDetecting
+                      onPressed: _isSearching ? null : _performSearch,
+                      icon: _isSearching
                           ? const SizedBox(
                           width: 18,
                           height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2))
                           : const Icon(Icons.search, size: 20),
-                      label: Text(_isDetecting
+                      label: Text(_isSearching
                           ? (isGreek ? 'Εντοπισμός...' : 'Locating...')
                           : (isGreek ? 'Αναζήτηση' : 'Search')),
                     ),

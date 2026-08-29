@@ -20,7 +20,7 @@ class L10n {
   static String appNameFromLocale(Locale locale) =>
       isGreekLocale(locale) ? 'Κοντά μου' : 'NearMe';
 
-  static Locale? deviceLocale() {
+  static Locale deviceLocale() {
     final locale = PlatformDispatcher.instance.locale;
     for (final supported in supported) {
       if (supported.languageCode == locale.languageCode) {

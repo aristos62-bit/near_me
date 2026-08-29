@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import '../debug/debug_config.dart';
 
@@ -8,12 +9,17 @@ class FirebaseInit {
           'Firebase already initialized (main()) — skip duplicate init');
       return true;
     }
+    final f = Firebase.initializeApp();
+    unawaited(f.then<void>((_) {}, onError: (Object e, StackTrace s) => DebugConfig.warn('Firebase init late completion after timeout', data: e)));
     try {
-      await Firebase.initializeApp();
+      await f.timeout(const Duration(seconds: 6));
       DebugConfig.log(DebugConfig.serviceInit, 'Firebase initialized');
       return true;
-    } catch (e) {
-      DebugConfig.error('Firebase init failed', exception: e);
+    } on TimeoutException {
+      DebugConfig.warn('Firebase init TIMEOUT after 6s');
+      return false;
+    } catch (e, s) {
+      DebugConfig.error('Firebase init failed', data: e, exception: s);
       return false;
     }
   }

@@ -251,19 +251,14 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
   }
 
   Future<void> _applyStartupLock() async {
-    try {
-      final settings = ref.read(appSettingsProvider).value;
-      if (settings == null || !settings.biometricLockEnabled) {
-        FcmService.tryExecutePendingNav();
-        _executeIncomingShareSafely();
-        return;
-      }
-      FcmService.isLocked = true;
-      await _authenticateWithBiometrics(debugLabel: 'startup');
-    } catch (e, s) {
-      FcmService.isLocked = false;
-      DebugConfig.error('main: startup biometric lock failed', data: e, exception: s);
+    final settings = ref.read(appSettingsProvider).value;
+    if (settings == null || !settings.biometricLockEnabled) {
+      FcmService.tryExecutePendingNav();
+      _executeIncomingShareSafely();
+      return;
     }
+    FcmService.isLocked = true;
+    await _authenticateWithBiometrics(debugLabel: 'startup');
   }
 
   Future<bool> _authenticateWithBiometrics({required String debugLabel}) async {
@@ -387,9 +382,6 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
       if (settings == null || !settings.biometricLockEnabled) return;
       FcmService.isLocked = true;
       await _authenticateWithBiometrics(debugLabel: 'resume');
-    } catch (e, s) {
-      FcmService.isLocked = false;
-      DebugConfig.error('main: biometric lock check failed', data: e, exception: s);
     } finally {
       _authInProgress = false;
     }

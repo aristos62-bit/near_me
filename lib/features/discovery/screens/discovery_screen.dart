@@ -243,7 +243,14 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
       if (next == null || !mounted) return;
       final clamped = next.clamp(1.0, 500.0);
       if (prev == null) {
-        if (clamped != _defaultRadius) _defaultRadius = clamped;
+        if (clamped != _defaultRadius) {
+          _defaultRadius = clamped;
+          if (mounted) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) setState(() {});
+            });
+          }
+        }
         return;
       }
       if (clamped != _defaultRadius) {

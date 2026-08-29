@@ -261,7 +261,7 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 | Schema | Drift v15, 7 tables (+crashReportsEnabled σε AppSettings) |
 | Moderation | Active (Session 246-247): all 4 flags `true` (contentModerationEnabled, autoModerateProfilePhotos, autoModerateChatMedia, blurExplicitByDefault) · Vision SafeSearch **EU endpoint** `eu-vision.googleapis.com` + `moderationLog` rules (Session 247 P0s) · CF `checkImageModeration` + `moderateImage` deployed + kill-switch `config/moderation` |
 | Photo Fix | `EqualUnmodifiableListView` → `List.from` `profile_editor_screen.dart:153,161` (Session 244) |
-| P0 Fixes | `unawaited` `then<void> onError` + `await close()` + `chatId` null check (Session 245) · Hygiene 1.1/1.2/1.3/1.5/1.6/2.2/2.3/2.4/3.1-3.3/4.1/5 (Session 248) |
+| P0 Fixes | `unawaited` `then<void> onError` + `await close()` + `chatId` null check (Session 245) · Hygiene 1.1/1.2/1.3/1.5/1.6/2.2/2.3/2.4/3.1-3.3/4.1/5 (Session 248) · Follow-up dead-catch cleanup + 3.1 prev==null postFrame + 4.6 listener leak (Session 249) |
 | Feature Flags | ~24 (core 21: typesense, videoCall, groupChat, gifSupport, mediaMessages, audioMessages, videoMessages, messageExpiry, messageReactions, replyToMessage, **replyPrivately**, editMessage, deleteMessage, messageInfo, messageEmail, messageShare, groupEvents, webVersion, aiMatching, verifiedBadge, premiumTier + moderation: contentModerationEnabled, autoModerateProfilePhotos, autoModerateChatMedia, blurExplicitByDefault) |
 
 ## ΚΕΦΑΛΑΙΟ 7 — KEY CONVENTIONS
@@ -2094,5 +2094,28 @@ CSAE / Play Child Safety — automated SafeSearch/Vision scaffolding με master
 
 ### Παραλείψεις / εκκρεμότητες
 * Defer `2.1 SRP IdleLockService`, `4.6 static listener leak`, `2.5 ref.listen στο build` (όχι bug), `3.1 prev==null` silent sync — όλα low-risk hygiene.
+
+> Αυτό το μπλοκ πρέπει να «κληρονομείται» σε κάθε επόμενο session στο τέλος του αρχείου.
+
+---
+
+## Session 249 — Follow-up: DRY dead-catch cleanup + 3.1 prev==null postFrame + 4.6 AppRouter listener leak (100%) — 29 Αυγ 2026
+
+### Σκοπός
+Follow-up hygiene μετά το Session 248: sanity-checks που ανέδειξαν 2 dead-code + 1 test-only leak.
+
+### Υλοποίηση — 3 micro-fixes (backups `backups/*pre_*.dart`)
+
+* **#1 DRY dead catch** `main.dart:279 _applyStartupLock` + `404 _checkBiometricLock` — εξωτερικά `try/catch (6+4γρ.)` dead (`_authenticateWithBiometrics 295 try/catch return false` καταπίνει όλα). Διαγραφή outer `catch`, `_checkBiometricLock` κράτησε `try/finally _authInProgress=false`. Backup `main_pre_dry_cleanup`.
+* **#5 sanity 3.1** `discovery_screen.dart:245 prev==null` — silent `_defaultRadius=clamped` χωρίς `setState` -> stale `10km` 1 frame αν `AppSettings` αργεί μετά `build`. Fix `addPostFrameCallback setState` (1 extra build, 0 double `_autoSearch`). Backup `discovery_pre_3.1_sanity`.
+* **4.6 listener leak** `app_router.dart:46 static StreamSubscription<User?>? _authSub` + `315 if(_authSub!=null) return; _authSub = listen` + `disposeForTest()` SPoT `FcmService/main`. `prod init 153 1/app` 0 leak, `test 3× init` 1 active `notify 323` (πριν 3× `Redirect`). Backup `app_router_pre_4.6`.
+
+### Έλεγχος
+* `flutter analyze --no-pub` clean (22s, 19s, 19s).
+* Logs `14:27-18:56` 20.8MB: 0 duplicate `Auth state changed` (1 per signIn/out 14:28:30), 0 `filtered radius` μάζεμα, 0 `Timeout` splash.
+* Rebuild storm `Κεφ.10` 0 `MSG_LIST ×26`.
+
+### Παραλείψεις
+* Defer `2.1 SRP`, `2.5 ref.listen` (όχι bug).
 
 > Αυτό το μπλοκ πρέπει να «κληρονομείται» σε κάθε επόμενο session στο τέλος του αρχείου.

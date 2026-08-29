@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -56,6 +57,7 @@ class AppRouter {
   static bool _verifyDismissed = false;
   static String? _lastUid;
   static final navigatorKey = GlobalKey<NavigatorState>();
+  static StreamSubscription<User?>? _authSub;
 
   static void dismissVerify() {
     DebugConfig.log(DebugConfig.authFlow, 'AppRouter: verify dismissed by user');
@@ -311,7 +313,8 @@ class AppRouter {
   }
 
   static void init() {
-    FirebaseAuth.instance.authStateChanges().listen((user) async {
+    if (_authSub != null) return;
+    _authSub = FirebaseAuth.instance.authStateChanges().listen((user) async {
       final t0 = DateTime.now();
       final uid = user?.uid;
       final uidChanged = uid != _lastUid;
@@ -336,7 +339,10 @@ class AppRouter {
     });
   }
 
-
+  static void disposeForTest() {
+    _authSub?.cancel();
+    _authSub = null;
+  }
 }
 
 class _AuthChangeNotifier extends ChangeNotifier {

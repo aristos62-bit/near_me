@@ -253,7 +253,7 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 | Μέτρο | Τιμή |
 |---|---|
 | Completion | ~99.9% (Phases 1-3 100%, MultiChat 100%, Media 100%, Chat Redesign 100%, Audio Messages 100%) |
-| `.dart` files | ~123 (non-generated, +`vision_moderation_service.dart`) |
+| `.dart` files | ~124 (non-generated, +`vision_moderation_service.dart` + `splash_screen.dart` Session 248) |
 | Firestore indexes | 21 composite deployed |
 | Cloud Functions | 13 deployed `europe-west1` (gen1, Node 22), συμπ. `checkImageModeration` + `moderateImage` (Vision moderation, deployed Session 247) + `fcm-utils.ts` + computeGeoHash + checkSearchRateLimit + expireStaleMessages |
 | Build | `flutter analyze` clean ✅, release APK ~20.8MB (R8), signed `gr.nearme.app` (CN=NearMe) |
@@ -261,7 +261,7 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 | Schema | Drift v15, 7 tables (+crashReportsEnabled σε AppSettings) |
 | Moderation | Active (Session 246-247): all 4 flags `true` (contentModerationEnabled, autoModerateProfilePhotos, autoModerateChatMedia, blurExplicitByDefault) · Vision SafeSearch **EU endpoint** `eu-vision.googleapis.com` + `moderationLog` rules (Session 247 P0s) · CF `checkImageModeration` + `moderateImage` deployed + kill-switch `config/moderation` |
 | Photo Fix | `EqualUnmodifiableListView` → `List.from` `profile_editor_screen.dart:153,161` (Session 244) |
-| P0 Fixes | `unawaited` `then<void> onError` + `await close()` + `chatId` null check (Session 245) |
+| P0 Fixes | `unawaited` `then<void> onError` + `await close()` + `chatId` null check (Session 245) · Hygiene 1.1/1.2/1.3/1.5/1.6/2.2/2.3/2.4/3.1-3.3/4.1/5 (Session 248) |
 | Feature Flags | ~24 (core 21: typesense, videoCall, groupChat, gifSupport, mediaMessages, audioMessages, videoMessages, messageExpiry, messageReactions, replyToMessage, **replyPrivately**, editMessage, deleteMessage, messageInfo, messageEmail, messageShare, groupEvents, webVersion, aiMatching, verifiedBadge, premiumTier + moderation: contentModerationEnabled, autoModerateProfilePhotos, autoModerateChatMedia, blurExplicitByDefault) |
 
 ## ΚΕΦΑΛΑΙΟ 7 — KEY CONVENTIONS
@@ -2055,5 +2055,44 @@ CSAE / Play Child Safety — automated SafeSearch/Vision scaffolding με master
 - **Video/Audio ολόκληρα**: εκτός scope — ελέγχεται ΜΟΝΟ το thumbnail frame, όχι το πλήρες video.
 - **Backups**: `feature_flags_pre_videomod_20260829.bak`, `vision_moderation_service_pre_rejecttest_20260829.bak`, `oldsessions_pre_249_20260829.bak`, `audit_report_pre_249_20260829.bak`.
 - **Flag τώρα `true`** — ενεργό.
+
+> Αυτό το μπλοκ πρέπει να «κληρονομείται» σε κάθε επόμενο session στο τέλος του αρχείου.
+
+---
+
+## Session 248 — Hygiene fixes (P0/P1) 1.1/1.2/1.3/1.5/1.6/2.2/2.3/2.4/3.1-3.3/4.1/5 (100%) — 29 Αυγ 2026
+
+### Σκοπός
+Μετά τα P0 Session 245/247, κλείσιμο hygiene/low-risk mechanical refactors από τη λίστα AppBootstrap/NearMeApp/Discovery/AppRouter/firebase_init. Όλα `flutter analyze` clean, 0 functional αλλαγή.
+
+### Υλοποίηση — 12 fixes (backups `backups/*pre_*.dart`)
+
+**Main (AppBootstrap/NearMeApp):**
+* **2.2 DRY** `main.dart:295 _authenticateWithBiometrics` SPoT — extract κοινό `LockScreen.authenticate + L10n + FcmService` από `279 _applyStartupLock` + `386 _checkBiometricLock` (20γρ. duplicate). Guards `short pause 389 + debounce 388 + _authInProgress 396` μένουν έξω. Backup `main_pre_2.2`.
+* **2.4 `_appContext` staleness** `main.dart:252,477,642` — διαγραφή `BuildContext? _appContext` + `builder: _appContext=context` , αντικατάσταση `_onFcmForeground` με `AppRouter.navigatorKey.currentContext` `46` SPoT + `shouldSuppressForeground` `213` + `_isLocked` + `postFrameCallback` retry + `chatFcm` logs. Backup `main_pre_2.4`.
+* **2.3 `!` ρίζα** `l10n.dart:23 Locale?->Locale` + `main.dart:262 late final Locale` + `295 guard διαγραφή` + `638 title χωρίς !` (πάντα `fallback en`). Backup `l10n_pre_2.3 + main_pre_2.3`.
+* **1.2 Stopwatch** `main.dart:114 firebaseSw/dbSw Stopwatch+whenComplete(stop)` SPoT `search_provider:160` — `[TIMING] Firebase 1-4ms / DB 1-3ms` ανεξάρτητα (πριν `DB=Firebase+DB`). Backup `main_pre_1.2`.
+* **1.1 rename** `main.dart:73 _firebaseReady/_dbReady/_ready/_firebaseInitDone -> _isFirebaseInitialized/_isDatabaseInitialized/_isAppReady/_hasFirebaseInitCompleted` + `NearMeApp props isDatabaseReady/isFirebaseReady 233` + `test/widget_test.dart:10`. Backup `main_pre_1.1 + widget_test_pre_1.1`.
+* **1.3 `_kSplashMinDuration`** `main.dart:73 static const 800ms` SPoT `Duration` (was magic `182` 2×). Backup `main_pre_1.3`.
+* **1.5 doc** `main.dart:66 /// SPoT splash + parallel boot` (`firebase_init 6s + Stopwatch 1.2 + unawaited 1.4 + 800ms + AnimatedSwitcher 400ms + _errorScreen + lifecycle guard`). Backup `main_pre_1.5`.
+* **1.6 SplashScreen** `shared/widgets/splash_screen.dart` `StatelessWidget const` SPoT `Image near_me.webp` + `Directionality ltr` + `ValueKey splash` — αντικατάσταση `211 _splashScreen` method + `190 const SplashScreen`. Backup `main_pre_1.6` + νέο file.
+
+**Discovery:**
+* **3.1 build mutation** `discovery_screen.dart:245 ref.listen(select searchRadiusKm) prev==null silent + setState` SPoT `video_bubble:234` — αντικατάσταση `watch+mutation 252 _defaultRadius=clamped` χωρίς `setState`. Backup `discovery_pre_3.1`.
+* **3.2 dead dispose** `discovery_screen:45 dispose super only` — διαγραφή 4γρ. Backup `discovery_pre_3.2`.
+* **3.3 rename** `discovery_screen:31 _isDetecting -> _isSearching` 5 refs (SPoT `search` guard πριν `provider loading`). Backup `discovery_pre_3.3`.
+
+**AppRouter/Firebase:**
+* **4.1 doc matrix** `app_router.dart:39 /// SPoT GoRouter + navigatorKey + guards redirect 57 + 24 routes 133-267 + errorBuilder + init 301` (Guards `/welcome / /auth /chats isGroup` etc). Backup `app_router_pre_4.1`.
+* **5 timeout** `firebase_init.dart:4 dart:async + f=initializeApp + unawaited + timeout 6s` SPoT `auth_repository:193 6s + unawaited` — `TIMEOUT false -> _errorScreen`. Backup `firebase_init_pre_5`.
+
+### Έλεγχος
+* `flutter analyze --no-pub` clean σε κάθε βήμα (42s, 26s, 19s, 18s, 21s).
+* Logs `12:28-18:56` (5 builds 20.8MB): `Splash 1-3ms / Firebase 1-3ms / DB 1-4ms / transition 3-9ms` (1.2), `startup biometric start/success 11:59:22` (2.2/2.3), `FCM foreground showing/suppressed 12:14:34` `navigatorKey` (2.4), `search radius 50->25->10` `Discovery` (3.1/3.3), `Firebase skip 1ms` (5), `is*` rename 0 `_errorScreen` (1.1), `///` doc 0 runtime (1.5), `SplashScreen const` (1.6).
+* `flutter test` `NearMeApp isDatabaseReady` pass (1.1).
+* Rebuild storm `Κεφ.10` 0 `MSG_LIST ×26` — `Stopwatch/MediaQuery` 0 dependency.
+
+### Παραλείψεις / εκκρεμότητες
+* Defer `2.1 SRP IdleLockService`, `4.6 static listener leak`, `2.5 ref.listen στο build` (όχι bug), `3.1 prev==null` silent sync — όλα low-risk hygiene.
 
 > Αυτό το μπλοκ πρέπει να «κληρονομείται» σε κάθε επόμενο session στο τέλος του αρχείου.

@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="el">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Privacy Policy — NearMe (Κοντά μου)</title>
+<meta name="description" content="Privacy Policy — NearMe (Κοντά μου) — Privacy-first local discovery">
+<style>
+  :root{--max:800px;--fg:#111;--muted:#555;--line:#e6e6e6;--accent:#0B57D0}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Helvetica,Arial;line-height:1.65;color:var(--fg);background:#fff}
+  header,main,footer{max-width:var(--max);margin:0 auto;padding:24px 16px}
+  header{padding-top:32px;border-bottom:1px solid var(--line)}
+  h1{font-size:28px;margin:0 0 8px}
+  h2{font-size:20px;margin:32px 0 8px;color:var(--accent)}
+  h3{font-size:16px;margin:20px 0 6px}
+  p,li{font-size:15px}
+  ul{padding-left:20px}
+  a{color:var(--accent)}
+  .pill{display:inline-block;font-size:12px;padding:4px 10px;border:1px solid var(--line);border-radius:999px;color:var(--muted);margin-right:6px}
+  .card{border:1px solid var(--line);border-radius:12px;padding:16px;background:#fafafa}
+  .muted{color:var(--muted)}
+  code{background:#f3f3f3;padding:1px 6px;border-radius:6px;font-size:13px}
+  footer{border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+  @media(prefers-color-scheme:dark){
+    body{background:#0b0b0b;color:#eaeaea}
+    .card{background:#161616;border-color:#2a2a2a}
+    code{background:#1e1e1e}
+    header,footer{border-color:#222}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div><span class="pill">GDPR</span><span class="pill">eur3 / europe-west1</span><span class="pill">NearMe v1.1.0</span></div>
+  <h1>Privacy Policy — NearMe <span class="muted">(Κοντά μου)</span></h1>
+  <p class="muted">Controller: <strong>NearMe EU</strong> · contact: <a href="mailto:soc.near.app@gmail.com">soc.near.app@gmail.com</a> · Supervisory authority: HDPA (dpa.gr)<br>
+  Hosting: Firebase (Google Cloud) — Firestore &amp; Storage <code>eur3</code> (EU multi-region), Cloud Functions <code>europe-west1</code>. Last updated: <strong>30 Aug 2026</strong></p>
+  <p><a href="#el">Ελληνικά ↓</a> · <a href="#en">English ↓</a></p>
+</header>
+
+<main>
+  <section id="el" class="card">
+    <h2>Σύνοψη (EL)</h2>
+    <p><strong>Privacy-first / Local-first:</strong> Το πλήρες προφίλ ζει μόνο στη συσκευή σου (Drift/SQLite). Στο cloud ανεβαίνει μόνο το δημόσιο στιγμιότυπο που επιλέγεις ρητά, και μόνο όσο το κρατάς δημοσιευμένο.</p>
+  </section>
+
+  <h2>1. Data we collect — Τι συλλέγουμε</h2>
+  <ul>
+    <li><strong>Location — ρυθμιζόμενη ακρίβεια που επιλέγεις:</strong> Πόλη / Γειτονιά / Δρόμος (~150m) / Κρυφό. Αποθηκεύεται ως <code>GeoHash</code> 3 / 5 / 7 χαρακτήρων αντίστοιχα (hidden = διαγράφεται). Ποτέ δεν αποθηκεύεται δημόσια η ακριβής GPS συντεταγμένη (lat/lng). Επιλογή στο <em>Privacy Editor → Ακρίβεια Τοποθεσίας</em> (<code>privacy_editor_screen.dart:201</code>, <code>functions/src/index.ts:787-800</code>). Για την εύρεση ονόματος πόλης/χώρας χρησιμοποιείται η υπηρεσία geocoding της συσκευής (Google/Apple) — <code>placemarkFromCoordinates</code> — και Nominatim autocomplete όπου χρειάζεται.</li>
+    <li><strong>City/Country (text):</strong> πόλη/χώρα που συμπληρώνεις ή προκύπτει από reverse geocode.</li>
+    <li><strong>Profile:</strong> ψευδώνυμο, έτος γέννησης (gate 18+), φύλο, ενδιαφέροντα, αναζητώ, bio — τοπικά στο Drift, δημόσιο snapshot μόνο για τα πεδία που έχεις ενεργοποιήσει.</li>
+    <li><strong>Photos/Avatars:</strong> <code>avatars/{uid}/profile.jpg</code>, <code>photos/{uid}/{n}.jpg</code> (έως 5, 5MB), <code>chat_media/{chatId}/{msgId}.jpg/.mp4/.m4a</code> (50MB), <code>group_avatars/{chatId}/</code> — μέχρι να τα διαγράψεις. EXIF (GPS) αφαιρείται πριν το upload.</li>
+    <li><strong>Messages:</strong> κρυπτογράφηση AES-256-GCM client-side (<code>encryption_utils.dart:25</code>), IV 12 bytes. Αποθήκευση <code>chats/{chatId}/messages/{msgId}</code> μέχρι λήξη/διαγραφή.</li>
+    <li><strong>FCM token:</strong> <code>users/{uid}/fcm_tokens/{tokenId}</code> για ειδοποιήσεις.</li>
+    <li><strong>Crash logs:</strong> Firebase Crashlytics — <strong>OFF by default</strong>, μόνο αν το ενεργοποιήσεις σε <em>Settings → Diagnostics → Crash Reports</em>. Σε OFF γίνεται <code>deleteUnsentReports()</code>. Native flag <code>firebase_crashlytics_collection_enabled=false</code> (Android <code>AndroidManifest.xml:62</code>, iOS <code>Info.plist: FirebaseCrashlyticsCollectionEnabled=false</code>).</li>
+    <li><strong>Presence:</strong> <code>isOnline/lastSeen</code> — heartbeat 60s.</li>
+  </ul>
+
+  <h2>2. Legal basis — Νομική βάση (GDPR Art.6)</h2>
+  <p><strong>Consent Art.6(1)(a)</strong> — κάθε πεδίο έχει ξεχωριστό toggle στο Privacy Editor. Μπορείς να αποσύρεις τη συγκατάθεση με Unpublish ή απενεργοποίηση toggle. Για crash logs: συγκατάθεση (opt-in). Δεν γίνεται profiling/automated decision-making.</p>
+
+  <h2>3. Retention — Διάρκεια τήρησης</h2>
+  <p>Μέχρι τη διαγραφή λογαριασμού (<em>Settings → Διαγραφή Λογαριασμού</em> → CF <code>deleteUserData</code> <code>functions/src/index.ts:563</code> διαγράφει 10+ buckets: avatars, photos, requests, chats/messages, public/profile, status, privacy/settings, blocked, rateLimits/search, fcm_tokens + Storage). Μηνύματα ομαδικών με <code>messageExpiry</code> διαγράφονται αυτόματα (CF <code>expireStaleMessages</code> κάθε 5'). Αιτήματα λήγουν σε 48h (<code>expireStaleRequests</code>).</p>
+
+  <h2>4. Sharing</h2>
+  <p>Δεν πουλάμε δεδομένα. Πρόσβαση έχουν μόνο: εσύ, οι χρήστες στους οποίους εμφανίζεσαι ως <code>isVisible==true</code> και πληρούν τα φίλτρα, και η Google Cloud (processor) στο πλαίσιο Firebase Hosting/Firestore/Storage/Functions σε EU.</p>
+
+  <h2>5. Your rights — Δικαιώματα (GDPR Art.12-22)</h2>
+  <ul>
+    <li><strong>Access:</strong> βλέπεις τοπικά όλο το προφίλ (Drift) και το δημόσιο snapshot.</li>
+    <li><strong>Rectification:</strong> <em>Profile Editor</em>.</li>
+    <li><strong>Erasure:</strong> <em>Settings → Διαγραφή Λογαριασμού</em>.</li>
+    <li><strong>Restriction:</strong> Unpublish (toggle ορατότητας).</li>
+    <li><strong>Objection:</strong> Block user.</li>
+    <li><strong>Portability:</strong> κατόπιν αιτήματος στο <a href="mailto:soc.near.app@gmail.com">soc.near.app@gmail.com</a> (εξαγωγή Drift — roadmap).</li>
+    <li><strong>Withdraw consent:</strong> ανά πάσα στιγμή από Privacy Editor.</li>
+  </ul>
+
+  <h2>6. Security</h2>
+  <p>TLS 1.3 σε transit, AES-256-GCM σε chat, <code>FLAG_SECURE</code> screenshot prevention (opt-in), biometric lock + auto-lock 1-30', room για chat keys σε <code>flutter_secure_storage</code>. Security Rules 7 helpers + 21 indexes.</p>
+
+  <h2>7. Children</h2>
+  <p>Υπηρεσία 18+ μόνο (έλεγχος <code>age >=18</code> στο publish <code>firestore.rules:87</code>).</p>
+
+  <h2>8. Permissions — γιατί ζητάμε</h2>
+  <ul>
+    <li>Location (WhenInUse) — εύρεση κοντινών προφίλ, μόνο με συγκατάθεση.</li>
+    <li>Camera / Photo Library — avatar/φωτογραφίες/chat images.</li>
+    <li>Microphone — φωνητικά μηνύματα (~60s).</li>
+    <li>Notifications — FCM για μηνύματα/αιτήματα.</li>
+  </ul>
+
+  <h2>9. Contact &amp; Complaints</h2>
+  <p>Email: <a href="mailto:soc.near.app@gmail.com">soc.near.app@gmail.com</a><br>
+  Εποπτική αρχή: Αρχή Προστασίας Δεδομένων (HDPA) — <a href="https://www.dpa.gr" target="_blank" rel="noopener">dpa.gr</a>. Έχεις δικαίωμα καταγγελίας εκεί.</p>
+
+  <h2 id="en">10. English summary</h2>
+  <p><strong>Controller:</strong> NearMe EU — <a href="mailto:soc.near.app@gmail.com">soc.near.app@gmail.com</a>. <strong>Hosting:</strong> Firebase eur3 / europe-west1 (EU). <strong>Location:</strong> user-chosen GeoHash precision city/neighborhood/street (~150m)/hidden (3/5/7 chars, never raw lat/lng). Geocoding via OS service (Google/Apple) + Nominatim. <strong>Legal basis:</strong> Consent. <strong>Retention:</strong> until account deletion (CF <code>deleteUserData</code> deletes 10+ buckets) or message/request expiry. <strong>Rights:</strong> access, rectify (Profile Editor), erase (Delete Account), restrict (Unpublish), object (Block), portability on request. <strong>Security:</strong> TLS + AES-256-GCM, FLAG_SECURE, biometric lock. <strong>Children:</strong> 18+ only.</p>
+
+  <h3>Data Safety (Play Console) — mirror iOS Privacy Labels</h3>
+  <ul>
+    <li>Location Approximate — Collected, not shared, optional, until delete (GeoHash)</li>
+    <li>Photos &amp; Videos — Collected, until delete (5MB/50MB, Storage rules)</li>
+    <li>App activity (messages) — Collected, encrypted in transit YES, until expiry/delete</li>
+    <li>Device IDs (FCM token) — Collected</li>
+    <li>Crash logs — Collected opt-in only</li>
+    <li>Analytics — Not collected</li>
+    <li>Data encrypted in transit: YES · Data deletion: YES</li>
+  </ul>
+
+  <p class="muted">This policy does not constitute legal advice. Extend with counsel before public launch.</p>
+</main>
+
+<footer>
+  <p>© 2026 NearMe EU · <a href="/terms">Terms</a> · <a href="mailto:soc.near.app@gmail.com">soc.near.app@gmail.com</a> · <a href="https://www.dpa.gr" target="_blank" rel="noopener">HDPA</a></p>
+</footer>
+</body>
+</html>

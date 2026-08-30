@@ -299,6 +299,8 @@ class ErrorMessages {
         return isGreek ? 'Οι αναφορές σφαλμάτων ενεργοποιήθηκαν' : 'Crash reports enabled';
       case 'settings/crash-reports-off':
         return isGreek ? 'Οι αναφορές σφαλμάτων απενεργοποιήθηκαν' : 'Crash reports disabled';
+      case 'settings/link-open-failed':
+        return isGreek ? 'Δεν ήταν δυνατό το άνοιγμα του συνδέσμου' : 'Could not open the link';
       case 'report/submitted':
         return isGreek ? 'Η αναφορά υποβλήθηκε' : 'Report submitted';
       case 'report/submit-failed':

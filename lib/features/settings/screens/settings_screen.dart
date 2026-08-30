@@ -6,7 +6,10 @@ import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/responsive_utils.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../../core/config/app_config.dart';
 import '../../../core/utils/app_messenger.dart';
+import '../../../core/utils/connectivity_guard.dart';
 import '../../../core/utils/error_messages.dart';
 import '../../../core/utils/lock_screen.dart';
 import '../../../core/config/feature_flags.dart';
@@ -203,6 +206,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
               _SectionHeader(label: isGreek ? 'Διαγνωστικά' : 'Diagnostics'),
               const _DiagnosticsSection(),
+              const Divider(),
+
+              ListTile(
+                leading: const Icon(Icons.privacy_tip_outlined),
+                title: Text(isGreek ? 'Πολιτική Απορρήτου' : 'Privacy Policy'),
+                subtitle: Text(isGreek ? 'Πώς διαχειριζόμαστε τα δεδομένα σου' : 'How we handle your data'),
+                trailing: const Icon(Icons.open_in_new, size: 18),
+                onTap: () async {
+                  final greek = L10n.isGreek(context);
+                  DebugConfig.log(DebugConfig.uiInteraction, 'SettingsScreen: open privacy policy');
+                  if (!await ConnectivityGuard.ensure(context)) return;
+                  if (!context.mounted) return;
+                  try {
+                    final launched = await launchUrl(AppConfig.privacyPolicyUrl, mode: LaunchMode.externalApplication);
+                    if (!launched && context.mounted) {
+                      DebugConfig.warn('SettingsScreen: launchUrl returned false', data: AppConfig.privacyPolicyUrl.toString());
+                      AppMessenger.showError(context, ErrorMessages.get('settings/link-open-failed', greek));
+                    }
+                  } catch (e) {
+                    DebugConfig.warn('SettingsScreen: launchUrl threw', data: e);
+                    if (context.mounted) AppMessenger.showError(context, ErrorMessages.get('settings/link-open-failed', greek));
+                  }
+                },
+              ),
               const Divider(),
 
               if (!isAnonymous) ...[

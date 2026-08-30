@@ -1,7 +1,7 @@
 # NearMe — Launch Readiness & Action Plan
 
-> **Έκδοση:** 1.1.0+1 · **Schema:** v15 · **Firebase:** `nearme-eu` (eur3 / europe-west1) · **Ημερομηνία:** 26 Αυγ 2026
-> **Κατάσταση:** Φάσεις 1-3 λειτουργικές, B1/B2 FIXED, moderation scaffolding (flag OFF), photo fix — 4 hard blockers παραμένουν + 3 high warnings
+> **Έκδοση:** 1.1.0+1 · **Schema:** v15 · **Firebase:** `nearme-eu` (eur3 / europe-west1) · **Ημερομηνία:** 30 Αυγ 2026
+> **Κατάσταση:** Φάσεις 1-3 λειτουργικές, B1/B2/B5 FIXED ✅, moderation scaffolding (flag OFF), photo fix — 3 hard blockers παραμένουν + 3 high warnings
 
 ---
 
@@ -67,7 +67,7 @@
 | `build.gradle.kts:30` debug signing | **BLOCKER B2** |
 | `AndroidManifest.xml:2` permissions FINE/COARSE/POST_NOTIFICATIONS/RECORD_AUDIO/CAMERA/BIOMETRIC | OK — disclosures needed |
 | `ios/Runner/Info.plist:9` `Κοντά μου` + `project.pbxproj:385` `com.example.nearMe` | **BLOCKER B1/B3/B4** |
-| `firebase.json` + `.firebaserc` + `eur3` | OK — hosting missing (B5) |
+| `firebase.json:21` + `hosting` + `.firebaserc` + `eur3` | **FIXED B5** — `hosting/privacy.html` + `https://nearme-eu.web.app/privacy` deployed 30/08/2026 |
 | `launch_background.xml` white placeholder, custom splash 3s `main.dart:172` | WARNING |
 | `error_messages.dart:1` 210+ bilingual, 60 call-sites | DONE |
 | `flutter analyze` clean | OK |
@@ -225,84 +225,21 @@
 
 ---
 
-#### B5 — Καμία Privacy Policy
+#### B5 — Privacy Policy — FIXED ✅ (30 Αυγ 2026)
 
-**Υπάρχει:** `grep privacy_policy` 0, `grep https://.*privacy` 0, `glob **/*privacy*` μόνο `privacy_settings_table.dart`, `privacy_editor_screen.dart`. `firebase.json:1` χωρίς `hosting`, `lib/features/settings/screens/settings_screen.dart:139` χωρίς tile.
+**Υπήρχε:** `grep privacy_policy` 0, `glob **/*privacy*` μόνο `privacy_settings_table.dart`, `firebase.json:1` χωρίς `hosting`, `settings_screen.dart:139` χωρίς tile.
 
-**Πρόβλημα:** Play Data Safety + App Store Privacy Policy URL **υποχρεωτικά** όταν ζητάτε Location/Camera/Microphone. Χωρίς URL → upload blocked στο "App Content".
+**Fix:** `firebase.json:21` hosting `public:hosting cleanUrls` + `hosting/privacy.html` (10.5KB GDPR, 4 precisions city/neighborhood/street(~150m)/hidden 3/5/7/0, `soc.near.app@gmail.com`, eur3/europe-west1, `deleteUserData:563`) + `hosting/terms.html` + `AppConfig.privacyPolicyUrl` + `settings/link-open-failed` + `SettingsScreen:211` tile (`ConnectivityGuard.ensure` + `launchUrl externalApplication`) → `firebase deploy --only hosting --project nearme-eu` → `https://nearme-eu.web.app/privacy` (200) + `https://nearme-eu.firebaseapp.com/privacy`. `flutter analyze` clean. Backup `backups/B5_privacy_20260830/`.
 
-**Προτάσεις:**
+**Υλοποίηση (30/08/2026):**
 
-1. **Hosting επιλογή Α — Firebase Hosting (προτείνεται, 10 λεπτά):**
-   - `firebase.json` προσθήκη:
-     ```json
-     {
-       "hosting": {
-         "public": "hosting",
-         "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-         "headers": [{ "source": "**", "headers": [{ "key": "Cache-Control", "value": "max-age=3600" }] }]
-       }
-     }
-     ```
-   - Δημιουργία `hosting/privacy.html` + `hosting/terms.html` (βλ. template παρακάτω)
-   - `firebase deploy --only hosting` → `https://nearme-eu.web.app/privacy` + `https://nearme-eu.firebaseapp.com/privacy`
-   - Προαιρετικά custom domain `https://nearme.app/privacy` via Firebase Hosting → Connect domain
+1. `firebase.json:21` → `hosting {public:hosting, cleanUrls:true, Cache-Control:3600}` + `hosting/privacy.html` 10.5KB + `hosting/terms.html` 1.1KB → `firebase deploy --only hosting --project nearme-eu` → `https://nearme-eu.web.app/privacy` (200) + `https://nearme-eu.firebaseapp.com/privacy`
 
-2. **Επιλογή Β — GitHub Pages / Vercel:** Αν έχετε domain, host εκεί. Firebase Hosting προτείνεται γιατί ήδη στο `eur3`.
+2. **Privacy Policy GDPR** — 4 precisions `city(3)/neighborhood(5)/street(7 ~150m)/hidden(0)` `privacy_editor_screen.dart:201` + `index.ts:787`, ποτέ raw lat/lng, OS geocoding `placemarkFromCoordinates` + Nominatim, `avatars/photos/chat_media/group_avatars`, AES-256-GCM `encryption_utils.dart:25`, `fcm_tokens`, Crashlytics OFF `AndroidManifest.xml:62` + `Info.plist`. Controller `soc.near.app@gmail.com` (SPoT `AppConfig.privacyContactEmail`), eur3/europe-west1, `deleteUserData:563` (10+ buckets), Rights, HDPA dpa.gr, Last updated 30 Aug 2026.
 
-3. **Privacy Policy template (GDPR-compliant, καλύπτει τρέχοντα code):**
-   ```html
-   <!-- hosting/privacy.html — περίληψη, επεκτείνετε με δικηγόρο -->
-   <h1>Privacy Policy — NearMe (Κοντά μου)</h1>
-   <p>Controller: NearMe EU, contact: privacy@nearme.app</p>
-   <p>Hosting: Firebase (Google Cloud) — Firestore/Storage eur3, Functions europe-west1 (EU residency).</p>
-   <h2>Data we collect</h2>
-   <ul>
-     <li>Location: GeoHash (city/neighborhood/street) + city/country — only if you enable discovery & publish. Stored as PublicProfile. You can use manual city instead.</li>
-     <li>Photos/Avatars: avatars/{uid}, photos/{uid} (5MB), chat_media/{chatId} (50MB) — until you delete.</li>
-     <li>Profile: nickname, age (18+ gate), gender, interests — local Drift first, public snapshot only per privacy toggles.</li>
-     <li>Messages: encrypted AES-256-GCM client-side, stored Firestore chats/{id}/messages until expiry/delete.</li>
-     <li>FCM token: users/{uid}/fcm_tokens — for notifications.</li>
-     <li>Crash logs: Firebase Crashlytics — OFF by default, only if you enable in Settings → Diagnostics. Purged via deleteUnsentReports when OFF.</li>
-   </ul>
-   <h2>Legal basis</h2><p>Consent (Art. 6(1)(a) GDPR) — toggles in Privacy Editor. Legitimate interest for crash logs only with consent.</p>
-   <h2>Retention</h2><p>Until account deletion (CF deleteUserData deletes 10+ buckets + Storage). Chat messages anonymized or deleted per messageExpiry.</p>
-   <h2>Rights</h2><p>Access (local Drift), Rectification (Profile Editor), Erasure (Settings → Delete Account), Restriction (Unpublish), Objection (Block), Portability (coming soon — contact us for export).</p>
-   <h2>Contact & Complaints</h2><p>privacy@nearme.app — supervisory authority: HDPA (dpa.gr).</p>
-   <p>Last updated: 26 Aug 2026</p>
-   ```
+3. **In-app tile** `settings_screen.dart:211` (visible και σε anonymous, μετά Diagnostics) → `AppConfig.privacyPolicyUrl` + `ConnectivityGuard.ensure` + `launchUrl(externalApplication)` + `settings/link-open-failed` `error_messages.dart:302` + `DebugConfig.uiInteraction/warn`. `url_launcher ^6.3.2` `pubspec.yaml:72` reuse.
 
-4. **In-app tile — `lib/features/settings/screens/settings_screen.dart:139-242` προσθήκη μετά το Diagnostics block:**
-   ```dart
-   ListTile(
-     leading: const Icon(Icons.privacy_tip_outlined),
-     title: Text(isGreek ? 'Πολιτική Απορρήτου' : 'Privacy Policy'),
-     trailing: const Icon(Icons.open_in_new, size: 18),
-     onTap: () async {
-       final url = Uri.parse('https://nearme-eu.web.app/privacy');
-       if (await canLaunchUrl(url)) {
-         await launchUrl(url, mode: LaunchMode.externalApplication);
-       } else {
-         if (context.mounted) AppMessenger.showError(context, ErrorMessages.get('network/no-connectivity', isGreek));
-       }
-     },
-   ),
-   ```
-   Ήδη έχετε `url_launcher ^6.3.2` `pubspec.yaml:72` — έτοιμο.
-
-5. **Store Console:**
-   - Play Console → App content → Privacy Policy → paste `https://nearme-eu.web.app/privacy`
-   - App Store Connect → App Information → Privacy Policy URL → ίδιο
-
-6. **Data Safety draft (Play Console):**
-   - Location Approximate → Collected, not shared, optional, retention until delete
-   - Photos & Videos → Collected, until delete
-   - App activity (messages) → Collected, encrypted in transit YES, until expiry
-   - Device IDs (FCM token) → Collected
-   - Crash logs → Collected opt-in only
-   - Analytics → **Not collected** (αν αφαιρέσετε B7)
-
-**Εναλλακτική:** Αν δεν θέλετε hosting, χρησιμοποιήστε `https://www.privacypolicytemplate.net` generator + host σε Google Sites — αλλά Firebase Hosting είναι 1 command.
+4. **Store Console:** Play → App content → Privacy Policy + App Store → App Information → paste `https://nearme-eu.web.app/privacy` (Data Safety draft: Location Approximate / Photos&Videos / messages encrypted YES / FCM token / Crash opt-in / Analytics Not collected).
 
 ---
 

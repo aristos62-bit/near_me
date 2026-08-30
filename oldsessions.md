@@ -252,7 +252,7 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 
 | Μέτρο | Τιμή |
 |---|---|
-| Completion | ~99.9% (Phases 1-3 100%, MultiChat 100%, Media 100%, Chat Redesign 100%, Audio Messages 100%) |
+| Completion | ~99.9% (Phases 1-3 100%, MultiChat 100%, Media 100%, Chat Redesign 100%, Audio Messages 100%, **B5 Privacy Policy 100%**) |
 | `.dart` files | ~124 (non-generated, +`vision_moderation_service.dart` + `splash_screen.dart` Session 248) |
 | Firestore indexes | 21 composite deployed |
 | Cloud Functions | 13 deployed `europe-west1` (gen1, Node 22), συμπ. `checkImageModeration` + `moderateImage` (Vision moderation, deployed Session 247) + `fcm-utils.ts` + computeGeoHash + checkSearchRateLimit + expireStaleMessages |
@@ -261,8 +261,9 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 | Schema | Drift v15, 7 tables (+crashReportsEnabled σε AppSettings) |
 | Moderation | Active (Session 246-247): all 4 flags `true` (contentModerationEnabled, autoModerateProfilePhotos, autoModerateChatMedia, blurExplicitByDefault) · Vision SafeSearch **EU endpoint** `eu-vision.googleapis.com` + `moderationLog` rules (Session 247 P0s) · CF `checkImageModeration` + `moderateImage` deployed + kill-switch `config/moderation` |
 | Photo Fix | `EqualUnmodifiableListView` → `List.from` `profile_editor_screen.dart:153,161` (Session 244) |
-| P0 Fixes | `unawaited` `then<void> onError` + `await close()` + `chatId` null check (Session 245) · Hygiene 1.1/1.2/1.3/1.5/1.6/2.2/2.3/2.4/3.1-3.3/4.1/5 (Session 248) · Follow-up dead-catch + 3.1 postFrame + 4.6 listener (Session 249) · Double-call resume (Session 250) · B3+B6 iOS Info.plist (Session 251) |
+| P0 Fixes | `unawaited` `then<void> onError` + `await close()` + `chatId` null check (Session 245) · Hygiene 1.1/1.2/1.3/1.5/1.6/2.2/2.3/2.4/3.1-3.3/4.1/5 (Session 248) · Follow-up dead-catch + 3.1 postFrame + 4.6 listener (Session 249) · Double-call resume (Session 250) · B3+B6 iOS Info.plist (Session 251) · **B5 Hosting privacy.html (Session 252)** |
 | Feature Flags | ~24 (core 21: typesense, videoCall, groupChat, gifSupport, mediaMessages, audioMessages, videoMessages, messageExpiry, messageReactions, replyToMessage, **replyPrivately**, editMessage, deleteMessage, messageInfo, messageEmail, messageShare, groupEvents, webVersion, aiMatching, verifiedBadge, premiumTier + moderation: contentModerationEnabled, autoModerateProfilePhotos, autoModerateChatMedia, blurExplicitByDefault) |
+| Hosting | **B5 FIXED 30/08/2026** — `firebase.json:21` hosting `public:hosting cleanUrls:true` + `hosting/privacy.html` 10.5KB + `hosting/terms.html` 1.1KB → `https://nearme-eu.web.app/privacy` (200) deployed `firebase deploy --only hosting` · tile `SettingsScreen:211` `AppConfig.privacyPolicyUrl` · email `soc.near.app@gmail.com` |
 
 ## ΚΕΦΑΛΑΙΟ 7 — KEY CONVENTIONS
 - File size ≤ 500 lines (exceptions: profile_repository_impl ~570, chat_repository_impl ~590 with user permission)
@@ -2159,5 +2160,31 @@ Follow-up hygiene μετά το Session 248: sanity-checks που ανέδειξ
 * `flutter analyze --no-pub` clean 22.7s (plist δεν αγγίζει Dart).
 * `Info.plist` UTF-8 δίγλωσσο `Ελληνικά / English` όπως `:29-31`, `Κοντά μου` κεφαλαίο, `plutil -lint` clean (manual).
 * Device test εκκρεμεί: `getCurrentLocation()` + `pickImage(gallery)` -> dialog με σωστό string (όχι crash) · cold start `collection=false` (`main:263`).
+
+> Αυτό το μπλοκ πρέπει να «κληρονομείται» σε κάθε επόμενο session στο τέλος του αρχείου.
+
+---
+
+## Session 252 — B5 Privacy Policy (Hosting) + Settings tile (100%) — 30 Αυγ 2026
+
+### Σκοπός
+Κλείσιμο hard blocker B5: χωρίς `https://` Privacy Policy URL το Play Console `App Content` + App Store `App Information` μπλοκάρουν upload όταν ζητάς Location/Camera/Microphone. Υλοποίηση Firebase Hosting + GDPR page + in-app tile.
+
+### Προετοιμασία — 3 γύροι review + επαλήθευση SPoT
+- **Reuse-first:** `url_launcher ^6.3.2` `pubspec.yaml:72` (registrants linux/windows/macos) + `chat_messages_list.dart:481` pattern `launchUrl(externalApplication)` + `ConnectivityGuard.ensure` `connectivity_guard.dart:18` + `ErrorMessages` `error_messages.dart:57` + `AppConfig` κενό `app_config.dart:1` + `ResponsiveUtils` `settings_screen.dart:144` + `DebugConfig.uiInteraction` — 0 νέα deps.
+- **Γύρος 1-2:** αρχική πρόταση με `PrivacyConfig` νέο αρχείο + `canLaunchUrl` → διορθώθηκε σε `AppConfig` reuse + `launchUrl` μόνο (ίδιο με chat). `L10n.isGreek` safe σε Settings (single ListView, όχι chat 60fps storm Sessions 221-224).
+- **Γύρος 3 — σοβαρό εύρημα (χρήστης):** `privacy_editor_screen.dart:201` options `city/neighborhood/street/hidden` + `index.ts:787` `street→7 ~150m` — η πρόταση έγραφε "ποτέ street" → ψευδής GDPR δήλωση. Διορθώθηκε σε `city/neighborhood/street(~150m)/hidden 3/5/7/0`. Επίσης `network/no-connectivity` μετά `ensure` λάθος → νέο `settings/link-open-failed` `error_messages.dart:302` + `index.ts:563` (όχι 575) + `AndroidManifest:62`.
+
+### Υλοποίηση — 6 βήματα (backups `backups/B5_privacy_20260830/` — 4× .bak)
+
+1. **`firebase.json:21`** — hosting `{public:hosting, ignore, cleanUrls:true, Cache-Control:3600}`. Backup + edit.
+2. **`app_config.dart:3-4`** — SPoT `privacyPolicyUrl = Uri.parse('https://nearme-eu.web.app/privacy')` + `privacyContactEmail='soc.near.app@gmail.com'`.
+3. **`error_messages.dart:302`** — `settings/link-open-failed` `Δεν ήταν δυνατό το άνοιγμα του συνδέσμου / Could not open the link` (SPoT `chat/link-open-failed:103`).
+4. **`settings_screen.dart:1-11 + 211-233`** — imports `url_launcher/AppConfig/ConnectivityGuard` + tile `privacy_tip_outlined` **μετά `Diagnostics+Divider:209` και πριν `if (!isAnonymous) Blocked` → ορατό και σε anonymous** (Store requirement). `final greek` πριν `await`, `mounted` checks, `ConnectivityGuard.ensure` → `launchUrl` → `settings/link-open-failed` + `DebugConfig.warn`. 468→495 γραμμές (<500).
+5. **`hosting/privacy.html` 10.5KB + `hosting/terms.html` 1.1KB** — GDPR: 4 precisions 3/5/7/0 (`privacy_editor:201`, `index.ts:787`), OS geocoding `placemarkFromCoordinates`, `avatars/photos/chat_media/group_avatars` 5MB/50MB, AES-256-GCM `encryption_utils:25`, `fcm_tokens`, Crashlytics OFF `AndroidManifest:62` + `Info.plist`, `deleteUserData:563` (10+ buckets), Rights, HDPA dpa.gr, `Last updated 30 Aug 2026`, `soc.near.app@gmail.com`. Responsive `max-width:800px`, `viewport`.
+6. **`flutter analyze` clean (5.4s)** + `firebase deploy --only hosting --project nearme-eu` → `found 2 files → release complete → https://nearme-eu.web.app` → `curl 200` `privacy 9113B` + `terms 200` + `firebaseapp.com` mirror.
+
+### Έλεγχος
+- `flutter analyze` clean ✅ (full) · `firebase deploy` Success ✅ · `Invoke-WebRequest` 200 ✅ · `Get-ChildItem hosting` 2 files ✅ · Store URLs έτοιμα για paste: Play → App content + App Store → App Information.
 
 > Αυτό το μπλοκ πρέπει να «κληρονομείται» σε κάθε επόμενο session στο τέλος του αρχείου.

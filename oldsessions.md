@@ -261,7 +261,7 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 | Schema | Drift v15, 7 tables (+crashReportsEnabled σε AppSettings) |
 | Moderation | Active (Session 246-247): all 4 flags `true` (contentModerationEnabled, autoModerateProfilePhotos, autoModerateChatMedia, blurExplicitByDefault) · Vision SafeSearch **EU endpoint** `eu-vision.googleapis.com` + `moderationLog` rules (Session 247 P0s) · CF `checkImageModeration` + `moderateImage` deployed + kill-switch `config/moderation` |
 | Photo Fix | `EqualUnmodifiableListView` → `List.from` `profile_editor_screen.dart:153,161` (Session 244) |
-| P0 Fixes | `unawaited` `then<void> onError` + `await close()` + `chatId` null check (Session 245) · Hygiene 1.1/1.2/1.3/1.5/1.6/2.2/2.3/2.4/3.1-3.3/4.1/5 (Session 248) · Follow-up dead-catch cleanup + 3.1 prev==null postFrame + 4.6 listener leak (Session 249) |
+| P0 Fixes | `unawaited` `then<void> onError` + `await close()` + `chatId` null check (Session 245) · Hygiene 1.1/1.2/1.3/1.5/1.6/2.2/2.3/2.4/3.1-3.3/4.1/5 (Session 248) · Follow-up dead-catch + 3.1 postFrame + 4.6 listener (Session 249) · Double-call resume incoming-share (Session 250) |
 | Feature Flags | ~24 (core 21: typesense, videoCall, groupChat, gifSupport, mediaMessages, audioMessages, videoMessages, messageExpiry, messageReactions, replyToMessage, **replyPrivately**, editMessage, deleteMessage, messageInfo, messageEmail, messageShare, groupEvents, webVersion, aiMatching, verifiedBadge, premiumTier + moderation: contentModerationEnabled, autoModerateProfilePhotos, autoModerateChatMedia, blurExplicitByDefault) |
 
 ## ΚΕΦΑΛΑΙΟ 7 — KEY CONVENTIONS
@@ -2117,5 +2117,24 @@ Follow-up hygiene μετά το Session 248: sanity-checks που ανέδειξ
 
 ### Παραλείψεις
 * Defer `2.1 SRP`, `2.5 ref.listen` (όχι bug).
+
+> Αυτό το μπλοκ πρέπει να «κληρονομείται» σε κάθε επόμενο session στο τέλος του αρχείου.
+
+---
+
+## Session 250 — Fix: resume double-call incoming-share (poll before biometric) (100%) — 30 Αυγ 2026
+
+### Σκοπός
+Στο `resume-με-επιτυχές-re-auth` το `_executeIncomingShareSafely()` καλούνταν 2× (1 μέσα στο `_authenticate success` via `onUnlocked`, 1 στο `main.then poll+execute`). Το `pollPending()` μπροστά στο `checkOnResume` έπιανε φρέσκο native-buffered share που η #1 έβλεπε μπαγιάτικο — σιωπηλό no-op-safe αλλά όχι clean. Απλή διαγραφή #2 = regression (φρέσκο payload δεν εκτελείται).
+
+### Υλοποίηση — 2 αρχεία (backups `backups/*pre_doublecall_*.dart`)
+
+* **`idle_lock_service.dart:336 checkOnResume`** — `onUnlocked?.call()` σε ΟΛΑ τα `unlocked outcome` branches (`_lastUnlockTime<5`, `short pause`, `!_cachedBiometricEnabled`) — όχι μόνο `auth-success` via `_markUnlocked`. `isLocked/_authInProgress` μένουν `return` χωρίς `onUnlocked` (locked). Doc `12-19` +3γρ. νέα σημασιολογία.
+* **`main.dart:318 didChangeAppLifecycleState resumed`** — `IncomingShareService.pollPending().then(checkOnResume)` (poll ΠΡΙΝ, few ms `MethodChannel` όχι δίκτυο) + `then notifyUserActivity` μόνο (όχι 2ο `execute`). `onUnlocked` στο `initState 243` παραμένει ΜΟΝΑΔΙΚΟ σημείο `FcmService.tryExecutePendingNav + _executeIncomingShareSafely`.
+
+### Έλεγχος
+* `flutter analyze --no-pub` clean (21s).
+* Logs `11:02-11:06` 20.8MB: `startup biometric success 11:03:08` + `idle 1->2min 11:04:25` + `short pause skipping 11:04:20` + `resumed poll before biometric` — 1 `execute` ανά resume, few ms πριν prompt (μη αντιληπτό).
+* Rebuild storm `Κεφ.10` 0 `MSG_LIST ×26`.
 
 > Αυτό το μπλοκ πρέπει να «κληρονομείται» σε κάθε επόμενο session στο τέλος του αρχείου.

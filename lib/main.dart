@@ -320,12 +320,17 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
     if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
       IdleLockService.onAppPaused();
     } else if (state == AppLifecycleState.resumed && mounted) {
-      IdleLockService.checkOnResume(reason: _biometricReason).then((_) {
-        if (!IdleLockService.isLocked && mounted) {
-          IdleLockService.notifyUserActivity();
-          IncomingShareService.pollPending();
-          _executeIncomingShareSafely();
-        }
+      // pollPending() ΠΡΙΝ το biometric check: φρεσκάρει το native-buffered
+      // pending share ώστε ΟΠΟΙΟΔΗΠΟΤΕ unlock-path (short-pause-skip,
+      // biometric off, ή επιτυχές auth μέσω onUnlocked) να δει το φρέσκο
+      // payload — αποφεύγει το παλιό double-call (1 πριν + 1 μετά το poll).
+      IncomingShareService.pollPending().then((_) {
+        if (!mounted) return;
+        IdleLockService.checkOnResume(reason: _biometricReason).then((_) {
+          if (!IdleLockService.isLocked && mounted) {
+            IdleLockService.notifyUserActivity();
+          }
+        });
       });
     }
   }

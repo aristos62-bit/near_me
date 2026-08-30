@@ -17,6 +17,9 @@ import '../utils/lock_screen.dart';
 ///   biometric off) → οδηγεί FcmService.tryExecutePendingNav +
 ///   IncomingShareService. Δεν μπορεί να ενοποιηθεί με το πρώτο γιατί ο
 ///   startup-χωρίς-biometric δρόμος δεν περνάει ΠΟΤΕ από isLocked=true.
+///   Καλείται από ΟΛΑ τα branches του checkOnResume (όχι μόνο το
+///   auth-success) ώστε ο caller (main.dart) να μη χρειάζεται δικό του
+///   δεύτερο, ενδεχομένως προ-poll, execute call.
 ///
 /// ΣΗΜΑΝΤΙΚΟ — δύο flags, διαφορετικό timing:
 /// - FcmService.isLocked=true τίθεται ΠΡΙΝ ξεκινήσει το biometric prompt
@@ -74,15 +77,22 @@ class IdleLockService {
   /// Κλήση από didChangeAppLifecycleState όταν state==resumed.
   static Future<void> checkOnResume({required String reason}) async {
     if (isLocked || _authInProgress) return;
-    if (DateTime.now().difference(_lastUnlockTime).inSeconds < 5) return;
+    if (DateTime.now().difference(_lastUnlockTime).inSeconds < 5) {
+      onUnlocked?.call();
+      return;
+    }
     if (!FcmService.hasPendingNavigation &&
         _lastPauseTime != null &&
         DateTime.now().difference(_lastPauseTime!).inSeconds < _pauseThresholdSeconds) {
       DebugConfig.log(DebugConfig.serviceCall,
           'IdleLockService: short pause — skipping biometric');
+      onUnlocked?.call();
       return;
     }
-    if (!_cachedBiometricEnabled) return;
+    if (!_cachedBiometricEnabled) {
+      onUnlocked?.call();
+      return;
+    }
     _authInProgress = true;
     try {
       FcmService.isLocked = true;

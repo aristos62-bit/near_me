@@ -11,6 +11,7 @@ import 'core/debug/debug_config.dart';
 import 'dart:async';
 import 'core/notifications/fcm_service.dart';
 import 'core/config/feature_flags.dart';
+import 'core/services/idle_lock_service.dart';
 import 'core/services/incoming_share_service.dart';
 import 'core/services/presence_service.dart';
 import 'core/utils/app_messenger.dart';
@@ -222,24 +223,28 @@ class NearMeApp extends ConsumerStatefulWidget {
 }
 
 class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserver {
-  static const _pauseThresholdSeconds = 60;
-
   StreamSubscription<RemoteMessage>? _fcmSub;
   bool _isLocked = false;
-  bool _authInProgress = false;
-  DateTime _lastUnlockTime = DateTime(2000);
-  DateTime? _lastPauseTime;
-  DateTime? _lastIdleReset;
-  int _lastResetDuration = 0;
-  Timer? _idleTimer;
-  int _cachedAutoLockMinutes = 0;
-  bool _cachedBiometricEnabled = false;
   late final Locale _deviceLocale;
+
+  String get _biometricReason {
+    final unlock = L10n.isGreekLocale(_deviceLocale) ? 'Ξεκλείδωσε το' : 'Unlock';
+    return '$unlock ${L10n.appNameFromLocale(_deviceLocale)}';
+  }
 
   @override
   void initState() {
     super.initState();
     _deviceLocale = L10n.deviceLocale();
+    IdleLockService.onLockStateChanged = (locked) {
+      if (!mounted) return;
+      setState(() => _isLocked = locked);
+    };
+    IdleLockService.onUnlocked = () {
+      if (!mounted) return;
+      FcmService.tryExecutePendingNav();
+      _executeIncomingShareSafely();
+    };
     WidgetsBinding.instance.addObserver(this);
     IncomingShareService.onPending = _executeIncomingShareSafely;
     _fcmSub = FcmService.foregroundStream.listen(
@@ -248,46 +253,6 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
       cancelOnError: false,
     );
 
-  }
-
-  Future<void> _applyStartupLock() async {
-    final settings = ref.read(appSettingsProvider).value;
-    if (settings == null || !settings.biometricLockEnabled) {
-      FcmService.tryExecutePendingNav();
-      _executeIncomingShareSafely();
-      return;
-    }
-    FcmService.isLocked = true;
-    await _authenticateWithBiometrics(debugLabel: 'startup');
-  }
-
-  Future<bool> _authenticateWithBiometrics({required String debugLabel}) async {
-    DebugConfig.log(DebugConfig.serviceCall, 'main: $debugLabel biometric start');
-    final locale = _deviceLocale;
-    final appName = L10n.appNameFromLocale(locale);
-    final unlock = L10n.isGreekLocale(locale) ? 'Ξεκλείδωσε το' : 'Unlock';
-    try {
-      final ok = await LockScreen.authenticate(reason: '$unlock $appName');
-      if (ok) {
-        FcmService.isLocked = false;
-        _lastUnlockTime = DateTime.now();
-        DebugConfig.log(DebugConfig.serviceCall, 'main: $debugLabel biometric success');
-        FcmService.tryExecutePendingNav();
-        _executeIncomingShareSafely();
-        return true;
-      }
-      DebugConfig.warn('main: $debugLabel biometric rejected, locking');
-      if (mounted) {
-        setState(() => _isLocked = true);
-      } else {
-        FcmService.isLocked = true;
-      }
-      return false;
-    } catch (e, s) {
-      DebugConfig.error('main: $debugLabel biometric failed', data: e, exception: s);
-      FcmService.isLocked = false;
-      return false;
-    }
   }
 
   Future<void> _applyCrashConsent(bool enabled) async {
@@ -341,7 +306,9 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
   @override
   void dispose() {
     IncomingShareService.onPending = null;
-    _stopIdleTimer();
+    IdleLockService.onLockStateChanged = null;
+    IdleLockService.onUnlocked = null;
+    IdleLockService.reset();
     WidgetsBinding.instance.removeObserver(this);
     _fcmSub?.cancel();
     super.dispose();
@@ -351,89 +318,15 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
   void didChangeAppLifecycleState(AppLifecycleState state) {
     PresenceService.handleLifecycle(state);
     if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
-      _lastPauseTime = DateTime.now();
-      _stopIdleTimer();
-      DebugConfig.log(DebugConfig.serviceCall,
-          'main: lifecycle $state — idleTimer stopped');
+      IdleLockService.onAppPaused();
     } else if (state == AppLifecycleState.resumed && mounted) {
-      _checkBiometricLock().then((_) {
-        if (!_isLocked && mounted) {
-          _resetIdleTimer();
+      IdleLockService.checkOnResume(reason: _biometricReason).then((_) {
+        if (!IdleLockService.isLocked && mounted) {
+          IdleLockService.notifyUserActivity();
           IncomingShareService.pollPending();
           _executeIncomingShareSafely();
         }
       });
-    }
-  }
-
-  Future<void> _checkBiometricLock() async {
-    if (_isLocked || _authInProgress) return;
-    if (DateTime.now().difference(_lastUnlockTime).inSeconds < 5) return;
-    if (!FcmService.hasPendingNavigation &&
-        _lastPauseTime != null &&
-        DateTime.now().difference(_lastPauseTime!).inSeconds < _pauseThresholdSeconds) {
-      DebugConfig.log(DebugConfig.serviceCall,
-          'main: short pause (${DateTime.now().difference(_lastPauseTime!).inSeconds}s < $_pauseThresholdSeconds s) — skipping biometric');
-      return;
-    }
-    _authInProgress = true;
-    try {
-      final settings = ref.read(appSettingsProvider).value;
-      if (settings == null || !settings.biometricLockEnabled) return;
-      FcmService.isLocked = true;
-      await _authenticateWithBiometrics(debugLabel: 'resume');
-    } finally {
-      _authInProgress = false;
-    }
-  }
-
-  void _stopIdleTimer() {
-    if (_idleTimer != null) {
-      _idleTimer!.cancel();
-      _idleTimer = null;
-      DebugConfig.log(DebugConfig.serviceCall, 'main: idleTimer stopped');
-    }
-  }
-
-  void _resetIdleTimer() {
-    if (!_cachedBiometricEnabled || _cachedAutoLockMinutes <= 0) return;
-
-    final now = DateTime.now();
-    final durationChanged = _lastResetDuration != _cachedAutoLockMinutes;
-    if (!durationChanged && _idleTimer != null && _lastIdleReset != null &&
-        now.difference(_lastIdleReset!) < const Duration(seconds: 1)) {
-      return;
-    }
-
-    _lastIdleReset = now;
-    _lastResetDuration = _cachedAutoLockMinutes;
-
-    _stopIdleTimer();
-    if (_isLocked) {
-      DebugConfig.log(DebugConfig.serviceCall,
-          'main: idleTimer reset skipped (locked)');
-      return;
-    }
-    _idleTimer = Timer(
-      Duration(minutes: _cachedAutoLockMinutes),
-      _onIdleTimeout,
-    );
-    DebugConfig.log(DebugConfig.serviceCall,
-        'main: idleTimer reset — ${_cachedAutoLockMinutes}min');
-  }
-
-  void _onIdleTimeout() {
-    if (_isLocked) {
-      DebugConfig.log(DebugConfig.serviceCall,
-          'main: idleTimer timeout skipped (already locked)');
-      return;
-    }
-    _idleTimer = null;
-    DebugConfig.log(DebugConfig.serviceCall,
-        'main: idleTimer timeout → locking app');
-    if (mounted) {
-      FcmService.isLocked = true;
-      setState(() => _isLocked = true);
     }
   }
 
@@ -541,10 +434,7 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
         }
       }
       if (prevUser != null && nextUser == null && mounted) {
-        _stopIdleTimer();
-        if (_isLocked) {
-          setState(() => _isLocked = false);
-        }
+        IdleLockService.reset();
       }
     });
     ref.listen(chatsProvider, (prev, next) {
@@ -555,36 +445,24 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
       if (!mounted) return;
       final p = prev?.value;
       final n = next.value;
-      if (n != null) {
-        _cachedAutoLockMinutes = n.autoLockMinutes;
-        _cachedBiometricEnabled = n.biometricLockEnabled;
-      }
       if (p == null && n != null) {
+        IdleLockService.primeCache(
+          biometricEnabled: n.biometricLockEnabled,
+          autoLockMinutes: n.autoLockMinutes,
+        );
         if (n.screenshotPreventionEnabled) {
           ScreenProtector.enable();
         }
-        _applyStartupLock();
+        IdleLockService.applyStartupLock(reason: _biometricReason);
         _applyCrashConsent(n.crashReportsEnabled);
       }
       if (p != null && n != null) {
-        if (!p.biometricLockEnabled && n.biometricLockEnabled) {
-          _lastUnlockTime = DateTime.now();
-        }
-        if (p.autoLockMinutes != n.autoLockMinutes) {
-          DebugConfig.log(DebugConfig.serviceCall,
-              'main: autoLockMinutes changed ${p.autoLockMinutes} → ${n.autoLockMinutes}');
-          _resetIdleTimer();
-        }
-        if (p.biometricLockEnabled && !n.biometricLockEnabled) {
-          DebugConfig.log(DebugConfig.serviceCall,
-              'main: biometric disabled — idleTimer stopped');
-          _stopIdleTimer();
-        }
-        if (!p.biometricLockEnabled && n.biometricLockEnabled) {
-          DebugConfig.log(DebugConfig.serviceCall,
-              'main: biometric enabled — idleTimer started');
-          _resetIdleTimer();
-        }
+        IdleLockService.onSettingsChanged(
+          previousBiometricEnabled: p.biometricLockEnabled,
+          biometricEnabled: n.biometricLockEnabled,
+          previousAutoLockMinutes: p.autoLockMinutes,
+          autoLockMinutes: n.autoLockMinutes,
+        );
       }
     });
     if (!widget.isFirebaseReady) {
@@ -606,26 +484,14 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
         return Stack(
           children: [
             Listener(
-              onPointerDown: (_) => _resetIdleTimer(),
-              onPointerMove: (_) => _resetIdleTimer(),
-              onPointerSignal: (_) => _resetIdleTimer(),
+              onPointerDown: (_) => IdleLockService.notifyUserActivity(),
+              onPointerMove: (_) => IdleLockService.notifyUserActivity(),
+              onPointerSignal: (_) => IdleLockService.notifyUserActivity(),
               child: child ?? const SizedBox.shrink(),
             ),
             const GlobalConnectivityBanner(),
             if (_isLocked)
-              LockScreen(
-                onUnlock: () {
-                  DebugConfig.log(DebugConfig.serviceCall,
-                      'main: lock screen unlock success');
-                  FcmService.isLocked = false;
-                  FcmService.tryExecutePendingNav();
-                  _executeIncomingShareSafely();
-                  setState(() {
-                    _isLocked = false;
-                    _lastUnlockTime = DateTime.now();
-                  });
-                  _resetIdleTimer();
-                },
+              LockScreen(onUnlock: IdleLockService.unlockManually,
               ),
           ],
         );

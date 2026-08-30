@@ -261,7 +261,7 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 | Schema | Drift v15, 7 tables (+crashReportsEnabled σε AppSettings) |
 | Moderation | Active (Session 246-247): all 4 flags `true` (contentModerationEnabled, autoModerateProfilePhotos, autoModerateChatMedia, blurExplicitByDefault) · Vision SafeSearch **EU endpoint** `eu-vision.googleapis.com` + `moderationLog` rules (Session 247 P0s) · CF `checkImageModeration` + `moderateImage` deployed + kill-switch `config/moderation` |
 | Photo Fix | `EqualUnmodifiableListView` → `List.from` `profile_editor_screen.dart:153,161` (Session 244) |
-| P0 Fixes | `unawaited` `then<void> onError` + `await close()` + `chatId` null check (Session 245) · Hygiene 1.1/1.2/1.3/1.5/1.6/2.2/2.3/2.4/3.1-3.3/4.1/5 (Session 248) · Follow-up dead-catch + 3.1 postFrame + 4.6 listener (Session 249) · Double-call resume incoming-share (Session 250) |
+| P0 Fixes | `unawaited` `then<void> onError` + `await close()` + `chatId` null check (Session 245) · Hygiene 1.1/1.2/1.3/1.5/1.6/2.2/2.3/2.4/3.1-3.3/4.1/5 (Session 248) · Follow-up dead-catch + 3.1 postFrame + 4.6 listener (Session 249) · Double-call resume (Session 250) · B3+B6 iOS Info.plist (Session 251) |
 | Feature Flags | ~24 (core 21: typesense, videoCall, groupChat, gifSupport, mediaMessages, audioMessages, videoMessages, messageExpiry, messageReactions, replyToMessage, **replyPrivately**, editMessage, deleteMessage, messageInfo, messageEmail, messageShare, groupEvents, webVersion, aiMatching, verifiedBadge, premiumTier + moderation: contentModerationEnabled, autoModerateProfilePhotos, autoModerateChatMedia, blurExplicitByDefault) |
 
 ## ΚΕΦΑΛΑΙΟ 7 — KEY CONVENTIONS
@@ -2136,5 +2136,28 @@ Follow-up hygiene μετά το Session 248: sanity-checks που ανέδειξ
 * `flutter analyze --no-pub` clean (21s).
 * Logs `11:02-11:06` 20.8MB: `startup biometric success 11:03:08` + `idle 1->2min 11:04:25` + `short pause skipping 11:04:20` + `resumed poll before biometric` — 1 `execute` ανά resume, few ms πριν prompt (μη αντιληπτό).
 * Rebuild storm `Κεφ.10` 0 `MSG_LIST ×26`.
+
+> Αυτό το μπλοκ πρέπει να «κληρονομείται» σε κάθε επόμενο session στο τέλος του αρχείου.
+
+---
+
+## Session 251 — B3+B6: iOS Info.plist privacy strings + Crashlytics OFF (100%) — 30 Αυγ 2026
+
+### Σκοπός
+Κλείσιμο 2 hard blockers Phase A σε 1 atomic edit (ίδιο αρχείο, 0 side-effects): B3 crash/reject χωρίς `NSLocationWhenInUse/NSPhotoLibrary*` + B6 GDPR παράθυρο iOS Crashlytics.
+
+### Υλοποίηση — 1 αρχείο (backup `backups/Info_plist_pre_B3B6_20260830_113425.plist`)
+
+* **`ios/Runner/Info.plist:33-40`** — 4 entries πριν `LSRequiresIPhoneOS` (76->84γρ.):
+  * `NSLocationWhenInUseUsageDescription` — `geolocator ^14.0.2` `location_service:123` foreground only (Android `ACCESS_FINE/COARSE` χωρίς `BACKGROUND` -> όχι `Always`, `launch.md:199`).
+  * `NSPhotoLibraryUsageDescription` — `image_picker 1.2.2` gallery (`profile_editor:236,298` + `chat_input_bar:231` + `group_settings:48`) + δίγλωσσο cover chat photos.
+  * `NSPhotoLibraryAddUsageDescription` — harmless future-proof (`image_cropper 12.2.1` tmp, όχι gallery save σήμερα).
+  * `FirebaseCrashlyticsCollectionEnabled <false/>` — iOS native OFF (Android `AndroidManifest:61` ήδη `false`, Dart `main:260`/`app_settings_provider:121` `setCrashlyticsCollectionEnabled` + `deleteUnsentReports` — `Session 238` pattern, key case-sensitive `launch.md:322`).
+* `NSCameraUsageDescription:31` ήδη OK -> καλύπτει `ImageSource.camera` (`chat_input_bar:233,300`) — όχι νέο key. `CFBundle*`/`PRODUCT_BUNDLE_IDENTIFIER=gr.nearme.app:385` ανέπαφα.
+
+### Έλεγχος
+* `flutter analyze --no-pub` clean 22.7s (plist δεν αγγίζει Dart).
+* `Info.plist` UTF-8 δίγλωσσο `Ελληνικά / English` όπως `:29-31`, `Κοντά μου` κεφαλαίο, `plutil -lint` clean (manual).
+* Device test εκκρεμεί: `getCurrentLocation()` + `pickImage(gallery)` -> dialog με σωστό string (όχι crash) · cold start `collection=false` (`main:263`).
 
 > Αυτό το μπλοκ πρέπει να «κληρονομείται» σε κάθε επόμενο session στο τέλος του αρχείου.

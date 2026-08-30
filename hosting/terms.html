@@ -3,17 +3,170 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Terms — NearMe</title>
+<title>Terms of Service — NearMe (Κοντά μου)</title>
+<meta name="description" content="Terms of Service — NearMe: όροι χρήσης, κανόνες, λειτουργικότητα">
 <style>
- body{max-width:800px;margin:0 auto;padding:24px 16px;font-family:system-ui;line-height:1.6}
- a{color:#0B57D0}
+  :root{--max:850px;--fg:#111;--muted:#555;--line:#e6e6e6;--accent:#0B57D0}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Helvetica,Arial;line-height:1.68;color:var(--fg);background:#fff}
+  header,main,footer{max-width:var(--max);margin:0 auto;padding:24px 16px}
+  header{padding-top:32px;border-bottom:1px solid var(--line)}
+  h1{font-size:28px;margin:0 0 8px}
+  h2{font-size:19px;margin:32px 0 8px;color:var(--accent)}
+  h3{font-size:15px;margin:18px 0 6px}
+  p,li{font-size:15px}
+  ul{padding-left:20px}
+  a{color:var(--accent)}
+  .pill{display:inline-block;font-size:12px;padding:4px 10px;border:1px solid var(--line);border-radius:999px;color:var(--muted);margin:2px 6px 2px 0}
+  .card{border:1px solid var(--line);border-radius:12px;padding:16px;background:#fafafa}
+  .muted{color:var(--muted)}
+  code{background:#f3f3f3;padding:1px 6px;border-radius:6px;font-size:13px}
+  footer{border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+  @media(prefers-color-scheme:dark){
+    body{background:#0b0b0b;color:#eaeaea}
+    .card{background:#161616;border-color:#2a2a2a}
+    code{background:#1e1e1e}
+    header,footer{border-color:#222}
+  }
 </style>
 </head>
 <body>
-<h1>Terms of Service — NearMe</h1>
-<p class="muted">Last updated: 30 Aug 2026 · Contact: <a href="mailto:soc.near.app@gmail.com">soc.near.app@gmail.com</a></p>
-<p>Χρήση 18+ μόνο. Σεβασμός σε άλλους χρήστες, απαγόρευση spam/harassment/ψεύτικων προφίλ. Αναφορές → <code>reports/{id}</code> → Auto-ban στις 5 αναφορές. Διαγραφή λογαριασμού διαθέσιμη ανά πάσα στιγμή (CF deleteUserData). Εφαρμόζεται η <a href="/privacy">Privacy Policy</a>.</p>
-<p>Use is 18+ only. Respect other users, no spam/harassment/fake profiles. Reports → auto-ban at 5. Account deletion available anytime. <a href="/privacy">Privacy Policy</a> applies.</p>
-<p><a href="/privacy">← Privacy Policy</a></p>
+<header>
+  <div><span class="pill">18+ only</span><span class="pill">eur3 / europe-west1</span><span class="pill">v1.1.0</span><span class="pill">Grants: Location/Camera/Mic/Notifications</span></div>
+  <h1>Terms of Service — NearMe <span class="muted">(Κοντά μου)</span></h1>
+  <p class="muted">Εφαρμογή γνωριμιών / συγκατοίκησης / δικτύωσης — Privacy-first, Local-first.<br>
+  Controller: <strong>NearMe EU</strong> · <a href="mailto:soc.near.app@gmail.com">soc.near.app@gmail.com</a> · HDPA dpa.gr · <a href="/privacy">Privacy Policy</a><br>
+  Last updated: <strong>30 Aug 2026</strong></p>
+  <p><a href="#el">Ελληνικά ↓</a> · <a href="#en">English ↓</a></p>
+</header>
+
+<main>
+  <section id="el" class="card">
+    <h2>Σύνοψη</h2>
+    <p>Χρησιμοποιώντας το NearMe αποδέχεσαι τους παρόντες όρους. Το πλήρες προφίλ μένει στη συσκευή σου (Drift) — στο cloud ανεβαίνει μόνο ό,τι επιλέγεις ως δημόσιο και για όσο το κρατάς δημοσιευμένο. Η υπηρεσία είναι 18+ και απαιτεί σεβασμό στους κανόνες κοινότητας.</p>
+  </section>
+
+  <h2>1. Αποδοχή</h2>
+  <p>Η εγκατάσταση, η δημιουργία προφίλ ή η χρήση της εφαρμογής συνιστά αποδοχή των όρων. Αν διαφωνείς, μην χρησιμοποιείς την υπηρεσία.</p>
+
+  <h2>2. Επιλεξιμότητα</h2>
+  <ul>
+    <li>18+ μόνο — έλεγχος <code>age &gt;=18</code> στο publish (<code>firestore.rules:87</code>). Απαγορεύεται η χρήση από ανηλίκους.</li>
+    <li>Ένας λογαριασμός ανά άτομο/συσκευή. Απαγορεύεται η πλαστοπροσωπία.</li>
+  </ul>
+
+  <h2>3. Λογαριασμός &amp; Επαλήθευση</h2>
+  <ul>
+    <li><strong>Anonymous-first:</strong> ξεκινάς ανώνυμα (Firebase Anonymous) — περιήγηση, αποθήκευση τοπικά.</li>
+    <li><strong>Επαλήθευση για επικοινωνία:</strong> για αποστολή αιτήματος/chat απαιτείται επαληθευμένο email (link) — <code>canUserCommunicate = !isAnonymous &amp;&amp; emailVerified</code>. Το phone verification είναι εκτός λειτουργίας (feature flag OFF).</li>
+    <li>Ευθύνη για την ασφάλεια του λογαριασμού δική σου. Σε υποψία παραβίασης επικοινώνησε στο <a href="mailto:soc.near.app@gmail.com">soc.near.app@gmail.com</a>.</li>
+  </ul>
+
+  <h2>4. Προφίλ &amp; Απόρρητο (λειτουργικότητα)</h2>
+  <ul>
+    <li>Δημιουργείς προφίλ τοπικά (23 πεδία: ψευδώνυμο, ηλικία, φύλο, bio, ενδιαφέροντα, lookingFor κ.λπ.).</li>
+    <li><strong>14 toggles</strong> στο <em>Privacy Editor</em> (showNickname/FullName/Age/Gender/City/Country/Phone/Email/Interests/Occupation/Bio/LookingFor/Avatar/Photos + allowVideoCall/allowDirectChat).</li>
+    <li><strong>Publish/Unpublish</strong> — master switch <code>isVisible</code>. Όταν είναι OFF δεν εμφανίζεσαι στην αναζήτηση. Εφαρμογή αλλαγών απορρήτου σε δημοσιευμένο προφίλ γίνεται με <em>Apply</em>.</li>
+    <li>ConsentLog τοπικό (Drift) — ιστορικό συγκαταθέσεων στη συσκευή.</li>
+  </ul>
+
+  <h2>5. Τοποθεσία</h2>
+  <ul>
+    <li>Ρυθμιζόμενη ακρίβεια που επιλέγεις: <strong>Πόλη (3) / Γειτονιά (5, προεπιλογή ~2.5km²) / Δρόμος (7, ~150m) / Κρυφό (0)</strong> — <code>privacy_editor_screen.dart:201</code> + <code>index.ts:787</code> GeoHash.</li>
+    <li>Ποτέ raw lat/lng δημόσια — μόνο GeoHash. Μπορείς να δηλώσεις χειροκίνητα πόλη/χώρα αντί GPS. Για όνομα πόλης χρησιμοποιείται geocoding συσκευής (Google/Apple) + Nominatim.</li>
+    <li>GPS session cache 5' → last known → failure.</li>
+  </ul>
+
+  <h2>6. Ανακάλυψη &amp; Αναζήτηση</h2>
+  <ul>
+    <li>4 διαδρομές: GPS-only, City+radius (GeoHash), City-only, Country-only — server-side φίλτρα + <code>_passesFilters</code> client safety, cursor pagination, cap 300.</li>
+    <li>Φίλτρα: ηλικία, φύλο, ενδιαφέροντα, lookingFor, videoChat/directChat, online. Αποθηκευμένες αναζητήσεις τοπικά.</li>
+    <li>Rate limit αναζήτησης 30/5' (CF <code>checkSearchRateLimit</code>, fail-open) — υπέρβαση → <code>search/rate-limited</code>.</li>
+  </ul>
+
+  <h2>7. Αιτήματα Επικοινωνίας</h2>
+  <ul>
+    <li>Τύποι: <code>chat</code> / <code>video</code> — επιτρέπονται μόνο αν ο παραλήπτης είναι <code>isVisible</code> και <code>allowDirectChat/VideoCall</code> (Privacy Editor). Έλεγχος και σε client + Rules.</li>
+    <li>Λήξη 48h (<code>expireStaleRequests</code> 02:00 Europe/Athens), readAt/unread tracking, dashboard εισερχόμενα/εξερχόμενα.</li>
+    <li>Αποκλεισμένος χρήστης δεν μπορεί να σου στείλει αίτημα.</li>
+  </ul>
+
+  <h2>8. Συνομιλίες — 1-1 &amp; Ομάδες</h2>
+  <ul>
+    <li><strong>1-1:</strong> <code>participants [uid1,uid2]</code>, delete-for-me / request-approve/reject flow.</li>
+    <li><strong>Ομάδες:</strong> 2–100 μέλη (<code>maxParticipants</code>), ρόλοι creator/admin/member, invites με λήξη/χρήσεις, audit log, public groups με <code>memberCount</code>. Προσθήκη μέλους μέσω CF <code>addGroupParticipant</code> (block check), αποχώρηση <code>leaveGroup</code>.</li>
+    <li>Δικαιώματα ανά ρόλο + overrides, seenBy/read receipts.</li>
+  </ul>
+
+  <h2>9. Μηνύματα &amp; Πολυμέσα</h2>
+  <ul>
+    <li>Τύποι: text / system / image / gif (GIPHY) / audio (≤60s, m4a) / video (≤30s, ≤50MB, mp4) — Storage <code>chat_media/{chatId}/{msgId}</code>, avatar 5MB, photos 5×5MB.</li>
+    <li>Κρυπτογράφηση AES-256-GCM client-side, κλειδί ανά chat στο <code>flutter_secure_storage</code> (<code>deriveKey</code> deterministic για ανάκτηση).</li>
+    <li>Upload timeouts 15s (image/audio/thumb) / 30s (video) / 10s URL — <code>StorageHelpers</code> Timer+Completer (UploadTask) — αποφυγή infinite spinner.</li>
+    <li>Reactions, reply (+ thumbnail), reply-privately (group → 1-1), edit 15' παράθυρο, delete, info, email/share/forward, expiry banner (off/1m/5m/30m/6h/12h/24h → CF <code>expireStaleMessages</code> 5').</li>
+    <li>Presence 60s heartbeat, FCM push (5 triggers + utils), badge.</li>
+  </ul>
+
+  <h2>10. Περιεχόμενο Χρήστη &amp; Moderation</h2>
+  <ul>
+    <li>Είσαι υπεύθυνος για ό,τι ανεβάζεις. Απαγορεύεται explicit/παράνομο περιεχόμενο.</li>
+    <li>EXIF GPS αφαιρείται πριν το upload (<code>ImageUtils.stripExif</code>). Video: ελέγχεται μόνο το thumbnail frame.</li>
+    <li>Moderation: Vision SafeSearch EU endpoint <code>eu-vision.googleapis.com</code> — CF <code>checkImageModeration</code> (pre-upload) + <code>moderateImage</code> (storage trigger, kill-switch <code>config/moderation</code>). Απόρριψη → διαγραφή αρχείου + auto-unpublish + μήνυμα <code>moderation/blocked-explicit(-video)</code>.</li>
+    <li>Storage Rules: read/write μόνο participant/owner, όρια μεγέθους.</li>
+  </ul>
+
+  <h2>11. Κανόνες Κοινότητας — Απαγορεύσεις</h2>
+  <ul>
+    <li>Spam, harassment, hate, ψεύτικο προφίλ, ανήλικοι, scraping (bulk <code>collectionGroup</code>), παράκαμψη rate limits, κοινοποίηση προσωπικών δεδομένων άλλων χωρίς συναίνεση, εμπορική χρήση χωρίς άδεια.</li>
+  </ul>
+
+ <h2>11α. Προστασία Χρηστών — Όριο Ευθύνης για Κακόβουλη Χρήση</h2>
+ <p>Η Εταιρεία έχει εφαρμόσει κάθε εύλογο και αυστηρό τεχνικό &amp; οργανωτικό μέτρο για την προστασία των χρηστών από κακόβουλη χρήση — ενδεικτικά: moderation Vision SafeSearch EU, EXIF strip, rate limits (30/5'), block/report με auto-ban στις 5, GeoHash αντί raw GPS, AES-256-GCM, FLAG_SECURE, κρυπτογραφημένα tokens, έλεγχοι <code>firestore.rules</code>/<code>storage.rules</code> και ανθρώπινη διαχείριση αναφορών. Παρά ταύτα, δεν φέρει — στο μέγιστο επιτρεπόμενο από τον νόμο — ευθύνη για ζημίες που προκύπτουν από <strong>εσκεμμένη κακοχρήση, παραβίαση των παρόντων όρων ή παράνομη συμπεριφορά τρίτων χρηστών</strong>. Ο χρήστης οφείλει να επιδεικνύει επιμέλεια (μη κοινοποίηση προσωπικών/οικονομικών στοιχείων, συνάντηση σε δημόσιο χώρο).</p>
+
+  <h2>12. Αναφορά / Αποκλεισμός &amp; Επιβολή</h2>
+  <ul>
+    <li>Block: τοπικά + Firestore <code>users/{uid}/blocked/{target}</code> — αποκλείει από αναζήτηση και μηνύματα.</li>
+    <li>Report: <code>reports/{id}</code> (spam/harassment/fake/inappropriate/other) — rate limit 10/ώρα, 5 αναφορές → auto-ban → <code>banned/{uid}</code> + <code>isVisible=false</code> + FCM. Self-report/duplicate/already-banned → απόρριψη.</li>
+  </ul>
+
+  <h2>13. Παρουσία &amp; Ειδοποιήσεις</h2>
+  <p>Online presence heartbeat, FCM tokens ανά συσκευή, καθαρισμός invalid tokens. Μπορείς να απενεργοποιήσεις ειδοποιήσεις από τις ρυθμίσεις συστήματος.</p>
+
+  <h2>14. Ασφάλεια Συσκευής</h2>
+  <ul>
+    <li>Biometric lock + auto-lock 1–30' (<code>local_auth</code>), FLAG_SECURE screenshot prevention (Android, opt-in), κλειδιά κρυπτογράφησης σε secure storage.</li>
+    <li>Crash reports OFF by default (<code>AndroidManifest:62</code> + iOS <code>Info.plist</code>), opt-in στις Ρυθμίσεις → Διαγνωστικά, purge με <code>deleteUnsentReports</code> όταν OFF.</li>
+  </ul>
+
+  <h2>15. Διαγραφή &amp; Διατήρηση</h2>
+  <p><em>Settings → Διαγραφή Λογαριασμού</em> → CF <code>deleteUserData:563</code> διαγράφει 10+ buckets (avatars, photos, requests, chats/messages, public/profile, status, privacy/settings, blocked, rateLimits/search, fcm_tokens) + Storage. Μηνύματα/αιτήματα με expiry διαγράφονται αυτόματα. Unpublish = άμεσο κατέβασμα από αναζήτηση.</p>
+
+  <h2>16. Πνευματικά Δικαιώματα</h2>
+  <p>Το περιεχόμενό σου παραμένει δικό σου. Παραχωρείς στο NearMe μη αποκλειστική άδεια προβολής του δημόσιου snapshot σε άλλους χρήστες όσο είναι δημοσιευμένο. Η εφαρμογή, τα σήματα και ο κώδικας ανήκουν στο NearMe.</p>
+
+  <h2>17. Αποποίηση</h2>
+  <p>Η υπηρεσία παρέχεται «ως έχει» χωρίς εγγύηση διαθεσιμότητας, ασφάλειας γνωριμίας ή αποτελέσματος. Δεν ελέγχουμε την ταυτότητα/συμπεριφορά χρηστών πέρα από moderation/reporting.</p>
+
+  <h2>18. Περιορισμός Ευθύνης</h2>
+  <p>Στο μέγιστο επιτρεπόμενο από τον νόμο, το NearMe δεν ευθύνεται για έμμεσες ζημίες ή για ενέργειες χρηστών. Η ευθύνη περιορίζεται στο ποσό που κατέβαλες (0 για δωρεάν χρήση).</p>
+
+  <h2>19. Αλλαγές</h2>
+  <p>Μπορούμε να ενημερώνουμε τους όρους. Η ημερομηνία Last updated αλλάζει και, για ουσιώδεις αλλαγές, θα ειδοποιηθείς in-app. Συνέχιση χρήσης = αποδοχή.</p>
+
+  <h2>20. Δίκαιο &amp; Διαφορές</h2>
+  <p>Ελληνικό δίκαιο. Αρμόδια δικαστήρια Αθήνας, με επιφύλαξη αναγκαστικών διατάξεων προστασίας καταναλωτή. Καταγγελίες και στην HDPA (dpa.gr).</p>
+
+  <h2>21. Επικοινωνία</h2>
+  <p><a href="mailto:soc.near.app@gmail.com">soc.near.app@gmail.com</a> — απαντάμε σε αιτήματα δικαιωμάτων εντός 30 ημερών.</p>
+
+  <h2 id="en">English Summary</h2>
+  <p><strong>18+ only, anonymous browsing, verified email to chat.</strong> Local-first profile, 14 privacy toggles, publish/unpublish, GeoHash city/neighborhood/street(~150m)/hidden, 4 search paths, requests 48h expiry, 1-1 &amp; group chats (2–100, roles), messages text/image/gif/audio≤60s/video≤30s (AES-256-GCM, 5/50MB, timeouts), moderation Vision EU + EXIF strip, block/report (auto-ban 5), presence heartbeat, FCM, biometric/FLAG_SECURE, crash opt-in, deletion via deleteUserData. Use at your own risk, no guarantee of match, liability limited, Greek law, contact <a href="mailto:soc.near.app@gmail.com">soc.near.app@gmail.com</a>.</p>
+
+  <p class="muted">This document is not legal advice. Have it reviewed by counsel before public launch.</p>
+</main>
+
+<footer>
+  <p>© 2026 NearMe EU · <a href="/privacy">Privacy Policy</a> · <a href="mailto:soc.near.app@gmail.com">soc.near.app@gmail.com</a> · HDPA dpa.gr</p>
+</footer>
 </body>
 </html>

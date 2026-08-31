@@ -34,6 +34,7 @@ class GifImageBubble extends ConsumerWidget {
   final bool isImage;
   final String? racyLevel;
   final bool blurEnabled;
+  final double blurSigma;
   final Map<String, dynamic> reactions;
   final Future<void> Function(String messageId, String emoji)? onReact;
   final Future<void> Function(String messageId)? onRemove;
@@ -67,6 +68,7 @@ class GifImageBubble extends ConsumerWidget {
     this.isImage = false,
     this.racyLevel,
     this.blurEnabled = false,
+    this.blurSigma = 12.0,
     this.reactions = const {},
     this.onReact,
     this.onRemove,
@@ -178,7 +180,7 @@ class GifImageBubble extends ConsumerWidget {
     );
     if (!applyBlur) return image;
     return ImageFiltered(
-      imageFilter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+      imageFilter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
       child: image,
     );
   }
@@ -190,7 +192,7 @@ class GifImageBubble extends ConsumerWidget {
     final sentColor = _sentColor;
     final receivedColor = theme.colorScheme.surfaceContainerHighest;
     final bubbleColor = isMe ? sentColor : receivedColor;
-    final applyBlur = blurEnabled && isRacyLevel(racyLevel);
+    final applyBlur = blurEnabled && isRacyLevel(racyLevel) && blurSigma > 0;
 
     final bubbleBorderRadius = BorderRadius.only(
       topLeft: const Radius.circular(_bubbleRadius),

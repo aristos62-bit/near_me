@@ -208,6 +208,8 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                       blurOn: ref.watch(appSettingsProvider
                           .select((a) => a.value?.blurExplicitEnabled ?? FeatureFlags.blurExplicitByDefault)),
                       racyLevel: groupAvatarRacyLevel,
+                      sigma: ref.watch(appSettingsProvider
+                          .select((a) => a.value?.blurSigma ?? 12.0)),
                       child: CircleAvatar(
                         backgroundImage: groupAvatarUrl != null ? CachedNetworkImageProvider(groupAvatarUrl) : null,
                         child: groupAvatarUrl == null ? const Icon(Icons.group) : null,

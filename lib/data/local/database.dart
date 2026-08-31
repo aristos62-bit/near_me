@@ -33,7 +33,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 16;
+  int get schemaVersion => 17;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -217,6 +217,17 @@ class AppDatabase extends _$AppDatabase {
             'Migration v15->v16: moderation columns add failed (non-fatal)',
             data: e,
           );
+        }
+      }
+      if (from < 17) {
+        try {
+          await m.addColumn(appSettingsTable, appSettingsTable.blurSigma);
+          await customStatement(
+              'UPDATE app_settings_table SET blur_sigma = 0 WHERE blur_explicit_enabled = 0');
+          DebugConfig.log(DebugConfig.databaseLocal,
+              'Migration v16->v17: added blurSigma column');
+        } catch (e) {
+          DebugConfig.warn('Migration v16->v17 blurSigma failed (non-fatal)', data: e);
         }
       }
     },

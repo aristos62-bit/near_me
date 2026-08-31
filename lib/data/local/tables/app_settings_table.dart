@@ -19,6 +19,9 @@ class AppSettingsTable extends Table {
   /// εφαρμόζεται στο provider layer (app_settings_provider) ως fallback.
   BoolColumn get blurExplicitEnabled =>
       boolean().withDefault(const Constant(true))();
+  /// Blur sigma (schema v17) — 0=off, 8/12/20 intensity (reuse _AutoLockTile pattern)
+  RealColumn get blurSigma =>
+      real().withDefault(const Constant(12.0))();
   IntColumn get autoLockMinutes =>
       integer().withDefault(const Constant(5))();
   RealColumn get searchRadiusKm =>

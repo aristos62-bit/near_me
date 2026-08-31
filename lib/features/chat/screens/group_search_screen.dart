@@ -198,6 +198,8 @@ class _GroupSearchTile extends ConsumerWidget {
                   blurOn: ref.watch(appSettingsProvider
                       .select((a) => a.value?.blurExplicitEnabled ?? FeatureFlags.blurExplicitByDefault)),
                   racyLevel: group.groupAvatarRacyLevel,
+                  sigma: ref.watch(
+                      appSettingsProvider.select((a) => a.value?.blurSigma ?? 12.0)),
                   child: CircleAvatar(
                     backgroundImage: group.groupAvatarUrl != null
                         ? CachedNetworkImageProvider(group.groupAvatarUrl!)

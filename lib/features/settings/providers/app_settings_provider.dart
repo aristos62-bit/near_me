@@ -47,6 +47,7 @@ class AppSettingsNotifier extends Notifier<AsyncValue<AppSettingsTableData>> {
       screenshotPreventionEnabled: false,
       crashReportsEnabled: false,
       blurExplicitEnabled: FeatureFlags.blurExplicitByDefault,
+      blurSigma: 12.0,
       autoLockMinutes: 5,
       searchRadiusKm: 10.0,
       updatedAt: now,
@@ -168,18 +169,24 @@ class AppSettingsNotifier extends Notifier<AsyncValue<AppSettingsTableData>> {
     }
   }
 
-  Future<void> setBlurExplicit(bool v) async {
+  Future<void> setBlurExplicit(bool v) async => setBlurSigma(v ? 12.0 : 0);
+
+  Future<void> setBlurSigma(double sigma) async {
+    sigma = sigma.clamp(0, 20).toDouble();
     final cur = state.value;
-    if (cur == null || cur.blurExplicitEnabled == v) return;
-    DebugConfig.log(DebugConfig.serviceCall, 'AppSettings: blurExplicitEnabled=$v');
+    if (cur == null || cur.blurSigma == sigma) return;
+    DebugConfig.log(DebugConfig.serviceCall, 'AppSettings: blurSigma=$sigma');
     try {
       final db = DatabaseService.instance;
-      final upd = cur.copyWith(blurExplicitEnabled: v, updatedAt: DateTime.now());
+      final upd = cur.copyWith(
+          blurSigma: sigma,
+          blurExplicitEnabled: sigma > 0,
+          updatedAt: DateTime.now());
       await (db.update(db.appSettingsTable)..where((t) => t.id.equals(upd.id)))
           .write(upd.toCompanion(true));
       state = AsyncValue.data(upd);
     } catch (e, s) {
-      DebugConfig.error('AppSettings: blurExplicit failed', data: e, exception: s);
+      DebugConfig.error('AppSettings: blurSigma failed', data: e, exception: s);
       state = AsyncValue.error(e, s);
     }
   }

@@ -195,6 +195,8 @@ class ProfileCard extends ConsumerWidget {
     final avatarUrl = profile.avatarUrl;
     final blurOn = ref.watch(appSettingsProvider
         .select((a) => a.value?.blurExplicitEnabled ?? FeatureFlags.blurExplicitByDefault));
+    final blurSigma = ref.watch(
+        appSettingsProvider.select((a) => a.value?.blurSigma ?? 12.0));
     final applyBlur = blurOn && isRacyLevel(profile.avatarRacyLevel);
     return Container(
       width: 64,
@@ -207,7 +209,7 @@ class ProfileCard extends ConsumerWidget {
         child: (avatarUrl != null && avatarUrl.isNotEmpty)
             ? (applyBlur
                 ? ImageFiltered(
-                    imageFilter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                    imageFilter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
                     child: _buildAvatarImage(theme),
                   )
                 : _buildAvatarImage(theme))

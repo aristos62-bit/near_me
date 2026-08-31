@@ -52,6 +52,7 @@ class VideoMessageBubble extends ConsumerStatefulWidget {
   final String? isLoadingUrl;
   final String? videoRacyLevel;
   final bool blurEnabled;
+  final double blurSigma;
 
   const VideoMessageBubble({
     super.key,
@@ -88,6 +89,7 @@ class VideoMessageBubble extends ConsumerStatefulWidget {
     this.isLoadingUrl,
     this.videoRacyLevel,
     this.blurEnabled = false,
+    this.blurSigma = 12.0,
   });
 
   @override
@@ -263,7 +265,7 @@ class _VideoMessageBubbleState extends ConsumerState<VideoMessageBubble> {
         (isMyController && controller != null && controller.value.isInitialized)
         ? controller.value.aspectRatio
         : 16 / 9;
-    final thumbBlur = widget.blurEnabled && isRacyLevel(widget.videoRacyLevel);
+    final thumbBlur = widget.blurEnabled && isRacyLevel(widget.videoRacyLevel) && widget.blurSigma > 0;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
@@ -347,7 +349,9 @@ class _VideoMessageBubbleState extends ConsumerState<VideoMessageBubble> {
                                       children: [
                                         thumbBlur
                                             ? ImageFiltered(
-                                                imageFilter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                                                imageFilter: ImageFilter.blur(
+                                                    sigmaX: widget.blurSigma,
+                                                    sigmaY: widget.blurSigma),
                                                 child: CachedNetworkImage(
                                                   imageUrl: widget.thumbnailUrl!,
                                                   fit: BoxFit.cover,

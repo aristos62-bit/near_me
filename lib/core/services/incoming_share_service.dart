@@ -154,7 +154,7 @@ class IncomingShareService {
         }
 
         final targetChatId = await showChatRecipientPicker(context, chats,
-            blurEnabled: _blurEnabled(ref));
+            blurEnabled: _blurEnabled(ref), blurSigma: _blurSigma(ref));
         if (targetChatId == null || !context.mounted) {
           _deleteTmp(path);
           return;
@@ -186,7 +186,7 @@ class IncomingShareService {
       if (confirmed != true || !context.mounted) return;
 
       final targetChatId = await showChatRecipientPicker(context, chats,
-          blurEnabled: _blurEnabled(ref));
+          blurEnabled: _blurEnabled(ref), blurSigma: _blurSigma(ref));
       if (targetChatId == null || !context.mounted) return;
 
       final ok = await ref.read(chatActionsProvider.notifier)
@@ -287,6 +287,10 @@ class IncomingShareService {
   static bool _blurEnabled(WidgetRef ref) {
     return ref.read(appSettingsProvider
         .select((a) => a.value?.blurExplicitEnabled ?? FeatureFlags.blurExplicitByDefault));
+  }
+
+  static double _blurSigma(WidgetRef ref) {
+    return ref.read(appSettingsProvider.select((a) => a.value?.blurSigma ?? 12.0));
   }
 }
 

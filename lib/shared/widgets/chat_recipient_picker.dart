@@ -11,12 +11,13 @@ import '../utils/avatar_blur.dart';
 /// ΔΕΝ κάνει watch — δέχεται snapshot της λίστας chats → μηδέν rebuilds.
 /// Λαμβάνει τη λίστα ως όρισμα ώστε ο καλών να ελέγχει το empty-case.
 ///
-/// [blurEnabled] προέρχεται από τον καλούντα (από appSettingsProvider) —
+/// [blurEnabled]/[blurSigma] προέρχονται από τον καλούντα (από appSettingsProvider) —
 /// το widget αυτό παραμένει χωρίς watch.
 Future<String?> showChatRecipientPicker(
   BuildContext context,
   List<ChatCacheTableData> chats, {
   required bool blurEnabled,
+  double blurSigma = 12.0,
 }) {
   return showModalBottomSheet<String>(
     context: context,
@@ -45,6 +46,7 @@ Future<String?> showChatRecipientPicker(
                 ? wrapAvatarBlur(
                     blurOn: blurEnabled,
                     racyLevel: chat.groupAvatarRacyLevel,
+                    sigma: blurSigma,
                     child: avatar,
                   )
                 : avatar,

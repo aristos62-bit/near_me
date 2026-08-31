@@ -5132,6 +5132,18 @@ class $AppSettingsTableTable extends AppSettingsTable
     ),
     defaultValue: const Constant(true),
   );
+  static const VerificationMeta _blurSigmaMeta = const VerificationMeta(
+    'blurSigma',
+  );
+  @override
+  late final GeneratedColumn<double> blurSigma = GeneratedColumn<double>(
+    'blur_sigma',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(12.0),
+  );
   static const VerificationMeta _autoLockMinutesMeta = const VerificationMeta(
     'autoLockMinutes',
   );
@@ -5178,6 +5190,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     screenshotPreventionEnabled,
     crashReportsEnabled,
     blurExplicitEnabled,
+    blurSigma,
     autoLockMinutes,
     searchRadiusKm,
     updatedAt,
@@ -5254,6 +5267,12 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('blur_sigma')) {
+      context.handle(
+        _blurSigmaMeta,
+        blurSigma.isAcceptableOrUnknown(data['blur_sigma']!, _blurSigmaMeta),
+      );
+    }
     if (data.containsKey('auto_lock_minutes')) {
       context.handle(
         _autoLockMinutesMeta,
@@ -5319,6 +5338,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}blur_explicit_enabled'],
       )!,
+      blurSigma: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}blur_sigma'],
+      )!,
       autoLockMinutes: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}auto_lock_minutes'],
@@ -5353,6 +5376,9 @@ class AppSettingsTableData extends DataClass
   /// Blur explicit content toggle (schema v16) — default `true`· το FeatureFlag
   /// εφαρμόζεται στο provider layer (app_settings_provider) ως fallback.
   final bool blurExplicitEnabled;
+
+  /// Blur sigma (schema v17) — 0=off, 8/12/20 intensity (reuse _AutoLockTile pattern)
+  final double blurSigma;
   final int autoLockMinutes;
   final double searchRadiusKm;
   final DateTime updatedAt;
@@ -5365,6 +5391,7 @@ class AppSettingsTableData extends DataClass
     required this.screenshotPreventionEnabled,
     required this.crashReportsEnabled,
     required this.blurExplicitEnabled,
+    required this.blurSigma,
     required this.autoLockMinutes,
     required this.searchRadiusKm,
     required this.updatedAt,
@@ -5382,6 +5409,7 @@ class AppSettingsTableData extends DataClass
     );
     map['crash_reports_enabled'] = Variable<bool>(crashReportsEnabled);
     map['blur_explicit_enabled'] = Variable<bool>(blurExplicitEnabled);
+    map['blur_sigma'] = Variable<double>(blurSigma);
     map['auto_lock_minutes'] = Variable<int>(autoLockMinutes);
     map['search_radius_km'] = Variable<double>(searchRadiusKm);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -5398,6 +5426,7 @@ class AppSettingsTableData extends DataClass
       screenshotPreventionEnabled: Value(screenshotPreventionEnabled),
       crashReportsEnabled: Value(crashReportsEnabled),
       blurExplicitEnabled: Value(blurExplicitEnabled),
+      blurSigma: Value(blurSigma),
       autoLockMinutes: Value(autoLockMinutes),
       searchRadiusKm: Value(searchRadiusKm),
       updatedAt: Value(updatedAt),
@@ -5428,6 +5457,7 @@ class AppSettingsTableData extends DataClass
       blurExplicitEnabled: serializer.fromJson<bool>(
         json['blurExplicitEnabled'],
       ),
+      blurSigma: serializer.fromJson<double>(json['blurSigma']),
       autoLockMinutes: serializer.fromJson<int>(json['autoLockMinutes']),
       searchRadiusKm: serializer.fromJson<double>(json['searchRadiusKm']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
@@ -5447,6 +5477,7 @@ class AppSettingsTableData extends DataClass
       ),
       'crashReportsEnabled': serializer.toJson<bool>(crashReportsEnabled),
       'blurExplicitEnabled': serializer.toJson<bool>(blurExplicitEnabled),
+      'blurSigma': serializer.toJson<double>(blurSigma),
       'autoLockMinutes': serializer.toJson<int>(autoLockMinutes),
       'searchRadiusKm': serializer.toJson<double>(searchRadiusKm),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
@@ -5462,6 +5493,7 @@ class AppSettingsTableData extends DataClass
     bool? screenshotPreventionEnabled,
     bool? crashReportsEnabled,
     bool? blurExplicitEnabled,
+    double? blurSigma,
     int? autoLockMinutes,
     double? searchRadiusKm,
     DateTime? updatedAt,
@@ -5475,6 +5507,7 @@ class AppSettingsTableData extends DataClass
         screenshotPreventionEnabled ?? this.screenshotPreventionEnabled,
     crashReportsEnabled: crashReportsEnabled ?? this.crashReportsEnabled,
     blurExplicitEnabled: blurExplicitEnabled ?? this.blurExplicitEnabled,
+    blurSigma: blurSigma ?? this.blurSigma,
     autoLockMinutes: autoLockMinutes ?? this.autoLockMinutes,
     searchRadiusKm: searchRadiusKm ?? this.searchRadiusKm,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -5499,6 +5532,7 @@ class AppSettingsTableData extends DataClass
       blurExplicitEnabled: data.blurExplicitEnabled.present
           ? data.blurExplicitEnabled.value
           : this.blurExplicitEnabled,
+      blurSigma: data.blurSigma.present ? data.blurSigma.value : this.blurSigma,
       autoLockMinutes: data.autoLockMinutes.present
           ? data.autoLockMinutes.value
           : this.autoLockMinutes,
@@ -5520,6 +5554,7 @@ class AppSettingsTableData extends DataClass
           ..write('screenshotPreventionEnabled: $screenshotPreventionEnabled, ')
           ..write('crashReportsEnabled: $crashReportsEnabled, ')
           ..write('blurExplicitEnabled: $blurExplicitEnabled, ')
+          ..write('blurSigma: $blurSigma, ')
           ..write('autoLockMinutes: $autoLockMinutes, ')
           ..write('searchRadiusKm: $searchRadiusKm, ')
           ..write('updatedAt: $updatedAt')
@@ -5537,6 +5572,7 @@ class AppSettingsTableData extends DataClass
     screenshotPreventionEnabled,
     crashReportsEnabled,
     blurExplicitEnabled,
+    blurSigma,
     autoLockMinutes,
     searchRadiusKm,
     updatedAt,
@@ -5554,6 +5590,7 @@ class AppSettingsTableData extends DataClass
               this.screenshotPreventionEnabled &&
           other.crashReportsEnabled == this.crashReportsEnabled &&
           other.blurExplicitEnabled == this.blurExplicitEnabled &&
+          other.blurSigma == this.blurSigma &&
           other.autoLockMinutes == this.autoLockMinutes &&
           other.searchRadiusKm == this.searchRadiusKm &&
           other.updatedAt == this.updatedAt);
@@ -5568,6 +5605,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<bool> screenshotPreventionEnabled;
   final Value<bool> crashReportsEnabled;
   final Value<bool> blurExplicitEnabled;
+  final Value<double> blurSigma;
   final Value<int> autoLockMinutes;
   final Value<double> searchRadiusKm;
   final Value<DateTime> updatedAt;
@@ -5580,6 +5618,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.screenshotPreventionEnabled = const Value.absent(),
     this.crashReportsEnabled = const Value.absent(),
     this.blurExplicitEnabled = const Value.absent(),
+    this.blurSigma = const Value.absent(),
     this.autoLockMinutes = const Value.absent(),
     this.searchRadiusKm = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -5593,6 +5632,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.screenshotPreventionEnabled = const Value.absent(),
     this.crashReportsEnabled = const Value.absent(),
     this.blurExplicitEnabled = const Value.absent(),
+    this.blurSigma = const Value.absent(),
     this.autoLockMinutes = const Value.absent(),
     this.searchRadiusKm = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -5606,6 +5646,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<bool>? screenshotPreventionEnabled,
     Expression<bool>? crashReportsEnabled,
     Expression<bool>? blurExplicitEnabled,
+    Expression<double>? blurSigma,
     Expression<int>? autoLockMinutes,
     Expression<double>? searchRadiusKm,
     Expression<DateTime>? updatedAt,
@@ -5624,6 +5665,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         'crash_reports_enabled': crashReportsEnabled,
       if (blurExplicitEnabled != null)
         'blur_explicit_enabled': blurExplicitEnabled,
+      if (blurSigma != null) 'blur_sigma': blurSigma,
       if (autoLockMinutes != null) 'auto_lock_minutes': autoLockMinutes,
       if (searchRadiusKm != null) 'search_radius_km': searchRadiusKm,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -5639,6 +5681,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<bool>? screenshotPreventionEnabled,
     Value<bool>? crashReportsEnabled,
     Value<bool>? blurExplicitEnabled,
+    Value<double>? blurSigma,
     Value<int>? autoLockMinutes,
     Value<double>? searchRadiusKm,
     Value<DateTime>? updatedAt,
@@ -5653,6 +5696,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           screenshotPreventionEnabled ?? this.screenshotPreventionEnabled,
       crashReportsEnabled: crashReportsEnabled ?? this.crashReportsEnabled,
       blurExplicitEnabled: blurExplicitEnabled ?? this.blurExplicitEnabled,
+      blurSigma: blurSigma ?? this.blurSigma,
       autoLockMinutes: autoLockMinutes ?? this.autoLockMinutes,
       searchRadiusKm: searchRadiusKm ?? this.searchRadiusKm,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -5690,6 +5734,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (blurExplicitEnabled.present) {
       map['blur_explicit_enabled'] = Variable<bool>(blurExplicitEnabled.value);
     }
+    if (blurSigma.present) {
+      map['blur_sigma'] = Variable<double>(blurSigma.value);
+    }
     if (autoLockMinutes.present) {
       map['auto_lock_minutes'] = Variable<int>(autoLockMinutes.value);
     }
@@ -5713,6 +5760,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('screenshotPreventionEnabled: $screenshotPreventionEnabled, ')
           ..write('crashReportsEnabled: $crashReportsEnabled, ')
           ..write('blurExplicitEnabled: $blurExplicitEnabled, ')
+          ..write('blurSigma: $blurSigma, ')
           ..write('autoLockMinutes: $autoLockMinutes, ')
           ..write('searchRadiusKm: $searchRadiusKm, ')
           ..write('updatedAt: $updatedAt')
@@ -8388,6 +8436,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<bool> screenshotPreventionEnabled,
       Value<bool> crashReportsEnabled,
       Value<bool> blurExplicitEnabled,
+      Value<double> blurSigma,
       Value<int> autoLockMinutes,
       Value<double> searchRadiusKm,
       Value<DateTime> updatedAt,
@@ -8402,6 +8451,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<bool> screenshotPreventionEnabled,
       Value<bool> crashReportsEnabled,
       Value<bool> blurExplicitEnabled,
+      Value<double> blurSigma,
       Value<int> autoLockMinutes,
       Value<double> searchRadiusKm,
       Value<DateTime> updatedAt,
@@ -8453,6 +8503,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get blurExplicitEnabled => $composableBuilder(
     column: $table.blurExplicitEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get blurSigma => $composableBuilder(
+    column: $table.blurSigma,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8521,6 +8576,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get blurSigma => $composableBuilder(
+    column: $table.blurSigma,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get autoLockMinutes => $composableBuilder(
     column: $table.autoLockMinutes,
     builder: (column) => ColumnOrderings(column),
@@ -8579,6 +8639,9 @@ class $$AppSettingsTableTableAnnotationComposer
     column: $table.blurExplicitEnabled,
     builder: (column) => column,
   );
+
+  GeneratedColumn<double> get blurSigma =>
+      $composableBuilder(column: $table.blurSigma, builder: (column) => column);
 
   GeneratedColumn<int> get autoLockMinutes => $composableBuilder(
     column: $table.autoLockMinutes,
@@ -8639,6 +8702,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> screenshotPreventionEnabled = const Value.absent(),
                 Value<bool> crashReportsEnabled = const Value.absent(),
                 Value<bool> blurExplicitEnabled = const Value.absent(),
+                Value<double> blurSigma = const Value.absent(),
                 Value<int> autoLockMinutes = const Value.absent(),
                 Value<double> searchRadiusKm = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -8651,6 +8715,7 @@ class $$AppSettingsTableTableTableManager
                 screenshotPreventionEnabled: screenshotPreventionEnabled,
                 crashReportsEnabled: crashReportsEnabled,
                 blurExplicitEnabled: blurExplicitEnabled,
+                blurSigma: blurSigma,
                 autoLockMinutes: autoLockMinutes,
                 searchRadiusKm: searchRadiusKm,
                 updatedAt: updatedAt,
@@ -8665,6 +8730,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> screenshotPreventionEnabled = const Value.absent(),
                 Value<bool> crashReportsEnabled = const Value.absent(),
                 Value<bool> blurExplicitEnabled = const Value.absent(),
+                Value<double> blurSigma = const Value.absent(),
                 Value<int> autoLockMinutes = const Value.absent(),
                 Value<double> searchRadiusKm = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -8677,6 +8743,7 @@ class $$AppSettingsTableTableTableManager
                 screenshotPreventionEnabled: screenshotPreventionEnabled,
                 crashReportsEnabled: crashReportsEnabled,
                 blurExplicitEnabled: blurExplicitEnabled,
+                blurSigma: blurSigma,
                 autoLockMinutes: autoLockMinutes,
                 searchRadiusKm: searchRadiusKm,
                 updatedAt: updatedAt,

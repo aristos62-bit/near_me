@@ -68,9 +68,11 @@ class ChatListScreen extends ConsumerWidget {
                     message: greek ? 'Δεν υπάρχουν μηνύματα' : 'No messages yet',
                   );
                 }
-                // SPoT blurEnabled — μία φορά, όχι per-tile watch (storm fix Session 224)
+                // SPoT blurEnabled/sigma — μία φορά, όχι per-tile watch (storm fix Session 224)
                 final blurEnabled = ref.watch(appSettingsProvider
                     .select((a) => a.value?.blurExplicitEnabled ?? FeatureFlags.blurExplicitByDefault));
+                final blurSigma = ref.watch(
+                    appSettingsProvider.select((a) => a.value?.blurSigma ?? 12.0));
                 return LayoutBuilder(
                   builder: (context, constraints) {
                     final w = ResponsiveUtils.resolveWidth(context, constraints);
@@ -83,7 +85,8 @@ class ChatListScreen extends ConsumerWidget {
                         horizontal: ResponsiveUtils.paddingValueFromWidth(w),
                       ),
                       itemCount: chats.length,
-                      itemBuilder: (_, i) => _ChatTile(chat: chats[i], blurEnabled: blurEnabled),
+                      itemBuilder: (_, i) => _ChatTile(
+                          chat: chats[i], blurEnabled: blurEnabled, blurSigma: blurSigma),
                     );
                   },
                 );
@@ -137,7 +140,9 @@ class ChatListScreen extends ConsumerWidget {
 class _ChatTile extends ConsumerWidget {
   final ChatCacheTableData chat;
   final bool blurEnabled;
-  const _ChatTile({required this.chat, this.blurEnabled = false});
+  final double blurSigma;
+  const _ChatTile(
+      {required this.chat, this.blurEnabled = false, this.blurSigma = 12.0});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -179,6 +184,7 @@ class _ChatTile extends ConsumerWidget {
             ? wrapAvatarBlur(
                 blurOn: blurEnabled,
                 racyLevel: chat.groupAvatarRacyLevel,
+                sigma: blurSigma,
                 child: groupAvatar,
               )
             : CircleAvatar(

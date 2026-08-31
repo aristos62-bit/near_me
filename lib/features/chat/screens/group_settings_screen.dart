@@ -179,6 +179,8 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
                             blurOn: ref.watch(appSettingsProvider
                                 .select((a) => a.value?.blurExplicitEnabled ?? FeatureFlags.blurExplicitByDefault)),
                             racyLevel: avatarRacyLevel,
+                            sigma: ref.watch(appSettingsProvider
+                                .select((a) => a.value?.blurSigma ?? 12.0)),
                             child: CircleAvatar(
                               radius: 40,
                               backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,

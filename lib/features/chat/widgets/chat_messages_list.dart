@@ -439,7 +439,9 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
 
     final targetChatId = await showChatRecipientPicker(context, chats,
         blurEnabled: ref.read(appSettingsProvider
-            .select((a) => a.value?.blurExplicitEnabled ?? FeatureFlags.blurExplicitByDefault)));
+            .select((a) => a.value?.blurExplicitEnabled ?? FeatureFlags.blurExplicitByDefault)),
+        blurSigma: ref.read(
+            appSettingsProvider.select((a) => a.value?.blurSigma ?? 12.0)));
     if (targetChatId == null || !mounted) return;
 
     final content = msg['content'] as String? ?? '';
@@ -945,9 +947,11 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     // ─────────────────────────────────────────────────────────────
     double? cachedWidth;
     Widget? cachedListView;
-    // SPoT blurEnabled — μία φορά ανά build, όχι per-bubble watch (rebuild storm fix, Session 224)
+    // SPoT blurEnabled/sigma — μία φορά ανά build, όχι per-bubble watch (rebuild storm fix, Session 224)
     final blurEnabled = ref.watch(appSettingsProvider
         .select((a) => a.value?.blurExplicitEnabled ?? FeatureFlags.blurExplicitByDefault));
+    final blurSigma = ref.watch(
+        appSettingsProvider.select((a) => a.value?.blurSigma ?? 12.0));
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1028,6 +1032,7 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
               videoPlayer: widget.videoPlayer,
               videoLoadingUrl: widget.videoLoadingUrl,
               blurEnabled: blurEnabled,
+              blurSigma: blurSigma,
               callbacks: MessageCallbacks(
                 onApproveDelete: _onApproveDelete,
                 onRejectDelete: _onRejectDelete,

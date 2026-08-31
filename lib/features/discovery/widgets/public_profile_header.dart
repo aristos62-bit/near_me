@@ -36,6 +36,8 @@ class PublicProfileHeader extends ConsumerWidget {
         'PublicProfileHeader uid=$uid isOnline=$isOnline (stream=$streamOnline profile=${profile.isOnline})');
     final blurOn = ref.watch(appSettingsProvider
         .select((a) => a.value?.blurExplicitEnabled ?? FeatureFlags.blurExplicitByDefault));
+    final blurSigma = ref.watch(
+        appSettingsProvider.select((a) => a.value?.blurSigma ?? 12.0));
     final avatarWidget = (profile.avatarUrl != null && profile.avatarUrl!.isNotEmpty)
         ? CachedNetworkImage(
             imageUrl: profile.avatarUrl!,
@@ -69,6 +71,7 @@ class PublicProfileHeader extends ConsumerWidget {
                   child: wrapAvatarBlur(
                     blurOn: blurOn,
                     racyLevel: profile.avatarRacyLevel,
+                    sigma: blurSigma,
                     child: avatarWidget,
                   ),
                 ),

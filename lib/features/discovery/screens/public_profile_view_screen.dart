@@ -179,9 +179,11 @@ class _PublicProfileViewScreenState extends ConsumerState<PublicProfileViewScree
   Widget _buildPhotoGallery(
       PublicProfile profile, ThemeData theme, bool isGreek, WidgetRef ref) {
     final photos = profile.photoUrls!.take(9).toList();
-    // SPoT blurOn — μία φορά έξω από itemBuilder (όχι per-item watch, storm fix Session 224)
+    // SPoT blurOn/sigma — μία φορά έξω από itemBuilder (όχι per-item watch, storm fix Session 224)
     final blurOn = ref.watch(appSettingsProvider
         .select((a) => a.value?.blurExplicitEnabled ?? FeatureFlags.blurExplicitByDefault));
+    final blurSigma = ref.watch(
+        appSettingsProvider.select((a) => a.value?.blurSigma ?? 12.0));
     return _sectionCard(
       icon: Icons.photo_library_outlined,
       title: isGreek ? 'Φωτογραφίες' : 'Photos',
@@ -211,7 +213,7 @@ class _PublicProfileViewScreenState extends ConsumerState<PublicProfileViewScree
               borderRadius: BorderRadius.circular(10),
               child: (blurOn && isRacyLevel(level))
                   ? ImageFiltered(
-                      imageFilter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                      imageFilter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
                       child: image,
                     )
                   : image,

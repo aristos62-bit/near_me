@@ -30,6 +30,7 @@ class MessageBubble extends StatelessWidget {
   final dynamic videoPlayer;
   final String? videoLoadingUrl;
   final bool blurEnabled;
+  final double blurSigma;
   final MessageCallbacks callbacks;
 
   const MessageBubble({
@@ -54,6 +55,7 @@ class MessageBubble extends StatelessWidget {
     this.videoPlayer,
     this.videoLoadingUrl,
     this.blurEnabled = false,
+    this.blurSigma = 12.0,
     this.callbacks = const MessageCallbacks(),
   });
 
@@ -156,6 +158,7 @@ class MessageBubble extends StatelessWidget {
         isLoadingUrl: videoLoadingUrl,
         videoRacyLevel: message['videoRacyLevel'] as String?,
         blurEnabled: blurEnabled,
+        blurSigma: blurSigma,
       ),
       'gif' || 'image' => GifImageBubble(
         content: content,
@@ -177,6 +180,7 @@ class MessageBubble extends StatelessWidget {
         isImage: type == 'image',
         racyLevel: message['racyLevel'] as String?,
         blurEnabled: blurEnabled,
+        blurSigma: blurSigma,
         reactions: reactions,
         onReact: callbacks.onReact,
         onRemove: callbacks.onRemove,

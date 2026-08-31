@@ -356,6 +356,14 @@ class L10n {
 
   static String helpRequirementsTitle({required bool isGreek}) =>
       isGreek ? 'Για βοήθεια, χρειάζεται τουλάχιστον ένα κανάλι επικοινωνίας' : 'For help, at least one communication channel is needed.';
+
+  static String blurSigmaLabel(double sigma, {required bool isGreek}) {
+    final s = sigma.toStringAsFixed(sigma.truncateToDouble() == sigma ? 0 : 1);
+    if (sigma <= 0) return isGreek ? 'Απενεργό ($s)' : 'Off ($s)';
+    if (sigma <= 8) return isGreek ? 'Χαμηλό ($s)' : 'Low ($s)';
+    if (sigma <= 12) return isGreek ? 'Μεσαίο ($s)' : 'Medium ($s)';
+    return isGreek ? 'Υψηλό ($s)' : 'High ($s)';
+  }
 }
 
 enum TemperatureUnit { celsius, fahrenheit }

@@ -10,10 +10,11 @@ Widget wrapAvatarBlur({
   required bool blurOn,
   required String? racyLevel,
   required Widget child,
+  double sigma = 12.0,
 }) {
-  if (!blurOn || !isRacyLevel(racyLevel)) return child;
+  if (!blurOn || !isRacyLevel(racyLevel) || sigma <= 0) return child;
   return ImageFiltered(
-    imageFilter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+    imageFilter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
     child: child,
   );
 }

@@ -372,8 +372,8 @@ class _DiagnosticsSection extends ConsumerWidget {
           secondary: const Icon(Icons.bug_report_outlined),
           title: Text(isGreek ? 'Αναφορές Σφαλμάτων' : 'Crash Reports'),
            subtitle: Text(isGreek
-               ? 'Αποστολή αναφορών σφαλμάτων (Crashlytics).'
-               : 'Send crash reports (Crashlytics).'),
+               ? 'Αποστολή αναφορών σφαλμάτων.'
+               : 'Send crash reports.'),
           value: settings.crashReportsEnabled,
           onChanged: (v) async {
             DebugConfig.log(DebugConfig.uiInteraction,

@@ -59,9 +59,9 @@ class VisionModerationService {
         final reasons = (data['reasons'] as List?)?.join(', ') ?? '';
         DebugConfig.log(DebugConfig.moderation,
             'VisionModeration: REJECTED reasons=$reasons levels=$levels');
-      } else if (DebugConfig.moderationVerbose) {
+      } else {
         DebugConfig.log(DebugConfig.moderation,
-            'VisionModeration: approved levels=$levels');
+            'VisionModeration: approved racy=$racyLevel levels=$levels');
       }
       return (approved: approved, racyLevel: racyLevel);
     } on FirebaseFunctionsException catch (e) {

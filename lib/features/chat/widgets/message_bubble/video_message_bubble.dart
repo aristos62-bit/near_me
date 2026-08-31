@@ -266,6 +266,8 @@ class _VideoMessageBubbleState extends ConsumerState<VideoMessageBubble> {
         ? controller.value.aspectRatio
         : 16 / 9;
     final thumbBlur = widget.blurEnabled && isRacyLevel(widget.videoRacyLevel) && widget.blurSigma > 0;
+    DebugConfig.log(DebugConfig.moderation,
+        'Video thumb blur: racy=${widget.videoRacyLevel} enabled=${widget.blurEnabled} sigma=${widget.blurSigma} apply=$thumbBlur');
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),

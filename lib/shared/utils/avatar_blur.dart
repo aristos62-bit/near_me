@@ -4,7 +4,8 @@ import 'package:flutter/widgets.dart';
 /// SPoT — Wrap group/other avatars με blur όταν blurOn κι ο racyLevel δικαιολογεί.
 /// Επειδή το ImageProvider (π.χ. CachedNetworkImageProvider) δεν τυλίγεται
 /// απευθείας με ImageFiltered, τυλίγουμε ΟΛΟ το avatar widget (π.χ. CircleAvatar).
-bool isRacyLevel(String? level) => level == 'POSSIBLE' || level == 'LIKELY';
+bool isRacyLevel(String? level) =>
+    level == 'POSSIBLE' || level == 'LIKELY' || level == 'VERY_LIKELY';
 
 Widget wrapAvatarBlur({
   required bool blurOn,

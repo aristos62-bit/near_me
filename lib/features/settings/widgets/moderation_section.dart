@@ -65,7 +65,7 @@ class _BlurSigmaTile extends ConsumerStatefulWidget {
 }
 
 class _BlurSigmaTileState extends ConsumerState<_BlurSigmaTile> {
-  static const _sigmas = [0.0, 8.0, 12.0, 20.0];
+  static const _sigmas = [0.0, 10.0, 20.0, 32.0];
   late int _selectedIndex;
 
   int _sigmaToIndex(double sigma) {
@@ -134,19 +134,24 @@ class _BlurSigmaTileState extends ConsumerState<_BlurSigmaTile> {
                     onChangeEnd: (v) async {
                       final idx = v.round();
                       final newSigma = _sigmas[idx];
+                      if (newSigma == widget.currentSigma) return;
                       DebugConfig.log(DebugConfig.uiInteraction,
                           '_BlurSigmaTile: onChangeEnd sigma=$newSigma');
                       await ref.read(appSettingsProvider.notifier).setBlurSigma(newSigma);
                       if (context.mounted) {
-                        AppMessenger.showInfo(
-                            context,
-                            ErrorMessages.get(
-                                newSigma > 0 ? 'settings/blur-on' : 'settings/blur-off', isGreek));
+                        final code = newSigma <= 0
+                            ? 'settings/blur-off'
+                            : newSigma <= 10
+                                ? 'settings/blur-low'
+                                : newSigma <= 20
+                                    ? 'settings/blur-medium'
+                                    : 'settings/blur-high';
+                        AppMessenger.showInfo(context, ErrorMessages.get(code, isGreek));
                       }
                     },
                   ),
                 ),
-                Text('20', style: Theme.of(context).textTheme.bodySmall),
+                Text('32', style: Theme.of(context).textTheme.bodySmall),
               ],
             ),
           ),

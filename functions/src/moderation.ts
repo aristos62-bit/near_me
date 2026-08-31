@@ -14,10 +14,10 @@ export interface ModerationVerdict {
 
 // Thresholds: VERY_UNLIKELY < UNLIKELY < POSSIBLE < LIKELY < VERY_LIKELY.
 // Adult/Violence: reject LIKELY+ (strict — no explicit content allowed).
-// Racy: reject ONLY VERY_LIKELY (χαλαρότερο — POSSIBLE/LIKELY φωτογραφίες
-// παραμένουν ορατές, θαμπώνονται μόνο αν ο χρήστης ενεργοποιήσει blur).
+// Racy: ΠΟΤΕ κοπή — μόνο blur (POSSIBLE/LIKELY/VERY_LIKELY θαμπώνουν αν blur ON).
+// Αλλαγή 31 Αυγ: μπικίνι παραλίας έβγαινε VERY_LIKELY και κοβόταν — τώρα περνάει.
 const ADULT_VIOLENCE_REJECT = new Set(['LIKELY', 'VERY_LIKELY']);
-const RACY_REJECT = new Set(['VERY_LIKELY']);
+const RACY_REJECT: Set<string> = new Set([]);
 
 /**
  * Τρέχει Google Cloud Vision SafeSearch πάνω σε inline εικόνα (base64).

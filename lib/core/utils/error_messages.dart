@@ -305,6 +305,12 @@ class ErrorMessages {
         return isGreek ? 'Το θάμπωμα ενεργοποιήθηκε' : 'Blur enabled';
       case 'settings/blur-off':
         return isGreek ? 'Το θάμπωμα απενεργοποιήθηκε' : 'Blur disabled';
+      case 'settings/blur-low':
+        return isGreek ? 'Επίπεδο θαμπώματος: Χαμηλό' : 'Blur level: Low';
+      case 'settings/blur-medium':
+        return isGreek ? 'Επίπεδο θαμπώματος: Μεσαίο' : 'Blur level: Medium';
+      case 'settings/blur-high':
+        return isGreek ? 'Επίπεδο θαμπώματος: Υψηλό' : 'Blur level: High';
       case 'report/submitted':
         return isGreek ? 'Η αναφορά υποβλήθηκε' : 'Report submitted';
       case 'report/submit-failed':

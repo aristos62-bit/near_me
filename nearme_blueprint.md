@@ -1,9 +1,9 @@
 # NearMe — Project Blueprint & Αποφάσεις Σχεδιασμού
 
-> **Έκδοση:** 2.0  
-> **Ημερομηνία:** Ιούλιος 2026  
-> **Κατάσταση:** Phases 1-3: **100% υλοποιημένο** — Phase 4+: Σχεδιασμός
-> **v2.0:** Πλήρης ενημέρωση μετά από 151+ sessions ανάπτυξης. Isar→Drift migration, Riverpod 3.x, Phone verification, 5 Cloud Functions, 17 composite indexes, Biometric Lock, Screenshot Prevention, search overhaul, 30 tests, `flutter analyze` clean.
+> **Έκδοση:** 2.1  
+> **Ημερομηνία:** Αύγουστος 2026  
+> **Κατάσταση:** Phases 1-3: **100% υλοποιημένο** + Global Normal + User Blur (moderation + slider 0/8/12/20) — Phase 4+: Σχεδιασμός
+> **v2.1:** Προσθήκη Vision SafeSearch (eur3), Drift v17 (`blurSigma`), 16 CFs, 7 tables, 30 tests, `flutter analyze` clean.
 
 ---
 
@@ -135,13 +135,13 @@
 |---|---|---|
 | Framework | Flutter 3.44.4 / Dart 3.12.2 (SDK ^3.12.0) | Cross-platform, performance |
 | State Management | Riverpod 3.x (`flutter_riverpod ^3.3.1`, `@riverpod` annotation) | Type-safe, testable, real-time streams |
-| Local Database | **Drift 2.33** (SQLite) | Αντικατέστησε το Isar λόγω καλύτερης σταθερότητας, schema versioning (v8), migrations |
+| Local Database | **Drift 2.33** (SQLite) | Αντικατέστησε το Isar λόγω καλύτερης σταθερότητας, schema versioning (v17), migrations |
 | Navigation | GoRouter ^17.2.3 | Deep links, StatefulShellRoute, declarative routing |
 | Cloud Auth | Firebase Authentication (^6.5.1) | Email, phone, anonymous — όλα σε ένα |
 | Cloud Database | Cloud Firestore (^6.4.1) | Real-time, collectionGroup queries, security rules |
 | Cloud Storage | Firebase Storage (^13.4.1) | Photos, avatars |
 | Push Notifications | Firebase Cloud Messaging (^16.2.2) | iOS + Android unified, 3 Cloud Functions |
-| Cloud Functions | Firebase Functions (^6.3.1) | 5 deployed: onReportCreated, deleteUserData, 3 FCM triggers |
+| Cloud Functions | Firebase Functions (^6.3.1) | 16 deployed `europe-west1` (gen1, Node 22): 5 FCM, 2 moderation (`checkImageModeration`/`moderateImage` Vision eur3), 2 group (`addGroupParticipant`/`leaveGroup`), 2 scheduled (`expireStaleRequests/Messages`), `computeGeoHash`, `checkSearchRateLimit`, `deleteUserData`, `onReportCreated` |
 | Geo Search (v1) | geoflutterfire_plus ^0.0.34 | Firestore native, μηδενικό κόστος |
 | Search (v2) | Typesense (self-hosted) — stub ready | Compound filters, full-text, €10/μήνα |
 | Video Calls | Agora RTC ή flutter_webrtc | Opt-in μόνο για επιλεγμένα profiles (Phase 4) |
@@ -149,8 +149,9 @@
 | Secure Storage | flutter_secure_storage ^10.3.1 | Tokens, chat keys |
 | Biometric | local_auth ^3.0.1 | Biometric lock + auto-lock timer |
 | i18n | flutter_localizations + intl ^0.20.2 | Auto από device locale (el/en) |
-| Images | cached_network_image ^3.4.1 + image_picker ^1.2.2 | Cache + upload |
+| Images | cached_network_image ^3.4.1 + image_picker ^1.2.2 + flutter_image_compress ^2.5.0 | Cache + upload + EXIF strip (stripExif SPoT) |
 | Image Cropper | image_cropper ^12.2.1 | 1:1 locked για avatar, free ratio για photos |
+| Content Moderation | @google-cloud/vision (SafeSearch) + Cloud Functions `checkImageModeration`/`moderateImage` | Adult/Violence LIKELY+ reject, Racy VERY_LIKELY only, blur POSSIBLE/LIKELY via `avatar_blur.dart` + `blurSigma` slider 0/8/12/20 |
 | Connectivity | connectivity_plus ^7.1.1 | Network status |
 | Geocoding | geocoding ^4.0.0 | Reverse geocoding |
 | Code Gen | build_runner ^2.15.0 + drift_dev ^2.33.0 + riverpod_generator ^4.0.3 + freezed ^3.2.5 + json_serializable ^6.14.0 | |
@@ -175,7 +176,7 @@ AppSettings                     (local only)
 
 ---
 
-### 5a. Drift Local Schema (7 tables, schema v8)
+### 5a. Drift Local Schema (7 tables, schema v17)
 
 Το project χρησιμοποιεί **Drift** (SQLite ORM) αντί του Isar που αναφερόταν στον αρχικό σχεδιασμό. Το migration έγινε στα πρώτα sessions λόγω καλύτερης σταθερότητας και SQL.
 
@@ -206,6 +207,8 @@ class UserProfileTable extends Table {
 
   TextColumn get avatarUrl => text()();
   TextColumn get photoUrls => text()();        // JSON array
+  TextColumn get avatarRacyLevel => text().nullable()(); // schema v16 blur
+  TextColumn get photoRacyLevels => text().map(const StringListConverter()).nullable()(); // schema v16 blur
 
   BoolColumn get allowVideoCall => boolean()();
   BoolColumn get allowDirectChat => boolean()();
@@ -275,11 +278,20 @@ class BlockedUserTable extends Table {
 // ============================================================
 class ChatCacheTable extends Table {
   IntColumn get id => integer().autoIncrement()();
-  TextColumn get chatId => text()();
-  TextColumn get otherUid => text()();
-  TextColumn get otherNickname => text()();
-  DateTimeColumn get lastMessageAt => dateTime()();
-  BoolColumn get hasUnread => boolean()();
+  TextColumn get chatId => text().nullable()();
+  TextColumn get otherUid => text().nullable()();
+  TextColumn get otherNickname => text().nullable()();
+  TextColumn get otherAvatarUrl => text().nullable()();
+  DateTimeColumn get lastMessageAt => dateTime().nullable()();
+  TextColumn get lastMessage => text().nullable()();
+  IntColumn get unreadCount => integer().withDefault(const Constant(0))();
+  BoolColumn get hasUnread => boolean().withDefault(const Constant(false))();
+  BoolColumn get isGroupChat => boolean().withDefault(const Constant(false))();
+  TextColumn get groupName => text().nullable()();
+  TextColumn get groupAvatarUrl => text().nullable()(); // schema v10
+  TextColumn get groupAvatarRacyLevel => text().nullable()(); // schema v16 blur
+  TextColumn get groupCreatedBy => text().nullable()(); // schema v11
+  TextColumn get messageExpiry => text().withDefault(const Constant('off'))(); // schema v13
 }
 
 // ============================================================
@@ -308,13 +320,17 @@ class SavedSearchTable extends Table {
 // ============================================================
 class AppSettingsTable extends Table {
   IntColumn get id => integer().autoIncrement()();
-  TextColumn get locale => text().withDefault(const Constant('system'))();
+  TextColumn get locale => text().withDefault(const Constant('el'))();
   TextColumn get themeMode => text().withDefault(const Constant('system'))();
   BoolColumn get notificationsEnabled => boolean().withDefault(const Constant(true))();
   BoolColumn get biometricLockEnabled => boolean().withDefault(const Constant(false))();
-  BoolColumn get screenshotPreventionEnabled => boolean().withDefault(const Constant(true))();
+  BoolColumn get screenshotPreventionEnabled => boolean().withDefault(const Constant(false))();
+  BoolColumn get crashReportsEnabled => boolean().withDefault(const Constant(false))();
+  BoolColumn get blurExplicitEnabled => boolean().withDefault(const Constant(true))(); // schema v16
+  RealColumn get blurSigma => real().withDefault(const Constant(12.0))(); // schema v17 slider 0/8/12/20
   IntColumn get autoLockMinutes => integer().withDefault(const Constant(5))();
-  DateTimeColumn get updatedAt => dateTime()();
+  RealColumn get searchRadiusKm => real().withDefault(const Constant(10.0))();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 }
 ```
 
@@ -336,10 +352,12 @@ class AppSettingsTable extends Table {
 │   ├── interests: string[]
 │   ├── occupations: string[]
 │   ├── lookingFor: string
-│   ├── bio: string?
-│   ├── avatarUrl: string?
-│   ├── photoUrls: string[]   (max 5)
-│   ├── allowVideoCall: bool
+  │   ├── bio: string?
+  │   ├── avatarUrl: string?
+  │   ├── photoUrls: string[]   (max 5)
+  │   ├── avatarRacyLevel: string? (VERY_UNLIKELY..VERY_LIKELY) // schema v16 blur
+  │   ├── photoRacyLevels: string[] // index-aligned, schema v16 blur
+  │   ├── allowVideoCall: bool
 │   ├── allowDirectChat: bool
 │   ├── isVisible: bool       ← master switch
 │   ├── isManualLocation: bool
@@ -359,12 +377,19 @@ class AppSettingsTable extends Table {
 
 /chats/{chatId}/
 ├── participants: string[]    [uid1, uid2]
+├── isGroupChat: bool
+├── groupName: string?        // v9
+├── groupAvatarUrl: string?   // v10
+├── groupAvatarRacyLevel: string? // v16 blur POSSIBLE/LIKELY
 ├── createdAt: timestamp
 ├── isActive: bool
 └── messages/{msgId}/
     ├── senderId: string
-    ├── content: string       ← AES-256 GCM encrypted
-    ├── type: string          'text' | 'system'
+    ├── content: string       ← AES-256 GCM encrypted (ή URL για media)
+    ├── type: string          'text' | 'system' | 'image' | 'gif' | 'video' | 'audio'
+    ├── racyLevel: string?    // image/gif POSSIBLE/LIKELY (v16)
+    ├── videoRacyLevel: string? // video thumbnail (v16)
+    ├── thumbnailUrl: string? // video thumb
     ├── timestamp: timestamp
     └── isRead: bool
 

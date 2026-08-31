@@ -253,13 +253,13 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 | Μέτρο | Τιμή |
 |---|---|
 | Completion | ~99.9% (Phases 1-3 100%, MultiChat 100%, Media 100%, Chat Redesign 100%, Audio Messages 100%, **B5 Privacy Policy 100%**) |
-| `.dart` files | ~124 (non-generated, +`vision_moderation_service.dart` + `splash_screen.dart` Session 248) |
+| `.dart` files | ~132 (non-generated, +`vision_moderation_service.dart` + `avatar_blur.dart` + `moderation_section.dart` + `splash_screen.dart`) |
 | Firestore indexes | 21 composite deployed |
-| Cloud Functions | 13 deployed `europe-west1` (gen1, Node 22), συμπ. `checkImageModeration` + `moderateImage` (Vision moderation, deployed Session 247) + `fcm-utils.ts` + computeGeoHash + checkSearchRateLimit + expireStaleMessages |
-| Build | `flutter analyze` clean ✅, release APK ~20.8MB (R8), signed `gr.nearme.app` (CN=NearMe) |
+| Cloud Functions | 16 deployed `europe-west1` (gen1, Node 22), συμπ. `checkImageModeration` + `moderateImage` (Vision moderation, eur3), `addGroupParticipant`/`leaveGroup`, `expireStaleRequests/Messages`, `computeGeoHash`, `checkSearchRateLimit`, `deleteUserData`, `onReportCreated`, 5 FCM |
+| Build | `flutter analyze` clean ✅, release APK ~41.7MB (debug) / ~20.8MB (R8), signed `gr.nearme.app` (CN=NearMe) |
 | Tests | 30/30 passed |
-| Schema | Drift v15, 7 tables (+crashReportsEnabled σε AppSettings) |
-| Moderation | Active (Session 246-247): all 4 flags `true` (contentModerationEnabled, autoModerateProfilePhotos, autoModerateChatMedia, blurExplicitByDefault) · Vision SafeSearch **EU endpoint** `eu-vision.googleapis.com` + `moderationLog` rules (Session 247 P0s) · CF `checkImageModeration` + `moderateImage` deployed + kill-switch `config/moderation` |
+| Schema | Drift v17, 7 tables (+crashReportsEnabled, blurExplicitEnabled, blurSigma 0/8/12/20) |
+| Moderation | Active (Sessions 253-255): Global Normal + User Blur — Vision SafeSearch `eu-vision.googleapis.com`, thresholds Adult/Violence LIKELY+ reject, Racy VERY_LIKELY only, blur POSSIBLE/LIKELY via `avatar_blur.dart` + `blurSigma` slider SPoT (`moderation_section.dart` + `_BlurSigmaTile` reuse `_AutoLockTile`). Kill-switch `config/moderation`, `moderationLog` rules |
 | Photo Fix | `EqualUnmodifiableListView` → `List.from` `profile_editor_screen.dart:153,161` (Session 244) |
 | P0 Fixes | `unawaited` `then<void> onError` + `await close()` + `chatId` null check (Session 245) · Hygiene 1.1/1.2/1.3/1.5/1.6/2.2/2.3/2.4/3.1-3.3/4.1/5 (Session 248) · Follow-up dead-catch + 3.1 postFrame + 4.6 listener (Session 249) · Double-call resume (Session 250) · B3+B6 iOS Info.plist (Session 251) · **B5 Hosting privacy.html (Session 252)** |
 | Feature Flags | ~24 (core 21: typesense, videoCall, groupChat, gifSupport, mediaMessages, audioMessages, videoMessages, messageExpiry, messageReactions, replyToMessage, **replyPrivately**, editMessage, deleteMessage, messageInfo, messageEmail, messageShare, groupEvents, webVersion, aiMatching, verifiedBadge, premiumTier + moderation: contentModerationEnabled, autoModerateProfilePhotos, autoModerateChatMedia, blurExplicitByDefault) |
@@ -2193,3 +2193,33 @@ Follow-up hygiene μετά το Session 248: sanity-checks που ανέδειξ
 - **Όροι 11α + media check:** χρήστης πέρασε μόνος του 2 clauses (11α Προστασία Κακόβουλης Χρήσης + έλεγχος Vision σε privacy §1/terms §10) → deploy `found 2 files` → `privacy 9487B / terms 12568B` `new clauses FOUND` σε `?v=2`.
 
 > Αυτό το μπλοκ πρέπει να «κληρονομείται» σε κάθε επόμενο session στο τέλος του αρχείου.
+---
+
+## Session 253 � Global Normal + User Blur (Moderation + Drift v16/v17 + SPoT) (100%) � 31 ??? 2026
+
+### S??p??
+Global Normal (server) + User Blur (client): Vision SafeSearch thresholds � Adult/Violence LIKELY+ reject, Racy VERY_LIKELY only � ta POSSIBLE/LIKELY �????? ??at? a??? ?a�p????ta? a? ? ???st?? t? ep????e?. ???st?? ep????e? ??tas? 0/8/12/20.
+
+### ???p???s? � 32 a??e?a, 880 insertions (commit 949355d + hotfixes)
+- **Server** unctions/src/moderation.ts:19 ADULT_VIOLENCE_REJECT={LIKELY,VERY_LIKELY}, RACY_REJECT={VERY_LIKELY}, ModerationVerdict.levels, index.ts:1439 delete groupAvatarRacyLevel st? moderateImage (group_avatars)
+- **Vision SPoT** ision_moderation_service.dart:17 ModerationResult = ({approved, racyLevel}), isSafe 4s timeout + unawaited(f.then<void> onError) (AGENTS)
+- **Drift v16?17** pp_settings_table.dart:22 lurExplicitEnabled bool, lurSigma real 12.0 + database.dart:36 schemaVersion 17 + migration lur_sigma=0 ?p?? lur_explicit_enabled=0
+- **AppSettings** pp_settings_provider.dart:49,171 _createDefaults blurSigma:12.0, setBlurSigma clamp(0,20) + copyWith(blurSigma, blurExplicitEnabled>0), setBlurExplicit=>setBlurSigma
+- **SPoT blur** vatar_blur.dart:7 isRacyLevel + wrapAvatarBlur(blurOn, racyLevel, sigma) ImageFilter.blur(sigma)
+- **L10n** l10n.dart:360 lurSigmaLabel SPoT
+- **ModerationSection** moderation_section.dart:51 Switch + _BlurSigmaTile reuse _AutoLockTile (Slider min:0 max:3 divisions:3 ? [0,8,12,20], onChanged local, onChangeEnd ? setBlurSigma, ErrorMessages settings/blur-low/medium/high/off)
+- **Callers** profile_card:196, public_profile_header:37, public_profile_view:183 (SPoT ??? ap? itemBuilder), chat_list:72 (SPoT parent), group_*, chat_recipient_picker:18 (lurSigma), chat_messages_list:948 (SPoT parent), gif/video bubbles (lurSigma + isRacyLevel)
+
+### Hotfixes (6, Sessions 253�-254)
+1. profile_storage_mixin:113 alignment photoRacyLevels ? VERY_UNLIKELY placeholder + ????? f??t????s�a (??? ?e????st? where)
+2. public_profile_header blur 108px (??e?pe)
+3. group_chat_mixin:204 + chat_repository_impl:559,730 stale groupAvatarRacyLevel ? const Value(null) (delete) + lightweight containsKey ? '' clear
+4. moderateImage delete groupAvatarRacyLevel
+5. SPoT lurEnabled/sigma st? ChatMessagesList ? MessageBubble ? bubbles (0 per-bubble watch)
+6. Gallery lurOn ??? ap? itemBuilder + isRacyLevel reuse
+
+### ?pa???e?s?
+- lutter analyze clean, lutter test 30/30, uild_runner 148 outputs, 	sc clean, APK 41.7MB, unctions 16 deployed eur3 (client?server se???)
+- Device: Switch OFF?0, Slider 8/12/20 ??tas?, gallery 9, group avatars, video thumb, chat images � ??a �e sigma
+
+> ??t? t? �p??? p??pe? ?a �???????�e?ta?� se ???e ep?�e?? session st? t???? t?? a??e???.

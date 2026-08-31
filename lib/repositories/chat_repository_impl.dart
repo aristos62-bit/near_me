@@ -386,6 +386,8 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
       'replyTo': data['replyTo'] as Map<String, dynamic>?,
       'duration': data['duration'] as int? ?? 0,
       'thumbnailUrl': data['thumbnailUrl'] as String?,
+      'racyLevel': data['racyLevel'] as String?,
+      'videoRacyLevel': data['videoRacyLevel'] as String?,
     };
   }
 

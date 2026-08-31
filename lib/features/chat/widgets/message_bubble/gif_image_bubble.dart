@@ -193,6 +193,8 @@ class GifImageBubble extends ConsumerWidget {
     final receivedColor = theme.colorScheme.surfaceContainerHighest;
     final bubbleColor = isMe ? sentColor : receivedColor;
     final applyBlur = blurEnabled && isRacyLevel(racyLevel) && blurSigma > 0;
+    DebugConfig.log(DebugConfig.moderation,
+        'Gif bubble blur: racy=$racyLevel enabled=$blurEnabled sigma=$blurSigma apply=$applyBlur');
 
     final bubbleBorderRadius = BorderRadius.only(
       topLeft: const Radius.circular(_bubbleRadius),

@@ -945,6 +945,9 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
     // ─────────────────────────────────────────────────────────────
     double? cachedWidth;
     Widget? cachedListView;
+    // SPoT blurEnabled — μία φορά ανά build, όχι per-bubble watch (rebuild storm fix, Session 224)
+    final blurEnabled = ref.watch(appSettingsProvider
+        .select((a) => a.value?.blurExplicitEnabled ?? FeatureFlags.blurExplicitByDefault));
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1024,6 +1027,7 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
               audioPlayer: widget.audioPlayer,
               videoPlayer: widget.videoPlayer,
               videoLoadingUrl: widget.videoLoadingUrl,
+              blurEnabled: blurEnabled,
               callbacks: MessageCallbacks(
                 onApproveDelete: _onApproveDelete,
                 onRejectDelete: _onRejectDelete,

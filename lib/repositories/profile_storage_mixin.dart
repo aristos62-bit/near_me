@@ -109,16 +109,27 @@ mixin ProfileStorageMixin {
           urls.add('');
         }
         urls[index] = url;
-        // Racy levels index-aligned με τα urls
+        // Racy levels index-aligned με τα urls — VERY_UNLIKELY placeholder για να μη σπάει alignment (reuse υπάρχοντος convention)
         var racey = List<String>.from(profile.photoRacyLevels ?? []);
-        while (racey.length <= index) {
-          racey.add('');
+        while (racey.length < urls.length) {
+          racey.add('VERY_UNLIKELY');
         }
-        racey[index] = racyLevel ?? '';
+        if (racey.length > urls.length) {
+          racey = racey.sublist(0, urls.length);
+        }
+        racey[index] = racyLevel ?? 'VERY_UNLIKELY';
+        // Φιλτράρουμε μαζί: κρατάμε μόνο όπου url != '' (κενά slots από gaps)
+        final filteredUrls = <String>[];
+        final filteredRacey = <String>[];
+        for (var i = 0; i < urls.length; i++) {
+          if (urls[i].isNotEmpty) {
+            filteredUrls.add(urls[i]);
+            filteredRacey.add(i < racey.length ? racey[i] : 'VERY_UNLIKELY');
+          }
+        }
         await saveProfile(profile.copyWith(
-          photoUrls: Value(urls.where((u) => u.isNotEmpty).toList()),
-          photoRacyLevels: Value(
-              racey.where((r) => r.isNotEmpty).toList()),
+          photoUrls: Value(filteredUrls),
+          photoRacyLevels: Value(filteredRacey),
         ));
         if (profile.isPublished) await publish();
       }
@@ -150,6 +161,11 @@ mixin ProfileStorageMixin {
       if (profile != null) {
         final urls = List<String>.from(profile.photoUrls ?? []);
         var racey = List<String>.from(profile.photoRacyLevels ?? []);
+        // Legacy fix: ευθυγράμμιση πριν το remove (παλιά bug μπορεί να είχε διαφορετικά lengths)
+        while (racey.length < urls.length) {
+          racey.add('VERY_UNLIKELY');
+        }
+        if (racey.length > urls.length) racey = racey.sublist(0, urls.length);
         if (index < urls.length) {
           urls.removeAt(index);
         }

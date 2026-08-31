@@ -11,6 +11,7 @@ import '../../../core/utils/error_messages.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
 import '../../../shared/models/public_profile.dart';
+import '../../../shared/utils/avatar_blur.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../../../shared/widgets/report_user_dialog.dart';
 import '../../settings/providers/app_settings_provider.dart';
@@ -178,6 +179,9 @@ class _PublicProfileViewScreenState extends ConsumerState<PublicProfileViewScree
   Widget _buildPhotoGallery(
       PublicProfile profile, ThemeData theme, bool isGreek, WidgetRef ref) {
     final photos = profile.photoUrls!.take(9).toList();
+    // SPoT blurOn — μία φορά έξω από itemBuilder (όχι per-item watch, storm fix Session 224)
+    final blurOn = ref.watch(appSettingsProvider
+        .select((a) => a.value?.blurExplicitEnabled ?? FeatureFlags.blurExplicitByDefault));
     return _sectionCard(
       icon: Icons.photo_library_outlined,
       title: isGreek ? 'Φωτογραφίες' : 'Photos',
@@ -191,9 +195,6 @@ class _PublicProfileViewScreenState extends ConsumerState<PublicProfileViewScree
             final racyLevels = profile.photoRacyLevels;
             final level =
                 (racyLevels != null && i < racyLevels.length) ? racyLevels[i] : null;
-            final isRacy = level == 'POSSIBLE' || level == 'LIKELY';
-            final blurOn = ref.watch(appSettingsProvider
-                .select((a) => a.value?.blurExplicitEnabled ?? FeatureFlags.blurExplicitByDefault));
             final image = CachedNetworkImage(
               imageUrl: photos[i],
               width: 100,
@@ -208,7 +209,7 @@ class _PublicProfileViewScreenState extends ConsumerState<PublicProfileViewScree
             );
             return ClipRRect(
               borderRadius: BorderRadius.circular(10),
-              child: (blurOn && isRacy)
+              child: (blurOn && isRacyLevel(level))
                   ? ImageFiltered(
                       imageFilter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                       child: image,

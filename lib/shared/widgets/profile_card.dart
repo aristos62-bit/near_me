@@ -7,6 +7,7 @@ import '../../core/config/feature_flags.dart';
 import '../../core/l10n/l10n.dart';
 import '../../features/settings/providers/app_settings_provider.dart';
 import '../models/public_profile.dart';
+import '../utils/avatar_blur.dart';
 import '../utils/help_request_config.dart';
 import 'online_indicator.dart';
 
@@ -192,11 +193,9 @@ class ProfileCard extends ConsumerWidget {
 
   Widget _buildAvatar(ThemeData theme, WidgetRef ref) {
     final avatarUrl = profile.avatarUrl;
-    final isRacy =
-        profile.avatarRacyLevel == 'POSSIBLE' || profile.avatarRacyLevel == 'LIKELY';
     final blurOn = ref.watch(appSettingsProvider
         .select((a) => a.value?.blurExplicitEnabled ?? FeatureFlags.blurExplicitByDefault));
-    final applyBlur = blurOn && isRacy;
+    final applyBlur = blurOn && isRacyLevel(profile.avatarRacyLevel);
     return Container(
       width: 64,
       height: 64,

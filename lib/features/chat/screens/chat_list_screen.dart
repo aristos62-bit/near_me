@@ -68,6 +68,9 @@ class ChatListScreen extends ConsumerWidget {
                     message: greek ? 'Δεν υπάρχουν μηνύματα' : 'No messages yet',
                   );
                 }
+                // SPoT blurEnabled — μία φορά, όχι per-tile watch (storm fix Session 224)
+                final blurEnabled = ref.watch(appSettingsProvider
+                    .select((a) => a.value?.blurExplicitEnabled ?? FeatureFlags.blurExplicitByDefault));
                 return LayoutBuilder(
                   builder: (context, constraints) {
                     final w = ResponsiveUtils.resolveWidth(context, constraints);
@@ -80,7 +83,7 @@ class ChatListScreen extends ConsumerWidget {
                         horizontal: ResponsiveUtils.paddingValueFromWidth(w),
                       ),
                       itemCount: chats.length,
-                      itemBuilder: (_, i) => _ChatTile(chat: chats[i]),
+                      itemBuilder: (_, i) => _ChatTile(chat: chats[i], blurEnabled: blurEnabled),
                     );
                   },
                 );
@@ -133,7 +136,8 @@ class ChatListScreen extends ConsumerWidget {
 
 class _ChatTile extends ConsumerWidget {
   final ChatCacheTableData chat;
-  const _ChatTile({required this.chat});
+  final bool blurEnabled;
+  const _ChatTile({required this.chat, this.blurEnabled = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -158,8 +162,6 @@ class _ChatTile extends ConsumerWidget {
 
     final previewText = _buildPreviewText(greek, title, isGroup);
 
-    final blurOn = ref.watch(appSettingsProvider
-        .select((a) => a.value?.blurExplicitEnabled ?? FeatureFlags.blurExplicitByDefault));
     final groupAvatar = CircleAvatar(
       backgroundColor: theme.colorScheme.secondaryContainer,
       backgroundImage: avatarUrl != null
@@ -175,7 +177,7 @@ class _ChatTile extends ConsumerWidget {
       child: ListTile(
         leading: isGroup
             ? wrapAvatarBlur(
-                blurOn: blurOn,
+                blurOn: blurEnabled,
                 racyLevel: chat.groupAvatarRacyLevel,
                 child: groupAvatar,
               )

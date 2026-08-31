@@ -2,10 +2,13 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/config/feature_flags.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../shared/models/public_profile.dart';
+import '../../../shared/utils/avatar_blur.dart';
 import '../../../shared/widgets/online_indicator.dart';
+import '../../settings/providers/app_settings_provider.dart';
 import '../providers/status_provider.dart';
 
 class PublicProfileHeader extends ConsumerWidget {
@@ -31,6 +34,16 @@ class PublicProfileHeader extends ConsumerWidget {
     final isOnline = streamOnline ?? profile.isOnline;
     DebugConfig.log(DebugConfig.presence,
         'PublicProfileHeader uid=$uid isOnline=$isOnline (stream=$streamOnline profile=${profile.isOnline})');
+    final blurOn = ref.watch(appSettingsProvider
+        .select((a) => a.value?.blurExplicitEnabled ?? FeatureFlags.blurExplicitByDefault));
+    final avatarWidget = (profile.avatarUrl != null && profile.avatarUrl!.isNotEmpty)
+        ? CachedNetworkImage(
+            imageUrl: profile.avatarUrl!,
+            fit: BoxFit.cover,
+            placeholder: (_, _) => _avatarPlaceholder(theme),
+            errorWidget: (_, _, _) => _avatarPlaceholder(theme),
+          )
+        : _avatarPlaceholder(theme);
 
     return Stack(
       children: [
@@ -53,14 +66,11 @@ class PublicProfileHeader extends ConsumerWidget {
                   boxShadow: [BoxShadow(color: Colors.black.withAlpha(40), blurRadius: 12, offset: const Offset(0, 4))],
                 ),
                 child: ClipOval(
-                  child: (profile.avatarUrl != null && profile.avatarUrl!.isNotEmpty)
-                      ? CachedNetworkImage(
-                          imageUrl: profile.avatarUrl!,
-                          fit: BoxFit.cover,
-                          placeholder: (_, _) => _avatarPlaceholder(theme),
-                          errorWidget: (_, _, _) => _avatarPlaceholder(theme),
-                        )
-                      : _avatarPlaceholder(theme),
+                  child: wrapAvatarBlur(
+                    blurOn: blurOn,
+                    racyLevel: profile.avatarRacyLevel,
+                    child: avatarWidget,
+                  ),
                 ),
               ),
               const SizedBox(height: 16),

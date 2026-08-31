@@ -2,11 +2,10 @@ import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../core/config/feature_flags.dart';
 import '../../../../core/debug/debug_config.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/utils/avatar_blur.dart';
 import '../../../../shared/widgets/read_receipt_indicator.dart';
-import '../../../settings/providers/app_settings_provider.dart';
 import '../../providers/chat_provider.dart';
 import 'bubble_long_press_wrapper.dart';
 import '../message_reactions.dart';
@@ -34,6 +33,7 @@ class GifImageBubble extends ConsumerWidget {
   final String messageId;
   final bool isImage;
   final String? racyLevel;
+  final bool blurEnabled;
   final Map<String, dynamic> reactions;
   final Future<void> Function(String messageId, String emoji)? onReact;
   final Future<void> Function(String messageId)? onRemove;
@@ -66,6 +66,7 @@ class GifImageBubble extends ConsumerWidget {
     this.messageId = '',
     this.isImage = false,
     this.racyLevel,
+    this.blurEnabled = false,
     this.reactions = const {},
     this.onReact,
     this.onRemove,
@@ -189,10 +190,7 @@ class GifImageBubble extends ConsumerWidget {
     final sentColor = _sentColor;
     final receivedColor = theme.colorScheme.surfaceContainerHighest;
     final bubbleColor = isMe ? sentColor : receivedColor;
-    final blurOn = ref.watch(appSettingsProvider
-        .select((a) => a.value?.blurExplicitEnabled ?? FeatureFlags.blurExplicitByDefault));
-    final applyBlur = blurOn &&
-        (racyLevel == 'POSSIBLE' || racyLevel == 'LIKELY');
+    final applyBlur = blurEnabled && isRacyLevel(racyLevel);
 
     final bubbleBorderRadius = BorderRadius.only(
       topLeft: const Radius.circular(_bubbleRadius),

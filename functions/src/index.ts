@@ -1436,7 +1436,10 @@ export const moderateImage = functions.region(REGION).storage.object().onFinaliz
       const chatId = segments[1];
       if (chatId) {
         await db.collection('chats').doc(chatId)
-          .update({ groupAvatarUrl: admin.firestore.FieldValue.delete() });
+          .update({
+            groupAvatarUrl: admin.firestore.FieldValue.delete(),
+            groupAvatarRacyLevel: admin.firestore.FieldValue.delete(),
+          });
       }
     }
   } catch (e) {

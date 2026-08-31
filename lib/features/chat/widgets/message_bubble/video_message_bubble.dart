@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +7,7 @@ import '../../../../core/debug/debug_config.dart';
 import '../../../../core/l10n/l10n.dart';
 import '../../../../core/utils/app_messenger.dart';
 import '../../../../core/utils/error_messages.dart';
+import '../../../../shared/utils/avatar_blur.dart';
 import '../../providers/chat_provider.dart';
 import 'bubble_long_press_wrapper.dart';
 import '../message_reactions.dart';
@@ -48,6 +50,8 @@ class VideoMessageBubble extends ConsumerStatefulWidget {
   final dynamic videoPlayer;
   final Future<void> Function(String url)? onPlayVideo;
   final String? isLoadingUrl;
+  final String? videoRacyLevel;
+  final bool blurEnabled;
 
   const VideoMessageBubble({
     super.key,
@@ -82,6 +86,8 @@ class VideoMessageBubble extends ConsumerStatefulWidget {
     this.videoPlayer,
     this.onPlayVideo,
     this.isLoadingUrl,
+    this.videoRacyLevel,
+    this.blurEnabled = false,
   });
 
   @override
@@ -257,6 +263,7 @@ class _VideoMessageBubbleState extends ConsumerState<VideoMessageBubble> {
         (isMyController && controller != null && controller.value.isInitialized)
         ? controller.value.aspectRatio
         : 16 / 9;
+    final thumbBlur = widget.blurEnabled && isRacyLevel(widget.videoRacyLevel);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
@@ -338,18 +345,34 @@ class _VideoMessageBubbleState extends ConsumerState<VideoMessageBubble> {
                                       alignment: Alignment.center,
                                       fit: StackFit.expand,
                                       children: [
-                                        CachedNetworkImage(
-                                          imageUrl: widget.thumbnailUrl!,
-                                          fit: BoxFit.cover,
-                                          errorWidget: (_, _, _) => Container(
-                                            color: Colors.black38,
-                                            child: const Icon(
-                                              Icons.movie_creation_outlined,
-                                              size: 48,
-                                              color: Colors.white70,
-                                            ),
-                                          ),
-                                        ),
+                                        thumbBlur
+                                            ? ImageFiltered(
+                                                imageFilter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                                                child: CachedNetworkImage(
+                                                  imageUrl: widget.thumbnailUrl!,
+                                                  fit: BoxFit.cover,
+                                                  errorWidget: (_, _, _) => Container(
+                                                    color: Colors.black38,
+                                                    child: const Icon(
+                                                      Icons.movie_creation_outlined,
+                                                      size: 48,
+                                                      color: Colors.white70,
+                                                    ),
+                                                  ),
+                                                ),
+                                              )
+                                            : CachedNetworkImage(
+                                                imageUrl: widget.thumbnailUrl!,
+                                                fit: BoxFit.cover,
+                                                errorWidget: (_, _, _) => Container(
+                                                  color: Colors.black38,
+                                                  child: const Icon(
+                                                    Icons.movie_creation_outlined,
+                                                    size: 48,
+                                                    color: Colors.white70,
+                                                  ),
+                                                ),
+                                              ),
                                         if (isLoading)
                                           const CircularProgressIndicator(
                                             color: Colors.white70,

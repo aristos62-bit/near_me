@@ -557,8 +557,8 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
             lastMessageType: lastMessageType != null ? Value(lastMessageType) : Value.absent(),
             unreadCount: unreadCount != null ? Value(unreadCount) : Value.absent(),
             groupName: groupName != null ? Value(groupName) : Value.absent(),
-            groupAvatarUrl: groupAvatarUrl != null ? Value(groupAvatarUrl) : Value.absent(),
-            groupAvatarRacyLevel: groupAvatarRacyLevel != null ? Value(groupAvatarRacyLevel) : Value.absent(),
+            groupAvatarUrl: groupAvatarUrl == null ? Value.absent() : groupAvatarUrl.isEmpty ? const Value(null) : Value(groupAvatarUrl),
+            groupAvatarRacyLevel: groupAvatarRacyLevel == null ? Value.absent() : groupAvatarRacyLevel.isEmpty ? const Value(null) : Value(groupAvatarRacyLevel),
           ));
       DebugConfig.log(DebugConfig.databaseLocal,
           'updateChatCache: written chat=$chatId otherNickname=$otherNickname');
@@ -726,8 +726,11 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
                 final data = change.doc.data() as Map<String, dynamic>;
                 final lastMessageAt = (data['lastMessageAt'] as Timestamp?)?.toDate();
                 final lastMessageBy = data['lastMessageBy'] as String?;
-                final groupAvatarUrl = data['groupAvatarUrl'] as String?;
-                final groupAvatarRacyLevel = data['groupAvatarRacyLevel'] as String?;
+                // containsKey → διακρίνει "δεν στάλθηκε" (absent) από "διαγράφηκε" (key absent σε group). Όταν λείπει σε group, στέλνουμε '' για clear-to-null στο updateChatCache.
+                final hasGroupAvatarUrl = data.containsKey('groupAvatarUrl');
+                final hasGroupAvatarRacyLevel = data.containsKey('groupAvatarRacyLevel');
+                final groupAvatarUrl = hasGroupAvatarUrl ? data['groupAvatarUrl'] as String? : (data['isGroupChat'] == true ? '' : null);
+                final groupAvatarRacyLevel = hasGroupAvatarRacyLevel ? data['groupAvatarRacyLevel'] as String? : (data['isGroupChat'] == true ? '' : null);
                 final groupName = data['groupName'] as String?;
                 final participants = List<String>.from(data['participants'] ?? []);
                 final otherUid = participants.where((p) => p != uid).firstOrNull;

@@ -35,8 +35,8 @@ class ModerationSection extends ConsumerWidget {
               secondary: const Icon(Icons.blur_on_outlined),
               title: Text(isGreek ? 'Θάμπωμα ακατάλληλου περιεχομένου' : 'Blur explicit content'),
               subtitle: Text(isGreek
-                  ? 'Θάμπωμα φωτογραφιών με ενδείξεις POSSIBLE/LIKELY'
-                  : 'Blur photos flagged POSSIBLE/LIKELY'),
+                  ? 'Θάμπωμα φωτογραφιών'
+                  : 'Blur photos'),
               value: s.blurExplicitEnabled,
               onChanged: (v) async {
                 DebugConfig.log(DebugConfig.uiInteraction,
@@ -138,8 +138,10 @@ class _BlurSigmaTileState extends ConsumerState<_BlurSigmaTile> {
                           '_BlurSigmaTile: onChangeEnd sigma=$newSigma');
                       await ref.read(appSettingsProvider.notifier).setBlurSigma(newSigma);
                       if (context.mounted) {
-                        AppMessenger.showInfo(context,
-                            ErrorMessages.get('settings/blur-on', isGreek));
+                        AppMessenger.showInfo(
+                            context,
+                            ErrorMessages.get(
+                                newSigma > 0 ? 'settings/blur-on' : 'settings/blur-off', isGreek));
                       }
                     },
                   ),

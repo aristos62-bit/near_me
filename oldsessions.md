@@ -2187,4 +2187,9 @@ Follow-up hygiene μετά το Session 248: sanity-checks που ανέδειξ
 ### Έλεγχος
 - `flutter analyze` clean ✅ (full) · `firebase deploy` Success ✅ · `Invoke-WebRequest` 200 ✅ · `Get-ChildItem hosting` 2 files ✅ · Store URLs έτοιμα για paste: Play → App content + App Store → App Information.
 
+### Follow-up 30/08 — Terms EL+EN + pills fix
+- **Pills header** `privacy.html:35` + `terms.html:35` `GDPReur3→GDPR eur3` κόλλημα copy-paste (χωρίς κενό `</span><span>`) → fix `</span> <span>` + deploy `found 2 files → release complete` → `privacy pills FIXED` + `terms pills FIXED` (`?v=el` 200).
+- **Terms 16 toggles** `terms.html:68` EL `14 toggles` → `16 toggles (14 ορατότητας + 2 επικοινωνίας)` + `terms.html:163` EN `14 privacy toggles` → `16 toggles (14 visibility + 2 communication)` → deploy → `16 toggles FOUND` 12630B.
+- **Όροι 11α + media check:** χρήστης πέρασε μόνος του 2 clauses (11α Προστασία Κακόβουλης Χρήσης + έλεγχος Vision σε privacy §1/terms §10) → deploy `found 2 files` → `privacy 9487B / terms 12568B` `new clauses FOUND` σε `?v=2`.
+
 > Αυτό το μπλοκ πρέπει να «κληρονομείται» σε κάθε επόμενο session στο τέλος του αρχείου.

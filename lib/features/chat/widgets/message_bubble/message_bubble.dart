@@ -171,6 +171,7 @@ class MessageBubble extends StatelessWidget {
         currentUid: currentUid,
         messageId: msgId,
         isImage: type == 'image',
+        racyLevel: message['racyLevel'] as String?,
         reactions: reactions,
         onReact: callbacks.onReact,
         onRemove: callbacks.onRemove,

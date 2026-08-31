@@ -6,6 +6,7 @@ class GroupPublicProfile {
   final String chatId;
   final String groupName;
   final String? groupAvatarUrl;
+  final String? groupAvatarRacyLevel;
   final int memberCount;
   final String? description;
   final List<String> tags;
@@ -19,6 +20,7 @@ class GroupPublicProfile {
     required this.chatId,
     required this.groupName,
     this.groupAvatarUrl,
+    this.groupAvatarRacyLevel,
     this.memberCount = 0,
     this.description,
     this.tags = const [],
@@ -35,6 +37,7 @@ class GroupPublicProfile {
       chatId: data?['chatId'] as String? ?? doc.id,
       groupName: data?['groupName'] as String? ?? '',
       groupAvatarUrl: data?['groupAvatarUrl'] as String?,
+      groupAvatarRacyLevel: data?['groupAvatarRacyLevel'] as String?,
       memberCount: data?['memberCount'] as int? ?? 0,
       description: data?['description'] as String?,
       tags: (data?['tags'] as List?)?.cast<String>() ?? [],
@@ -136,6 +139,8 @@ class FirestoreGroupSearchRepository implements GroupSearchRepository {
         'groupName': profile.groupName,
         if (profile.groupAvatarUrl != null)
           'groupAvatarUrl': profile.groupAvatarUrl,
+        if (profile.groupAvatarRacyLevel != null)
+          'groupAvatarRacyLevel': profile.groupAvatarRacyLevel,
         'memberCount': profile.memberCount,
         if (profile.description != null) 'description': profile.description,
         if (profile.tags.isNotEmpty) 'tags': profile.tags,
@@ -172,8 +177,10 @@ class FirestoreGroupSearchRepository implements GroupSearchRepository {
       };
       if (profile.groupAvatarUrl != null) {
         data['groupAvatarUrl'] = profile.groupAvatarUrl;
+        data['groupAvatarRacyLevel'] = profile.groupAvatarRacyLevel;
       } else {
         data['groupAvatarUrl'] = FieldValue.delete();
+        data['groupAvatarRacyLevel'] = FieldValue.delete();
       }
       if (profile.description != null) {
         data['description'] = profile.description;

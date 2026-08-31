@@ -1,7 +1,9 @@
+import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/config/feature_flags.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../repositories/auth_repository.dart';
@@ -11,6 +13,7 @@ import '../../../core/utils/app_messenger.dart';
 import '../../../shared/models/public_profile.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../../../shared/widgets/report_user_dialog.dart';
+import '../../settings/providers/app_settings_provider.dart';
 import '../widgets/public_profile_header.dart';
 import '../providers/search_provider.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -125,7 +128,7 @@ class _PublicProfileViewScreenState extends ConsumerState<PublicProfileViewScree
                   children: [
                     PublicProfileHeader(profile: profile, uid: uid, distanceKm: distanceKm),
                     if (profile.photoUrls != null && profile.photoUrls!.isNotEmpty)
-                      _buildPhotoGallery(profile, theme, isGreek),
+                      _buildPhotoGallery(profile, theme, isGreek, ref),
                     _buildLookingForCard(profile, theme, isGreek),
                     _buildInterestsCard(profile, theme, isGreek),
                     _buildBioCard(profile, theme, isGreek),
@@ -172,7 +175,8 @@ class _PublicProfileViewScreenState extends ConsumerState<PublicProfileViewScree
     );
   }
 
-  Widget _buildPhotoGallery(PublicProfile profile, ThemeData theme, bool isGreek) {
+  Widget _buildPhotoGallery(
+      PublicProfile profile, ThemeData theme, bool isGreek, WidgetRef ref) {
     final photos = profile.photoUrls!.take(9).toList();
     return _sectionCard(
       icon: Icons.photo_library_outlined,
@@ -183,18 +187,35 @@ class _PublicProfileViewScreenState extends ConsumerState<PublicProfileViewScree
           scrollDirection: Axis.horizontal,
           itemCount: photos.length,
           separatorBuilder: (ctx, i) => const SizedBox(width: 8),
-          itemBuilder: (ctx, i) => ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: CachedNetworkImage(
-              imageUrl: photos[i], width: 100, height: 100, fit: BoxFit.cover,
+          itemBuilder: (ctx, i) {
+            final racyLevels = profile.photoRacyLevels;
+            final level =
+                (racyLevels != null && i < racyLevels.length) ? racyLevels[i] : null;
+            final isRacy = level == 'POSSIBLE' || level == 'LIKELY';
+            final blurOn = ref.watch(appSettingsProvider
+                .select((a) => a.value?.blurExplicitEnabled ?? FeatureFlags.blurExplicitByDefault));
+            final image = CachedNetworkImage(
+              imageUrl: photos[i],
+              width: 100,
+              height: 100,
+              fit: BoxFit.cover,
               placeholder: (ctx, url) => Container(width: 100, height: 100,
                 color: theme.colorScheme.surfaceContainerHighest,
                 child: Icon(Icons.image_outlined, color: theme.colorScheme.onSurfaceVariant.withAlpha(80))),
               errorWidget: (ctx, url, err) => Container(width: 100, height: 100,
                 color: theme.colorScheme.surfaceContainerHighest,
                 child: Icon(Icons.broken_image_outlined, color: theme.colorScheme.onSurfaceVariant.withAlpha(80))),
-            ),
-          ),
+            );
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: (blurOn && isRacy)
+                  ? ImageFiltered(
+                      imageFilter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                      child: image,
+                    )
+                  : image,
+            );
+          },
         ),
       ),
     );

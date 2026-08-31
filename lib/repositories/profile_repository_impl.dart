@@ -72,10 +72,16 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
               if (hasAvatarUrl || hasPhotoUrls) {
                 var updated = profile;
                 if (hasAvatarUrl) {
-                  updated = updated.copyWith(avatarUrl: Value(pub.avatarUrl));
+                  updated = updated.copyWith(
+                    avatarUrl: Value(pub.avatarUrl),
+                    avatarRacyLevel: Value(pub.avatarRacyLevel),
+                  );
                 }
                 if (hasPhotoUrls) {
-                  updated = updated.copyWith(photoUrls: Value(pub.photoUrls));
+                  updated = updated.copyWith(
+                    photoUrls: Value(pub.photoUrls),
+                    photoRacyLevels: Value(pub.photoRacyLevels),
+                  );
                 }
                 await saveProfile(updated);
                 DebugConfig.log(DebugConfig.repositoryResult,
@@ -123,6 +129,8 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
           country: pub.country,
           avatarUrl: pub.avatarUrl,
           photoUrls: pub.photoUrls,
+          avatarRacyLevel: pub.avatarRacyLevel,
+          photoRacyLevels: pub.photoRacyLevels,
           email: pub.email,
           phone: pub.phone,
           allowVideoCall: pub.allowVideoCall,
@@ -349,6 +357,10 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
         bio: privacy?.showBio == true ? profile.bio : null,
         avatarUrl: privacy?.showAvatar == true ? profile.avatarUrl : null,
         photoUrls: privacy?.showPhotos == true ? profile.photoUrls : null,
+        avatarRacyLevel:
+            privacy?.showAvatar == true ? profile.avatarRacyLevel : null,
+        photoRacyLevels:
+            privacy?.showPhotos == true ? profile.photoRacyLevels : null,
         email: privacy?.showEmail == true ? profile.email : null,
         phone: privacy?.showPhone == true ? profile.phone : null,
         allowVideoCall: privacy?.allowVideoCall ?? false,

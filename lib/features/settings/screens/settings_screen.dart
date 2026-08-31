@@ -17,6 +17,7 @@ import '../../../providers/unread_badge_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../requests/providers/requests_provider.dart';
 import '../providers/app_settings_provider.dart';
+import '../widgets/moderation_section.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -208,6 +209,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               const _DiagnosticsSection(),
               const Divider(),
 
+              const ModerationSection(),
+              const Divider(),
+
               ListTile(
                 leading: const Icon(Icons.privacy_tip_outlined),
                 title: Text(isGreek ? 'Πολιτική Απορρήτου' : 'Privacy Policy'),
@@ -367,9 +371,9 @@ class _DiagnosticsSection extends ConsumerWidget {
         data: (settings) => SwitchListTile(
           secondary: const Icon(Icons.bug_report_outlined),
           title: Text(isGreek ? 'Αναφορές Σφαλμάτων' : 'Crash Reports'),
-          subtitle: Text(isGreek
-              ? 'Αποστολή αναφορών σφαλμάτων (Crashlytics).'
-              : 'Send crash reports (Crashlytics).'),
+           subtitle: Text(isGreek
+               ? 'Αποστολή αναφορών σφαλμάτων (Crashlytics).'
+               : 'Send crash reports (Crashlytics).'),
           value: settings.crashReportsEnabled,
           onChanged: (v) async {
             DebugConfig.log(DebugConfig.uiInteraction,

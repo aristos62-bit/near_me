@@ -206,6 +206,29 @@ class $UserProfileTableTable extends UserProfileTable
       ).withConverter<List<String>?>(
         $UserProfileTableTable.$converterphotoUrlsn,
       );
+  static const VerificationMeta _avatarRacyLevelMeta = const VerificationMeta(
+    'avatarRacyLevel',
+  );
+  @override
+  late final GeneratedColumn<String> avatarRacyLevel = GeneratedColumn<String>(
+    'avatar_racy_level',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<List<String>?, String>
+  photoRacyLevels =
+      GeneratedColumn<String>(
+        'photo_racy_levels',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      ).withConverter<List<String>?>(
+        $UserProfileTableTable.$converterphotoRacyLevelsn,
+      );
   static const VerificationMeta _allowVideoCallMeta = const VerificationMeta(
     'allowVideoCall',
   );
@@ -296,6 +319,8 @@ class $UserProfileTableTable extends UserProfileTable
     manualLocationText,
     avatarUrl,
     photoUrls,
+    avatarRacyLevel,
+    photoRacyLevels,
     allowVideoCall,
     allowDirectChat,
     isPublished,
@@ -414,6 +439,15 @@ class $UserProfileTableTable extends UserProfileTable
       context.handle(
         _avatarUrlMeta,
         avatarUrl.isAcceptableOrUnknown(data['avatar_url']!, _avatarUrlMeta),
+      );
+    }
+    if (data.containsKey('avatar_racy_level')) {
+      context.handle(
+        _avatarRacyLevelMeta,
+        avatarRacyLevel.isAcceptableOrUnknown(
+          data['avatar_racy_level']!,
+          _avatarRacyLevelMeta,
+        ),
       );
     }
     if (data.containsKey('allow_video_call')) {
@@ -546,6 +580,17 @@ class $UserProfileTableTable extends UserProfileTable
           data['${effectivePrefix}photo_urls'],
         ),
       ),
+      avatarRacyLevel: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}avatar_racy_level'],
+      ),
+      photoRacyLevels: $UserProfileTableTable.$converterphotoRacyLevelsn
+          .fromSql(
+            attachedDatabase.typeMapping.read(
+              DriftSqlType.string,
+              data['${effectivePrefix}photo_racy_levels'],
+            ),
+          ),
       allowVideoCall: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}allow_video_call'],
@@ -586,6 +631,10 @@ class $UserProfileTableTable extends UserProfileTable
       const StringListConverter();
   static TypeConverter<List<String>?, String?> $converterphotoUrlsn =
       NullAwareTypeConverter.wrap($converterphotoUrls);
+  static TypeConverter<List<String>, String> $converterphotoRacyLevels =
+      const StringListConverter();
+  static TypeConverter<List<String>?, String?> $converterphotoRacyLevelsn =
+      NullAwareTypeConverter.wrap($converterphotoRacyLevels);
 }
 
 class UserProfileTableData extends DataClass
@@ -609,6 +658,10 @@ class UserProfileTableData extends DataClass
   final String? manualLocationText;
   final String? avatarUrl;
   final List<String>? photoUrls;
+
+  /// Racy levels για blur rendering (schema v16)
+  final String? avatarRacyLevel;
+  final List<String>? photoRacyLevels;
   final bool allowVideoCall;
   final bool allowDirectChat;
   final bool isPublished;
@@ -634,6 +687,8 @@ class UserProfileTableData extends DataClass
     this.manualLocationText,
     this.avatarUrl,
     this.photoUrls,
+    this.avatarRacyLevel,
+    this.photoRacyLevels,
     required this.allowVideoCall,
     required this.allowDirectChat,
     required this.isPublished,
@@ -704,6 +759,16 @@ class UserProfileTableData extends DataClass
         $UserProfileTableTable.$converterphotoUrlsn.toSql(photoUrls),
       );
     }
+    if (!nullToAbsent || avatarRacyLevel != null) {
+      map['avatar_racy_level'] = Variable<String>(avatarRacyLevel);
+    }
+    if (!nullToAbsent || photoRacyLevels != null) {
+      map['photo_racy_levels'] = Variable<String>(
+        $UserProfileTableTable.$converterphotoRacyLevelsn.toSql(
+          photoRacyLevels,
+        ),
+      );
+    }
     map['allow_video_call'] = Variable<bool>(allowVideoCall);
     map['allow_direct_chat'] = Variable<bool>(allowDirectChat);
     map['is_published'] = Variable<bool>(isPublished);
@@ -763,6 +828,12 @@ class UserProfileTableData extends DataClass
       photoUrls: photoUrls == null && nullToAbsent
           ? const Value.absent()
           : Value(photoUrls),
+      avatarRacyLevel: avatarRacyLevel == null && nullToAbsent
+          ? const Value.absent()
+          : Value(avatarRacyLevel),
+      photoRacyLevels: photoRacyLevels == null && nullToAbsent
+          ? const Value.absent()
+          : Value(photoRacyLevels),
       allowVideoCall: Value(allowVideoCall),
       allowDirectChat: Value(allowDirectChat),
       isPublished: Value(isPublished),
@@ -798,6 +869,10 @@ class UserProfileTableData extends DataClass
       ),
       avatarUrl: serializer.fromJson<String?>(json['avatarUrl']),
       photoUrls: serializer.fromJson<List<String>?>(json['photoUrls']),
+      avatarRacyLevel: serializer.fromJson<String?>(json['avatarRacyLevel']),
+      photoRacyLevels: serializer.fromJson<List<String>?>(
+        json['photoRacyLevels'],
+      ),
       allowVideoCall: serializer.fromJson<bool>(json['allowVideoCall']),
       allowDirectChat: serializer.fromJson<bool>(json['allowDirectChat']),
       isPublished: serializer.fromJson<bool>(json['isPublished']),
@@ -828,6 +903,8 @@ class UserProfileTableData extends DataClass
       'manualLocationText': serializer.toJson<String?>(manualLocationText),
       'avatarUrl': serializer.toJson<String?>(avatarUrl),
       'photoUrls': serializer.toJson<List<String>?>(photoUrls),
+      'avatarRacyLevel': serializer.toJson<String?>(avatarRacyLevel),
+      'photoRacyLevels': serializer.toJson<List<String>?>(photoRacyLevels),
       'allowVideoCall': serializer.toJson<bool>(allowVideoCall),
       'allowDirectChat': serializer.toJson<bool>(allowDirectChat),
       'isPublished': serializer.toJson<bool>(isPublished),
@@ -856,6 +933,8 @@ class UserProfileTableData extends DataClass
     Value<String?> manualLocationText = const Value.absent(),
     Value<String?> avatarUrl = const Value.absent(),
     Value<List<String>?> photoUrls = const Value.absent(),
+    Value<String?> avatarRacyLevel = const Value.absent(),
+    Value<List<String>?> photoRacyLevels = const Value.absent(),
     bool? allowVideoCall,
     bool? allowDirectChat,
     bool? isPublished,
@@ -887,6 +966,12 @@ class UserProfileTableData extends DataClass
         : this.manualLocationText,
     avatarUrl: avatarUrl.present ? avatarUrl.value : this.avatarUrl,
     photoUrls: photoUrls.present ? photoUrls.value : this.photoUrls,
+    avatarRacyLevel: avatarRacyLevel.present
+        ? avatarRacyLevel.value
+        : this.avatarRacyLevel,
+    photoRacyLevels: photoRacyLevels.present
+        ? photoRacyLevels.value
+        : this.photoRacyLevels,
     allowVideoCall: allowVideoCall ?? this.allowVideoCall,
     allowDirectChat: allowDirectChat ?? this.allowDirectChat,
     isPublished: isPublished ?? this.isPublished,
@@ -924,6 +1009,12 @@ class UserProfileTableData extends DataClass
           : this.manualLocationText,
       avatarUrl: data.avatarUrl.present ? data.avatarUrl.value : this.avatarUrl,
       photoUrls: data.photoUrls.present ? data.photoUrls.value : this.photoUrls,
+      avatarRacyLevel: data.avatarRacyLevel.present
+          ? data.avatarRacyLevel.value
+          : this.avatarRacyLevel,
+      photoRacyLevels: data.photoRacyLevels.present
+          ? data.photoRacyLevels.value
+          : this.photoRacyLevels,
       allowVideoCall: data.allowVideoCall.present
           ? data.allowVideoCall.value
           : this.allowVideoCall,
@@ -960,6 +1051,8 @@ class UserProfileTableData extends DataClass
           ..write('manualLocationText: $manualLocationText, ')
           ..write('avatarUrl: $avatarUrl, ')
           ..write('photoUrls: $photoUrls, ')
+          ..write('avatarRacyLevel: $avatarRacyLevel, ')
+          ..write('photoRacyLevels: $photoRacyLevels, ')
           ..write('allowVideoCall: $allowVideoCall, ')
           ..write('allowDirectChat: $allowDirectChat, ')
           ..write('isPublished: $isPublished, ')
@@ -990,6 +1083,8 @@ class UserProfileTableData extends DataClass
     manualLocationText,
     avatarUrl,
     photoUrls,
+    avatarRacyLevel,
+    photoRacyLevels,
     allowVideoCall,
     allowDirectChat,
     isPublished,
@@ -1019,6 +1114,8 @@ class UserProfileTableData extends DataClass
           other.manualLocationText == this.manualLocationText &&
           other.avatarUrl == this.avatarUrl &&
           other.photoUrls == this.photoUrls &&
+          other.avatarRacyLevel == this.avatarRacyLevel &&
+          other.photoRacyLevels == this.photoRacyLevels &&
           other.allowVideoCall == this.allowVideoCall &&
           other.allowDirectChat == this.allowDirectChat &&
           other.isPublished == this.isPublished &&
@@ -1046,6 +1143,8 @@ class UserProfileTableCompanion extends UpdateCompanion<UserProfileTableData> {
   final Value<String?> manualLocationText;
   final Value<String?> avatarUrl;
   final Value<List<String>?> photoUrls;
+  final Value<String?> avatarRacyLevel;
+  final Value<List<String>?> photoRacyLevels;
   final Value<bool> allowVideoCall;
   final Value<bool> allowDirectChat;
   final Value<bool> isPublished;
@@ -1071,6 +1170,8 @@ class UserProfileTableCompanion extends UpdateCompanion<UserProfileTableData> {
     this.manualLocationText = const Value.absent(),
     this.avatarUrl = const Value.absent(),
     this.photoUrls = const Value.absent(),
+    this.avatarRacyLevel = const Value.absent(),
+    this.photoRacyLevels = const Value.absent(),
     this.allowVideoCall = const Value.absent(),
     this.allowDirectChat = const Value.absent(),
     this.isPublished = const Value.absent(),
@@ -1097,6 +1198,8 @@ class UserProfileTableCompanion extends UpdateCompanion<UserProfileTableData> {
     this.manualLocationText = const Value.absent(),
     this.avatarUrl = const Value.absent(),
     this.photoUrls = const Value.absent(),
+    this.avatarRacyLevel = const Value.absent(),
+    this.photoRacyLevels = const Value.absent(),
     this.allowVideoCall = const Value.absent(),
     this.allowDirectChat = const Value.absent(),
     this.isPublished = const Value.absent(),
@@ -1123,6 +1226,8 @@ class UserProfileTableCompanion extends UpdateCompanion<UserProfileTableData> {
     Expression<String>? manualLocationText,
     Expression<String>? avatarUrl,
     Expression<String>? photoUrls,
+    Expression<String>? avatarRacyLevel,
+    Expression<String>? photoRacyLevels,
     Expression<bool>? allowVideoCall,
     Expression<bool>? allowDirectChat,
     Expression<bool>? isPublished,
@@ -1150,6 +1255,8 @@ class UserProfileTableCompanion extends UpdateCompanion<UserProfileTableData> {
         'manual_location_text': manualLocationText,
       if (avatarUrl != null) 'avatar_url': avatarUrl,
       if (photoUrls != null) 'photo_urls': photoUrls,
+      if (avatarRacyLevel != null) 'avatar_racy_level': avatarRacyLevel,
+      if (photoRacyLevels != null) 'photo_racy_levels': photoRacyLevels,
       if (allowVideoCall != null) 'allow_video_call': allowVideoCall,
       if (allowDirectChat != null) 'allow_direct_chat': allowDirectChat,
       if (isPublished != null) 'is_published': isPublished,
@@ -1178,6 +1285,8 @@ class UserProfileTableCompanion extends UpdateCompanion<UserProfileTableData> {
     Value<String?>? manualLocationText,
     Value<String?>? avatarUrl,
     Value<List<String>?>? photoUrls,
+    Value<String?>? avatarRacyLevel,
+    Value<List<String>?>? photoRacyLevels,
     Value<bool>? allowVideoCall,
     Value<bool>? allowDirectChat,
     Value<bool>? isPublished,
@@ -1204,6 +1313,8 @@ class UserProfileTableCompanion extends UpdateCompanion<UserProfileTableData> {
       manualLocationText: manualLocationText ?? this.manualLocationText,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       photoUrls: photoUrls ?? this.photoUrls,
+      avatarRacyLevel: avatarRacyLevel ?? this.avatarRacyLevel,
+      photoRacyLevels: photoRacyLevels ?? this.photoRacyLevels,
       allowVideoCall: allowVideoCall ?? this.allowVideoCall,
       allowDirectChat: allowDirectChat ?? this.allowDirectChat,
       isPublished: isPublished ?? this.isPublished,
@@ -1278,6 +1389,16 @@ class UserProfileTableCompanion extends UpdateCompanion<UserProfileTableData> {
         $UserProfileTableTable.$converterphotoUrlsn.toSql(photoUrls.value),
       );
     }
+    if (avatarRacyLevel.present) {
+      map['avatar_racy_level'] = Variable<String>(avatarRacyLevel.value);
+    }
+    if (photoRacyLevels.present) {
+      map['photo_racy_levels'] = Variable<String>(
+        $UserProfileTableTable.$converterphotoRacyLevelsn.toSql(
+          photoRacyLevels.value,
+        ),
+      );
+    }
     if (allowVideoCall.present) {
       map['allow_video_call'] = Variable<bool>(allowVideoCall.value);
     }
@@ -1318,6 +1439,8 @@ class UserProfileTableCompanion extends UpdateCompanion<UserProfileTableData> {
           ..write('manualLocationText: $manualLocationText, ')
           ..write('avatarUrl: $avatarUrl, ')
           ..write('photoUrls: $photoUrls, ')
+          ..write('avatarRacyLevel: $avatarRacyLevel, ')
+          ..write('photoRacyLevels: $photoRacyLevels, ')
           ..write('allowVideoCall: $allowVideoCall, ')
           ..write('allowDirectChat: $allowDirectChat, ')
           ..write('isPublished: $isPublished, ')
@@ -3079,6 +3202,17 @@ class $ChatCacheTableTable extends ChatCacheTable
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _groupAvatarRacyLevelMeta =
+      const VerificationMeta('groupAvatarRacyLevel');
+  @override
+  late final GeneratedColumn<String> groupAvatarRacyLevel =
+      GeneratedColumn<String>(
+        'group_avatar_racy_level',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _groupCreatedByMeta = const VerificationMeta(
     'groupCreatedBy',
   );
@@ -3121,6 +3255,7 @@ class $ChatCacheTableTable extends ChatCacheTable
     participantUids,
     groupName,
     groupAvatarUrl,
+    groupAvatarRacyLevel,
     groupCreatedBy,
     messageExpiry,
   ];
@@ -3268,6 +3403,15 @@ class $ChatCacheTableTable extends ChatCacheTable
         ),
       );
     }
+    if (data.containsKey('group_avatar_racy_level')) {
+      context.handle(
+        _groupAvatarRacyLevelMeta,
+        groupAvatarRacyLevel.isAcceptableOrUnknown(
+          data['group_avatar_racy_level']!,
+          _groupAvatarRacyLevelMeta,
+        ),
+      );
+    }
     if (data.containsKey('group_created_by')) {
       context.handle(
         _groupCreatedByMeta,
@@ -3363,6 +3507,10 @@ class $ChatCacheTableTable extends ChatCacheTable
         DriftSqlType.string,
         data['${effectivePrefix}group_avatar_url'],
       ),
+      groupAvatarRacyLevel: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}group_avatar_racy_level'],
+      ),
       groupCreatedBy: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}group_created_by'],
@@ -3410,6 +3558,9 @@ class ChatCacheTableData extends DataClass
   /// Group avatar URL (schema v10)
   final String? groupAvatarUrl;
 
+  /// Group avatar racy level (schema v16) — για blur rendering
+  final String? groupAvatarRacyLevel;
+
   /// Group creator UID (schema v11)
   final String? groupCreatedBy;
 
@@ -3433,6 +3584,7 @@ class ChatCacheTableData extends DataClass
     this.participantUids,
     this.groupName,
     this.groupAvatarUrl,
+    this.groupAvatarRacyLevel,
     this.groupCreatedBy,
     required this.messageExpiry,
   });
@@ -3479,6 +3631,9 @@ class ChatCacheTableData extends DataClass
     }
     if (!nullToAbsent || groupAvatarUrl != null) {
       map['group_avatar_url'] = Variable<String>(groupAvatarUrl);
+    }
+    if (!nullToAbsent || groupAvatarRacyLevel != null) {
+      map['group_avatar_racy_level'] = Variable<String>(groupAvatarRacyLevel);
     }
     if (!nullToAbsent || groupCreatedBy != null) {
       map['group_created_by'] = Variable<String>(groupCreatedBy);
@@ -3530,6 +3685,9 @@ class ChatCacheTableData extends DataClass
       groupAvatarUrl: groupAvatarUrl == null && nullToAbsent
           ? const Value.absent()
           : Value(groupAvatarUrl),
+      groupAvatarRacyLevel: groupAvatarRacyLevel == null && nullToAbsent
+          ? const Value.absent()
+          : Value(groupAvatarRacyLevel),
       groupCreatedBy: groupCreatedBy == null && nullToAbsent
           ? const Value.absent()
           : Value(groupCreatedBy),
@@ -3562,6 +3720,9 @@ class ChatCacheTableData extends DataClass
       participantUids: serializer.fromJson<String?>(json['participantUids']),
       groupName: serializer.fromJson<String?>(json['groupName']),
       groupAvatarUrl: serializer.fromJson<String?>(json['groupAvatarUrl']),
+      groupAvatarRacyLevel: serializer.fromJson<String?>(
+        json['groupAvatarRacyLevel'],
+      ),
       groupCreatedBy: serializer.fromJson<String?>(json['groupCreatedBy']),
       messageExpiry: serializer.fromJson<String>(json['messageExpiry']),
     );
@@ -3587,6 +3748,7 @@ class ChatCacheTableData extends DataClass
       'participantUids': serializer.toJson<String?>(participantUids),
       'groupName': serializer.toJson<String?>(groupName),
       'groupAvatarUrl': serializer.toJson<String?>(groupAvatarUrl),
+      'groupAvatarRacyLevel': serializer.toJson<String?>(groupAvatarRacyLevel),
       'groupCreatedBy': serializer.toJson<String?>(groupCreatedBy),
       'messageExpiry': serializer.toJson<String>(messageExpiry),
     };
@@ -3610,6 +3772,7 @@ class ChatCacheTableData extends DataClass
     Value<String?> participantUids = const Value.absent(),
     Value<String?> groupName = const Value.absent(),
     Value<String?> groupAvatarUrl = const Value.absent(),
+    Value<String?> groupAvatarRacyLevel = const Value.absent(),
     Value<String?> groupCreatedBy = const Value.absent(),
     String? messageExpiry,
   }) => ChatCacheTableData(
@@ -3644,6 +3807,9 @@ class ChatCacheTableData extends DataClass
     groupAvatarUrl: groupAvatarUrl.present
         ? groupAvatarUrl.value
         : this.groupAvatarUrl,
+    groupAvatarRacyLevel: groupAvatarRacyLevel.present
+        ? groupAvatarRacyLevel.value
+        : this.groupAvatarRacyLevel,
     groupCreatedBy: groupCreatedBy.present
         ? groupCreatedBy.value
         : this.groupCreatedBy,
@@ -3690,6 +3856,9 @@ class ChatCacheTableData extends DataClass
       groupAvatarUrl: data.groupAvatarUrl.present
           ? data.groupAvatarUrl.value
           : this.groupAvatarUrl,
+      groupAvatarRacyLevel: data.groupAvatarRacyLevel.present
+          ? data.groupAvatarRacyLevel.value
+          : this.groupAvatarRacyLevel,
       groupCreatedBy: data.groupCreatedBy.present
           ? data.groupCreatedBy.value
           : this.groupCreatedBy,
@@ -3719,6 +3888,7 @@ class ChatCacheTableData extends DataClass
           ..write('participantUids: $participantUids, ')
           ..write('groupName: $groupName, ')
           ..write('groupAvatarUrl: $groupAvatarUrl, ')
+          ..write('groupAvatarRacyLevel: $groupAvatarRacyLevel, ')
           ..write('groupCreatedBy: $groupCreatedBy, ')
           ..write('messageExpiry: $messageExpiry')
           ..write(')'))
@@ -3744,6 +3914,7 @@ class ChatCacheTableData extends DataClass
     participantUids,
     groupName,
     groupAvatarUrl,
+    groupAvatarRacyLevel,
     groupCreatedBy,
     messageExpiry,
   );
@@ -3768,6 +3939,7 @@ class ChatCacheTableData extends DataClass
           other.participantUids == this.participantUids &&
           other.groupName == this.groupName &&
           other.groupAvatarUrl == this.groupAvatarUrl &&
+          other.groupAvatarRacyLevel == this.groupAvatarRacyLevel &&
           other.groupCreatedBy == this.groupCreatedBy &&
           other.messageExpiry == this.messageExpiry);
 }
@@ -3790,6 +3962,7 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
   final Value<String?> participantUids;
   final Value<String?> groupName;
   final Value<String?> groupAvatarUrl;
+  final Value<String?> groupAvatarRacyLevel;
   final Value<String?> groupCreatedBy;
   final Value<String> messageExpiry;
   const ChatCacheTableCompanion({
@@ -3810,6 +3983,7 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
     this.participantUids = const Value.absent(),
     this.groupName = const Value.absent(),
     this.groupAvatarUrl = const Value.absent(),
+    this.groupAvatarRacyLevel = const Value.absent(),
     this.groupCreatedBy = const Value.absent(),
     this.messageExpiry = const Value.absent(),
   });
@@ -3831,6 +4005,7 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
     this.participantUids = const Value.absent(),
     this.groupName = const Value.absent(),
     this.groupAvatarUrl = const Value.absent(),
+    this.groupAvatarRacyLevel = const Value.absent(),
     this.groupCreatedBy = const Value.absent(),
     this.messageExpiry = const Value.absent(),
   });
@@ -3852,6 +4027,7 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
     Expression<String>? participantUids,
     Expression<String>? groupName,
     Expression<String>? groupAvatarUrl,
+    Expression<String>? groupAvatarRacyLevel,
     Expression<String>? groupCreatedBy,
     Expression<String>? messageExpiry,
   }) {
@@ -3873,6 +4049,8 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
       if (participantUids != null) 'participant_uids': participantUids,
       if (groupName != null) 'group_name': groupName,
       if (groupAvatarUrl != null) 'group_avatar_url': groupAvatarUrl,
+      if (groupAvatarRacyLevel != null)
+        'group_avatar_racy_level': groupAvatarRacyLevel,
       if (groupCreatedBy != null) 'group_created_by': groupCreatedBy,
       if (messageExpiry != null) 'message_expiry': messageExpiry,
     });
@@ -3896,6 +4074,7 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
     Value<String?>? participantUids,
     Value<String?>? groupName,
     Value<String?>? groupAvatarUrl,
+    Value<String?>? groupAvatarRacyLevel,
     Value<String?>? groupCreatedBy,
     Value<String>? messageExpiry,
   }) {
@@ -3917,6 +4096,7 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
       participantUids: participantUids ?? this.participantUids,
       groupName: groupName ?? this.groupName,
       groupAvatarUrl: groupAvatarUrl ?? this.groupAvatarUrl,
+      groupAvatarRacyLevel: groupAvatarRacyLevel ?? this.groupAvatarRacyLevel,
       groupCreatedBy: groupCreatedBy ?? this.groupCreatedBy,
       messageExpiry: messageExpiry ?? this.messageExpiry,
     );
@@ -3976,6 +4156,11 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
     if (groupAvatarUrl.present) {
       map['group_avatar_url'] = Variable<String>(groupAvatarUrl.value);
     }
+    if (groupAvatarRacyLevel.present) {
+      map['group_avatar_racy_level'] = Variable<String>(
+        groupAvatarRacyLevel.value,
+      );
+    }
     if (groupCreatedBy.present) {
       map['group_created_by'] = Variable<String>(groupCreatedBy.value);
     }
@@ -4005,6 +4190,7 @@ class ChatCacheTableCompanion extends UpdateCompanion<ChatCacheTableData> {
           ..write('participantUids: $participantUids, ')
           ..write('groupName: $groupName, ')
           ..write('groupAvatarUrl: $groupAvatarUrl, ')
+          ..write('groupAvatarRacyLevel: $groupAvatarRacyLevel, ')
           ..write('groupCreatedBy: $groupCreatedBy, ')
           ..write('messageExpiry: $messageExpiry')
           ..write(')'))
@@ -4932,6 +5118,20 @@ class $AppSettingsTableTable extends AppSettingsTable
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _blurExplicitEnabledMeta =
+      const VerificationMeta('blurExplicitEnabled');
+  @override
+  late final GeneratedColumn<bool> blurExplicitEnabled = GeneratedColumn<bool>(
+    'blur_explicit_enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("blur_explicit_enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   static const VerificationMeta _autoLockMinutesMeta = const VerificationMeta(
     'autoLockMinutes',
   );
@@ -4977,6 +5177,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     biometricLockEnabled,
     screenshotPreventionEnabled,
     crashReportsEnabled,
+    blurExplicitEnabled,
     autoLockMinutes,
     searchRadiusKm,
     updatedAt,
@@ -5044,6 +5245,15 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('blur_explicit_enabled')) {
+      context.handle(
+        _blurExplicitEnabledMeta,
+        blurExplicitEnabled.isAcceptableOrUnknown(
+          data['blur_explicit_enabled']!,
+          _blurExplicitEnabledMeta,
+        ),
+      );
+    }
     if (data.containsKey('auto_lock_minutes')) {
       context.handle(
         _autoLockMinutesMeta,
@@ -5105,6 +5315,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}crash_reports_enabled'],
       )!,
+      blurExplicitEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}blur_explicit_enabled'],
+      )!,
       autoLockMinutes: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}auto_lock_minutes'],
@@ -5135,6 +5349,10 @@ class AppSettingsTableData extends DataClass
   final bool biometricLockEnabled;
   final bool screenshotPreventionEnabled;
   final bool crashReportsEnabled;
+
+  /// Blur explicit content toggle (schema v16) — default `true`· το FeatureFlag
+  /// εφαρμόζεται στο provider layer (app_settings_provider) ως fallback.
+  final bool blurExplicitEnabled;
   final int autoLockMinutes;
   final double searchRadiusKm;
   final DateTime updatedAt;
@@ -5146,6 +5364,7 @@ class AppSettingsTableData extends DataClass
     required this.biometricLockEnabled,
     required this.screenshotPreventionEnabled,
     required this.crashReportsEnabled,
+    required this.blurExplicitEnabled,
     required this.autoLockMinutes,
     required this.searchRadiusKm,
     required this.updatedAt,
@@ -5162,6 +5381,7 @@ class AppSettingsTableData extends DataClass
       screenshotPreventionEnabled,
     );
     map['crash_reports_enabled'] = Variable<bool>(crashReportsEnabled);
+    map['blur_explicit_enabled'] = Variable<bool>(blurExplicitEnabled);
     map['auto_lock_minutes'] = Variable<int>(autoLockMinutes);
     map['search_radius_km'] = Variable<double>(searchRadiusKm);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -5177,6 +5397,7 @@ class AppSettingsTableData extends DataClass
       biometricLockEnabled: Value(biometricLockEnabled),
       screenshotPreventionEnabled: Value(screenshotPreventionEnabled),
       crashReportsEnabled: Value(crashReportsEnabled),
+      blurExplicitEnabled: Value(blurExplicitEnabled),
       autoLockMinutes: Value(autoLockMinutes),
       searchRadiusKm: Value(searchRadiusKm),
       updatedAt: Value(updatedAt),
@@ -5204,6 +5425,9 @@ class AppSettingsTableData extends DataClass
       crashReportsEnabled: serializer.fromJson<bool>(
         json['crashReportsEnabled'],
       ),
+      blurExplicitEnabled: serializer.fromJson<bool>(
+        json['blurExplicitEnabled'],
+      ),
       autoLockMinutes: serializer.fromJson<int>(json['autoLockMinutes']),
       searchRadiusKm: serializer.fromJson<double>(json['searchRadiusKm']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
@@ -5222,6 +5446,7 @@ class AppSettingsTableData extends DataClass
         screenshotPreventionEnabled,
       ),
       'crashReportsEnabled': serializer.toJson<bool>(crashReportsEnabled),
+      'blurExplicitEnabled': serializer.toJson<bool>(blurExplicitEnabled),
       'autoLockMinutes': serializer.toJson<int>(autoLockMinutes),
       'searchRadiusKm': serializer.toJson<double>(searchRadiusKm),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
@@ -5236,6 +5461,7 @@ class AppSettingsTableData extends DataClass
     bool? biometricLockEnabled,
     bool? screenshotPreventionEnabled,
     bool? crashReportsEnabled,
+    bool? blurExplicitEnabled,
     int? autoLockMinutes,
     double? searchRadiusKm,
     DateTime? updatedAt,
@@ -5248,6 +5474,7 @@ class AppSettingsTableData extends DataClass
     screenshotPreventionEnabled:
         screenshotPreventionEnabled ?? this.screenshotPreventionEnabled,
     crashReportsEnabled: crashReportsEnabled ?? this.crashReportsEnabled,
+    blurExplicitEnabled: blurExplicitEnabled ?? this.blurExplicitEnabled,
     autoLockMinutes: autoLockMinutes ?? this.autoLockMinutes,
     searchRadiusKm: searchRadiusKm ?? this.searchRadiusKm,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -5269,6 +5496,9 @@ class AppSettingsTableData extends DataClass
       crashReportsEnabled: data.crashReportsEnabled.present
           ? data.crashReportsEnabled.value
           : this.crashReportsEnabled,
+      blurExplicitEnabled: data.blurExplicitEnabled.present
+          ? data.blurExplicitEnabled.value
+          : this.blurExplicitEnabled,
       autoLockMinutes: data.autoLockMinutes.present
           ? data.autoLockMinutes.value
           : this.autoLockMinutes,
@@ -5289,6 +5519,7 @@ class AppSettingsTableData extends DataClass
           ..write('biometricLockEnabled: $biometricLockEnabled, ')
           ..write('screenshotPreventionEnabled: $screenshotPreventionEnabled, ')
           ..write('crashReportsEnabled: $crashReportsEnabled, ')
+          ..write('blurExplicitEnabled: $blurExplicitEnabled, ')
           ..write('autoLockMinutes: $autoLockMinutes, ')
           ..write('searchRadiusKm: $searchRadiusKm, ')
           ..write('updatedAt: $updatedAt')
@@ -5305,6 +5536,7 @@ class AppSettingsTableData extends DataClass
     biometricLockEnabled,
     screenshotPreventionEnabled,
     crashReportsEnabled,
+    blurExplicitEnabled,
     autoLockMinutes,
     searchRadiusKm,
     updatedAt,
@@ -5321,6 +5553,7 @@ class AppSettingsTableData extends DataClass
           other.screenshotPreventionEnabled ==
               this.screenshotPreventionEnabled &&
           other.crashReportsEnabled == this.crashReportsEnabled &&
+          other.blurExplicitEnabled == this.blurExplicitEnabled &&
           other.autoLockMinutes == this.autoLockMinutes &&
           other.searchRadiusKm == this.searchRadiusKm &&
           other.updatedAt == this.updatedAt);
@@ -5334,6 +5567,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<bool> biometricLockEnabled;
   final Value<bool> screenshotPreventionEnabled;
   final Value<bool> crashReportsEnabled;
+  final Value<bool> blurExplicitEnabled;
   final Value<int> autoLockMinutes;
   final Value<double> searchRadiusKm;
   final Value<DateTime> updatedAt;
@@ -5345,6 +5579,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.biometricLockEnabled = const Value.absent(),
     this.screenshotPreventionEnabled = const Value.absent(),
     this.crashReportsEnabled = const Value.absent(),
+    this.blurExplicitEnabled = const Value.absent(),
     this.autoLockMinutes = const Value.absent(),
     this.searchRadiusKm = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -5357,6 +5592,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.biometricLockEnabled = const Value.absent(),
     this.screenshotPreventionEnabled = const Value.absent(),
     this.crashReportsEnabled = const Value.absent(),
+    this.blurExplicitEnabled = const Value.absent(),
     this.autoLockMinutes = const Value.absent(),
     this.searchRadiusKm = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -5369,6 +5605,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<bool>? biometricLockEnabled,
     Expression<bool>? screenshotPreventionEnabled,
     Expression<bool>? crashReportsEnabled,
+    Expression<bool>? blurExplicitEnabled,
     Expression<int>? autoLockMinutes,
     Expression<double>? searchRadiusKm,
     Expression<DateTime>? updatedAt,
@@ -5385,6 +5622,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         'screenshot_prevention_enabled': screenshotPreventionEnabled,
       if (crashReportsEnabled != null)
         'crash_reports_enabled': crashReportsEnabled,
+      if (blurExplicitEnabled != null)
+        'blur_explicit_enabled': blurExplicitEnabled,
       if (autoLockMinutes != null) 'auto_lock_minutes': autoLockMinutes,
       if (searchRadiusKm != null) 'search_radius_km': searchRadiusKm,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -5399,6 +5638,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<bool>? biometricLockEnabled,
     Value<bool>? screenshotPreventionEnabled,
     Value<bool>? crashReportsEnabled,
+    Value<bool>? blurExplicitEnabled,
     Value<int>? autoLockMinutes,
     Value<double>? searchRadiusKm,
     Value<DateTime>? updatedAt,
@@ -5412,6 +5652,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       screenshotPreventionEnabled:
           screenshotPreventionEnabled ?? this.screenshotPreventionEnabled,
       crashReportsEnabled: crashReportsEnabled ?? this.crashReportsEnabled,
+      blurExplicitEnabled: blurExplicitEnabled ?? this.blurExplicitEnabled,
       autoLockMinutes: autoLockMinutes ?? this.autoLockMinutes,
       searchRadiusKm: searchRadiusKm ?? this.searchRadiusKm,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -5446,6 +5687,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (crashReportsEnabled.present) {
       map['crash_reports_enabled'] = Variable<bool>(crashReportsEnabled.value);
     }
+    if (blurExplicitEnabled.present) {
+      map['blur_explicit_enabled'] = Variable<bool>(blurExplicitEnabled.value);
+    }
     if (autoLockMinutes.present) {
       map['auto_lock_minutes'] = Variable<int>(autoLockMinutes.value);
     }
@@ -5468,6 +5712,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('biometricLockEnabled: $biometricLockEnabled, ')
           ..write('screenshotPreventionEnabled: $screenshotPreventionEnabled, ')
           ..write('crashReportsEnabled: $crashReportsEnabled, ')
+          ..write('blurExplicitEnabled: $blurExplicitEnabled, ')
           ..write('autoLockMinutes: $autoLockMinutes, ')
           ..write('searchRadiusKm: $searchRadiusKm, ')
           ..write('updatedAt: $updatedAt')
@@ -5884,6 +6129,8 @@ typedef $$UserProfileTableTableCreateCompanionBuilder =
       Value<String?> manualLocationText,
       Value<String?> avatarUrl,
       Value<List<String>?> photoUrls,
+      Value<String?> avatarRacyLevel,
+      Value<List<String>?> photoRacyLevels,
       Value<bool> allowVideoCall,
       Value<bool> allowDirectChat,
       Value<bool> isPublished,
@@ -5911,6 +6158,8 @@ typedef $$UserProfileTableTableUpdateCompanionBuilder =
       Value<String?> manualLocationText,
       Value<String?> avatarUrl,
       Value<List<String>?> photoUrls,
+      Value<String?> avatarRacyLevel,
+      Value<List<String>?> photoRacyLevels,
       Value<bool> allowVideoCall,
       Value<bool> allowDirectChat,
       Value<bool> isPublished,
@@ -6022,6 +6271,17 @@ class $$UserProfileTableTableFilterComposer
   ColumnWithTypeConverterFilters<List<String>?, List<String>, String>
   get photoUrls => $composableBuilder(
     column: $table.photoUrls,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
+  );
+
+  ColumnFilters<String> get avatarRacyLevel => $composableBuilder(
+    column: $table.avatarRacyLevel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<List<String>?, List<String>, String>
+  get photoRacyLevels => $composableBuilder(
+    column: $table.photoRacyLevels,
     builder: (column) => ColumnWithTypeConverterFilters(column),
   );
 
@@ -6155,6 +6415,16 @@ class $$UserProfileTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get avatarRacyLevel => $composableBuilder(
+    column: $table.avatarRacyLevel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get photoRacyLevels => $composableBuilder(
+    column: $table.photoRacyLevels,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get allowVideoCall => $composableBuilder(
     column: $table.allowVideoCall,
     builder: (column) => ColumnOrderings(column),
@@ -6258,6 +6528,17 @@ class $$UserProfileTableTableAnnotationComposer
   GeneratedColumnWithTypeConverter<List<String>?, String> get photoUrls =>
       $composableBuilder(column: $table.photoUrls, builder: (column) => column);
 
+  GeneratedColumn<String> get avatarRacyLevel => $composableBuilder(
+    column: $table.avatarRacyLevel,
+    builder: (column) => column,
+  );
+
+  GeneratedColumnWithTypeConverter<List<String>?, String> get photoRacyLevels =>
+      $composableBuilder(
+        column: $table.photoRacyLevels,
+        builder: (column) => column,
+      );
+
   GeneratedColumn<bool> get allowVideoCall => $composableBuilder(
     column: $table.allowVideoCall,
     builder: (column) => column,
@@ -6336,6 +6617,8 @@ class $$UserProfileTableTableTableManager
                 Value<String?> manualLocationText = const Value.absent(),
                 Value<String?> avatarUrl = const Value.absent(),
                 Value<List<String>?> photoUrls = const Value.absent(),
+                Value<String?> avatarRacyLevel = const Value.absent(),
+                Value<List<String>?> photoRacyLevels = const Value.absent(),
                 Value<bool> allowVideoCall = const Value.absent(),
                 Value<bool> allowDirectChat = const Value.absent(),
                 Value<bool> isPublished = const Value.absent(),
@@ -6361,6 +6644,8 @@ class $$UserProfileTableTableTableManager
                 manualLocationText: manualLocationText,
                 avatarUrl: avatarUrl,
                 photoUrls: photoUrls,
+                avatarRacyLevel: avatarRacyLevel,
+                photoRacyLevels: photoRacyLevels,
                 allowVideoCall: allowVideoCall,
                 allowDirectChat: allowDirectChat,
                 isPublished: isPublished,
@@ -6388,6 +6673,8 @@ class $$UserProfileTableTableTableManager
                 Value<String?> manualLocationText = const Value.absent(),
                 Value<String?> avatarUrl = const Value.absent(),
                 Value<List<String>?> photoUrls = const Value.absent(),
+                Value<String?> avatarRacyLevel = const Value.absent(),
+                Value<List<String>?> photoRacyLevels = const Value.absent(),
                 Value<bool> allowVideoCall = const Value.absent(),
                 Value<bool> allowDirectChat = const Value.absent(),
                 Value<bool> isPublished = const Value.absent(),
@@ -6413,6 +6700,8 @@ class $$UserProfileTableTableTableManager
                 manualLocationText: manualLocationText,
                 avatarUrl: avatarUrl,
                 photoUrls: photoUrls,
+                avatarRacyLevel: avatarRacyLevel,
+                photoRacyLevels: photoRacyLevels,
                 allowVideoCall: allowVideoCall,
                 allowDirectChat: allowDirectChat,
                 isPublished: isPublished,
@@ -7211,6 +7500,7 @@ typedef $$ChatCacheTableTableCreateCompanionBuilder =
       Value<String?> participantUids,
       Value<String?> groupName,
       Value<String?> groupAvatarUrl,
+      Value<String?> groupAvatarRacyLevel,
       Value<String?> groupCreatedBy,
       Value<String> messageExpiry,
     });
@@ -7233,6 +7523,7 @@ typedef $$ChatCacheTableTableUpdateCompanionBuilder =
       Value<String?> participantUids,
       Value<String?> groupName,
       Value<String?> groupAvatarUrl,
+      Value<String?> groupAvatarRacyLevel,
       Value<String?> groupCreatedBy,
       Value<String> messageExpiry,
     });
@@ -7328,6 +7619,11 @@ class $$ChatCacheTableTableFilterComposer
 
   ColumnFilters<String> get groupAvatarUrl => $composableBuilder(
     column: $table.groupAvatarUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get groupAvatarRacyLevel => $composableBuilder(
+    column: $table.groupAvatarRacyLevel,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7436,6 +7732,11 @@ class $$ChatCacheTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get groupAvatarRacyLevel => $composableBuilder(
+    column: $table.groupAvatarRacyLevel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get groupCreatedBy => $composableBuilder(
     column: $table.groupCreatedBy,
     builder: (column) => ColumnOrderings(column),
@@ -7529,6 +7830,11 @@ class $$ChatCacheTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get groupAvatarRacyLevel => $composableBuilder(
+    column: $table.groupAvatarRacyLevel,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get groupCreatedBy => $composableBuilder(
     column: $table.groupCreatedBy,
     builder: (column) => column,
@@ -7594,6 +7900,7 @@ class $$ChatCacheTableTableTableManager
                 Value<String?> participantUids = const Value.absent(),
                 Value<String?> groupName = const Value.absent(),
                 Value<String?> groupAvatarUrl = const Value.absent(),
+                Value<String?> groupAvatarRacyLevel = const Value.absent(),
                 Value<String?> groupCreatedBy = const Value.absent(),
                 Value<String> messageExpiry = const Value.absent(),
               }) => ChatCacheTableCompanion(
@@ -7614,6 +7921,7 @@ class $$ChatCacheTableTableTableManager
                 participantUids: participantUids,
                 groupName: groupName,
                 groupAvatarUrl: groupAvatarUrl,
+                groupAvatarRacyLevel: groupAvatarRacyLevel,
                 groupCreatedBy: groupCreatedBy,
                 messageExpiry: messageExpiry,
               ),
@@ -7636,6 +7944,7 @@ class $$ChatCacheTableTableTableManager
                 Value<String?> participantUids = const Value.absent(),
                 Value<String?> groupName = const Value.absent(),
                 Value<String?> groupAvatarUrl = const Value.absent(),
+                Value<String?> groupAvatarRacyLevel = const Value.absent(),
                 Value<String?> groupCreatedBy = const Value.absent(),
                 Value<String> messageExpiry = const Value.absent(),
               }) => ChatCacheTableCompanion.insert(
@@ -7656,6 +7965,7 @@ class $$ChatCacheTableTableTableManager
                 participantUids: participantUids,
                 groupName: groupName,
                 groupAvatarUrl: groupAvatarUrl,
+                groupAvatarRacyLevel: groupAvatarRacyLevel,
                 groupCreatedBy: groupCreatedBy,
                 messageExpiry: messageExpiry,
               ),
@@ -8077,6 +8387,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<bool> biometricLockEnabled,
       Value<bool> screenshotPreventionEnabled,
       Value<bool> crashReportsEnabled,
+      Value<bool> blurExplicitEnabled,
       Value<int> autoLockMinutes,
       Value<double> searchRadiusKm,
       Value<DateTime> updatedAt,
@@ -8090,6 +8401,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<bool> biometricLockEnabled,
       Value<bool> screenshotPreventionEnabled,
       Value<bool> crashReportsEnabled,
+      Value<bool> blurExplicitEnabled,
       Value<int> autoLockMinutes,
       Value<double> searchRadiusKm,
       Value<DateTime> updatedAt,
@@ -8136,6 +8448,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get crashReportsEnabled => $composableBuilder(
     column: $table.crashReportsEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get blurExplicitEnabled => $composableBuilder(
+    column: $table.blurExplicitEnabled,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8199,6 +8516,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get blurExplicitEnabled => $composableBuilder(
+    column: $table.blurExplicitEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get autoLockMinutes => $composableBuilder(
     column: $table.autoLockMinutes,
     builder: (column) => ColumnOrderings(column),
@@ -8250,6 +8572,11 @@ class $$AppSettingsTableTableAnnotationComposer
 
   GeneratedColumn<bool> get crashReportsEnabled => $composableBuilder(
     column: $table.crashReportsEnabled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get blurExplicitEnabled => $composableBuilder(
+    column: $table.blurExplicitEnabled,
     builder: (column) => column,
   );
 
@@ -8311,6 +8638,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> biometricLockEnabled = const Value.absent(),
                 Value<bool> screenshotPreventionEnabled = const Value.absent(),
                 Value<bool> crashReportsEnabled = const Value.absent(),
+                Value<bool> blurExplicitEnabled = const Value.absent(),
                 Value<int> autoLockMinutes = const Value.absent(),
                 Value<double> searchRadiusKm = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -8322,6 +8650,7 @@ class $$AppSettingsTableTableTableManager
                 biometricLockEnabled: biometricLockEnabled,
                 screenshotPreventionEnabled: screenshotPreventionEnabled,
                 crashReportsEnabled: crashReportsEnabled,
+                blurExplicitEnabled: blurExplicitEnabled,
                 autoLockMinutes: autoLockMinutes,
                 searchRadiusKm: searchRadiusKm,
                 updatedAt: updatedAt,
@@ -8335,6 +8664,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> biometricLockEnabled = const Value.absent(),
                 Value<bool> screenshotPreventionEnabled = const Value.absent(),
                 Value<bool> crashReportsEnabled = const Value.absent(),
+                Value<bool> blurExplicitEnabled = const Value.absent(),
                 Value<int> autoLockMinutes = const Value.absent(),
                 Value<double> searchRadiusKm = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -8346,6 +8676,7 @@ class $$AppSettingsTableTableTableManager
                 biometricLockEnabled: biometricLockEnabled,
                 screenshotPreventionEnabled: screenshotPreventionEnabled,
                 crashReportsEnabled: crashReportsEnabled,
+                blurExplicitEnabled: blurExplicitEnabled,
                 autoLockMinutes: autoLockMinutes,
                 searchRadiusKm: searchRadiusKm,
                 updatedAt: updatedAt,

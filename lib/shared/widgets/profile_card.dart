@@ -1,8 +1,11 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/discovery/providers/status_provider.dart';
+import '../../core/config/feature_flags.dart';
 import '../../core/l10n/l10n.dart';
+import '../../features/settings/providers/app_settings_provider.dart';
 import '../models/public_profile.dart';
 import '../utils/help_request_config.dart';
 import 'online_indicator.dart';
@@ -50,7 +53,7 @@ class ProfileCard extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                _buildAvatar(theme),
+                _buildAvatar(theme, ref),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -187,8 +190,13 @@ class ProfileCard extends ConsumerWidget {
     );
   }
 
-  Widget _buildAvatar(ThemeData theme) {
+  Widget _buildAvatar(ThemeData theme, WidgetRef ref) {
     final avatarUrl = profile.avatarUrl;
+    final isRacy =
+        profile.avatarRacyLevel == 'POSSIBLE' || profile.avatarRacyLevel == 'LIKELY';
+    final blurOn = ref.watch(appSettingsProvider
+        .select((a) => a.value?.blurExplicitEnabled ?? FeatureFlags.blurExplicitByDefault));
+    final applyBlur = blurOn && isRacy;
     return Container(
       width: 64,
       height: 64,
@@ -198,14 +206,23 @@ class ProfileCard extends ConsumerWidget {
       ),
       child: ClipOval(
         child: (avatarUrl != null && avatarUrl.isNotEmpty)
-            ? CachedNetworkImage(
-                imageUrl: avatarUrl,
-                fit: BoxFit.cover,
-                placeholder: (_, _) => _avatarPlaceholder(theme),
-                errorWidget: (_, _, _) => _avatarPlaceholder(theme),
-              )
+            ? (applyBlur
+                ? ImageFiltered(
+                    imageFilter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                    child: _buildAvatarImage(theme),
+                  )
+                : _buildAvatarImage(theme))
             : _avatarPlaceholder(theme),
       ),
+    );
+  }
+
+  Widget _buildAvatarImage(ThemeData theme) {
+    return CachedNetworkImage(
+      imageUrl: profile.avatarUrl!,
+      fit: BoxFit.cover,
+      placeholder: (_, _) => _avatarPlaceholder(theme),
+      errorWidget: (_, _, _) => _avatarPlaceholder(theme),
     );
   }
 

@@ -32,6 +32,8 @@ abstract class PublicProfile with _$PublicProfile {
     String? bio,
     String? avatarUrl,
     List<String>? photoUrls,
+    String? avatarRacyLevel,
+    List<String>? photoRacyLevels,
     @Default(false) bool allowVideoCall,
     @Default(false) bool allowDirectChat,
     @Default(true) bool isVisible,

@@ -25,22 +25,32 @@ mixin ProfileStorageMixin {
           message: 'Cannot save empty avatar', code: 'validation_error');
     }
     try {
-      final url = await _storage.uploadAvatar(uid, bytes);
+      final result = await _storage.uploadAvatar(uid, bytes);
+      final url = result.url;
+      final racyLevel = result.racyLevel;
       final profile = await getProfile();
       if (profile != null) {
         final oldUrl = profile.avatarUrl;
+        final oldRacy = profile.avatarRacyLevel;
         try {
-          await saveProfile(profile.copyWith(avatarUrl: Value(url)));
+          await saveProfile(profile.copyWith(
+            avatarUrl: Value(url),
+            avatarRacyLevel: Value(racyLevel),
+          ));
           if (profile.isPublished) await publish();
         } catch (e) {
           DebugConfig.error('saveAvatar: rollback after save failure', data: e);
           await _storage.deleteAvatar(uid);
-          await saveProfile(profile.copyWith(avatarUrl: Value(oldUrl)));
+          await saveProfile(profile.copyWith(
+            avatarUrl: Value(oldUrl),
+            avatarRacyLevel: Value(oldRacy),
+          ));
           rethrow;
         }
       }
       await DatabaseService.instance.logConsent(uid, 'uploaded_photo', 'avatar');
-      DebugConfig.log(DebugConfig.repositoryResult, 'saveAvatar OK: $uid');
+      DebugConfig.log(DebugConfig.repositoryResult,
+          'saveAvatar OK: $uid racyLevel=$racyLevel');
       return url;
     } catch (e, s) {
       DebugConfig.error('saveAvatar failed', data: e, exception: s);
@@ -60,7 +70,10 @@ mixin ProfileStorageMixin {
       await _storage.deleteAvatar(uid);
       final profile = await getProfile();
       if (profile != null) {
-        await saveProfile(profile.copyWith(avatarUrl: Value(null)));
+        await saveProfile(profile.copyWith(
+          avatarUrl: Value(null),
+          avatarRacyLevel: Value(null),
+        ));
         if (profile.isPublished) await publish();
       }
       DebugConfig.log(DebugConfig.repositoryResult, 'deleteAvatar OK: $uid');
@@ -86,7 +99,9 @@ mixin ProfileStorageMixin {
           message: 'No authenticated user', code: 'auth_required');
     }
     try {
-      final url = await _storage.uploadPhoto(uid, index, bytes);
+      final result = await _storage.uploadPhoto(uid, index, bytes);
+      final url = result.url;
+      final racyLevel = result.racyLevel;
       final profile = await getProfile();
       if (profile != null) {
         final urls = List<String>.from(profile.photoUrls ?? []);
@@ -94,12 +109,22 @@ mixin ProfileStorageMixin {
           urls.add('');
         }
         urls[index] = url;
+        // Racy levels index-aligned με τα urls
+        var racey = List<String>.from(profile.photoRacyLevels ?? []);
+        while (racey.length <= index) {
+          racey.add('');
+        }
+        racey[index] = racyLevel ?? '';
         await saveProfile(profile.copyWith(
-            photoUrls: Value(urls.where((u) => u.isNotEmpty).toList())));
+          photoUrls: Value(urls.where((u) => u.isNotEmpty).toList()),
+          photoRacyLevels: Value(
+              racey.where((r) => r.isNotEmpty).toList()),
+        ));
         if (profile.isPublished) await publish();
       }
       await DatabaseService.instance.logConsent(uid, 'uploaded_photo', 'photo');
-      DebugConfig.log(DebugConfig.repositoryResult, 'savePhoto OK: $uid/$index');
+      DebugConfig.log(DebugConfig.repositoryResult,
+          'savePhoto OK: $uid/$index racyLevel=$racyLevel');
       return url;
     } catch (e, s) {
       DebugConfig.error('savePhoto failed', data: e, exception: s);
@@ -124,10 +149,17 @@ mixin ProfileStorageMixin {
       final profile = await getProfile();
       if (profile != null) {
         final urls = List<String>.from(profile.photoUrls ?? []);
+        var racey = List<String>.from(profile.photoRacyLevels ?? []);
         if (index < urls.length) {
           urls.removeAt(index);
         }
-        await saveProfile(profile.copyWith(photoUrls: Value(urls)));
+        if (index < racey.length) {
+          racey.removeAt(index);
+        }
+        await saveProfile(profile.copyWith(
+          photoUrls: Value(urls),
+          photoRacyLevels: Value(racey),
+        ));
         if (profile.isPublished) await publish();
       }
       DebugConfig.log(DebugConfig.repositoryResult, 'deletePhoto OK: $uid/$index');

@@ -14,6 +14,8 @@ import '../debug/debug_config.dart';
 /// `checkImageModeration`, που τρέχει πραγματικό Google Cloud Vision
 /// SafeSearch. Fail-open σε timeout/σφάλμα — δεν μπλοκάρει legitimate
 /// uploads αν η υπηρεσία είναι εκτός λειτουργίας.
+typedef ModerationResult = ({bool approved, String racyLevel});
+
 class VisionModerationService {
   const VisionModerationService._();
 
@@ -24,28 +26,26 @@ class VisionModerationService {
   // λόγω μεγέθους request στο callable.
   static const _maxBytesForModeration = 6 * 1024 * 1024; // 6MB raw
 
-  /// Ελέγχει bytes. Επιστρέφει `true` αν επιτρέπεται, `false` αν απορρίπτεται.
-  static Future<bool> isSafe(Uint8List bytes) async {
+  /// Ελέγχει bytes. Επιστρέφει ModerationResult (approved + racyLevel).
+  static Future<ModerationResult> isSafe(Uint8List bytes) async {
     if (!FeatureFlags.contentModerationEnabled) {
-      return true;
+      return (approved: true, racyLevel: 'VERY_UNLIKELY');
     }
     if (bytes.isEmpty) {
       DebugConfig.log(DebugConfig.moderation,
           'VisionModeration: empty bytes → allow (fail-open)');
-      return true;
+      return (approved: true, racyLevel: 'VERY_UNLIKELY');
     }
     if (bytes.length > _maxBytesForModeration) {
       DebugConfig.warn(
           'VisionModeration: ${bytes.length} bytes > limit → skip check, allow (fail-open)');
-      return true;
+      return (approved: true, racyLevel: 'VERY_UNLIKELY');
     }
     try {
       final base64Image = base64Encode(bytes);
       final call = FirebaseFunctions.instanceFor(region: _region)
           .httpsCallable('checkImageModeration')
           .call({'image': base64Image});
-      // Ίδιο pattern με checkSearchRateLimit: καταναλώνουμε το όψιμο
-      // αποτέλεσμα μετά το timeout ώστε να μην πέσει ως unhandled error.
       unawaited(call.then<void>((_) {},
           onError: (Object e) => DebugConfig.warn(
               'checkImageModeration: late completion after timeout',
@@ -53,50 +53,53 @@ class VisionModerationService {
       final result = await call.timeout(_timeout);
       final data = Map<String, dynamic>.from(result.data as Map);
       final approved = data['approved'] as bool? ?? true;
+      final levels = data['levels'] as Map?;
+      final racyLevel = levels?['racy'] as String? ?? 'VERY_UNLIKELY';
       if (!approved) {
         final reasons = (data['reasons'] as List?)?.join(', ') ?? '';
         DebugConfig.log(DebugConfig.moderation,
-            'VisionModeration: REJECTED reasons=$reasons');
+            'VisionModeration: REJECTED reasons=$reasons levels=$levels');
       } else if (DebugConfig.moderationVerbose) {
-        DebugConfig.log(DebugConfig.moderation, 'VisionModeration: approved');
+        DebugConfig.log(DebugConfig.moderation,
+            'VisionModeration: approved levels=$levels');
       }
-      return approved;
+      return (approved: approved, racyLevel: racyLevel);
     } on FirebaseFunctionsException catch (e) {
       DebugConfig.warn(
           'VisionModeration: Cloud Function error → allow (fail-open)',
           data: e);
-      return true;
+      return (approved: true, racyLevel: 'VERY_UNLIKELY');
     } catch (e) {
       DebugConfig.warn(
           'VisionModeration: unexpected error → allow (fail-open)', data: e);
-      return true;
+      return (approved: true, racyLevel: 'VERY_UNLIKELY');
     }
   }
 
-  /// Για μελλοντικό granular: profile photos
-  static Future<bool> isProfilePhotoSafe(Uint8List bytes) async {
+  /// Profile photos — καλείται από StorageService.uploadAvatar/uploadPhoto.
+  static Future<ModerationResult> isProfilePhotoSafe(Uint8List bytes) async {
     if (!FeatureFlags.contentModerationEnabled ||
         !FeatureFlags.autoModerateProfilePhotos) {
-      return true;
+      return (approved: true, racyLevel: 'VERY_UNLIKELY');
     }
     return isSafe(bytes);
   }
 
-  /// Για μελλοντικό granular: chat media
-  static Future<bool> isChatMediaSafe(Uint8List bytes) async {
+  /// Chat media — καλείται από ChatRepositoryImpl.sendMediaMessage.
+  static Future<ModerationResult> isChatMediaSafe(Uint8List bytes) async {
     if (!FeatureFlags.contentModerationEnabled ||
         !FeatureFlags.autoModerateChatMedia) {
-      return true;
+      return (approved: true, racyLevel: 'VERY_UNLIKELY');
     }
     return isSafe(bytes);
   }
 
   /// Group avatars — ξεχωριστό granular από το chat media, ώστε το group
   /// avatar moderation να μην εξαρτάται από το `autoModerateChatMedia`.
-  static Future<bool> isGroupAvatarSafe(Uint8List bytes) async {
+  static Future<ModerationResult> isGroupAvatarSafe(Uint8List bytes) async {
     if (!FeatureFlags.contentModerationEnabled ||
         !FeatureFlags.autoModerateGroupAvatars) {
-      return true;
+      return (approved: true, racyLevel: 'VERY_UNLIKELY');
     }
     return isSafe(bytes);
   }

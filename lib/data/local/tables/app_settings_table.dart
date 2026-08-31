@@ -15,6 +15,10 @@ class AppSettingsTable extends Table {
       boolean().withDefault(const Constant(false))();
   BoolColumn get crashReportsEnabled =>
       boolean().withDefault(const Constant(false))();
+  /// Blur explicit content toggle (schema v16) — default `true`· το FeatureFlag
+  /// εφαρμόζεται στο provider layer (app_settings_provider) ως fallback.
+  BoolColumn get blurExplicitEnabled =>
+      boolean().withDefault(const Constant(true))();
   IntColumn get autoLockMinutes =>
       integer().withDefault(const Constant(5))();
   RealColumn get searchRadiusKm =>

@@ -7,28 +7,32 @@ import '../../core/services/vision_moderation_service.dart';
 import '../../core/utils/app_exception.dart';
 import '../../core/utils/storage_helpers.dart';
 
+typedef StorageUploadResult = ({String url, String? racyLevel});
+
 class StorageService {
   final FirebaseStorage _storage;
 
   StorageService({FirebaseStorage? storage})
       : _storage = storage ?? FirebaseStorage.instance;
 
-  Future<String> uploadAvatar(String uid, Uint8List bytes) async {
+  Future<StorageUploadResult> uploadAvatar(String uid, Uint8List bytes) async {
     DebugConfig.log(DebugConfig.storageUpload, 'uploadAvatar: $uid');
+    String? racyLevel;
     if (FeatureFlags.contentModerationEnabled && FeatureFlags.autoModerateProfilePhotos) {
-      final safe = await VisionModerationService.isProfilePhotoSafe(bytes);
-      if (!safe) {
+      final res = await VisionModerationService.isProfilePhotoSafe(bytes);
+      if (!res.approved) {
         DebugConfig.log(DebugConfig.moderation, 'uploadAvatar blocked by moderation: $uid');
         throw AppException(message: 'Moderation rejected avatar', code: 'moderation/blocked-explicit');
       }
+      racyLevel = res.racyLevel;
     }
     final ref = _storage.ref().child('avatars/$uid/profile.jpg');
     try {
       await StorageHelpers.uploadBytesWithTimeout(ref, bytes,
           contentType: 'image/jpeg', type: 'avatar');
       final url = await StorageHelpers.downloadUrlWithTimeout(ref);
-      DebugConfig.log(DebugConfig.storageUpload, 'uploadAvatar OK: $uid');
-      return url;
+      DebugConfig.log(DebugConfig.storageUpload, 'uploadAvatar OK: $uid racyLevel=$racyLevel');
+      return (url: url, racyLevel: racyLevel);
     } catch (e, s) {
       DebugConfig.error('uploadAvatar failed', data: e, exception: s,
           reportToCrashlytics: true);
@@ -36,22 +40,24 @@ class StorageService {
     }
   }
 
-  Future<String> uploadPhoto(String uid, int index, Uint8List bytes) async {
+  Future<StorageUploadResult> uploadPhoto(String uid, int index, Uint8List bytes) async {
     DebugConfig.log(DebugConfig.storageUpload, 'uploadPhoto: $uid/$index');
+    String? racyLevel;
     if (FeatureFlags.contentModerationEnabled && FeatureFlags.autoModerateProfilePhotos) {
-      final safe = await VisionModerationService.isProfilePhotoSafe(bytes);
-      if (!safe) {
+      final res = await VisionModerationService.isProfilePhotoSafe(bytes);
+      if (!res.approved) {
         DebugConfig.log(DebugConfig.moderation, 'uploadPhoto blocked by moderation: $uid/$index');
         throw AppException(message: 'Moderation rejected photo', code: 'moderation/blocked-explicit');
       }
+      racyLevel = res.racyLevel;
     }
     final ref = _storage.ref().child('photos/$uid/$index.jpg');
     try {
       await StorageHelpers.uploadBytesWithTimeout(ref, bytes,
           contentType: 'image/jpeg', type: 'photo');
       final url = await StorageHelpers.downloadUrlWithTimeout(ref);
-      DebugConfig.log(DebugConfig.storageUpload, 'uploadPhoto OK: $uid/$index');
-      return url;
+      DebugConfig.log(DebugConfig.storageUpload, 'uploadPhoto OK: $uid/$index racyLevel=$racyLevel');
+      return (url: url, racyLevel: racyLevel);
     } catch (e, s) {
       DebugConfig.error('uploadPhoto failed', data: e, exception: s,
           reportToCrashlytics: true);

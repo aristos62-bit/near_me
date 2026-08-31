@@ -532,7 +532,7 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
   }
 
   @override
-  Future<void> updateChatCache(String chatId, {DateTime? lastMessageAt, bool? hasUnread, String? otherNickname, String? otherAvatarUrl, String? lastMessage, String? lastMessageSender, String? lastMessageType, int? unreadCount, String? groupName, String? groupAvatarUrl}) async {
+  Future<void> updateChatCache(String chatId, {DateTime? lastMessageAt, bool? hasUnread, String? otherNickname, String? otherAvatarUrl, String? lastMessage, String? lastMessageSender, String? lastMessageType, int? unreadCount, String? groupName, String? groupAvatarUrl, String? groupAvatarRacyLevel}) async {
     try {
       var rows = await (db.select(db.chatCacheTable)
         ..where((t) => t.chatId.equals(chatId))
@@ -558,6 +558,7 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
             unreadCount: unreadCount != null ? Value(unreadCount) : Value.absent(),
             groupName: groupName != null ? Value(groupName) : Value.absent(),
             groupAvatarUrl: groupAvatarUrl != null ? Value(groupAvatarUrl) : Value.absent(),
+            groupAvatarRacyLevel: groupAvatarRacyLevel != null ? Value(groupAvatarRacyLevel) : Value.absent(),
           ));
       DebugConfig.log(DebugConfig.databaseLocal,
           'updateChatCache: written chat=$chatId otherNickname=$otherNickname');
@@ -726,6 +727,7 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
                 final lastMessageAt = (data['lastMessageAt'] as Timestamp?)?.toDate();
                 final lastMessageBy = data['lastMessageBy'] as String?;
                 final groupAvatarUrl = data['groupAvatarUrl'] as String?;
+                final groupAvatarRacyLevel = data['groupAvatarRacyLevel'] as String?;
                 final groupName = data['groupName'] as String?;
                 final participants = List<String>.from(data['participants'] ?? []);
                 final otherUid = participants.where((p) => p != uid).firstOrNull;
@@ -741,11 +743,13 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
                     'streamChats lightweight sync: chat=$chatId otherUid=$otherUid '
                     'newOtherNickname=$newOtherNickname');
                 if (lastMessageAt != null || groupAvatarUrl != null || groupName != null ||
-                    newOtherNickname != null || newOtherAvatarUrl != null) {
+                    newOtherNickname != null || newOtherAvatarUrl != null ||
+                    groupAvatarRacyLevel != null) {
                   await updateChatCache(chatId,
                       lastMessageAt: lastMessageAt,
                       hasUnread: lastMessageBy != null && lastMessageBy != uid,
                       groupAvatarUrl: groupAvatarUrl,
+                      groupAvatarRacyLevel: groupAvatarRacyLevel,
                       groupName: groupName,
                       otherNickname: newOtherNickname,
                       otherAvatarUrl: newOtherAvatarUrl);
@@ -851,14 +855,17 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
           .collection('chats').doc(chatId).collection('messages').doc();
       final chatRef = firestore.collection('chats').doc(chatId);
       final batch = firestore.batch();
+      String? racyLevel;
+      String? videoRacyLevel;
 
       if (imageBytes != null && (type == 'image' || type == 'gif')) {
         if (FeatureFlags.contentModerationEnabled && FeatureFlags.autoModerateChatMedia) {
-          final safe = await VisionModerationService.isChatMediaSafe(imageBytes);
-          if (!safe) {
+          final res = await VisionModerationService.isChatMediaSafe(imageBytes);
+          if (!res.approved) {
             DebugConfig.log(DebugConfig.moderation, 'sendMediaMessage blocked by moderation: chat=$chatId type=$type');
             throw AppException(message: 'Moderation rejected image', code: 'moderation/blocked-explicit');
           }
+          racyLevel = res.racyLevel;
         }
         final isGif = type == 'gif';
         DebugConfig.log(DebugConfig.storageUpload,
@@ -885,14 +892,15 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
         if (FeatureFlags.contentModerationEnabled &&
             FeatureFlags.autoModerateChatVideoThumbnail) {
           if (thumbnailBytes != null) {
-            final safe = await VisionModerationService.isChatMediaSafe(thumbnailBytes);
-            if (!safe) {
+            final res = await VisionModerationService.isChatMediaSafe(thumbnailBytes);
+            if (!res.approved) {
               DebugConfig.log(DebugConfig.moderation,
                   'sendMediaMessage blocked by moderation (video thumbnail): chat=$chatId');
               throw AppException(
                   message: 'Moderation rejected video',
                   code: 'moderation/blocked-explicit-video');
             }
+            videoRacyLevel = res.racyLevel;
           } else {
             DebugConfig.log(DebugConfig.moderation,
                 'sendMediaMessage: video moderation skipped (no thumbnail) chat=$chatId — fail-open');
@@ -937,6 +945,11 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
         if ((type == 'audio' || type == 'video') && duration != null) 'duration': duration,
         if (type == 'video' && (thumbnailUrl != null || forwardThumbnailUrl != null))
           'thumbnailUrl': thumbnailUrl ?? forwardThumbnailUrl,
+        if ((type == 'image' || type == 'gif') &&
+            racyLevel != null && racyLevel != 'VERY_UNLIKELY')
+          'racyLevel': racyLevel,
+        if (type == 'video' && videoRacyLevel != null && videoRacyLevel != 'VERY_UNLIKELY')
+          'videoRacyLevel': videoRacyLevel,
       };
       if (replyTo != null) {
         msgData['replyTo'] = replyTo;

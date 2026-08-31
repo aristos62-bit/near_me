@@ -9,12 +9,15 @@ const visionClient = new vision.ImageAnnotatorClient({
 export interface ModerationVerdict {
   approved: boolean;
   reasons: string[];
+  levels: { adult: string; racy: string; violence: string };
 }
 
 // Thresholds: VERY_UNLIKELY < UNLIKELY < POSSIBLE < LIKELY < VERY_LIKELY.
-// Απορρίπτουμε μόνο LIKELY+ για adult/violence/racy — αποφυγή false-positives
-// σε φυσιολογικές φωτογραφίες προφίλ (π.χ. παραλία → racy=POSSIBLE είναι OK).
-const REJECT_LEVELS = new Set(['LIKELY', 'VERY_LIKELY']);
+// Adult/Violence: reject LIKELY+ (strict — no explicit content allowed).
+// Racy: reject ONLY VERY_LIKELY (χαλαρότερο — POSSIBLE/LIKELY φωτογραφίες
+// παραμένουν ορατές, θαμπώνονται μόνο αν ο χρήστης ενεργοποιήσει blur).
+const ADULT_VIOLENCE_REJECT = new Set(['LIKELY', 'VERY_LIKELY']);
+const RACY_REJECT = new Set(['VERY_LIKELY']);
 
 /**
  * Τρέχει Google Cloud Vision SafeSearch πάνω σε inline εικόνα (base64).
@@ -40,11 +43,19 @@ async function runSafeSearchOnImage(
   const [result] = await visionClient.safeSearchDetection({ image });
   const safe = result.safeSearchAnnotation;
   if (!safe) {
-    return { approved: true, reasons: [] };
+    return { approved: true, reasons: [], levels: { adult: 'UNKNOWN', racy: 'UNKNOWN', violence: 'UNKNOWN' } };
   }
   const reasons: string[] = [];
-  if (safe.adult && REJECT_LEVELS.has(String(safe.adult))) reasons.push('adult');
-  if (safe.violence && REJECT_LEVELS.has(String(safe.violence))) reasons.push('violence');
-  if (safe.racy && REJECT_LEVELS.has(String(safe.racy))) reasons.push('racy');
-  return { approved: reasons.length === 0, reasons };
+  if (safe.adult && ADULT_VIOLENCE_REJECT.has(String(safe.adult))) reasons.push('adult');
+  if (safe.violence && ADULT_VIOLENCE_REJECT.has(String(safe.violence))) reasons.push('violence');
+  if (safe.racy && RACY_REJECT.has(String(safe.racy))) reasons.push('racy');
+  return {
+    approved: reasons.length === 0,
+    reasons,
+    levels: {
+      adult: String(safe.adult ?? 'UNKNOWN'),
+      racy: String(safe.racy ?? 'UNKNOWN'),
+      violence: String(safe.violence ?? 'UNKNOWN'),
+    },
+  };
 }

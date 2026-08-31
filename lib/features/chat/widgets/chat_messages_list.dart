@@ -6,7 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../core/config/feature_flags.dart';
 import '../../../core/theme/responsive_utils.dart';
+import '../../settings/providers/app_settings_provider.dart';
 import '../../../core/utils/app_messenger.dart';
 import '../../../core/utils/error_messages.dart';
 import '../../../shared/widgets/app_state_widget.dart';
@@ -435,7 +437,9 @@ class _ChatMessagesListState extends ConsumerState<ChatMessagesList> {
       return;
     }
 
-    final targetChatId = await showChatRecipientPicker(context, chats);
+    final targetChatId = await showChatRecipientPicker(context, chats,
+        blurEnabled: ref.read(appSettingsProvider
+            .select((a) => a.value?.blurExplicitEnabled ?? FeatureFlags.blurExplicitByDefault)));
     if (targetChatId == null || !mounted) return;
 
     final content = msg['content'] as String? ?? '';

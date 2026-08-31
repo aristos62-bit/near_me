@@ -301,6 +301,10 @@ class ErrorMessages {
         return isGreek ? 'Οι αναφορές σφαλμάτων απενεργοποιήθηκαν' : 'Crash reports disabled';
       case 'settings/link-open-failed':
         return isGreek ? 'Δεν ήταν δυνατό το άνοιγμα του συνδέσμου' : 'Could not open the link';
+      case 'settings/blur-on':
+        return isGreek ? 'Το θάμπωμα ενεργοποιήθηκε' : 'Blur enabled';
+      case 'settings/blur-off':
+        return isGreek ? 'Το θάμπωμα απενεργοποιήθηκε' : 'Blur disabled';
       case 'report/submitted':
         return isGreek ? 'Η αναφορά υποβλήθηκε' : 'Report submitted';
       case 'report/submit-failed':

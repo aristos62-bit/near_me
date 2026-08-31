@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/debug/debug_config.dart';
+import '../../../core/config/feature_flags.dart';
 import '../../../core/utils/lock_screen.dart';
 import '../../../core/utils/screen_protector.dart';
 import '../../../data/local/database.dart';
@@ -45,6 +46,7 @@ class AppSettingsNotifier extends Notifier<AsyncValue<AppSettingsTableData>> {
       biometricLockEnabled: false,
       screenshotPreventionEnabled: false,
       crashReportsEnabled: false,
+      blurExplicitEnabled: FeatureFlags.blurExplicitByDefault,
       autoLockMinutes: 5,
       searchRadiusKm: 10.0,
       updatedAt: now,
@@ -163,6 +165,22 @@ class AppSettingsNotifier extends Notifier<AsyncValue<AppSettingsTableData>> {
     } catch (e, s) {
       DebugConfig.error('AppSettings: Crashlytics identifier sync failed',
           data: e, exception: s);
+    }
+  }
+
+  Future<void> setBlurExplicit(bool v) async {
+    final cur = state.value;
+    if (cur == null || cur.blurExplicitEnabled == v) return;
+    DebugConfig.log(DebugConfig.serviceCall, 'AppSettings: blurExplicitEnabled=$v');
+    try {
+      final db = DatabaseService.instance;
+      final upd = cur.copyWith(blurExplicitEnabled: v, updatedAt: DateTime.now());
+      await (db.update(db.appSettingsTable)..where((t) => t.id.equals(upd.id)))
+          .write(upd.toCompanion(true));
+      state = AsyncValue.data(upd);
+    } catch (e, s) {
+      DebugConfig.error('AppSettings: blurExplicit failed', data: e, exception: s);
+      state = AsyncValue.error(e, s);
     }
   }
 

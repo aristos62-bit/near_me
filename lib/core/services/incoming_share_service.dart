@@ -17,6 +17,7 @@ import '../../../shared/utils/image_utils.dart';
 import '../../../shared/widgets/chat_recipient_picker.dart';
 import '../../../shared/widgets/incoming_share_sheet.dart';
 import '../../data/local/database.dart';
+import '../../features/settings/providers/app_settings_provider.dart';
 
 /// Διαχείριση εισερχόμενου sharing (OS share sheet → εφαρμογή).
 ///
@@ -152,7 +153,8 @@ class IncomingShareService {
           return;
         }
 
-        final targetChatId = await showChatRecipientPicker(context, chats);
+        final targetChatId = await showChatRecipientPicker(context, chats,
+            blurEnabled: _blurEnabled(ref));
         if (targetChatId == null || !context.mounted) {
           _deleteTmp(path);
           return;
@@ -183,7 +185,8 @@ class IncomingShareService {
           type: payload.type, content: payload.content);
       if (confirmed != true || !context.mounted) return;
 
-      final targetChatId = await showChatRecipientPicker(context, chats);
+      final targetChatId = await showChatRecipientPicker(context, chats,
+          blurEnabled: _blurEnabled(ref));
       if (targetChatId == null || !context.mounted) return;
 
       final ok = await ref.read(chatActionsProvider.notifier)
@@ -279,6 +282,11 @@ class IncomingShareService {
     } catch (_) {
       return ref.read(chatsProvider).asData?.value ?? const <ChatCacheTableData>[];
     }
+  }
+
+  static bool _blurEnabled(WidgetRef ref) {
+    return ref.read(appSettingsProvider
+        .select((a) => a.value?.blurExplicitEnabled ?? FeatureFlags.blurExplicitByDefault));
   }
 }
 

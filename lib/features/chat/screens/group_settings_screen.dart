@@ -9,7 +9,9 @@ import '../../../core/utils/app_messenger.dart';
 import '../../../core/utils/connectivity_guard.dart';
 import '../../../core/utils/error_messages.dart';
 import '../../../repositories/chat_repository.dart';
+import '../../../shared/utils/avatar_blur.dart';
 import '../../../shared/widgets/app_state_widget.dart';
+import '../../settings/providers/app_settings_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
 
@@ -144,6 +146,7 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
 
     final chatData = chatDoc.asData?.value?.data() as Map<String, dynamic>?;
     final avatarUrl = chatData?['groupAvatarUrl'] as String?;
+    final avatarRacyLevel = chatData?['groupAvatarRacyLevel'] as String?;
     final maxP = chatData?['maxParticipants'] as int? ?? 10;
     if (maxP != _currentMax && maxP > 0) {
       _currentMax = maxP;
@@ -172,10 +175,15 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
                     child: Row(children: [
                       Stack(
                         children: [
-                          CircleAvatar(
-                            radius: 40,
-                            backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
-                            child: avatarUrl == null ? const Icon(Icons.group, size: 40) : null,
+                          wrapAvatarBlur(
+                            blurOn: ref.watch(appSettingsProvider
+                                .select((a) => a.value?.blurExplicitEnabled ?? FeatureFlags.blurExplicitByDefault)),
+                            racyLevel: avatarRacyLevel,
+                            child: CircleAvatar(
+                              radius: 40,
+                              backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                              child: avatarUrl == null ? const Icon(Icons.group, size: 40) : null,
+                            ),
                           ),
                           if (_isUploadingAvatar)
                             Positioned.fill(

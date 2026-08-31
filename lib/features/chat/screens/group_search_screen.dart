@@ -2,12 +2,15 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/config/feature_flags.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
 import '../../../repositories/group_search_repository.dart';
+import '../../../shared/utils/avatar_blur.dart';
 import '../../../shared/widgets/app_state_widget.dart';
+import '../../settings/providers/app_settings_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
 import 'chat_screen.dart';
@@ -191,18 +194,23 @@ class _GroupSearchTile extends ConsumerWidget {
           children: [
             Row(
               children: [
-                CircleAvatar(
-                  backgroundImage: group.groupAvatarUrl != null
-                      ? CachedNetworkImageProvider(group.groupAvatarUrl!)
-                      : null,
-                  backgroundColor: theme.colorScheme.primaryContainer,
-                  child: group.groupAvatarUrl == null
-                      ? Text(
-                    group.groupName.isNotEmpty
-                        ? group.groupName[0].toUpperCase()
-                        : '?',
-                  )
-                      : null,
+                wrapAvatarBlur(
+                  blurOn: ref.watch(appSettingsProvider
+                      .select((a) => a.value?.blurExplicitEnabled ?? FeatureFlags.blurExplicitByDefault)),
+                  racyLevel: group.groupAvatarRacyLevel,
+                  child: CircleAvatar(
+                    backgroundImage: group.groupAvatarUrl != null
+                        ? CachedNetworkImageProvider(group.groupAvatarUrl!)
+                        : null,
+                    backgroundColor: theme.colorScheme.primaryContainer,
+                    child: group.groupAvatarUrl == null
+                        ? Text(
+                      group.groupName.isNotEmpty
+                          ? group.groupName[0].toUpperCase()
+                          : '?',
+                    )
+                        : null,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(

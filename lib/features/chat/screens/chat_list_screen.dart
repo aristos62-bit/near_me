@@ -3,13 +3,16 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/config/feature_flags.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../repositories/auth_repository.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
 import '../../../data/local/database.dart';
+import '../../../repositories/auth_repository.dart';
+import '../../../shared/utils/avatar_blur.dart';
 import '../../../shared/widgets/app_state_widget.dart';
+import '../../settings/providers/app_settings_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
 import '../screens/chat_screen.dart';
@@ -155,18 +158,26 @@ class _ChatTile extends ConsumerWidget {
 
     final previewText = _buildPreviewText(greek, title, isGroup);
 
+    final blurOn = ref.watch(appSettingsProvider
+        .select((a) => a.value?.blurExplicitEnabled ?? FeatureFlags.blurExplicitByDefault));
+    final groupAvatar = CircleAvatar(
+      backgroundColor: theme.colorScheme.secondaryContainer,
+      backgroundImage: avatarUrl != null
+          ? CachedNetworkImageProvider(avatarUrl)
+          : null,
+      child: avatarUrl == null
+          ? Icon(Icons.group, color: theme.colorScheme.onSecondaryContainer)
+          : null,
+    );
+
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4),
       child: ListTile(
         leading: isGroup
-            ? CircleAvatar(
-                backgroundColor: theme.colorScheme.secondaryContainer,
-                backgroundImage: avatarUrl != null
-                    ? CachedNetworkImageProvider(avatarUrl)
-                    : null,
-                child: avatarUrl == null
-                    ? Icon(Icons.group, color: theme.colorScheme.onSecondaryContainer)
-                    : null,
+            ? wrapAvatarBlur(
+                blurOn: blurOn,
+                racyLevel: chat.groupAvatarRacyLevel,
+                child: groupAvatar,
               )
             : CircleAvatar(
                 backgroundColor: theme.colorScheme.primaryContainer,

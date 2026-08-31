@@ -1,9 +1,12 @@
+import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/config/feature_flags.dart';
 import '../../../../core/debug/debug_config.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/read_receipt_indicator.dart';
+import '../../../settings/providers/app_settings_provider.dart';
 import '../../providers/chat_provider.dart';
 import 'bubble_long_press_wrapper.dart';
 import '../message_reactions.dart';
@@ -30,6 +33,7 @@ class GifImageBubble extends ConsumerWidget {
   final String currentUid;
   final String messageId;
   final bool isImage;
+  final String? racyLevel;
   final Map<String, dynamic> reactions;
   final Future<void> Function(String messageId, String emoji)? onReact;
   final Future<void> Function(String messageId)? onRemove;
@@ -61,6 +65,7 @@ class GifImageBubble extends ConsumerWidget {
     this.currentUid = '',
     this.messageId = '',
     this.isImage = false,
+    this.racyLevel,
     this.reactions = const {},
     this.onReact,
     this.onRemove,
@@ -143,6 +148,40 @@ class GifImageBubble extends ConsumerWidget {
     _showGallery(context, urls, idx < 0 ? 0 : idx);
   }
 
+  Widget _buildMediaImage(ThemeData theme, {required bool applyBlur}) {
+    final image = CachedNetworkImage(
+      imageUrl: content,
+      fit: BoxFit.cover,
+      placeholder: (_, _) => SizedBox(
+        width: 200,
+        height: 200,
+        child: Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: isMe ? Colors.white : theme.colorScheme.primary,
+            ),
+          ),
+        ),
+      ),
+      errorWidget: (_, _, _) => SizedBox(
+        width: 200,
+        height: 200,
+        child: Icon(
+          Icons.broken_image,
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
+    if (!applyBlur) return image;
+    return ImageFiltered(
+      imageFilter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+      child: image,
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
@@ -150,6 +189,10 @@ class GifImageBubble extends ConsumerWidget {
     final sentColor = _sentColor;
     final receivedColor = theme.colorScheme.surfaceContainerHighest;
     final bubbleColor = isMe ? sentColor : receivedColor;
+    final blurOn = ref.watch(appSettingsProvider
+        .select((a) => a.value?.blurExplicitEnabled ?? FeatureFlags.blurExplicitByDefault));
+    final applyBlur = blurOn &&
+        (racyLevel == 'POSSIBLE' || racyLevel == 'LIKELY');
 
     final bubbleBorderRadius = BorderRadius.only(
       topLeft: const Radius.circular(_bubbleRadius),
@@ -227,34 +270,7 @@ class GifImageBubble extends ConsumerWidget {
                             bubbleColor: bubbleColor,
                             isGroupChat: isGroupChat,
                           ),
-                        CachedNetworkImage(
-                      imageUrl: content,
-                      fit: BoxFit.cover,
-                      placeholder: (_, _) => SizedBox(
-                        width: 200,
-                        height: 200,
-                        child: Center(
-                          child: SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: isMe
-                                  ? Colors.white
-                                  : theme.colorScheme.primary,
-                            ),
-                          ),
-                        ),
-                      ),
-                      errorWidget: (_, _, _) => SizedBox(
-                        width: 200,
-                        height: 200,
-                        child: Icon(
-                          Icons.broken_image,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
+                        _buildMediaImage(theme, applyBlur: applyBlur),
                   ],
                   ),
                 ),

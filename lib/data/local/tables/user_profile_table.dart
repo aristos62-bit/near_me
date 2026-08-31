@@ -28,6 +28,11 @@ class UserProfileTable extends Table {
   TextColumn get photoUrls =>
       text().map(const StringListConverter()).nullable()();
 
+  /// Racy levels για blur rendering (schema v16)
+  TextColumn get avatarRacyLevel => text().nullable()();
+  TextColumn get photoRacyLevels =>
+      text().map(const StringListConverter()).nullable()();
+
   BoolColumn get allowVideoCall =>
       boolean().withDefault(const Constant(false))();
   BoolColumn get allowDirectChat =>

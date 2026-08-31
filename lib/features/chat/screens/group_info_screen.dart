@@ -4,6 +4,7 @@ import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/config/feature_flags.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
@@ -11,7 +12,9 @@ import '../../../core/utils/app_messenger.dart';
 import '../../../core/utils/connectivity_guard.dart';
 import '../../../core/utils/error_messages.dart';
 import '../../../repositories/chat_repository.dart';
+import '../../../shared/utils/avatar_blur.dart';
 import '../../../shared/widgets/app_state_widget.dart';
+import '../../settings/providers/app_settings_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
 
@@ -180,6 +183,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
     final participantUids = ref.watch(participantUidsProvider(widget.chatId));
     final groupName = chatData?['groupName'] as String? ?? _groupName;
     final groupAvatarUrl = chatData?['groupAvatarUrl'] as String?;
+    final groupAvatarRacyLevel = chatData?['groupAvatarRacyLevel'] as String?;
     final createdBy = chatData?['createdBy'] as String? ?? _createdBy;
     final rolesMap = chatData?['participantRoles'] as Map<String, dynamic>? ?? _participantRoles;
     final isCreator = currentUid == createdBy;
@@ -200,9 +204,14 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
               children: [
                 Card(
                   child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundImage: groupAvatarUrl != null ? CachedNetworkImageProvider(groupAvatarUrl) : null,
-                      child: groupAvatarUrl == null ? const Icon(Icons.group) : null,
+                    leading: wrapAvatarBlur(
+                      blurOn: ref.watch(appSettingsProvider
+                          .select((a) => a.value?.blurExplicitEnabled ?? FeatureFlags.blurExplicitByDefault)),
+                      racyLevel: groupAvatarRacyLevel,
+                      child: CircleAvatar(
+                        backgroundImage: groupAvatarUrl != null ? CachedNetworkImageProvider(groupAvatarUrl) : null,
+                        child: groupAvatarUrl == null ? const Icon(Icons.group) : null,
+                      ),
                     ),
                     title: _isEditingName
                         ? Row(children: [

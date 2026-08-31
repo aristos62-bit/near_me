@@ -44,6 +44,10 @@ _PublicProfile _$PublicProfileFromJson(Map<String, dynamic> json) =>
       photoUrls: (json['photoUrls'] as List<dynamic>?)
           ?.map((e) => e as String)
           .toList(),
+      avatarRacyLevel: json['avatarRacyLevel'] as String?,
+      photoRacyLevels: (json['photoRacyLevels'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
       allowVideoCall: json['allowVideoCall'] as bool? ?? false,
       allowDirectChat: json['allowDirectChat'] as bool? ?? false,
       isVisible: json['isVisible'] as bool? ?? true,
@@ -75,6 +79,8 @@ Map<String, dynamic> _$PublicProfileToJson(_PublicProfile instance) =>
       'bio': instance.bio,
       'avatarUrl': instance.avatarUrl,
       'photoUrls': instance.photoUrls,
+      'avatarRacyLevel': instance.avatarRacyLevel,
+      'photoRacyLevels': instance.photoRacyLevels,
       'allowVideoCall': instance.allowVideoCall,
       'allowDirectChat': instance.allowDirectChat,
       'isVisible': instance.isVisible,

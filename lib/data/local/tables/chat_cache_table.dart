@@ -34,6 +34,9 @@ class ChatCacheTable extends Table {
   /// Group avatar URL (schema v10)
   TextColumn get groupAvatarUrl => text().nullable()();
 
+  /// Group avatar racy level (schema v16) — για blur rendering
+  TextColumn get groupAvatarRacyLevel => text().nullable()();
+
   /// Group creator UID (schema v11)
   TextColumn get groupCreatedBy => text().nullable()();
 

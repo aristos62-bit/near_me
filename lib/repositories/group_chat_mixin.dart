@@ -5,7 +5,7 @@ mixin GroupChatMixin {
   FirebaseAuth get auth;
   AppDatabase get db;
   Future<void> removeChatCache(String chatId);
-  Future<void> updateChatCache(String chatId, {DateTime? lastMessageAt, bool? hasUnread, String? otherNickname, String? otherAvatarUrl, String? lastMessage, String? lastMessageSender, String? lastMessageType, int? unreadCount, String? groupName, String? groupAvatarUrl});
+  Future<void> updateChatCache(String chatId, {DateTime? lastMessageAt, bool? hasUnread, String? otherNickname, String? otherAvatarUrl, String? lastMessage, String? lastMessageSender, String? lastMessageType, int? unreadCount, String? groupName, String? groupAvatarUrl, String? groupAvatarRacyLevel});
 
   String get _currentUid {
     final user = auth.currentUser;
@@ -146,6 +146,7 @@ mixin GroupChatMixin {
 
     final groupName = data['groupName'] as String?;
     final groupAvatarUrl = data['groupAvatarUrl'] as String?;
+    final groupAvatarRacyLevel = data['groupAvatarRacyLevel'] as String?;
     final groupCreatedBy = data['createdBy'] as String?;
     final messageExpiry = data['messageExpiry'] as String? ?? 'off';
     final participants = List<String>.from(data['participants'] ?? []);
@@ -201,6 +202,7 @@ mixin GroupChatMixin {
             unreadCount: Value(unreadCount),
             groupName: Value(groupName),
             groupAvatarUrl: groupAvatarUrl != null ? Value(groupAvatarUrl) : Value.absent(),
+            groupAvatarRacyLevel: groupAvatarRacyLevel != null ? Value(groupAvatarRacyLevel) : Value.absent(),
             participantCount: Value(participants.length),
             participantUids: participantUidsStr != null ? Value(participantUidsStr) : const Value(null),
             isGroupChat: const Value(true),
@@ -216,6 +218,7 @@ mixin GroupChatMixin {
           otherNickname: const Value(null),
           otherAvatarUrl: const Value(null),
           groupAvatarUrl: groupAvatarUrl != null ? Value(groupAvatarUrl) : const Value(null),
+          groupAvatarRacyLevel: groupAvatarRacyLevel != null ? Value(groupAvatarRacyLevel) : const Value(null),
           lastMessageAt: Value(lastMessageAt ?? DateTime.now()),
           hasUnread: Value(isUnread),
           lastMessage: decryptedLastMessage != null
@@ -748,8 +751,8 @@ mixin GroupChatMixin {
       // Το image αναμένεται να είναι XFile (από image_picker)
       final uploadBytes = await (image as dynamic).readAsBytes();
       final stripped = await ImageUtils.stripExif(uploadBytes);
-      final safe = await VisionModerationService.isGroupAvatarSafe(stripped);
-      if (!safe) {
+      final res = await VisionModerationService.isGroupAvatarSafe(stripped);
+      if (!res.approved) {
         DebugConfig.log(DebugConfig.moderation,
             'updateGroupAvatar blocked by moderation: chat=$chatId');
         throw AppException(
@@ -759,12 +762,20 @@ mixin GroupChatMixin {
       await StorageHelpers.uploadBytesWithTimeout(storageRef, stripped,
           contentType: 'image/jpeg', type: 'avatar');
       final url = await StorageHelpers.downloadUrlWithTimeout(storageRef);
-      await firestore.collection('chats').doc(chatId).update({'groupAvatarUrl': url});
-      await _syncPublicProfileField(chatId, {'groupAvatarUrl': url});
+      await firestore.collection('chats').doc(chatId).update({
+        'groupAvatarUrl': url,
+        'groupAvatarRacyLevel': res.racyLevel,
+      });
+      await _syncPublicProfileField(chatId, {
+        'groupAvatarUrl': url,
+        'groupAvatarRacyLevel': res.racyLevel,
+      });
       await _logAudit(chatId, 'avatar_changed', uid);
       await _sendSystemMessage(chatId, 'avatar_changed', uid);
-      await updateChatCache(chatId, groupAvatarUrl: url);
-      DebugConfig.log(DebugConfig.repositoryResult, 'updateGroupAvatar: done $chatId');
+      await updateChatCache(chatId,
+          groupAvatarUrl: url, groupAvatarRacyLevel: res.racyLevel);
+      DebugConfig.log(DebugConfig.repositoryResult,
+          'updateGroupAvatar: done $chatId racyLevel=${res.racyLevel}');
     } catch (e, s) {
       if (e is AppException && e.code == 'moderation/blocked-explicit') {
         rethrow;
@@ -780,10 +791,17 @@ mixin GroupChatMixin {
     try {
       await FirebaseStorage.instance
           .ref().child('group_avatars').child(chatId).child('avatar.jpg').delete();
-      await firestore.collection('chats').doc(chatId).update({'groupAvatarUrl': FieldValue.delete()});
-      await _syncPublicProfileField(chatId, {'groupAvatarUrl': FieldValue.delete()});
+      await firestore.collection('chats').doc(chatId).update({
+        'groupAvatarUrl': FieldValue.delete(),
+        'groupAvatarRacyLevel': FieldValue.delete(),
+      });
+      await _syncPublicProfileField(chatId, {
+        'groupAvatarUrl': FieldValue.delete(),
+        'groupAvatarRacyLevel': FieldValue.delete(),
+      });
       await _sendSystemMessage(chatId, 'avatar_removed', _currentUid);
-      await updateChatCache(chatId, groupAvatarUrl: '');
+      await updateChatCache(chatId,
+          groupAvatarUrl: '', groupAvatarRacyLevel: '');
       DebugConfig.log(DebugConfig.repositoryResult, 'removeGroupAvatar: done $chatId');
     } catch (e) {
       DebugConfig.warn('removeGroupAvatar failed (non-fatal)', data: e);

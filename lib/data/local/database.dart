@@ -33,7 +33,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 15;
+  int get schemaVersion => 16;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -187,6 +187,37 @@ class AppDatabase extends _$AppDatabase {
           DebugConfig.databaseLocal,
           'Migration v14->v15: added crashReportsEnabled column to AppSettingsTable',
         );
+      }
+      if (from < 16) {
+        try {
+          await m.addColumn(
+            appSettingsTable,
+            appSettingsTable.blurExplicitEnabled,
+          );
+          await m.addColumn(
+            chatCacheTable,
+            chatCacheTable.groupAvatarRacyLevel,
+          );
+          await m.addColumn(
+            userProfileTable,
+            userProfileTable.avatarRacyLevel,
+          );
+          await m.addColumn(
+            userProfileTable,
+            userProfileTable.photoRacyLevels,
+          );
+          DebugConfig.log(
+            DebugConfig.databaseLocal,
+            'Migration v15->v16: added blurExplicitEnabled (AppSettings), '
+            'groupAvatarRacyLevel (ChatCache), avatarRacyLevel/photoRacyLevels '
+            '(UserProfile) columns',
+          );
+        } catch (e) {
+          DebugConfig.warn(
+            'Migration v15->v16: moderation columns add failed (non-fatal)',
+            data: e,
+          );
+        }
       }
     },
   );

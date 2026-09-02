@@ -43,6 +43,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     DebugConfig.log(DebugConfig.uiInteraction, 'ProfileScreen build: canComm=$canComm unreadRequests=$unreadRequests');
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: Text(isGreek ? 'Προφίλ' : 'Profile'),
         actions: [
@@ -115,11 +116,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             final w = ResponsiveUtils.maxContentWidthFromWidth(
               ResponsiveUtils.resolveWidth(context, constraints),
             );
-            // ── ΠΡΟΣΩΡΙΝΟ DIAGNOSTIC LOG — Πρόβλημα 2 (θα αφαιρεθεί μετά) ──
-            DebugConfig.log(DebugConfig.uiRebuild,
-                'ProfileScreen LayoutBuilder REBUILT — '
-                    'constraints=$constraints, '
-                    'time=${DateTime.now().toIso8601String().substring(11, 23)}');
             return SizedBox(width: w, child: Column(
               children: [
                 GradientHeader(

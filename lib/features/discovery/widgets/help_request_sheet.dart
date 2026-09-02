@@ -188,7 +188,9 @@ class _HelpRequestSheetState extends ConsumerState<HelpRequestSheet> {
     final user = ref.watch(authStateProvider).value;
     final uid = user?.uid ?? '';
     final profileAsync = ref.watch(currentProfileProvider);
-    final pubAsync = ref.watch(publicProfileStreamProvider(uid));
+    final pubAsync = uid.isEmpty
+        ? null
+        : ref.watch(publicProfileStreamProvider(uid));
 
     return AnimatedPadding(
       duration: const Duration(milliseconds: 150),
@@ -206,14 +208,14 @@ class _HelpRequestSheetState extends ConsumerState<HelpRequestSheet> {
               children: [
                 _buildHeader(theme, isGreek),
                 const SizedBox(height: 20),
-                if (profileAsync.isLoading || pubAsync.isLoading)
+                if (profileAsync.isLoading || (pubAsync?.isLoading ?? false))
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 32),
                     child: LoadingView(),
                   )
                 else
                   _buildBody(theme, isGreek, user, profileAsync.value,
-                      pubAsync.value),
+                      pubAsync?.value),
               ],
             ),
           );

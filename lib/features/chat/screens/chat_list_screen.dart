@@ -76,10 +76,6 @@ class ChatListScreen extends ConsumerWidget {
                 return LayoutBuilder(
                   builder: (context, constraints) {
                     final w = ResponsiveUtils.resolveWidth(context, constraints);
-                    // ── ΠΡΟΣΩΡΙΝΟ DIAGNOSTIC LOG — Πρόβλημα 2 (θα αφαιρεθεί μετά) ──
-                    DebugConfig.log(DebugConfig.uiRebuild,
-                        'ChatListScreen LayoutBuilder REBUILT — '
-                            'time=${DateTime.now().toIso8601String().substring(11, 23)}');
                     return ListView.builder(
                       padding: EdgeInsets.symmetric(
                         horizontal: ResponsiveUtils.paddingValueFromWidth(w),

@@ -62,7 +62,13 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
               .doc('profile')
               .get();
           if (doc.exists) {
-            final pub = _safePublicProfileFromJson(doc.data());
+            final data = doc.data();
+            if (data != null) {
+              // Παλιά docs μπορεί να μην έχουν `uid` — αντλούμε από το doc path
+              // (users/{uid}/public/profile), ίδιο pattern με streamPublicProfile.
+              data['uid'] ??= doc.reference.parent.parent?.id;
+            }
+            final pub = _safePublicProfileFromJson(data);
             if (pub == null) {
               DebugConfig.warn('getProfile: skip merge — invalid Firestore data (missing uid)');
             } else if (pub.updatedAt != null && pub.updatedAt!.isAfter(profile.updatedAt)) {
@@ -107,7 +113,13 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
               DebugConfig.repositoryResult, 'getProfile: null (no local, no firestore)');
           return null;
         }
-        final pub = _safePublicProfileFromJson(doc.data());
+        final data = doc.data();
+        if (data != null) {
+          // Παλιά docs μπορεί να μην έχουν `uid` — αντλούμε από το doc path
+          // (users/{uid}/public/profile), ίδιο pattern με streamPublicProfile.
+          data['uid'] ??= doc.reference.parent.parent?.id;
+        }
+        final pub = _safePublicProfileFromJson(data);
         if (pub == null) {
           DebugConfig.warn('getProfile: skip restore — invalid Firestore data (missing uid)');
           return null;

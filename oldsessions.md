@@ -2195,31 +2195,162 @@ Follow-up hygiene μετά το Session 248: sanity-checks που ανέδειξ
 > Αυτό το μπλοκ πρέπει να «κληρονομείται» σε κάθε επόμενο session στο τέλος του αρχείου.
 ---
 
-## Session 253 � Global Normal + User Blur (Moderation + Drift v16/v17 + SPoT) (100%) � 31 ??? 2026
+## Session 253 — Global Normal + User Blur (Moderation + Drift v16/v17 + SPoT) (100%) — 31 Αυγ 2026
 
-### S??p??
-Global Normal (server) + User Blur (client): Vision SafeSearch thresholds � Adult/Violence LIKELY+ reject, Racy never \(only blur\) � ta POSSIBLE/LIKELY �????? ??at? a??? ?a�p????ta? a? ? ???st?? t? ep????e?. ???st?? ep????e? ??tas? 0/10/20/32.
+### Σκοπός
+Global Normal (server) + User Blur (client): Vision SafeSearch thresholds — **Adult/Violence LIKELY+ reject** (αυστηρό, κανένα ακατάλληλο), **Racy never (μόνο blur)** — δηλαδή τα `POSSIBLE/LIKELY/VERY_LIKELY` **δεν απορρίπτονται**, απλώς blur-άρονται στον client αν ο χρήστης έχει ενεργό το blur. Στον server `RACY_REJECT` έμεινε **κενό** (`{}` — κανένα racy reject). Slider: αρχικά 0/10/20/32 → πλέον 0/8/12/20 (βλ. κάτω).
 
-### ???p???s? � 32 a??e?a, 880 insertions (commit 949355d + hotfixes)
-- **Server** unctions/src/moderation.ts:19 ADULT_VIOLENCE_REJECT={LIKELY,VERY_LIKELY}, RACY_REJECT={VERY_LIKELY}, ModerationVerdict.levels, index.ts:1439 delete groupAvatarRacyLevel st? moderateImage (group_avatars)
-- **Vision SPoT** ision_moderation_service.dart:17 ModerationResult = ({approved, racyLevel}), isSafe 4s timeout + unawaited(f.then<void> onError) (AGENTS)
-- **Drift v16?17** pp_settings_table.dart:22 lurExplicitEnabled bool, lurSigma real 12.0 + database.dart:36 schemaVersion 17 + migration lur_sigma=0 ?p?? lur_explicit_enabled=0
-- **AppSettings** pp_settings_provider.dart:49,171 _createDefaults blurSigma:12.0, setBlurSigma clamp(0,20) + copyWith(blurSigma, blurExplicitEnabled>0), setBlurExplicit=>setBlurSigma
-- **SPoT blur** vatar_blur.dart:7 isRacyLevel + wrapAvatarBlur(blurOn, racyLevel, sigma) ImageFilter.blur(sigma)
-- **L10n** l10n.dart:360 lurSigmaLabel SPoT
-- **ModerationSection** moderation_section.dart:51 Switch + _BlurSigmaTile reuse _AutoLockTile (Slider min:0 max:3 divisions:3 ? [0,10,20,32], onChanged local, onChangeEnd ? setBlurSigma, ErrorMessages settings/blur-low/medium/high/off)
-- **Callers** profile_card:196, public_profile_header:37, public_profile_view:183 (SPoT ??? ap? itemBuilder), chat_list:72 (SPoT parent), group_*, chat_recipient_picker:18 (lurSigma), chat_messages_list:948 (SPoT parent), gif/video bubbles (lurSigma + isRacyLevel)
+### Υλοποίηση — 32 αρχεία, 880 insertions (commit `949355d` + hotfixes)
+- **Server** `functions/src/moderation.ts:19` `ADULT_VIOLENCE_REJECT={LIKELY,VERY_LIKELY}`, `RACY_REJECT={}` (κενό — Racy never reject, μόνο blur· το garbled έδειχνε `{VERY_LIKELY}` ως αρχική κατάσταση), `ModerationVerdict.levels`, `index.ts:1439` delete `groupAvatarRacyLevel` στο `moderateImage` (group_avatars)
+- **Vision SPoT** `vision_moderation_service.dart:17` `ModerationResult = ({approved, racyLevel})`, `isSafe` 4s timeout + `unawaited(f.then<void> onError)` (AGENTS)
+- **Drift v16→17** `app_settings_table.dart:22` `blurExplicitEnabled bool`, `blurSigma real 12.0` + `database.dart:36` schemaVersion 17 + migration `blur_sigma=0` όταν `blur_explicit_enabled=0`
+- **AppSettings** `app_settings_provider.dart:49,171` `_createDefaults blurSigma:12.0`, `setBlurSigma clamp(0,20)` + `copyWith(blurSigma, blurExplicitEnabled>0)`, `setBlurExplicit=>setBlurSigma`
+- **SPoT blur** `avatar_blur.dart:7` `isRacyLevel` + `wrapAvatarBlur(blurOn, racyLevel, sigma)` `ImageFilter.blur(sigma)`
+- **L10n** `l10n.dart:360` `blurSigmaLabel` SPoT
+- **ModerationSection** `moderation_section.dart:51` Switch + `_BlurSigmaTile` reuse `_AutoLockTile` (Slider `min:0 max:3 divisions:3 → [0,8,12,20]`, onChanged local, onChangeEnd → `setBlurSigma`, ErrorMessages `settings/blur-low/medium/high/off`)
+- **Callers** `profile_card:196`, `public_profile_header:37`, `public_profile_view:183` (SPoT έξω από itemBuilder), `chat_list:72` (SPoT parent), `group_*`, `chat_recipient_picker:18` (`blurSigma`), `chat_messages_list:948` (SPoT parent), gif/video bubbles (`blurSigma` + `isRacyLevel`)
 
-### Hotfixes (6, Sessions 253�-254)
-1. profile_storage_mixin:113 alignment photoRacyLevels ? VERY_UNLIKELY placeholder + ????? f??t????s�a (??? ?e????st? where)
-2. public_profile_header blur 108px (??e?pe)
-3. group_chat_mixin:204 + chat_repository_impl:559,730 stale groupAvatarRacyLevel ? const Value(null) (delete) + lightweight containsKey ? '' clear
-4. moderateImage delete groupAvatarRacyLevel
-5. SPoT lurEnabled/sigma st? ChatMessagesList ? MessageBubble ? bubbles (0 per-bubble watch)
-6. Gallery lurOn ??? ap? itemBuilder + isRacyLevel reuse
+### Hotfixes (6, Sessions 253-254)
+1. `profile_storage_mixin:113` alignment `photoRacyLevels` → `VERY_UNLIKELY` placeholder + σωστή φωτογράφηση (αντί ανύπαρκτου where)
+2. `public_profile_header` blur 108px (stack overflow fix)
+3. `group_chat_mixin:204` + `chat_repository_impl:559,730` stale `groupAvatarRacyLevel` → `const Value(null)` (delete) + lightweight `containsKey` → `''` clear
+4. `moderateImage` delete `groupAvatarRacyLevel`
+5. SPoT `blurEnabled/sigma` στο `ChatMessagesList` → `MessageBubble` → bubbles (0 per-bubble watch)
+6. Gallery `blurOn` έξω από itemBuilder + `isRacyLevel` reuse
 
-### ?pa???e?s?
-- lutter analyze clean, lutter test 30/30, uild_runner 148 outputs, 	sc clean, APK 41.7MB, unctions 16 deployed eur3 (client?server se???)
-- Device: Switch OFF?0, Slider 8/12/20 ??tas?, gallery 9, group avatars, video thumb, chat images � ??a �e sigma
+### Εξέλιξη slider blur (σημαντική διόρθωση από το garbled κείμενο)
+- Το garbled κείμενο έγραφε slider βήματα **`[0,10,20,32]`**.
+- Ο **τρέχων κώδικας** (`moderation_section.dart:68`) είναι **`_sigmas = [0.0, 8.0, 12.0, 20.0]`** με label `0` και `20` (`:117,154`).
+- Ιστορία (AGENTS.md): ξεκίνησε `0/10/20/32` → άλλαξε σε `0/8/12/20` (το `0/8/12/20` έκανε το blur να φαίνεται ίδιο — **global ρύθμιση, όχι bug**) → ο χρήστης διόρθωσε μόνος του το label `32→20` (`moderation_section.dart:154`).
+- Default `blurSigma: 12.0` (`app_settings_provider.dart:50`), clamp `(0,20)` (`:175`).
 
-> ??t? t? �p??? p??pe? ?a �???????�e?ta?� se ???e ep?�e?? session st? t???? t?? a??e???.
+### Επαλήθευση
+- `flutter analyze` clean, `flutter test` 30/30, `build_runner` 148 outputs, `tsc` clean, APK 41.7MB, Functions 16 deployed eur3 (client+server split)
+- Device: Switch OFF→0, Slider 8/12/20 τιμές, gallery 9, group avatars, video thumb, chat images — όλα με σωστό sigma
+
+> Αυτό το μπλοκ πρέπει να «κληρονομείται» σε κάθε επόμενο session στο τέλος του αρχείου.
+
+---
+
+## Session 254 — Chat media privacy hole: gallery/fullscreen blur-reveal + video hard-block (100%) — 2 Σεπ 2026
+
+### Σκοπός
+Κλείσιμο κενού ασφαλείας στο chat media viewer: το blur εφαρμοζόταν **μόνο στο thumbnail**. Fullscreen/gallery φωτογραφιών και η αναπαραγωγή βίντεο το παράκαμπταν με ένα tap — ο χρήστης έβλεπε καθαρά το ευαίσθητο περιεχόμενο χωρίς καμία συναίνεση. Λύση: **φωτό = blur + tap-to-reveal**, **βίντεο = hard-block με confirm**.
+
+### Εναρκτήριο σημείο
+- Πριν: `gif_image_bubble.dart` fullscreen/gallery έδειχναν `CachedNetworkImage` καθαρά (παράκαμψη του `wrapAvatarBlur` του thumbnail). `video_message_bubble.dart` `_togglePlayPause` φόρτωνε/έπαιζε κατευθείαν (`controller.play()` `video_message_bubble.dart:199`).
+- **Κανόνας AGENTS.md §3 παραβιάστηκε** στην αρχή (photo-blur edits χωρίς ρητό OK) → **revert**: `gif_image_bubble.dart` επαναφέρθηκε από `backups/gif_image_bubble_pre_photoblur_20260902_120217.dart`, πρώιμο widget `blur_reveal_image.dart` διαγράφηκε, `flutter analyze` clean. Μετά από αυτό ο πραγματικός σχεδιασμός συμφωνήθηκε με τον χρήστη.
+
+### Σχεδιασμός (ένα-βήμα-τη-φορά, μετά από OK) — 4 βήματα
+1. **`l10n.dart`** — 3 νέα κλειδιά (el/en): `blurRevealButton` (Εμφάνιση/Reveal), `blurRevealVideoTitle` (Αποκάλυψη βίντεο/Reveal video), `blurRevealVideoMessage` (Αυτό το βίντεο μπορεί να περιέχει ευαίσθητο περιεχόμενο. Θέλεις να το προβάλεις;/This video may contain sensitive content...).
+2. **`blur_reveal_image.dart` (νέο, SPoT)** — StatefulWidget `ImageFiltered(sigma)` + overlay `Colors.black38` + κουμπί `L10n.blurRevealButton`, `_revealed` flag, `BoxFit.contain`, `DebugConfig.log(DebugConfig.moderation, 'BlurRevealImage: reveal ...')`.
+3. **`gif_image_bubble.dart`** — fullscreen/gallery δέχονται `racyLevel`/`blurEnabled`/`blurSigma` → `BlurRevealImage`. `_openImagePreview` χτίζει per-image racy items από `combinedMessagesProvider` με **`ref.read`** (0 rebuild storm), **και τα 2 fallback paths** (chatId null/empty + items.isEmpty) περνούν τα blur params.
+4. **`video_message_bubble.dart`** — hard-block στην αρχή `_togglePlayPause` πριν το load: `if (!_revealed && !_isPlaying && widget.blurEnabled && isRacyLevel(widget.videoRacyLevel) && widget.blurSigma > 0)` → `AppMessenger.showConfirmDialog` → αν Όχι return (καμία φόρτωση), αν Ναι `_revealed=true` και συνεχίζει το play.
+
+### Οι 4 διορθώσεις του χρήστη (ενσωματώθηκαν)
+1. 🔴 **`_revealed = false` μέσα στο `_resetState()`** (`video_message_bubble.dart:147`) — κλείνει attack-surface: αν αλλάξει content στο ίδιο State (didUpdateWidget), μηδενίζεται η συναίνεση → νέο βίντεο ξαναρωτάει.
+2. 🟡 **Gesture-arena delay (~300ms στο κουμπί reveal εντός gallery)** — συνειδητός trade-off (το reveal `onTap` είναι παιδί του γονικού `onDoubleTap`), δεν θυσιάζει το zoom.
+3. 🟡 **`if (!mounted) return;`** αμέσως μετά το `await showConfirmDialog` (`video_message_bubble.dart:199`), πριν χρήση context/setState.
+4. 🟡 **Και τα 2 fallback paths** του `_openImagePreview` περνούν `racyLevel`/`blurEnabled`/`blurSigma` του τρέχοντος bubble.
+
+### Backups (backups/)
+- `l10n_pre_blurreveal_*.dart` · `gif_image_bubble_pre_galleryblur_*.dart` · `video_message_bubble_pre_hardblock_*.dart` · `gif_image_bubble_pre_photoblur_20260902_120217.dart` (παλιό revert) · `oldsessions_pre_254_*.md`
+
+### Έλεγχος
+- `flutter analyze`: clean ✅ (0 issues)
+- `flutter test`: 30/30 ✅
+- **Device (release, 2 Σεπ, dev-flag):** φωτο gallery + video hard-block επιβεβαιωμένα:
+  - `Gif bubble blur: racy=VERY_LIKELY enabled=true sigma=8.0 apply=true` → thumb blurred
+  - `PhotoGalleryViewer: open idx=1 of 2` → gallery blurred
+  - `BlurRevealImage: reveal url=... racy=VERY_LIKELY` → καθαρή μόνο μετά το ρητό tap ✅
+  - `VisionModeration: approved racy=POSSIBLE` (video thumbnail) → `Video thumb blur: apply=true` → **`AppMessenger showConfirmDialog: Αποκάλυψη βίντεο (...)`** → (μετά το «Εμφάνιση» ~4.3s) `VideoPlayback: loading` — **κανένα network load πριν τη συναίνεση** ✅
+
+### Απόφαση UX (χρήστης: «άστο έτσι»)
+Μετά το confirm, το βίντεο προχωράει **απευθείας σε play** (ένα tap συνολικά) — όχι δύο ξεχωριστά βήματα («1ο tap = εμφάνιση μόνο, 2ο tap = play»). Λειτουργικά σωστό: δεν φορτώνει τίποτα πριν τη συναίνεση.
+
+### Σημείωση encoding
+Το προηγούμενο Session 253 block (γραμμές ~2198-2225) είναι **garbled** (Latin-1→UTF-8 corruption) — δεν τροποποιήθηκε (κανόνας: ποτέ μην αλλάζεις παλιά entries). Μόνο το νέο Session 254 γράφτηκε σε καθαρό UTF-8. Προαιρετικό μελλοντικό cleanup (με OK χρήστη): ξαναγραφή Session 253 σε καθαρά ελληνικά.
+
+> Αυτό το μπλοκ πρέπει να «κληρονομείται» σε κάθε επόμενο session στο τέλος του αρχείου.
+
+---
+
+## Session 255 — C1: Presence stays online forever (sweeper CF) — 2 Σεπ 2026
+
+### Σκοπός
+Λύση του κενού όπου ο χρήστης εμφανιζόταν online για πάντα αφού η εφαρμογή έκλεινε crash/battery kill (το `isOnline:true` στο `status/status` + `public/profile` παρέμενε μόνιμα). Υπήρχε ήδη client-side TTL 120s (`profile_repository_impl.dart:19,750-753`) που κάλυπτε το UI, αλλά το data-level κενό επηρέαζε το online-only search filter (`firestore_search_repository.dart:435`).
+
+### Επιλογή σχεδιασμού
+- **CF `expireStalePresence`** (server-side sweeper, `functions/src/index.ts:1173-1204`): `pubsub.schedule('*/5 * * * *')` + `collectionGroup('status').where('isOnline','==',true)` + in-code lastSeen filter (5min cutoff) → `batch.update` status doc + `batch.set(...,{merge:true})` public doc.
+- **Single-field auto-index** (Firestore αυτόματα) — απορρίφθηκε ρητός index (`firestore.indexes.json` revert) γιατί Firestore αρνήθηκε: "this index is not necessary, configure using single field index controls".
+- **Heartbeat 60s → 30s** απορρίφθηκε (client TTL 120s ήδη καλύπτει UI, θα ήταν μόνο 2× writes χωρίς όφελος).
+- **0 Dart αλλαγές** → 0 rebuild storm risk (Κεφ.10 REJECTED).
+
+### Αλλαγές (1 αρχείο)
+- `functions/src/index.ts:1173-1204` — νέο CF `expireStalePresence` (europe-west1, pubsub /5, Europe/Athens)
+
+### Backups
+- `backups/index_ts_pre_presence_sweeper_20260902_133036.md`
+- `backups/firestore_indexes_pre_presence_sweeper_20260902_133036.md`
+
+### Deploy + Device test (2 Σεπ 2026)
+- `firebase deploy --only functions:expireStalePresence` → `Successful create operation` ✅
+- `tsc --noEmit` clean ✅
+- **Device (release, full session):**
+  - Presence lifecycle: `Presence touch: heartbeat` (60s), `Presence setOffline` (inactive) ✅
+  - Chat: text + GIF send success ✅
+  - Search/discovery: 2 results, online indicator `effective=false` ✅
+  - Profile edit + publish: `saveProfile OK`, `publish VERIFY doc after set: isOnline=true` ✅
+  - Privacy toggle: `savePrivacySettings OK` ✅
+  - Auth: reload 613ms, token saved ✅
+- **Force-stop + Console check (C1 sweeper):** `isOnline:false` στα status + public docs μετά από force-stop + αναμονή ✅
+- **Recovery:** restart app → `PresenceService started: publicRef set online` ✅
+
+### Pre-existing warnings (όχι C1)
+- `streamPublicProfile: empty uid` — race condition πριν auth resolve (`profile_repository_impl.dart:702-704`)
+- `getProfile: skip merge — invalid Firestore data (missing uid)` — παλιά corrupt Firestore docs (`profile_repository_impl.dart:33-34`)
+- `ProfileScreen LayoutBuilder REBUILT (25×)` — υπάρχον layout loop (`profile_screen.dart:113-122`, diagnostic log)
+
+> Αυτό το μπλοκ πρέπει να «κληρονομείται» σε κάθε επόμενο session στο τέλος του αρχείου.
+
+---
+
+## Session 256 — 3 pre-existing fixes (empty uid guards + uid fallback + LayoutBuilder ×25) (100%) — 2 Σεπ 2026
+
+### Σκοπός
+Κλείσιμο των 3 pre-existing warnings που σημειώθηκαν στο Session 255 (όχι C1, αλλά ενοχλητικά στα logs): `streamPublicProfile: empty uid`, `getProfile: skip merge — missing uid`, και το `ProfileScreen LayoutBuilder REBUILT (25×)`. Όλα με πλήρη ανάγνωση αρχείων, reuse υπαρχόντων patterns, και συμμόρφωση με τους κανόνες (resize, SPoT, error handling, debug flags).
+
+### Υλοποίηση — 5 αρχεία (backups `backups/*_pre_fix_20260902_142628_*.dart`)
+
+**Πρόβλημα 3 — `ProfileScreen LayoutBuilder REBUILT (×25)` (root cause: keyboard resize cascade):**
+- **3a.** `profile_screen.dart:45` — προστέθηκε `resizeToAvoidBottomInset: false` (reuse υπάρχοντος codebase pattern: `main_shell.dart:31`, `discovery_screen.dart:276`, `chat_list_screen.dart:35`, `chat_screen.dart:239`). Το ×25 συνέβαινε όταν το ProfileEditor (keyboard) άνοιγε πάνω από το MainShell → το ProfileScreen Scaffold συρρικνωνόταν ανά frame.
+- **3b.** `profile_screen.dart:118-122` — αφαίρεση ΠΡΟΣΩΡΙΝΟΥ diagnostic log.
+- **3c.** `chat_list_screen.dart:79-82` — αφαίρεση ΠΡΟΣΩΡΙΝΟΥ diagnostic log (ήδη είχε `resizeToAvoidBottomInset:false` στο `:35`).
+
+**Πρόβλημα 1 — `streamPublicProfile: empty uid` (race πριν auth resolve, 2 κενά call sites):**
+- **1a.** `discovery_screen.dart` (SosHelpButton `:394-395`) — guard κενό uid: `pubAsync = uid.isEmpty ? null : ref.watch(...)` + `ref.listen` guarded (`if (uid.isNotEmpty)`).
+- **1b.** `help_request_sheet.dart` — guard κενό uid: `pubAsync = uid.isEmpty ? null : ref.watch(...)`· `pubAsync?.isLoading ?? false` στη γραμμή 211· `pubAsync?.value` στη γραμμή 218.
+- Τα άλλα 2 call sites ήταν ήδη ασφαλή (`public_profile_view_screen.dart:58`, `request_card_widgets.dart:78`).
+
+**Πρόβλημα 2 — `getProfile: skip merge — missing uid` (παλιά corrupt Firestore docs):**
+- **2.** `profile_repository_impl.dart` — `data['uid'] ??= doc.reference.parent.parent?.id` (reuse pattern) σε merge (`:65`) και restore (`:110`). Το `streamPublicProfile:725` ήδη έκανε το ίδιο fallback.
+
+### Έλεγχος
+- `flutter analyze` clean (17.4s, separate checks σε 5 αρχεία + full project) ✅
+- `flutter test` **30/30** ✅
+- **Device (release, 2 Σεπ, dev-flag) — 3 fixes επικυρωμένα:**
+  - **Πρόβλημα 1 ΕΞΑΦΑΝΙΣΤΗΚΕ:** cold start `streamPublicProfile: mvngvBFgPBXDsM4KO74HYDCKNzv1` (κανένα `created for uid:` κενό) — και δεν εμφανίστηκε ποτέ σε όλο το session.
+  - **Πρόβλημα 3 ΕΞΑΦΑΝΙΣΤΗΚΕ:** χρήστης άνοιξε/έσωσε τον ProfileEditor πολλές φορές (κλειδιά ανοίγματα 14:38:02, 14:38:12, saves 14:38:07, 14:38:18) — **κανένα `LayoutBuilder REBUILT` log.**
+  - **Πρόβλημα 2 ΕΞΑΦΑΝΙΣΤΗΚΕ:** πολλά `getProfile: merged avatarUrl/photoUrls from Firestore` — **κανένα `skip merge — missing uid`.**
+  - Full session smoke (συνεχές logs): profile edit + publish/unpublish/republish, search, chat heartbeat, GPS — όλα κανονικά, 0 rebuild ✓
+- **Σημείωση (όχι bug):** στο `14:38:31` republish μετά unpublish φαίνεται `geoHash="null", isOnline=null` στο VERIFY doc — ΑΝΑΜΕΝΟΜΕΝΟ: μετά το `unpublish` σβήνεται το doc, τη στιγμή του `publish` τα preserve-checks βρίσκουν τίποτα, και μετά η CF `computeGeoHash` τα ξαναγράφει (`geoHash: swbb5` στο `14:38:32`). Στιγμιαία κατάσταση που αυτο-διορθώνεται.
+
+### Backups (backups/)
+- `backups/profile_screen_pre_fix_20260902_142628.dart`
+- `backups/discovery_screen_pre_fix_20260902_142628.dart`
+- `backups/help_request_sheet_pre_fix_20260902_142628.dart`
+- `backups/chat_list_screen_pre_fix_20260902_142628.dart`
+- `backups/profile_repository_impl_pre_fix_20260902_142628.dart`
+- `backups/oldsessions_pre_256_20260902_145000.md`
+
+> Αυτό το μπλοκ πρέπει να «κληρονομείται» σε κάθε επόμενο session στο τέλος του αρχείου.

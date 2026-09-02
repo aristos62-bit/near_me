@@ -1170,6 +1170,39 @@ export const expireStaleMessages = functions.region(REGION).pubsub
     return null;
   });
 
+export const expireStalePresence = functions.region(REGION).pubsub
+  .schedule('*/5 * * * *')
+  .timeZone('Europe/Athens')
+  .onRun(async () => {
+    const cutoff = admin.firestore.Timestamp.now().toMillis() - 5 * 60 * 1000;
+
+    // Μόνο online docs — το lastSeen φιλτράρεται στον κώδικα (όχι composite index).
+    const stale = await db
+      .collectionGroup('status')
+      .where('isOnline', '==', true)
+      .get();
+
+    let cleared = 0;
+    const batch = db.batch();
+    for (const doc of stale.docs) {
+      const lastSeen = (doc.data().lastSeen as admin.firestore.Timestamp | undefined)
+        ?.toMillis?.() ?? 0;
+      if (lastSeen > cutoff) continue; // fresh heartbeat — skip
+
+      const uid = doc.ref.parent.parent!.id; // users/{uid}/status/status → uid
+      batch.update(doc.ref, { isOnline: false }); // status doc: update (υπάρχει σίγουρα)
+      batch.set(db.doc(`users/${uid}/public/profile`), { isOnline: false }, { merge: true });
+      cleared++;
+    }
+
+    if (cleared > 0) await batch.commit();
+
+    functions.logger.info(
+      `expireStalePresence: cleared ${cleared} of ${stale.size} online (cutoff=<5min>)`,
+    );
+    return null;
+  });
+
 export const sendReactionNotification = functions.region(REGION).firestore
   .document('chats/{chatId}/messages/{messageId}')
   .onUpdate(async (change, context) => {

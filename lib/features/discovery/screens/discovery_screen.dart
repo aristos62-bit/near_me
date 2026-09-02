@@ -392,27 +392,31 @@ class SosHelpButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final uid = ref.watch(authStateProvider).value?.uid ?? '';
-    final pubAsync = ref.watch(publicProfileStreamProvider(uid));
-    final active = pubAsync.value?.helpRequest?.active == true;
+    final pubAsync = uid.isEmpty
+        ? null
+        : ref.watch(publicProfileStreamProvider(uid));
+    final active = pubAsync?.value?.helpRequest?.active == true;
     final theme = Theme.of(context);
     final isGreek = L10n.isGreek(context);
 
-    ref.listen(publicProfileStreamProvider(uid), (prev, next) {
-      final h = next.value?.helpRequest;
-      if (h == null || !h.active || h.updatedAt == null) return;
-      final now = DateTime.now();
-      if (now.difference(h.updatedAt!) > HelpRequestConfig.ttl) {
-        DebugConfig.log(DebugConfig.helpRequest,
-            'SosHelpButton: stale SOS detected → auto-off (TTL ${HelpRequestConfig.ttl.inMinutes}min)');
-        ref
-            .read(profileRepositoryProvider)
-            .setHelpRequest(active: false)
-            .then((_) => DebugConfig.log(
-                DebugConfig.helpRequest, 'SosHelpButton: auto-off write OK'))
-            .catchError((e) => DebugConfig.warn(
-                'SosHelpButton: auto-off failed (non-fatal)', data: e));
-      }
-    });
+    if (uid.isNotEmpty) {
+      ref.listen(publicProfileStreamProvider(uid), (prev, next) {
+        final h = next.value?.helpRequest;
+        if (h == null || !h.active || h.updatedAt == null) return;
+        final now = DateTime.now();
+        if (now.difference(h.updatedAt!) > HelpRequestConfig.ttl) {
+          DebugConfig.log(DebugConfig.helpRequest,
+              'SosHelpButton: stale SOS detected → auto-off (TTL ${HelpRequestConfig.ttl.inMinutes}min)');
+          ref
+              .read(profileRepositoryProvider)
+              .setHelpRequest(active: false)
+              .then((_) => DebugConfig.log(
+                  DebugConfig.helpRequest, 'SosHelpButton: auto-off write OK'))
+              .catchError((e) => DebugConfig.warn(
+                  'SosHelpButton: auto-off failed (non-fatal)', data: e));
+        }
+      });
+    }
 
     return IconButton(
       onPressed: () {

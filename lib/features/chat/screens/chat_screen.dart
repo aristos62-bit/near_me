@@ -122,16 +122,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
 
 
-  void _showE2EInfo(String label) {
+  void _showEncryptionInfo(String label) {
     final greek = L10n.isGreek(context);
     AppMessenger.showInfoDialog(
       context,
       icon: Icons.lock,
       title: ErrorMessages.get('chat/e2e-info-title', greek),
       message: greek
-          ? 'Τα μηνύματά σου προστατεύονται με κρυπτογράφηση AES-256 από άκρο σε άκρο. '
-              'Μόνο εσύ και η ομάδα "$label" μπορείτε να τα διαβάσετε.'
-          : 'Your messages are protected with end-to-end AES-256 encryption. '
+          ? 'Τα μηνύματά σου προστατεύονται με κρυπτογράφηση AES-256. '
+              'Μόνο εσύ και ομάδα "$label" μπορείτε να τα διαβάσετε.'
+          : 'Your messages are protected with AES-256 encryption. '
               'Only you and group "$label" can read them.',
       dismissLabel: greek ? 'Εντάξει' : 'OK',
     );
@@ -239,7 +239,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: GestureDetector(
-          onTap: () => _showE2EInfo(isGroupChat ? (groupName ?? widget.chatId) : (otherNickname ?? widget.chatId)),
+          onTap: () => _showEncryptionInfo(isGroupChat ? (groupName ?? widget.chatId) : (otherNickname ?? widget.chatId)),
           child: isGroupChat
               ? Column(children: [
                   Row(mainAxisSize: MainAxisSize.min, children: [

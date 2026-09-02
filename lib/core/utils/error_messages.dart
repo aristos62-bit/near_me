@@ -140,7 +140,7 @@ class ErrorMessages {
       case 'chat/messages-cleared':
         return isGreek ? 'Τα μηνύματα διαγράφηκαν' : 'Messages cleared';
       case 'chat/e2e-info-title':
-        return isGreek ? 'E2E Κρυπτογράφηση' : 'E2E Encryption';
+        return isGreek ? 'Κρυπτογράφηση AES-256' : 'AES-256 Encryption';
       case 'group/avatar-updated':
         return isGreek ? 'Η φωτογραφία ομάδας ενημερώθηκε' : 'Group avatar updated';
       case 'group/avatar-update-failed':

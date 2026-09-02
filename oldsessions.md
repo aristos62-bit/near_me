@@ -258,8 +258,8 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 | Cloud Functions | 16 deployed `europe-west1` (gen1, Node 22), συμπ. `checkImageModeration` + `moderateImage` (Vision moderation, eur3), `addGroupParticipant`/`leaveGroup`, `expireStaleRequests/Messages`, `computeGeoHash`, `checkSearchRateLimit`, `deleteUserData`, `onReportCreated`, 5 FCM |
 | Build | `flutter analyze` clean ✅, release APK ~41.7MB (debug) / ~20.8MB (R8), signed `gr.nearme.app` (CN=NearMe) |
 | Tests | 30/30 passed |
-| Schema | Drift v17, 7 tables (+crashReportsEnabled, blurExplicitEnabled, blurSigma 0/8/12/20) |
-| Moderation | Active (Sessions 253-255): Global Normal + User Blur — Vision SafeSearch `eu-vision.googleapis.com`, thresholds Adult/Violence LIKELY+ reject, Racy VERY_LIKELY only, blur POSSIBLE/LIKELY via `avatar_blur.dart` + `blurSigma` slider SPoT (`moderation_section.dart` + `_BlurSigmaTile` reuse `_AutoLockTile`). Kill-switch `config/moderation`, `moderationLog` rules |
+| Schema | Drift v17, 7 tables (+crashReportsEnabled, blurExplicitEnabled, blurSigma 0/10/20/32) |
+| Moderation | Active (Sessions 253-255): Global Normal + User Blur — Vision SafeSearch `eu-vision.googleapis.com`, thresholds Adult/Violence LIKELY+ reject, Racy never \(only blur\), blur POSSIBLE/LIKELY via `avatar_blur.dart` + `blurSigma` slider SPoT (`moderation_section.dart` + `_BlurSigmaTile` reuse `_AutoLockTile`). Kill-switch `config/moderation`, `moderationLog` rules |
 | Photo Fix | `EqualUnmodifiableListView` → `List.from` `profile_editor_screen.dart:153,161` (Session 244) |
 | P0 Fixes | `unawaited` `then<void> onError` + `await close()` + `chatId` null check (Session 245) · Hygiene 1.1/1.2/1.3/1.5/1.6/2.2/2.3/2.4/3.1-3.3/4.1/5 (Session 248) · Follow-up dead-catch + 3.1 postFrame + 4.6 listener (Session 249) · Double-call resume (Session 250) · B3+B6 iOS Info.plist (Session 251) · **B5 Hosting privacy.html (Session 252)** |
 | Feature Flags | ~24 (core 21: typesense, videoCall, groupChat, gifSupport, mediaMessages, audioMessages, videoMessages, messageExpiry, messageReactions, replyToMessage, **replyPrivately**, editMessage, deleteMessage, messageInfo, messageEmail, messageShare, groupEvents, webVersion, aiMatching, verifiedBadge, premiumTier + moderation: contentModerationEnabled, autoModerateProfilePhotos, autoModerateChatMedia, blurExplicitByDefault) |
@@ -2198,7 +2198,7 @@ Follow-up hygiene μετά το Session 248: sanity-checks που ανέδειξ
 ## Session 253 � Global Normal + User Blur (Moderation + Drift v16/v17 + SPoT) (100%) � 31 ??? 2026
 
 ### S??p??
-Global Normal (server) + User Blur (client): Vision SafeSearch thresholds � Adult/Violence LIKELY+ reject, Racy VERY_LIKELY only � ta POSSIBLE/LIKELY �????? ??at? a??? ?a�p????ta? a? ? ???st?? t? ep????e?. ???st?? ep????e? ??tas? 0/8/12/20.
+Global Normal (server) + User Blur (client): Vision SafeSearch thresholds � Adult/Violence LIKELY+ reject, Racy never \(only blur\) � ta POSSIBLE/LIKELY �????? ??at? a??? ?a�p????ta? a? ? ???st?? t? ep????e?. ???st?? ep????e? ??tas? 0/10/20/32.
 
 ### ???p???s? � 32 a??e?a, 880 insertions (commit 949355d + hotfixes)
 - **Server** unctions/src/moderation.ts:19 ADULT_VIOLENCE_REJECT={LIKELY,VERY_LIKELY}, RACY_REJECT={VERY_LIKELY}, ModerationVerdict.levels, index.ts:1439 delete groupAvatarRacyLevel st? moderateImage (group_avatars)
@@ -2207,7 +2207,7 @@ Global Normal (server) + User Blur (client): Vision SafeSearch thresholds � Adul
 - **AppSettings** pp_settings_provider.dart:49,171 _createDefaults blurSigma:12.0, setBlurSigma clamp(0,20) + copyWith(blurSigma, blurExplicitEnabled>0), setBlurExplicit=>setBlurSigma
 - **SPoT blur** vatar_blur.dart:7 isRacyLevel + wrapAvatarBlur(blurOn, racyLevel, sigma) ImageFilter.blur(sigma)
 - **L10n** l10n.dart:360 lurSigmaLabel SPoT
-- **ModerationSection** moderation_section.dart:51 Switch + _BlurSigmaTile reuse _AutoLockTile (Slider min:0 max:3 divisions:3 ? [0,8,12,20], onChanged local, onChangeEnd ? setBlurSigma, ErrorMessages settings/blur-low/medium/high/off)
+- **ModerationSection** moderation_section.dart:51 Switch + _BlurSigmaTile reuse _AutoLockTile (Slider min:0 max:3 divisions:3 ? [0,10,20,32], onChanged local, onChangeEnd ? setBlurSigma, ErrorMessages settings/blur-low/medium/high/off)
 - **Callers** profile_card:196, public_profile_header:37, public_profile_view:183 (SPoT ??? ap? itemBuilder), chat_list:72 (SPoT parent), group_*, chat_recipient_picker:18 (lurSigma), chat_messages_list:948 (SPoT parent), gif/video bubbles (lurSigma + isRacyLevel)
 
 ### Hotfixes (6, Sessions 253�-254)

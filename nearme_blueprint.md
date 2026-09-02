@@ -2,8 +2,8 @@
 
 > **Έκδοση:** 2.1  
 > **Ημερομηνία:** Αύγουστος 2026  
-> **Κατάσταση:** Phases 1-3: **100% υλοποιημένο** + Global Normal + User Blur (moderation + slider 0/8/12/20) — Phase 4+: Σχεδιασμός
-> **v2.1:** Προσθήκη Vision SafeSearch (eur3), Drift v17 (`blurSigma`), 16 CFs, 7 tables, 30 tests, `flutter analyze` clean.
+> **Κατάσταση:** Phases 1-3: **100% υλοποιημένο** + Global Normal + User Blur (moderation + slider 0/10/20/32) — Phase 4+: Σχεδιασμός
+> **v2.1:** Προσθήκη Vision SafeSearch (eur3), Drift v17 (`blurSigma` 0/10/20/32), 16 CFs, 7 tables, 30 tests, `flutter analyze` clean.
 
 ---
 
@@ -151,7 +151,7 @@
 | i18n | flutter_localizations + intl ^0.20.2 | Auto από device locale (el/en) |
 | Images | cached_network_image ^3.4.1 + image_picker ^1.2.2 + flutter_image_compress ^2.5.0 | Cache + upload + EXIF strip (stripExif SPoT) |
 | Image Cropper | image_cropper ^12.2.1 | 1:1 locked για avatar, free ratio για photos |
-| Content Moderation | @google-cloud/vision (SafeSearch) + Cloud Functions `checkImageModeration`/`moderateImage` | Adult/Violence LIKELY+ reject, Racy VERY_LIKELY only, blur POSSIBLE/LIKELY via `avatar_blur.dart` + `blurSigma` slider 0/8/12/20 |
+| Content Moderation | @google-cloud/vision (SafeSearch) + Cloud Functions `checkImageModeration`/`moderateImage` | Adult/Violence LIKELY+ reject, Racy never (only blur), blur POSSIBLE/LIKELY/VERY_LIKELY via `avatar_blur.dart` + `blurSigma` slider 0/10/20/32 |
 | Connectivity | connectivity_plus ^7.1.1 | Network status |
 | Geocoding | geocoding ^4.0.0 | Reverse geocoding |
 | Code Gen | build_runner ^2.15.0 + drift_dev ^2.33.0 + riverpod_generator ^4.0.3 + freezed ^3.2.5 + json_serializable ^6.14.0 | |
@@ -327,7 +327,7 @@ class AppSettingsTable extends Table {
   BoolColumn get screenshotPreventionEnabled => boolean().withDefault(const Constant(false))();
   BoolColumn get crashReportsEnabled => boolean().withDefault(const Constant(false))();
   BoolColumn get blurExplicitEnabled => boolean().withDefault(const Constant(true))(); // schema v16
-  RealColumn get blurSigma => real().withDefault(const Constant(12.0))(); // schema v17 slider 0/8/12/20
+  RealColumn get blurSigma => real().withDefault(const Constant(12.0))(); // schema v17 slider 0/10/20/32
   IntColumn get autoLockMinutes => integer().withDefault(const Constant(5))();
   RealColumn get searchRadiusKm => real().withDefault(const Constant(10.0))();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();

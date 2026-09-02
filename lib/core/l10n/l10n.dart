@@ -364,6 +364,16 @@ class L10n {
     if (sigma <= 12) return isGreek ? 'Μεσαίο ($s)' : 'Medium ($s)';
     return isGreek ? 'Υψηλό ($s)' : 'High ($s)';
   }
+
+  static String blurRevealButton({required bool isGreek}) =>
+      isGreek ? 'Εμφάνιση' : 'Reveal';
+
+  static String blurRevealVideoTitle({required bool isGreek}) =>
+      isGreek ? 'Αποκάλυψη βίντεο' : 'Reveal video';
+
+  static String blurRevealVideoMessage({required bool isGreek}) => isGreek
+      ? 'Αυτό το βίντεο μπορεί να περιέχει ευαίσθητο περιεχόμενο. Θέλεις να το προβάλεις;'
+      : 'This video may contain sensitive content. Do you want to view it?';
 }
 
 enum TemperatureUnit { celsius, fahrenheit }

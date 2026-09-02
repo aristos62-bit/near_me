@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/debug/debug_config.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/utils/avatar_blur.dart';
+import '../../../../shared/widgets/blur_reveal_image.dart';
 import '../../../../shared/widgets/read_receipt_indicator.dart';
 import '../../providers/chat_provider.dart';
 import 'bubble_long_press_wrapper.dart';
@@ -86,7 +87,13 @@ class GifImageBubble extends ConsumerWidget {
   static const double _tailRadius = 8;
   static const Color _sentColor = AppColors.chatBubbleSent;
 
-  static void _showImageFullScreen(BuildContext context, String imageUrl) {
+  static void _showImageFullScreen(
+    BuildContext context,
+    String imageUrl, {
+    String? racyLevel,
+    bool blurEnabled = false,
+    double blurSigma = 12.0,
+  }) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => Scaffold(
@@ -97,12 +104,14 @@ class GifImageBubble extends ConsumerWidget {
           ),
           body: InteractiveViewer(
             child: Center(
-              child: CachedNetworkImage(
-                imageUrl: imageUrl,
-                fit: BoxFit.contain,
-                placeholder: (_, _) => const CircularProgressIndicator(),
-                errorWidget: (_, _, _) =>
-                    const Icon(Icons.broken_image, color: Colors.white),
+              child: SizedBox.expand(
+                child: BlurRevealImage(
+                  imageUrl: imageUrl,
+                  racyLevel: racyLevel,
+                  blurEnabled: blurEnabled,
+                  blurSigma: blurSigma,
+                  fit: BoxFit.contain,
+                ),
               ),
             ),
           ),
@@ -113,13 +122,19 @@ class GifImageBubble extends ConsumerWidget {
 
   static void _showGallery(
     BuildContext context,
-    List<String> urls,
-    int initialIndex,
-  ) {
+    List<({String url, String? racyLevel})> items,
+    int initialIndex, {
+    required bool blurEnabled,
+    required double blurSigma,
+  }) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) =>
-            _PhotoGalleryViewer(imageUrls: urls, initialIndex: initialIndex),
+        builder: (_) => _PhotoGalleryViewer(
+          items: items,
+          initialIndex: initialIndex,
+          blurEnabled: blurEnabled,
+          blurSigma: blurSigma,
+        ),
       ),
     );
   }
@@ -127,28 +142,44 @@ class GifImageBubble extends ConsumerWidget {
   void _openImagePreview(BuildContext context, WidgetRef ref) {
     final chatId = this.chatId;
     if (chatId == null || chatId.isEmpty) {
-      _showImageFullScreen(context, content);
+      _showImageFullScreen(
+        context,
+        content,
+        racyLevel: racyLevel,
+        blurEnabled: blurEnabled,
+        blurSigma: blurSigma,
+      );
       return;
     }
     final msgs = ref.read(combinedMessagesProvider(chatId));
-    final urls = msgs
-        .where(
-          (m) =>
-              m['type'] == 'image' &&
-              ((m['content'] as String?) ?? '').isNotEmpty,
-        )
-        .map((m) => m['content'] as String)
-        .toList();
-    final idx = urls.indexOf(content);
+    final items = <({String url, String? racyLevel})>[];
+    for (final m in msgs) {
+      if (m['type'] == 'image' && ((m['content'] as String?) ?? '').isNotEmpty) {
+        items.add((url: m['content'] as String, racyLevel: m['racyLevel'] as String?));
+      }
+    }
+    final idx = items.indexWhere((e) => e.url == content);
     DebugConfig.log(
       DebugConfig.uiInteraction,
-      'GifImageBubble: image tap idx=$idx of ${urls.length} chat=$chatId',
+      'GifImageBubble: image tap idx=$idx of ${items.length} chat=$chatId',
     );
-    if (urls.isEmpty) {
-      _showImageFullScreen(context, content);
+    if (items.isEmpty) {
+      _showImageFullScreen(
+        context,
+        content,
+        racyLevel: racyLevel,
+        blurEnabled: blurEnabled,
+        blurSigma: blurSigma,
+      );
       return;
     }
-    _showGallery(context, urls, idx < 0 ? 0 : idx);
+    _showGallery(
+      context,
+      items,
+      idx < 0 ? 0 : idx,
+      blurEnabled: blurEnabled,
+      blurSigma: blurSigma,
+    );
   }
 
   Widget _buildMediaImage(ThemeData theme, {required bool applyBlur}) {
@@ -333,12 +364,16 @@ class GifImageBubble extends ConsumerWidget {
 }
 
 class _PhotoGalleryViewer extends StatefulWidget {
-  final List<String> imageUrls;
+  final List<({String url, String? racyLevel})> items;
   final int initialIndex;
+  final bool blurEnabled;
+  final double blurSigma;
 
   const _PhotoGalleryViewer({
-    required this.imageUrls,
+    required this.items,
     required this.initialIndex,
+    required this.blurEnabled,
+    required this.blurSigma,
   });
 
   @override
@@ -368,7 +403,7 @@ class _PhotoGalleryViewerState extends State<_PhotoGalleryViewer>
     _zoomCtrl.addListener(_onZoomChanged);
     DebugConfig.log(
       DebugConfig.uiInteraction,
-      'PhotoGalleryViewer: open idx=${widget.initialIndex} of ${widget.imageUrls.length}',
+      'PhotoGalleryViewer: open idx=${widget.initialIndex} of ${widget.items.length}',
     );
   }
 
@@ -427,7 +462,7 @@ class _PhotoGalleryViewerState extends State<_PhotoGalleryViewer>
         backgroundColor: Colors.transparent,
         iconTheme: const IconThemeData(color: Colors.white),
         title: Text(
-          '${_current + 1} / ${widget.imageUrls.length}',
+          '${_current + 1} / ${widget.items.length}',
           style: const TextStyle(color: Colors.white),
         ),
       ),
@@ -439,7 +474,7 @@ class _PhotoGalleryViewerState extends State<_PhotoGalleryViewer>
             physics: _wasZoomed
                 ? const NeverScrollableScrollPhysics()
                 : const PageScrollPhysics(),
-            itemCount: widget.imageUrls.length,
+            itemCount: widget.items.length,
             onPageChanged: (i) {
               setState(() => _current = i);
               _zoomAnimCtrl.stop();
@@ -458,12 +493,14 @@ class _PhotoGalleryViewerState extends State<_PhotoGalleryViewer>
                 transformationController: _zoomCtrl,
                 maxScale: 5,
                 child: Center(
-                  child: CachedNetworkImage(
-                    imageUrl: widget.imageUrls[i],
-                    fit: BoxFit.contain,
-                    placeholder: (_, _) => const CircularProgressIndicator(),
-                    errorWidget: (_, _, _) =>
-                        const Icon(Icons.broken_image, color: Colors.white),
+                  child: SizedBox.expand(
+                    child: BlurRevealImage(
+                      imageUrl: widget.items[i].url,
+                      racyLevel: widget.items[i].racyLevel,
+                      blurEnabled: widget.blurEnabled,
+                      blurSigma: widget.blurSigma,
+                      fit: BoxFit.contain,
+                    ),
                   ),
                 ),
               ),

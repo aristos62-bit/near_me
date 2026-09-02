@@ -151,7 +151,7 @@ class _BlurSigmaTileState extends ConsumerState<_BlurSigmaTile> {
                     },
                   ),
                 ),
-                Text('32', style: Theme.of(context).textTheme.bodySmall),
+                Text('20', style: Theme.of(context).textTheme.bodySmall),
               ],
             ),
           ),

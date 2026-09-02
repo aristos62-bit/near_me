@@ -99,6 +99,9 @@ class VideoMessageBubble extends ConsumerStatefulWidget {
 class _VideoMessageBubbleState extends ConsumerState<VideoMessageBubble> {
   bool _isPlaying = false;
   bool _isMuted = true;
+  // Ρητή συναίνεση αποκάλυψης για racy βίντεο — μπορεί να ξαναρωτηθεί
+  // μόνο όταν μηδενιστεί στο _resetState (αλλαγή content στο ίδιο State).
+  bool _revealed = false;
   VoidCallback? _listener;
   // Single source of truth για "σε ποιον controller είμαι συνδεδεμένος" —
   // όχι re-derive από το provider στα cleanup (δεν είναι εγγυημένη η σειρά
@@ -141,6 +144,7 @@ class _VideoMessageBubbleState extends ConsumerState<VideoMessageBubble> {
   void _resetState() {
     _isPlaying = false;
     _isMuted = true;
+    _revealed = false;
   }
 
   void _attachListener(VideoPlayerController? controller) {
@@ -177,6 +181,26 @@ class _VideoMessageBubbleState extends ConsumerState<VideoMessageBubble> {
   Future<void> _togglePlayPause() async {
     final chatId = widget.chatId;
     if (chatId == null) return;
+
+    // Hard-block: racy βίντεο δεν φορτώνονται/παίζουν χωρίς ρητή συναίνεση.
+    if (!_revealed &&
+        !_isPlaying &&
+        widget.blurEnabled &&
+        isRacyLevel(widget.videoRacyLevel) &&
+        widget.blurSigma > 0) {
+      final isGreek = L10n.isGreek(context);
+      final ok = await AppMessenger.showConfirmDialog(
+        context,
+        title: L10n.blurRevealVideoTitle(isGreek: isGreek),
+        message: L10n.blurRevealVideoMessage(isGreek: isGreek),
+        confirmLabel: L10n.blurRevealButton(isGreek: isGreek),
+        cancelLabel: isGreek ? 'Άκυρο' : 'Cancel',
+      );
+      if (!mounted) return;
+      if (!ok) return;
+      _revealed = true;
+    }
+
     if (_getController() == null) {
       await ref
           .read(videoPlaybackProvider.notifier)

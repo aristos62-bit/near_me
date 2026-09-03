@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/config/feature_flags.dart';
 import '../../../core/debug/debug_config.dart';
@@ -47,11 +48,26 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
     if (!await ConnectivityGuard.ensure(context)) return;
     try {
       final picker = ImagePicker();
-      final xFile = await picker.pickImage(source: ImageSource.gallery, maxWidth: 512, maxHeight: 512);
+      final xFile = await picker.pickImage(
+          source: ImageSource.gallery, maxWidth: 512, maxHeight: 512);
       if (xFile == null) return;
-      if (!mounted) return;
+      // Crop + πραγματική συμπίεση (resize 512², quality 85) — ίδιο pattern με
+      // profile avatar (profile_editor) & chat images (chat_input_bar), ώστε το
+      // group avatar να μην ανεβαίνει υπερβολικά μεγάλο (byte-cap).
+      final cropped = await ImageCropper.platform.cropImage(
+        sourcePath: xFile.path,
+        maxWidth: 512,
+        maxHeight: 512,
+        compressFormat: ImageCompressFormat.jpg,
+        compressQuality: 85,
+      );
+      if (cropped == null || !mounted) return;
+      DebugConfig.log(DebugConfig.storageUpload,
+          'GroupSettings: avatar cropped: ${cropped.path}');
       setState(() => _isUploadingAvatar = true);
-      final success = await ref.read(chatActionsProvider.notifier).updateGroupAvatar(widget.chatId, xFile);
+      final success = await ref
+          .read(chatActionsProvider.notifier)
+          .updateGroupAvatar(widget.chatId, cropped);
       if (!mounted) return;
       setState(() => _isUploadingAvatar = false);
       if (success) {

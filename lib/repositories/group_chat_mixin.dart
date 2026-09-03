@@ -751,6 +751,8 @@ mixin GroupChatMixin {
       // Το image αναμένεται να είναι XFile (από image_picker)
       final uploadBytes = await (image as dynamic).readAsBytes();
       final stripped = await ImageUtils.stripExif(uploadBytes);
+      DebugConfig.log(DebugConfig.storageUpload,
+          'updateGroupAvatar: ${uploadBytes.length} → ${stripped.length} bytes after strip');
       final res = await VisionModerationService.isGroupAvatarSafe(stripped);
       if (!res.approved) {
         DebugConfig.log(DebugConfig.moderation,

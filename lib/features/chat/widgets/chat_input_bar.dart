@@ -53,6 +53,7 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
   bool _isLoading = false;
   String? _errorMessage;
   Timer? _errorTimer;
+  DateTime? _lastSendAt;
 
   // Κρατάμε το notifier σε πεδίο από το initState, ώστε να μπορούμε να
   // καθαρίσουμε το stale quote στο dispose ΧΩΡΙΣ ref.read (απαγορεύεται στο
@@ -118,6 +119,12 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
   Future<void> _send() async {
     final text = widget.textController.text.trim();
     if (text.isEmpty || _isLoading) return;
+    // Debounce fast-send μεταξύ ολοκληρωμένων αποστολών (local State guard).
+    final now = DateTime.now();
+    if (_lastSendAt != null && now.difference(_lastSendAt!) < const Duration(seconds: 1)) {
+      return;
+    }
+    _lastSendAt = now;
     final editingMsg = ref.read(editingMessageProvider.select((s) => s[widget.chatId]));
     _clearError();
     setState(() => _isLoading = true);

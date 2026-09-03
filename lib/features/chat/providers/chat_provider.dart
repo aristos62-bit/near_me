@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/debug/debug_config.dart';
@@ -228,6 +230,55 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
     return true;
   }
 
+  /// Πύλη ρυθμού πριν από κάθε αποστολή μηνύματος (text/media/forward/share).
+  /// Fail-open: αν η ίδια η CF αποτύχει (δίκτυο, cold start), επιτρέπουμε την
+  /// αποστολή — ίδιο best-effort σκεπτικό με το search _checkRateLimit().
+  /// ΕΠΙΣΤΡΕΦΕΙ ΜΟΝΟ bool — ΔΕΝ αλλάζει state (ο caller θέτει το error), ώστε
+  /// να αποφευχθεί διπλό state-write σε διαφορετικά επίπεδα.
+  Future<bool> _checkMessageRateLimit() async {
+    try {
+      if (!await ConnectivityGuard.isOnline()) {
+        DebugConfig.log(DebugConfig.networkConnectivity,
+            'ChatActions._checkMessageRateLimit: no connectivity — skip CF, fail-open');
+        return true;
+      }
+    } catch (_) {}
+    final cfSw = Stopwatch()..start();
+    try {
+      DebugConfig.log(DebugConfig.cloudFunctions,
+          'ChatActions: calling checkMessageRateLimit');
+      final cfCall = FirebaseFunctions.instanceFor(region: 'europe-west1')
+          .httpsCallable('checkMessageRateLimit')
+          .call();
+      // Κατανάλωση όψιμου σφάλματος του "εγκαταλελειμμένου" future μετά το
+      // timeout (ίδιο pattern με το _withAuthTimeout / search).
+      unawaited(cfCall.then<void>((_) {},
+          onError: (Object e) => DebugConfig.warn(
+              'checkMessageRateLimit: late completion after timeout',
+              data: e)));
+      await cfCall.timeout(const Duration(seconds: 4));
+      DebugConfig.log(DebugConfig.rateLimit,
+          'ChatActions: message rate limit OK (${cfSw.elapsedMilliseconds}ms)');
+      return true;
+    } on FirebaseFunctionsException catch (e) {
+      final code = e.code.replaceFirst('functions/', '');
+      if (code == 'resource-exhausted') {
+        DebugConfig.log(DebugConfig.rateLimit,
+            'ChatActions: message rate limited (${cfSw.elapsedMilliseconds}ms)');
+        return false;
+      }
+      DebugConfig.warn(
+          'ChatActions: message rate limit check failed (fail-open, ${cfSw.elapsedMilliseconds}ms)',
+          data: e);
+      return true;
+    } catch (e) {
+      DebugConfig.warn(
+          'ChatActions: message rate limit check failed (fail-open, ${cfSw.elapsedMilliseconds}ms)',
+          data: e);
+      return true;
+    }
+  }
+
   Future<String?> createChat(String otherUid) async {
     if (!await _checkOnline()) return null;
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: createChat with $otherUid');
@@ -247,6 +298,11 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
 
   Future<bool> sendMessage(String chatId, String content, {Map<String, dynamic>? replyTo}) async {
     if (!await _checkOnline()) return false;
+    if (!await _checkMessageRateLimit()) {
+      state = const ChatActionState(
+          status: ChatActionStatus.error, errorMessage: 'chat/message-rate-limited');
+      return false;
+    }
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: sendMessage chat=$chatId replyTo=${replyTo?['messageId']}');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
@@ -273,6 +329,11 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
     int? duration,
   }) async {
     if (!await _checkOnline()) return false;
+    if (!await _checkMessageRateLimit()) {
+      state = const ChatActionState(
+          status: ChatActionStatus.error, errorMessage: 'chat/message-rate-limited');
+      return false;
+    }
     DebugConfig.log(DebugConfig.repositoryCall,
         'ChatActions: sendMediaMessage chat=$chatId type=$type replyTo=${replyTo?['messageId']}');
     state = const ChatActionState(status: ChatActionStatus.loading);

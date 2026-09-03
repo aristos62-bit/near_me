@@ -11,6 +11,10 @@ const REPORT_LIMIT = 10;
 const BAN_THRESHOLD = 5;
 const SEARCH_RATE_LIMIT = 30;
 const SEARCH_RATE_WINDOW_MS = 5 * 60 * 1000; // 5 λεπτά
+const MESSAGE_RATE_LIMIT = 30;
+const MESSAGE_RATE_WINDOW_MS = 60 * 1000; // 1 λεπτό
+const REQUEST_RATE_LIMIT = 10;
+const REQUEST_RATE_WINDOW_MS = 60 * 60 * 1000; // 1 ώρα
 const REGION = 'europe-west1'; // κοντά στο Firestore eur3 — δείχνει το migration
 
 interface TokenEntry {
@@ -702,6 +706,20 @@ export const deleteUserData = functions.region(REGION).https.onCall(async (data,
     errors.push('rateLimits');
   }
 
+  // ── rateLimits/messages + rateLimits/requests (orphan prevention) ────
+  try {
+    await db.doc(`users/${uid}/rateLimits/messages`).delete();
+    await db.doc(`users/${uid}/rateLimits/requests`).delete();
+    functions.logger.info(
+      `deleteUserData: deleted rateLimits/messages + rateLimits/requests for ${uid}`,
+    );
+  } catch (e) {
+    functions.logger.warn(
+      `deleteUserData: failed to delete rateLimits/messages|requests for ${uid}`, e,
+    );
+    errors.push('rateLimits');
+  }
+
   try {
     const tokensSnap = await db.collection(`users/${uid}/fcm_tokens`).get();
     if (tokensSnap.size > 0) {
@@ -893,6 +911,107 @@ export const checkSearchRateLimit = functions.region(REGION).https.onCall(async 
   } catch (e) {
     if (e instanceof functions.https.HttpsError) throw e;
     functions.logger.error(`checkSearchRateLimit failed for uid=${uid}`, e);
+    // Fail-open: αν δεν μπορούμε να προσδιορίσουμε το limit, δεν μπλοκάρουμε.
+    throw new functions.https.HttpsError('internal', 'Failed to check rate limit');
+  }
+});
+
+// ─────────────────────────────────────────────────────────
+// checkMessageRateLimit — fixed-window rate limit πάνω σε chat sendMessage.
+// Πηγή αλήθειας: users/{uid}/rateLimits/messages (server-only, transaction).
+// Καλείται ΠΡΙΝ από κάθε sendMessage/sendMediaMessage στο client
+// (ChatActionsNotifier) — fail-open σε σφάλμα/timeout, ίδιο pattern με search.
+// ─────────────────────────────────────────────────────────
+
+export const checkMessageRateLimit = functions.region(REGION).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+  }
+  const uid = context.auth.uid;
+  const ref = db.doc(`users/${uid}/rateLimits/messages`);
+
+  try {
+    const allowed = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const now = Date.now();
+      const existing = snap.exists ? snap.data() : null;
+      const windowStart = existing?.windowStart as number | undefined;
+      const withinWindow =
+        windowStart != null && now - windowStart < MESSAGE_RATE_WINDOW_MS;
+      const count = withinWindow ? ((existing?.count as number) ?? 0) : 0;
+
+      if (withinWindow && count >= MESSAGE_RATE_LIMIT) {
+        return false;
+      }
+
+      tx.set(ref, {
+        windowStart: withinWindow ? windowStart : now,
+        count: count + 1,
+      });
+      return true;
+    });
+
+    functions.logger.info(`checkMessageRateLimit: uid=${uid} allowed=${allowed}`);
+    if (!allowed) {
+      throw new functions.https.HttpsError(
+        'resource-exhausted',
+        'message_rate_limited',
+      );
+    }
+    return { allowed: true };
+  } catch (e) {
+    if (e instanceof functions.https.HttpsError) throw e;
+    functions.logger.error(`checkMessageRateLimit failed for uid=${uid}`, e);
+    // Fail-open: αν δεν μπορούμε να προσδιορίσουμε το limit, δεν μπλοκάρουμε.
+    throw new functions.https.HttpsError('internal', 'Failed to check rate limit');
+  }
+});
+
+// ─────────────────────────────────────────────────────────
+// checkRequestRateLimit — fixed-window rate limit πάνω σε sendRequest.
+// Πηγή αλήθειας: users/{uid}/rateLimits/requests (server-only, transaction).
+// Καλείται ΠΡΙΝ από κάθε sendRequest στο client — fail-open σε σφάλμα/timeout.
+// ─────────────────────────────────────────────────────────
+
+export const checkRequestRateLimit = functions.region(REGION).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+  }
+  const uid = context.auth.uid;
+  const ref = db.doc(`users/${uid}/rateLimits/requests`);
+
+  try {
+    const allowed = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const now = Date.now();
+      const existing = snap.exists ? snap.data() : null;
+      const windowStart = existing?.windowStart as number | undefined;
+      const withinWindow =
+        windowStart != null && now - windowStart < REQUEST_RATE_WINDOW_MS;
+      const count = withinWindow ? ((existing?.count as number) ?? 0) : 0;
+
+      if (withinWindow && count >= REQUEST_RATE_LIMIT) {
+        return false;
+      }
+
+      tx.set(ref, {
+        windowStart: withinWindow ? windowStart : now,
+        count: count + 1,
+      });
+      return true;
+    });
+
+    functions.logger.info(`checkRequestRateLimit: uid=${uid} allowed=${allowed}`);
+    if (!allowed) {
+      throw new functions.https.HttpsError(
+        'resource-exhausted',
+        'request_rate_limited',
+      );
+    }
+    return { allowed: true };
+  } catch (e) {
+    if (e instanceof functions.https.HttpsError) throw e;
+    functions.logger.error(`checkRequestRateLimit failed for uid=${uid}`, e);
     // Fail-open: αν δεν μπορούμε να προσδιορίσουμε το limit, δεν μπλοκάρουμε.
     throw new functions.https.HttpsError('internal', 'Failed to check rate limit');
   }

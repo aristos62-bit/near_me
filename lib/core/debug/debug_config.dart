@@ -59,6 +59,7 @@ class DebugConfig {
   /// CLOUD FUNCTIONS — Firebase Callable Functions
   /// ─────────────────────────────────────────────────────────────
   static const bool cloudFunctions = true;        // callable function calls
+  static const bool rateLimit = true;             // rate-limit checks (messages/requests/search)
 
   /// ─────────────────────────────────────────────────────────────
   /// GPS & GEO — Location permissions and GeoHash

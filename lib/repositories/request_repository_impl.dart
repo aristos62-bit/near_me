@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:drift/drift.dart';
 import '../data/local/database.dart';
@@ -7,6 +9,7 @@ import 'auth_repository.dart';
 import 'request_repository.dart';
 import '../core/debug/debug_config.dart';
 import '../core/utils/app_exception.dart';
+import '../core/utils/connectivity_guard.dart';
 import 'chat_repository.dart';
 import 'chat_repository_impl.dart';
 
@@ -25,6 +28,53 @@ class RequestRepositoryImpl implements RequestRepository {
         _auth = auth ?? FirebaseAuth.instance,
         _db = db ?? DatabaseService.instance,
         _chatRepo = chatRepo ?? ChatRepositoryImpl();
+
+  /// Πύλη ρυθμού πριν από κάθε sendRequest.
+  /// Fail-open: αν η CF αποτύχει (δίκτυο, cold start), επιτρέπουμε το αίτημα —
+  /// μόνο το `resource-exhausted` μπλοκάρει. Same best-effort σκεπτικό με το
+  /// search _checkRateLimit(). Ο caller (sendRequest) κάνει throw σε μπλοκάρισμα.
+  Future<bool> _checkRequestRateLimit() async {
+    try {
+      if (!await ConnectivityGuard.isOnline()) {
+        DebugConfig.log(DebugConfig.networkConnectivity,
+            'sendRequest._checkRequestRateLimit: no connectivity — skip CF, fail-open');
+        return true;
+      }
+    } catch (_) {}
+    final cfSw = Stopwatch()..start();
+    try {
+      DebugConfig.log(DebugConfig.cloudFunctions,
+          'sendRequest: calling checkRequestRateLimit');
+      final cfCall = FirebaseFunctions.instanceFor(region: 'europe-west1')
+          .httpsCallable('checkRequestRateLimit')
+          .call();
+      // Κατανάλωση όψιμου σφάλματος του "εγκαταλελειμμένου" future μετά το timeout.
+      unawaited(cfCall.then<void>((_) {},
+          onError: (Object e) => DebugConfig.warn(
+              'checkRequestRateLimit: late completion after timeout',
+              data: e)));
+      await cfCall.timeout(const Duration(seconds: 4));
+      DebugConfig.log(DebugConfig.rateLimit,
+          'sendRequest: request rate limit OK (${cfSw.elapsedMilliseconds}ms)');
+      return true;
+    } on FirebaseFunctionsException catch (e) {
+      final code = e.code.replaceFirst('functions/', '');
+      if (code == 'resource-exhausted') {
+        DebugConfig.log(DebugConfig.rateLimit,
+            'sendRequest: request rate limited (${cfSw.elapsedMilliseconds}ms)');
+        return false;
+      }
+      DebugConfig.warn(
+          'sendRequest: request rate limit check failed (fail-open, ${cfSw.elapsedMilliseconds}ms)',
+          data: e);
+      return true;
+    } catch (e) {
+      DebugConfig.warn(
+          'sendRequest: request rate limit check failed (fail-open, ${cfSw.elapsedMilliseconds}ms)',
+          data: e);
+      return true;
+    }
+  }
 
   @override
   Future<void> sendRequest(String toUid, String type, {String? message}) async {
@@ -74,6 +124,14 @@ class RequestRepositoryImpl implements RequestRepository {
     } catch (e) {
       if (e is AppException) rethrow;
       DebugConfig.warn('sendRequest pre-check: target profile read failed: $e');
+    }
+
+    if (!await _checkRequestRateLimit()) {
+      DebugConfig.log(DebugConfig.rateLimit, 'sendRequest: blocked by request rate limit');
+      throw AppException(
+        message: 'Πολλά αιτήματα σε σύντομο χρονικό διάστημα. Δοκίμασε ξανά αργότερα. / Too many requests. Try again later.',
+        code: 'request_rate_limited',
+      );
     }
 
     final now = DateTime.now();

@@ -2387,6 +2387,26 @@ Global Normal (server) + User Blur (client): Vision SafeSearch thresholds — **
 
 ---
 
+## Session 258 — B7: Αφαίρεση `firebase-analytics` dependency (100%) — 03 Σεπ 2026
+
+### Σκοπός
+Κλείσιμο τελευταίου store blocker: αφαίρεση `firebase-analytics` SDK από `build.gradle.kts:74`. Το SDK ήταν περιττό — κανένας analytics event δεν στέλνεται (δεν υπάρχει `firebase_analytics` σε `pubspec.yaml`, 0 χρήση σε `.dart`). Data Safety "Analytics: Not collected" ευθυγραμμίστηκε πλήρως.
+
+### Προετοιμασία
+- **Έλεγχος:** `grep analytics *.gradle*` → 1 hit: `build.gradle.kts:74` μόνο. `grep analytics *.dart` → 0 hits. `grep analytics pubspec.yaml` → 0 hits.
+- **Απόφαση:** Απλή αφαίρεση (όχι consent gating) — δεν το χρησιμοποιούμε καθόλου, privacy-first positioning.
+
+### Υλοποίηση — 1 αρχείο (backup `backups/build_gradle_pre_B7_20260903_182706.kts`)
+- `android/app/build.gradle.kts:74` — διαγραφή γραμμής `implementation("com.google.firebase:firebase-analytics")`. `firebase-bom` + `firebase-crashlytics` παραμένουν.
+
+### Έλεγχος
+- `flutter clean` + `flutter pub get` → clean ✅
+- `flutter build apk --debug --dart-define=ENABLE_RELEASE_DEBUG=true` → **επιτυχές** (232s, 0 errors, warnings pre-existing KGP deprecation)
+- `grep analytics *.xml` → 0 hits (κανένα metadata)
+- `grep analytics *.dart` → 0 hits (καμία χρήση)
+
+---
+
 ## ▌ ΔΟΜΗ ΤΟΥ ΑΡΧΕΙΟΥ — ΔΙΑΒΑΣΕ ΠΡΩΤΑ (μόνιμο block, ΜΙΑ ΦΟΡΑ στο ΤΕΛΟΣ)
 
 > Αυτό είναι το τελευταίο block του αρχείου. Δεν αντιγράφεται/μετακινείται σε επόμενα sessions —
@@ -2408,6 +2428,7 @@ Global Normal (server) + User Blur (client): Vision SafeSearch thresholds — **
    - Κεφ.1 Tech → αν άλλαξε επιλογή (σπάνιο).
 3. **ΠΟΤΕ μη σβήνεις/τροποποιείς παλιό session** όταν αλλάζει η αλήθεια — γράψε το νέο πριν από το block δομής + διόρθωσε μόνο το Κεφ.6.
 4. **Backup** του αρχείου πριν κάθε edit.
-5. Το μπλοκ αυτό **δεν μεταφέρεται** — μένει σταθερά στο τέλος. Νέο session = νέο `## Session N...` που μπαίνει ΑΜΕΣΩΣ ΠΡΙΝ από αυτό.
+5. Το αρχείο είναι σωστά UTF-8
+6. Το μπλοκ αυτό **δεν μεταφέρεται** — μένει σταθερά στο τέλος. Νέο session = νέο `## Session N...` που μπαίνει ΑΜΕΣΩΣ ΠΡΙΝ από αυτό.
 
 > Αυτό το block πρέπει να παραμένει πάντα στο ΤΕΛΟΣ του αρχείου, ΜΙΑ φορά.

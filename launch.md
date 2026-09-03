@@ -1,7 +1,18 @@
 # NearMe — Launch Readiness & Action Plan
 
-> **Έκδοση:** 1.1.0+1 · **Schema:** v15 · **Firebase:** `nearme-eu` (eur3 / europe-west1) · **Ημερομηνία:** 30 Αυγ 2026
-> **Κατάσταση:** Φάσεις 1-3 λειτουργικές, B1/B2/B5 FIXED ✅, moderation scaffolding (flag OFF), photo fix — 3 hard blockers παραμένουν + 3 high warnings
+> **Έκδοση:** 1.1.0+1 · **Schema:** v15 · **Firebase:** `nearme-eu` (eur3 / europe-west1) · **Τελευταία ενημέρωση:** 03 Σεπ 2026
+> **Κατάσταση:** Φάσεις 1-3 λειτουργικές, B1-B7 FIXED ✅ (26/08-03/09), C1-C4 FIXED ✅ (02-03 Σεπ 2026), moderation scaffolding (flag OFF) — εκκρεμούν C5/C6 + M1-M4
+
+**Changelog:**
+- **03 Σεπ 2026 — B7 DONE:** Αφαίρεση `firebase-analytics` dependency (`build.gradle.kts:74`) — 1 γραμμή, `firebase-bom`+`crashlytics` παραμένουν. Data Safety "Analytics: Not collected" ευθυγραμμίστηκε.
+- **03 Σεπ 2026 — C2/C3/C4 DONE:**
+  - **C2** Relabel E2E → "Encrypted (AES-256-GCM)" (`error_messages.dart:143` + `chat_screen.dart:132-135` `_showEncryptionInfo`).
+  - **C3** Rate limit chat messages (30/1min) + requests (10/1h) — CFs deployed europe-west1, wired provider (`chat_provider.dart`) + repository (`request_repository_impl.dart`), client debounce `chat_input_bar.dart`, flag `rateLimit`, fail-open.
+  - **C4** Group avatar crop+compress 512px jpg 85 via `image_cropper` στο `group_settings_screen.dart` (UI-layer, όχι repository).
+- **02 Σεπ 2026 — C1 DONE:** CF `expireStalePresence` sweeper (5min TTL, europe-west1). Heartbeat 60→30s απορρίφθηκε (client TTL 120s ήδη καλύπτει).
+- **30 Αυγ 2026 — B3+B4+B6 DONE:** iOS Info.plist privacy strings (`NSLocationWhenInUse/NSPhotoLibrary*/NSPhotoLibraryAdd`) + `FirebaseCrashlyticsCollectionEnabled=false` + `ITSAppUsesNonExemptEncryption=false` (Session 251).
+- **30 Αυγ 2026 — B5 DONE:** hosting privacy.html/terms + Settings tile + Data Safety draft (Session 252).
+- **26 Αυγ 2026 — B1+B2 DONE:** ApplicationId `com.example.near_me` → `gr.nearme.app` (Session 241) + Release signing upload-keystore.jks + R8 minify (Session 242).
 
 ---
 
@@ -40,7 +51,7 @@
 - **F2-1** Pagination cursor/hasMore σε raw `firestore_search_repository.dart:161,235` — hasMore σε raw len, cursor από πρώτο shard. Με αυστηρά φίλτρα → endless spinner.
 - **F2-2** Block δεν κόβει direct read `firestore.rules:82` — μόνο search exclusion. Σκόπιμο per spec ("will not appear in search") αλλά όχι hard invisibility.
 
-### 1.3 Φάση 3 — Communication — PARTIAL (3 blockers) ⚠️
+### 1.3 Φάση 3 — Communication — PARTIAL (1 blocker: C1) ⚠️
 
 | Τομέας | Αρχείο:γραμμή | Κατάσταση |
 |---|---|---|
@@ -53,18 +64,18 @@
 | Storage timeouts 15/30s | `lib/core/utils/storage_helpers.dart:9` | DONE — Timer+Completer για `putFile` |
 | Message expiry + pagination 50 | `lib/repositories/chat_repository_impl.dart:392` + `chat_provider.dart:76` | DONE |
 
-**Blockers Φ3:**
-- **C1** Presence stale `presence_service.dart:81` — 60s heartbeat, όχι `onDisconnect`, μένει `isOnline:true` μετά από crash.
-- **C2** E2E ψευδές `encryption_utils.dart:25` `SHA256(salt+chatId)` deterministic — όχι ECDH, παραβιάζει marketing claim.
-- **C3** Καμία rate limit σε chat/messages/requests — μόνο search. Billing shock.
+**Εκκρεμεί (Φ3):**
+- **C1** Presence stale `presence_service.dart:81` — 60s heartbeat, όχι `onDisconnect`, μένει `isOnline:true` μετά από crash. (εκκρεμεί)
+
+*(C2 E2E claim → relabel ✅ 03/09 · C3 rate limit ✅ 03/09 — λύθηκαν, βλ. Phase B παρακάτω.)*
 
 ### 1.4 Γενικά — Build/Store
 
 | Τομέας | Κατάσταση |
 |---|---|
 | `pubspec.yaml:4` version 1.1.0+1, 33 deps, `flutter_launcher_icons` | OK |
-| `android/app/build.gradle.kts:10` namespace `com.example.near_me` | **BLOCKER B1** |
-| `build.gradle.kts:30` debug signing | **BLOCKER B2** |
+| `android/app/build.gradle.kts:10` namespace `gr.nearme.app` | **FIXED B1** — Session 241 |
+| `build.gradle.kts:30` release signing + R8 | **FIXED B2** — Session 242 |
 | `AndroidManifest.xml:2` permissions FINE/COARSE/POST_NOTIFICATIONS/RECORD_AUDIO/CAMERA/BIOMETRIC | OK — disclosures needed |
 | `ios/Runner/Info.plist:9` `Κοντά μου` + `project.pbxproj:385` `com.example.nearMe` | **BLOCKER B1/B3/B4** |
 | `firebase.json:21` + `hosting` + `.firebaserc` + `eur3` | **FIXED B5** — `hosting/privacy.html` + `https://nearme-eu.web.app/privacy` deployed 30/08/2026 |
@@ -76,9 +87,9 @@
 
 ## 2. Τι λείπει / Τι πρέπει να γίνει
 
-### 2.1 Hard Blockers — Κόβουν upload (must fix)
+### 2.1 Hard Blockers — Κόβουν upload (must fix) — ✅ DONE (B1-B7)
 
-#### B1 — Placeholder ApplicationId / BundleId
+#### B1 — Placeholder ApplicationId / BundleId — FIXED ✅ (Session 241, 26 Αυγ 2026)
 
 **Υπάρχει:** `android/app/build.gradle.kts:10` `namespace "com.example.near_me"`, `L21` `applicationId "com.example.near_me"` + `L20 TODO`, `android/app/google-services.json:12` `com.example.near_me`, `ios/project.pbxproj:385,564,586` `com.example.nearMe` (case mismatch), `ios/Runner/GoogleService-Info.plist:12` `com.example.nearMe`, `Info.plist:9` `CFBundleDisplayName Κοντά μου` vs `strings.xml:3` `NearMe`.
 
@@ -106,7 +117,7 @@
 
 ---
 
-#### B2 — Debug Signing σε Release
+#### B2 — Debug Signing σε Release — FIXED ✅ (Session 242, 26 Αυγ 2026)
 
 **Υπάρχει:** `android/app/build.gradle.kts:30-34` `signingConfig = signingConfigs.getByName("debug")` + `L32 TODO`.
 
@@ -174,7 +185,7 @@
 
 ---
 
-#### B3 — iOS Missing Privacy Strings (crash + reject)
+#### B3 — iOS Missing Privacy Strings (crash + reject) — FIXED ✅ (Session 251, 30 Αυγ 2026)
 
 **Υπάρχει:** `ios/Runner/Info.plist:27` `NSFaceIDUsageDescription`, `L29` `NSMicrophoneUsageDescription`, `L31` `NSCameraUsageDescription`. **Λείπουν:** `NSLocationWhenInUseUsageDescription`, `NSPhotoLibraryUsageDescription`, `NSPhotoLibraryAddUsageDescription`.
 
@@ -202,7 +213,7 @@
 
 ---
 
-#### B4 — Missing `ITSAppUsesNonExemptEncryption`
+#### B4 — Missing `ITSAppUsesNonExemptEncryption` — FIXED ✅ (Info.plist:41-42, ίσως μέρος Session 251)
 
 **Υπάρχει:** `pubspec.yaml:43` `encrypt ^5.0.3` AES-256 + `crypto ^3.0.6` SHA-256. Δεν δηλώνεται στο `Info.plist`.
 
@@ -243,7 +254,7 @@
 
 ---
 
-#### B6 — iOS Crashlytics Collection ON πριν το Consent
+#### B6 — iOS Crashlytics Collection ON πριν το Consent — FIXED ✅ (Session 251, 30 Αυγ 2026)
 
 **Υπάρχει:** `android/app/src/main/AndroidManifest.xml:61` `firebase_crashlytics_collection_enabled=false` ✅. `ios/Runner/Info.plist` **χωρίς** αντίστοιχο key. `lib/main.dart:302` `_applyCrashConsent` + `app_settings_provider.dart:89` gating σωστά, αλλά iOS native συλλέγει πριν το Dart.
 
@@ -264,9 +275,9 @@
 
 ---
 
-### 2.2 High Priority — Διορθώστε πριν το public launch (όχι store block αλλά Play Policy / marketing risk)
+### 2.2 High Priority — Διορθώστε πριν το public launch (C1-C4 ✅ DONE, μένουν C5/C6)
 
-#### C1 — Presence Stale (60s heartbeat, όχι onDisconnect)
+#### C1 — Presence Stale (60s heartbeat, όχι onDisconnect) — FIXED ✅ (Session 255, 2 Σεπ 2026)
 
 **Υπάρχει:** `lib/core/services/presence_service.dart:26` `_start` → `Timer.periodic 60s` `L81`, `setOffline` `L84` με `Future.wait` δύο docs, `main.dart:193` `builder Stack` lifecycle.
 
@@ -303,13 +314,21 @@
 
 **Επαλήθευση:** Kill app → 5 λεπτά → `users/{uid}/status/status` → `isOnline:false`.
 
+**✅ Εφαρμόστηκε Επιλογή 1 (CF sweeper) — Session 255:**
+- `functions/src/index.ts:1173-1204` — CF `expireStalePresence` (europe-west1, `pubsub.schedule('*/5 * * * *')`, `collectionGroup('status').where('isOnline','==',true)`, 5min cutoff, batch update status+public).
+- Single-field auto-index (Firestore default) — απορρίφθηκε ρητός index.
+- Heartbeat 60→30s **απορρίφθηκε** (client TTL 120s ήδη καλύπτει UI, 2× writes χωρίς όφελος).
+- 0 Dart αλλαγές → 0 rebuild storm risk.
+
 ---
 
-#### C2 — E2E Claim Ψευδές
+#### C2 — E2E Claim Ψευδές — FIXED ✅ (03 Σεπ 2026)
 
 **Υπάρχει:** `lib/core/utils/encryption_utils.dart:25` `deriveKey = SHA256('near_me_e2e_key_'+chatId)`, `getKeyOrDerive:62`, `encryptMessage:88` `AES-GCM IV 12 bytes`, `chat_repository_impl.dart:255,341` encrypt/decrypt. Key στο `flutter_secure_storage` αλλά fallback derivable.
 
 **Πρόβλημα:** Οποιοσδήποτε γνωρίζει `chatId` (via `participants arrayContains` read) μπορεί να παράγει ίδιο key offline. Play Data Safety "End-to-end encrypted" = ψευδής δήλωση → policy strike. Apple privacy questionnaire απορρίπτει.
+
+**✅ Εφαρμόστηκε Επιλογή 1 (relabel) — `error_messages.dart:143` + `chat_screen.dart:132-135` `_showEncryptionInfo`:** marketing claim άλλαξε σε "Encrypted (AES-256-GCM)" (transit TLS / at rest), όχι "End-to-end". Play Data Safety πρέπει να δηλώνει "data encrypted in transit YES", όχι "end-to-end".
 
 **Προτάσεις (3 επίπεδα):**
 
@@ -326,15 +345,21 @@
    - `createChat` → `sharedSecret = ECDH(myPrivate, otherPublic)` → `key = HKDF(sharedSecret, chatId)` → `storeKey` (όχι derivable από chatId μόνο).
    - Χρειάζεται `cryptography` package + public key publish σε `users/{uid}/public/keys`.
 
-**Σύσταση:** Για launch v1 → Επιλογή 1 (relabel). Για v1.2 → Επιλογή 3.
+**Σύσταση:** Για launch v1 → Επιλογή 1 (relabel) — **✅ ΕΦΑΡΜΟΣΘΗΚΕ**. Για v1.2 → Επιλογή 3 (πραγματικό ECDH).
 
 ---
 
-#### C3 — Καμία Rate Limit σε Chat/Messages/Requests
+#### C3 — Καμία Rate Limit σε Chat/Messages/Requests — FIXED ✅ (03 Σεπ 2026, deployed)
 
-**Υπάρχει:** `functions/src/index.ts:11` `SEARCH_RATE_LIMIT 30/5min` μόνο για search. `firestore.rules:268` `allow create messages if isParticipant` χωρίς count.
+**Υπήρχε:** `functions/src/index.ts:11` `SEARCH_RATE_LIMIT 30/5min` μόνο για search. `firestore.rules:268` `allow create messages if isParticipant` χωρίς count.
 
 **Πρόβλημα:** Spam flood → Firestore bill shock (50 msgs × 1000 users), Play Spam policy.
+
+**✅ Εφαρμόστηκε (πλήρες — server + client + deploy):**
+- **Server (deployed ✓):** `checkMessageRateLimit` (30 msgs/1min → `users/{uid}/rateLimits/messages`) + `checkRequestRateLimit` (10 req/1h → `users/{uid}/rateLimits/requests`) transaction fail-open + `deleteUserData` cleanup + constants `MESSAGE_RATE_*`/`REQUEST_RATE_*` στο `functions/src/index.ts`.
+- **Client:** flag `rateLimit` `debug_config.dart`· key `chat/message-rate-limited` `error_messages.dart`· helper `_checkMessageRateLimit` wired σε `sendMessage` + `sendMediaMessage` στο `chat_provider.dart` (μετά `_checkOnline`, πριν `state=loading`)· `_checkRequestRateLimit` στο `request_repository_impl.dart` (πριν pre-checks). Fail-open παντού (offline→true, 4s timeout→true, CF error→true· μόνο `resource-exhausted` μπλοκάρει).
+- **Client debounce:** `chat_input_bar.dart` `_lastSendAt` guard <1s στο `_send()`.
+- **Σημείωση topology:** chat → provider-level (`ChatActions`, γιατί `sendMediaMessage` κάνει expensive storage/Vision uploads πριν το batch)· requests → repository-level (`sendRequest`). `editMessage` σκόπιμα ΔΕΝ rate-limit (δεν κάνει νέο upload).
 
 **Προτάσεις:**
 
@@ -373,19 +398,21 @@
 
 ---
 
-#### C4 — Group Avatar EXIF Leak
+#### C4 — Group Avatar EXIF Leak — FIXED ✅ (03 Σεπ 2026)
 
-**Υπάρχει:** `lib/features/chat/widgets/chat_input_bar.dart:253` `stripExif` OK για chat image. `lib/repositories/group_chat_mixin.dart:750` `readAsBytes` χωρίς strip για group avatar.
+**Υπήρχε:** `lib/features/chat/widgets/chat_input_bar.dart:253` `stripExif` OK για chat image. `lib/repositories/group_chat_mixin.dart:750` `readAsBytes` χωρίς strip για group avatar.
 
 **Πρόβλημα:** GPS metadata σε group avatar → privacy leak (Play Data Safety).
 
-**Πρόταση:**
+**✅ Εφαρμόστηκε (UI-layer, όχι repository):** Ο cropper χρειάζεται πλατφόρμα → `group_settings_screen.dart` `_pickAndUploadAvatar`: μεταξύ picker και `updateGroupAvatar(chatId, cropped)` μπαίνει `ImageCropper.platform.cropImage(maxWidth/maxHeight:512, compressFormat: ImageCompressFormat.jpg, compressQuality:85)` → `CroppedFile` συμβατό με `(image as dynamic).readAsBytes()`. Επαναχρησιμοποίηση του υπάρχοντος `image_cropper` pattern (profile/chat), όχι νέος helper. +1 `DebugConfig.log(storageUpload)`. `group_chat_mixin.dart` +1 debug log bytes μετά strip (`N → M bytes after strip`).
+
+**Αρχική πρόταση (για ιστορικό):**
 ```dart
 // group_chat_mixin.dart:750 — πριν το uploadBytesWithTimeout
 final stripped = await ImageUtils.stripExif(avatarBytes); // ή flutter_image_compress
 await StorageHelpers.uploadBytesWithTimeout(..., stripped);
 ```
-Ήδη έχετε `flutter_image_compress ^2.5.0` + `ImageUtils.stripExif` — reuse.
+Σημείωση: `ImageUtils.stripExif` = `compressWithList(quality:100)` → ΔΕΝ downscale (API μόνο `minWidth/minHeight`). Γι' αυτό χρησιμοποιήθηκε το ImageCropper (downscale 512px) αντί για strip-only.
 
 **Επαλήθευση:** Upload avatar με GPS → download → `exiftool` → no GPS.
 
@@ -485,7 +512,7 @@ for (var i = 0; i < auditSnap.docs.length; i += 500) {
 | Splash 3s + white launch | `lib/main.dart:172` + `launch_background.xml:1` | Μείωση σε 1.5s + `flutter_native_splash: ^2.4.0` με `image: assets/icons/near_me.png` |
 | `web/manifest.json:8` default | `web/manifest.json:8` | `"NearMe — Privacy-first local discovery"` + `background_color` align |
 | `CFBundleName near_me` | `ios/Runner/Info.plist:18` | `NearMe` |
-| Analytics dep | `android/app/build.gradle.kts:56` | **Αφαίρεση** `firebase-analytics` για v1 (ή consent gating) |
+| Analytics dep | `android/app/build.gradle.kts:74` | **DONE** ✅ — αφαιρέθηκε (Session 258, 03/09) |
 | ProGuard | `build.gradle.kts:30` | `isMinifyEnabled true` + `proguard-rules.pro` (βλ. B2) |
 | `TODO chat_repository.dart:108` domain model | `lib/repositories/chat_repository.dart:108` | Replace `DocumentSnapshot` με `Chat` model — tech debt |
 
@@ -493,28 +520,28 @@ for (var i = 0; i < auditSnap.docs.length; i += 500) {
 
 ## 3. Προτεινόμενο Roadmap
 
-### Phase A — Store Blockers (1-2 μέρες) — MUST
+### Phase A — Store Blockers — ✅ DONE (B1-B7)
 
 ```
-[ ] B1  ApplicationId → com.nearme.eu + regenerate Firebase configs
-[ ] B2  Keystore + release signing (B2 snippet)
-[ ] B3  Info.plist NSLocation/Photo strings
-[ ] B4  ITSAppUsesNonExemptEncryption=false
-[ ] B5  Hosting privacy.html + Settings tile + Data Safety
-[ ] B6  FirebaseCrashlyticsCollectionEnabled=false (iOS)
-[ ] B7  Remove firebase-analytics line 56 OR gate
+[x] B1  ApplicationId → gr.nearme.app + regenerate Firebase configs   ✅ DONE S241
+[x] B2  Keystore + release signing + R8 minify                        ✅ DONE S242
+[x] B3  Info.plist NSLocation/Photo strings                            ✅ DONE S251
+[x] B4  ITSAppUsesNonExemptEncryption=false                            ✅ DONE (Info.plist:41)
+[x] B5  Hosting privacy.html + Settings tile + Data Safety             ✅ DONE S252
+[x] B6  FirebaseCrashlyticsCollectionEnabled=false (iOS)               ✅ DONE S251
+[x] B7  Remove firebase-analytics line 74                      ✅ DONE S258 (03/09)
 [ ]     flutter clean → pub get → build_runner → analyze → build appbundle --obfuscate --split-debug-info
 ```
 
-### Phase B — High Fixes (2-3 μέρες) — SHOULD πριν public
+### Phase B — High Fixes — ✅ DONE (C1-C4), μένουν C5/C6
 
 ```
-[ ] C1  CF expireStalePresence + heartbeat 30s
-[ ] C2  Relabel E2E → "Encrypted" (5 min) — proper ECDH για v1.2
-[ ] C3  CF checkMessageRateLimit (αντιγραφή search)
-[ ] C4  stripExif σε group avatar
-[ ] C5  audit_log delete σε deleteGroup
-[ ] C6  FirestoreService.withTimeout
+[x] C1  CF expireStalePresence + heartbeat 30s          ✅ DONE S255 (sweeper only, heartbeat rejected)
+[x] C2  Relabel E2E → "Encrypted" (5 min) — proper ECDH για v1.2   ✅ DONE S257
+[x] C3  CF checkMessageRateLimit (αντιγραφή search)     ✅ DONE S257 (deployed)
+[x] C4  stripExif σε group avatar                       ✅ DONE S257
+[ ] C5  audit_log delete σε deleteGroup                 (εκκρεμεί)
+[ ] C6  FirestoreService.withTimeout                    (εκκρεμεί)
 ```
 
 ### Phase C — Medium (1 μέρα) — NICE
@@ -547,7 +574,7 @@ for (var i = 0; i < auditSnap.docs.length; i += 500) {
 - **App activity (messages):** Collected, encrypted in transit YES — `chats/{id}/messages`
 - **Device IDs (FCM token):** Collected — `users/{uid}/fcm_tokens`
 - **Crash logs:** Collected opt-in only — `AndroidManifest.xml:61` OFF default
-- **Analytics:** Not collected (μετά το B7)
+- **Analytics:** Not collected ✅ (B7 DONE, SDK αφαιρέθηκε)
 - **Data encrypted in transit:** YES (Firebase TLS)
 - **Data deleted:** YES — `functions/src/index.ts:575` deleteUserData
 
@@ -580,11 +607,10 @@ adb install build/app/outputs/bundle/release/app-release.aab --test
 
 | Phase | Χρόνος | Blocker; |
 |---|---|---|
-| A Store Blockers | 1-2 μέρες | MUST — χωρίς αυτά δεν ανεβαίνει |
-| B High Fixes | 2-3 μέρες | SHOULD — public launch χωρίς C2/C3 ρίσκο policy |
-| C Medium | 1 μέρα | NICE — polish |
+| A Store Blockers | 0 μέρες | ✅ DONE (B1-B7) |
+| B High Fixes | 0 μέρες | ✅ DONE (C1-C4) — μόνο C5/C6 απομένουν |
+| C Medium | ~1 μέρα | NICE — M1-M4 (εκκρεμεί) |
 | D Post-launch | 2-4 εβδομάδες | v1.1 |
 
-**Μετά το Phase A → GO για internal track. Μετά το A+B → GO για public launch.**
-Μετά το A+B+C → polished launch με zero known warnings.
+**Μετά το A+B → GO για internal track ✅. Μετά το A+B+C → polished launch με zero known warnings.**
 

@@ -88,6 +88,16 @@ class RequestRepositoryImpl implements RequestRepository {
     final uid = user.uid;
     DebugConfig.log(DebugConfig.repositoryCall, 'sendRequest: from=$uid to=$toUid type=$type');
 
+    // Rate-limit ΠΡΙΝ από τα pre-check reads — ένας rate-limited χρήστης δεν
+    // προκαλεί ούτε Firestore reads (protect resources first, ίδιο με το chat).
+    if (!await _checkRequestRateLimit()) {
+      DebugConfig.log(DebugConfig.rateLimit, 'sendRequest: blocked by request rate limit');
+      throw AppException(
+        message: 'Πολλά αιτήματα σε σύντομο χρονικό διάστημα. Δοκίμασε ξανά αργότερα. / Too many requests. Try again later.',
+        code: 'request_rate_limited',
+      );
+    }
+
     DebugConfig.log(DebugConfig.repositoryCall,
         'sendRequest: parallel pre-checks from=$uid to=$toUid type=$type');
     try {
@@ -124,14 +134,6 @@ class RequestRepositoryImpl implements RequestRepository {
     } catch (e) {
       if (e is AppException) rethrow;
       DebugConfig.warn('sendRequest pre-check: target profile read failed: $e');
-    }
-
-    if (!await _checkRequestRateLimit()) {
-      DebugConfig.log(DebugConfig.rateLimit, 'sendRequest: blocked by request rate limit');
-      throw AppException(
-        message: 'Πολλά αιτήματα σε σύντομο χρονικό διάστημα. Δοκίμασε ξανά αργότερα. / Too many requests. Try again later.',
-        code: 'request_rate_limited',
-      );
     }
 
     final now = DateTime.now();

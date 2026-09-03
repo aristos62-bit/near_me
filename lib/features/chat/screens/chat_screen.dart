@@ -130,7 +130,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       title: ErrorMessages.get('chat/e2e-info-title', greek),
       message: greek
           ? 'Τα μηνύματά σου προστατεύονται με κρυπτογράφηση AES-256. '
-              'Μόνο εσύ και ομάδα "$label" μπορείτε να τα διαβάσετε.'
+              'Μόνο εσύ και η ομάδα "$label" μπορείτε να τα διαβάσετε.'
           : 'Your messages are protected with AES-256 encryption. '
               'Only you and group "$label" can read them.',
       dismissLabel: greek ? 'Εντάξει' : 'OK',

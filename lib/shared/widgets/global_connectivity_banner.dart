@@ -4,13 +4,32 @@ import '../../providers/connectivity_provider.dart';
 import '../../core/debug/debug_config.dart';
 import '../../core/l10n/l10n.dart';
 
-class GlobalConnectivityBanner extends ConsumerWidget {
+class GlobalConnectivityBanner extends ConsumerStatefulWidget {
   const GlobalConnectivityBanner({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<GlobalConnectivityBanner> createState() =>
+      _GlobalConnectivityBannerState();
+}
+
+class _GlobalConnectivityBannerState
+    extends ConsumerState<GlobalConnectivityBanner> {
+  bool _dismissed = false;
+
+  @override
+  Widget build(BuildContext context) {
     final isOnline = ref.watch(connectivityProvider).asData?.value ?? true;
-    if (isOnline) return const SizedBox.shrink();
+    if (isOnline) {
+      // Reset για την επόμενη offline περίοδο. Σκόπιμα ΧΩΡΙΣ setState: το
+      // build τρέχει ήδη (trigger από το watch), ένα δεύτερο setState εδώ
+      // θα έριχνε "setState() called during build". Η απλή ανάθεση αρκεί —
+      // το επόμενο build θα έρθει σίγουρα μέσω του watch όταν ξαναγίνει
+      // offline (idempotent: το if (_dismissed) είναι ήδη false).
+      _dismissed = false;
+      return const SizedBox.shrink();
+    }
+
+    if (_dismissed) return const SizedBox.shrink();
 
     DebugConfig.log(DebugConfig.networkConnectivity,
         'GlobalConnectivityBanner: SHOWING offline overlay');
@@ -35,7 +54,7 @@ class GlobalConnectivityBanner extends ConsumerWidget {
         backgroundColor: Colors.orange.shade800,
         actions: [
           TextButton(
-            onPressed: () {},
+            onPressed: () => setState(() => _dismissed = true),
             child: Text(
               'OK',
               style: TextStyle(color: Colors.orange.shade200),

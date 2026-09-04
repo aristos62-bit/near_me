@@ -1,3 +1,4 @@
+import 'dart:async';
 import '../debug/debug_config.dart';
 
 class AppException implements Exception {
@@ -96,6 +97,8 @@ class AppException implements Exception {
     }
 
     final raw = error.toString();
+
+    if (error is TimeoutException) return 'chat/network-error';
 
     if (raw.contains('email-already-in-use')) return 'auth/email-already-in-use';
     if (raw.contains('invalid-email')) return 'auth/invalid-email';

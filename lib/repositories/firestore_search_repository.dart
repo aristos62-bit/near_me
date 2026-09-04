@@ -124,7 +124,9 @@ class FirestoreSearchRepository implements SearchRepository {
           .where('geoHash', isLessThanOrEqualTo: upper)
           .orderBy('geoHash')
           .orderBy('__name__')
-          .limit(effectiveLimit);
+          // Over-fetch: 2× το effectiveLimit ανά cell, ώστε μετά το client-side
+          // filtering οι σελίδες να μην είναι αραιές.
+          .limit(effectiveLimit * 2);
 
       if (cursor != null) {
         q = q.startAfter([cursor.sortValue, cursor.docId]);
@@ -157,18 +159,22 @@ class FirestoreSearchRepository implements SearchRepository {
 
     final filtered = _filterAndLog(all, filters, '_geoSearch');
 
-    // hasMore: αν ΟΠΟΙΟΔΗΠΟΤΕ snapshot επέστρεψε effectiveLimit docs
+    // hasMore: αν ΟΠΟΙΟΔΗΠΟΤΕ snapshot επέστρεψε το (over-fetched) όριο
     final hasMore =
-    snapshots.any((s) => s.docs.length >= effectiveLimit);
+    snapshots.any((s) => s.docs.length >= effectiveLimit * 2);
 
-    // Cursor: από το τελευταίο doc του πρώτου non-empty snapshot
-    QueryDocumentSnapshot? lastDoc;
+    // Cursor: από το τελευταίο doc της MERGED + ταξινομημένης λίστας όλων των
+    // snapshots (όχι από το πρώτο non-empty) — ώστε το startAfter([geoHash, docId])
+    // στο επόμενο load να ευθυγραμμίζεται με το orderBy('geoHash') του query
+    // (αποφυγή duplicates / lost results μεταξύ σελίδων σε πολλαπλά cells).
+    final allDocs = <QueryDocumentSnapshot>[];
     for (final s in snapshots) {
-      if (s.docs.isNotEmpty) {
-        lastDoc = s.docs.last;
-        break;
-      }
+      allDocs.addAll(s.docs);
     }
+    allDocs.sort((a, b) => ((a.data() as Map<String, dynamic>)['geoHash'] as String? ?? '')
+        .compareTo(((b.data() as Map<String, dynamic>)['geoHash'] as String? ?? '')));
+    final QueryDocumentSnapshot? lastDoc =
+        allDocs.isEmpty ? null : allDocs.last;
     final cursorOut = hasMore && lastDoc != null
         ? SearchCursor(
       lastDoc.id,
@@ -300,7 +306,7 @@ class FirestoreSearchRepository implements SearchRepository {
             .where('geoHash', isLessThanOrEqualTo: upper)
             .orderBy('geoHash')
             .orderBy('__name__')
-            .limit(50);
+            .limit(100);
         if (cursor != null) {
           q = q.startAfter([cursor.sortValue, cursor.docId]);
         }
@@ -348,14 +354,15 @@ class FirestoreSearchRepository implements SearchRepository {
         );
       }
 
-      final hasMore = snapshots.any((s) => s.docs.length >= 50);
-      QueryDocumentSnapshot? lastDoc;
+      final hasMore = snapshots.any((s) => s.docs.length >= 100);
+      final allDocs = <QueryDocumentSnapshot>[];
       for (final s in snapshots) {
-        if (s.docs.isNotEmpty) {
-          lastDoc = s.docs.last;
-          break;
-        }
+        allDocs.addAll(s.docs);
       }
+      allDocs.sort((a, b) => ((a.data() as Map<String, dynamic>)['geoHash'] as String? ?? '')
+          .compareTo(((b.data() as Map<String, dynamic>)['geoHash'] as String? ?? '')));
+      final QueryDocumentSnapshot? lastDoc =
+          allDocs.isEmpty ? null : allDocs.last;
       final cursorOut = hasMore && lastDoc != null
           ? SearchCursor(
         lastDoc.id,

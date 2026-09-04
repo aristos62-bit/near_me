@@ -1,9 +1,10 @@
 # NearMe — Launch Readiness & Action Plan
 
 > **Έκδοση:** 1.1.0+1 · **Schema:** v15 · **Firebase:** `nearme-eu` (eur3 / europe-west1) · **Τελευταία ενημέρωση:** 04 Σεπ 2026
-> **Κατάσταση:** Φάσεις 1-3 λειτουργικές, B1-B7 FIXED ✅ (26/08-03/09), C1-C4 FIXED ✅ (02-03 Σεπ 2026), **C5 FIXED ✅ (03 Σεπ 2026)**, βάση unit tests 93/93 ✅ (04 Σεπ), moderation scaffolding (flag OFF) — εκκρεμούν C6 + M1-M4
+> **Κατάσταση:** Φάσεις 1-3 λειτουργικές, B1-B7 FIXED ✅ (26/08-03/09), C1-C4 FIXED ✅ (02-03 Σεπ 2026), **C5 FIXED ✅ (03 Σεπ 2026)**, βάση unit tests 93/93 ✅ (04 Σεπ), moderation scaffolding (flag OFF), **C6 + M1-M4 FIXED ✅ (04 Σεπ 2026)**, tests 106/106 ✅
 
 **Changelog:**
+- **04 Σεπ 2026 — C6 + M1-M4 DONE:** Θέματα αξιοπιστίας δικτύου/δεδομένων pre-launch. C6 `withTimeout` SPoT (`lib/core/utils/timeouts.dart`) + `createChat` + `TimeoutException → chat/network-error` · M2 FCM background `Firebase.initializeApp()` · M3β reactions cap `<100` (rules) · M4 cursor fix (merged sort) + over-fetch ×2 σε `_geoSearch`/`searchNearby` · M3α server `expiresAt` (client remove + rules block + νέο CF `onRequestCreated`) · M1 banner dismiss (ConsumerStatefulWidget + `_dismissed`). **Deployed:** rules + 17 functions (συμπ. `onRequestCreated`) ✅. **Tests:** +13 (timeouts ×5, app_exception ×5, banner ×3) → **106/106** ✅.
 - **04 Σεπ 2026 — Unit tests βάση ✅:** 57 νέα pure-utility tests σε 3 αρχεία (`test/shared/age_validation_test.dart` ×16, `test/features/chat/system_message_formatter_test.dart` ×21, `test/core/geohash_utils_test.dart` ×20) πάνω στα 36 του Session 259 → **`flutter test` 93/93** ✅. Κανένα runtime αρχείο δεν άλλαξε.
 - **03 Σεπ 2026 — C5 DONE:** Cleanup `audit_log` + `invites` στο `deleteGroup` + διόρθωση bug >500 μηνυμάτων (pagination). SPoT helper `deleteChatSubcollection` (`firestore_cleanup.dart`) + refactor `clearMessages`/`_deleteChatForEveryone`. Βάση τεστ: +`fake_cloud_firestore` + `test/repositories/firestore_cleanup_test.dart` ×6 → `flutter test` 36/36 ✅. Σημείωση: `flutter pub add` παρέσυρε firebase bumps (firebase_core 4.14, cloud_firestore 6.9, firebase_auth 6.6 κλπ) — εντός range, κρατήθηκαν.
 - **03 Σεπ 2026 — B7 DONE:** Αφαίρεση `firebase-analytics` dependency (`build.gradle.kts:74`) — 1 γραμμή, `firebase-bom`+`crashlytics` παραμένουν. Data Safety "Analytics: Not collected" ευθυγραμμίστηκε.
@@ -430,7 +431,7 @@ await StorageHelpers.uploadBytesWithTimeout(..., stripped);
 - Νέο SPoT helper `deleteChatSubcollection` σε `lib/core/utils/firestore_cleanup.dart` (batching 500, flag `fatal`, debug flags).
 - `deleteGroup` → `deleteChatSubcollection(audit_log)` + `(invites)` + `(messages)` (non-fatal) → `deleteAllChatMedia` → parent `chats/{chatId}` delete **τελευταίο**.
 - Refactor DRY: `clearMessages` + `_deleteChatForEveryone` χρησιμοποιούν τον ίδιο helper.
-- **Τεστ:** +`fake_cloud_firestore` dev dependency, `test/repositories/firestore_cleanup_test.dart` ×6 · +57 pure-utility tests (Session 260) → `flutter analyze` clean, `flutter test` **93/93** ✅.
+- **Τεστ:** +`fake_cloud_firestore` dev dependency, `test/repositories/firestore_cleanup_test.dart` ×6 · +57 pure-utility tests (Session 260) · +13 tests C6/M1-M4 (Session 261) → `flutter analyze` clean, `flutter test` **106/106** ✅.
 
 ---
 

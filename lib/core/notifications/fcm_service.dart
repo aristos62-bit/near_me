@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -183,6 +184,10 @@ class FcmService {
 
   @pragma('vm:entry-point')
   static Future<void> _onBackgroundHandler(RemoteMessage msg) async {
+    // Το background handler τρέχει σε ξεχωριστό isolate — το init του κύριου
+    // isolate (Firebase.apps.isNotEmpty) ΔΕΝ ισχύει εδώ, άρα το initializeApp
+    // είναι απαραίτητο. Default instance, συνεπές με το main.dart:38.
+    await Firebase.initializeApp();
     final isRequest = msg.data['type'] == 'request';
     DebugConfig.log(
       isRequest ? DebugConfig.requestFcm : DebugConfig.chatFcm,

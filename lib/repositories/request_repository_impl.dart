@@ -137,7 +137,6 @@ class RequestRepositoryImpl implements RequestRepository {
     }
 
     final now = DateTime.now();
-    final expiresAt = now.add(const Duration(hours: 48));
 
     try {
       await _firestore.collection('requests').add({
@@ -147,7 +146,6 @@ class RequestRepositoryImpl implements RequestRepository {
         'status': 'pending',
         'message': message,
         'createdAt': now,
-        'expiresAt': expiresAt,
       });
       DebugConfig.log(DebugConfig.repositoryResult, 'sendRequest: success to=$toUid type=$type');
 

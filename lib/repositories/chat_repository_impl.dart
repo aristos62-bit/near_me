@@ -19,6 +19,7 @@ import '../core/utils/app_exception.dart';
 import '../core/utils/encryption_utils.dart';
 import '../core/utils/firestore_cleanup.dart';
 import '../core/utils/storage_helpers.dart';
+import '../core/utils/timeouts.dart';
 import '../shared/utils/image_utils.dart';
 import '../shared/utils/mention_utils.dart';
 import '../features/chat/utils/system_message_formatter.dart';
@@ -104,10 +105,13 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
 
     DebugConfig.log(DebugConfig.repositoryCall,
         'createChat: fetching profiles in parallel uid=$uid with=$otherUid');
-    final results = await Future.wait([
-      firestore.collection('users').doc(uid).collection('public').doc('profile').get(),
-      firestore.collection('users').doc(otherUid).collection('public').doc('profile').get(),
-    ]);
+    final results = await withTimeout(
+      Future.wait([
+        firestore.collection('users').doc(uid).collection('public').doc('profile').get(),
+        firestore.collection('users').doc(otherUid).collection('public').doc('profile').get(),
+      ]),
+      'createChat.profileFetch',
+    );
     final myProfile = results[0];
     final myNickname = myProfile.data()?['nickname'] as String? ?? uid;
     final myAvatarUrl = myProfile.data()?['avatarUrl'] as String?;

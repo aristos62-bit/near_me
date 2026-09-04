@@ -284,6 +284,7 @@ service cloud.firestore {
                          && request.resource.data.reactions.diff(
                               resource.data.get('reactions', {})
                             ).affectedKeys().hasOnly([request.auth.uid])
+                         && request.resource.data.reactions.size() < 100
                          && (isGroupChatRef(chatId) || isNotBlockedInChat(chatId)))
                         ||
                         (request.resource.data.diff(resource.data).affectedKeys()
@@ -319,7 +320,8 @@ service cloud.firestore {
                       && request.auth.uid == request.resource.data.fromUid
                       && targetCommAllowed(request.resource.data.toUid, request.resource.data.type)
                       && notBanned()
-                      && isNotBlockedByTarget(request.resource.data.toUid);
+                      && isNotBlockedByTarget(request.resource.data.toUid)
+                      && !("expiresAt" in request.resource.data);
         allow update: if isAuthenticated()
                       && notBanned()
                       && request.auth.uid == resource.data.toUid

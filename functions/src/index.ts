@@ -1266,6 +1266,20 @@ export const expireStaleRequests = functions.region(REGION).pubsub
     return null;
   });
 
+// Server-authoritative expiresAt για τα requests: ο client δεν το στέλνει πια
+// (blocked στα rules με `!("expiresAt" in request.resource.data)`), το ορίζει
+// μόνο ο server εδώ σε now + 48h — συνέπεια και προστασία από παραποίηση.
+export const onRequestCreated = functions.region(REGION).firestore
+  .document('requests/{reqId}')
+  .onCreate(async (snap) => {
+    const expiresAt = admin.firestore.Timestamp.fromMillis(
+      Date.now() + 48 * 60 * 60 * 1000,
+    );
+    await snap.ref.update({ expiresAt });
+    functions.logger.info(`onRequestCreated: set expiresAt for ${snap.id}`);
+    return null;
+  });
+
 export const expireStaleMessages = functions.region(REGION).pubsub
   .schedule('*/5 * * * *')
   .timeZone('Europe/Athens')

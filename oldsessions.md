@@ -255,9 +255,9 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 | Completion | ~99.9% (Phases 1-3 100%, MultiChat 100%, Media 100%, Chat Redesign 100%, Audio Messages 100%, **B5 Privacy Policy 100%**) |
 | `.dart` files | ~133 (non-generated, +`vision_moderation_service.dart` + `avatar_blur.dart` + `moderation_section.dart` + `splash_screen.dart` + `firestore_cleanup.dart`) |
 | Firestore indexes | 21 composite deployed |
-| Cloud Functions | 16 deployed `europe-west1` (gen1, Node 22), συμπ. `checkImageModeration` + `moderateImage` (Vision moderation, eur3), `addGroupParticipant`/`leaveGroup`, `expireStaleRequests/Messages`, `computeGeoHash`, `checkSearchRateLimit`, `deleteUserData`, `onReportCreated`, 5 FCM |
+| Cloud Functions | 17 deployed `europe-west1` (gen1, Node 22), συμπ. `checkImageModeration` + `moderateImage` (Vision moderation, eur3), `addGroupParticipant`/`leaveGroup`, `expireStaleRequests/Messages`, `computeGeoHash`, `checkSearchRateLimit`, `deleteUserData`, `onReportCreated`, `onRequestCreated` (server `expiresAt`, Session 261), 5 FCM |
 | Build | `flutter analyze` clean ✅, release APK ~41.7MB (debug) / ~20.8MB (R8), signed `gr.nearme.app` (CN=NearMe) |
-| Tests | 93/93 passed (Session 260: +57 pure-utility tests — age_validation ×16, system_message_formatter ×21, geohash_utils ×20 — πάνω στα 36 του Session 259) |
+| Tests | 106/106 passed (Session 261: C6+M1-M4 fixes +13 tests — timeouts ×5, app_exception ×5, connectivity banner ×3 — πάνω στα 93 του Session 260) |
 | Schema | Drift v17, 7 tables (+crashReportsEnabled, blurExplicitEnabled, blurSigma 0/10/20/32) |
 | Moderation | Active (Sessions 253-255): Global Normal + User Blur — Vision SafeSearch `eu-vision.googleapis.com`, thresholds Adult/Violence LIKELY+ reject, Racy never \(only blur\), blur POSSIBLE/LIKELY via `avatar_blur.dart` + `blurSigma` slider SPoT (`moderation_section.dart` + `_BlurSigmaTile` reuse `_AutoLockTile`). Kill-switch `config/moderation`, `moderationLog` rules |
 | Photo Fix | `EqualUnmodifiableListView` → `List.from` `profile_editor_screen.dart:153,161` (Session 244) |
@@ -2448,6 +2448,43 @@ Global Normal (server) + User Blur (client): Vision SafeSearch thresholds — **
 
 ### Backups
 - `backups/oldsessions_pre_unit_tests_20260904_101600.md`, `backups/launch_pre_unit_tests_20260904_101600.md`
+
+---
+
+## Session 261 — C6 + M1-M4 fixes (reliability pre-launch) + tests (100%) — 04 Σεπ 2026
+
+### Σκοπός
+Υλοποίηση της αναθεωρημένης πρότασης C6 + M1-M4 (μετά από πολλαπλούς επανελέγχους και παρατηρήσεις χρήστη που διόρθωσαν 3 σημεία) — θέματα αξιοπιστίας δικτύου/δεδομένων πριν το public launch. Ανά βήμα με έγκριση χρήστη, backup πριν κάθε edit, SPoTs/reuse χωρίς νέα dependencies, 0 rebuild-storm.
+
+### Λειτουργικότητα (C6)
+- **Νέο** `lib/core/utils/timeouts.dart`: SPoT `withTimeout<T>(f, op, timeout: 8s)` — `f.timeout()` + late-completion consumption με `unawaited(f.then<void>((_) {}, onError:...))` + `DebugConfig.warn`. Ίδιο pattern με `FirebaseInit.tryInitialize` / `StorageHelpers`.
+- **C6** `createChat` (`chat_repository_impl.dart:107-110`): το `Future.wait` 2 profile fetches περικλείεται σε `withTimeout` (Protected από ατέρμονη αναμονή).
+- **C6** `AppException.toFriendlyMessage`: mapping `TimeoutException → 'chat/network-error'` (πριν τα string patterns).
+
+### Λειτουργικότητα (M1-M4)
+- **M2** `fcm_service.dart` `_onBackgroundHandler`: `await Firebase.initializeApp()` (το background isolate χρειάζεται δικό του init — default instance συνεπές με main.dart:38).
+- **M3β** `firestore.rules` reactions branch: +`request.resource.data.reactions.size() < 100` (cap συνδυαστικών reactions).
+- **M4-4α (cursor fix)** `firestore_search_repository.dart` `_geoSearch` + `searchNearby`: ο cursor υπολογίζεται από το τελευταίο doc της **merged + ταξινομημένης** λίστας όλων των snapshots (όχι από το πρώτο non-empty) — ευθυγράμμιση με `orderBy('geoHash')` (αποφυγή duplicates/lost results στα cells).
+- **M4-4β (over-fetch)** `_geoSearch` `.limit(effectiveLimit*2)` + `hasMore >= effectiveLimit*2` · `searchNearby` `.limit(100)` + `hasMore >= 100` — λιγότερο αραιές σελίδες μετά το client-side filtering.
+- **M3α** server-authoritative `expiresAt` (3 φάσεις): (1) client αφαίρεση `expiresAt` από `sendRequest`· (2) rules block `!("expiresAt" in request.resource.data)` στο create· (3) **νέο CF** `onRequestCreated(requests/{reqId})` ορίζει `expiresAt = now + 48h` server-side (ο `expireStaleRequests` sweeper το σκουπίζει καθημερινά).
+- **M1** `global_connectivity_banner.dart` → `ConsumerStatefulWidget` με `_dismissed` local state, OK `onPressed: () => setState(() => _dismissed = true)`, reset `_dismissed = false` στο online branch **χωρίς setState** (σκόπιμο: αποφεύγει `setState during build`, προετοιμάζει το επόμενο build μέσω watch).
+
+### Νέα test αρχεία
+- `test/core/timeouts_test.dart` (5): value πριν timeout, error propagation, `TimeoutException`, late-completion consumed, late-error consumed χωρίς crash (C6-α).
+- `test/core/app_exception_test.dart` (5): `TimeoutException → chat/network-error`, AppException code, bilingual, fallback, auth pattern (C6-β).
+- `test/widgets/global_connectivity_banner_test.dart` (3): hidden όταν online / appears offline / OK dismiss + reset μετά online (M1· locale el + localization delegates).
+
+### Deploy
+- `firebase deploy --only firestore:rules` → released (block expiresAt + reactions cap).
+- `firebase deploy --only functions` → 17 functions deployed, συμπ. νέο `onRequestCreated(europe-west1)` ✅.
+
+### Έλεγχος
+- `flutter analyze` → **0 issues** ✅
+- `flutter test` → **106/106 πέρασαν** ✅ (93 + 13 νέα)
+- TypeScript build (`npm run build`) → clean πριν το deploy ✅
+
+### Backups
+- `backups/chat_repository_impl_pre_C6_20260904_105909.dart`, `backups/app_exception_pre_C6_20260904_105909.dart`, `backups/fcm_service_pre_M2_20260904_110042.dart`, `backups/firestore_rules_pre_M3b_20260904_110121.rules`, `backups/firestore_search_repository_pre_M4_20260904_110134.dart`, `backups/request_repository_impl_pre_M3a_20260904_110507.dart`, `backups/firestore_rules_pre_M3a_20260904_110507.rules`, `backups/index_pre_M3a_20260904_110507.ts`, `backups/global_connectivity_banner_pre_M1_20260904_110708.dart`, `backups/oldsessions_pre_C6tests_20260904_113605.md`, `backups/launch_pre_C6tests_20260904_113605.md`
 
 ---
 

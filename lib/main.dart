@@ -320,10 +320,8 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
     if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
       IdleLockService.onAppPaused();
     } else if (state == AppLifecycleState.resumed && mounted) {
-      // pollPending() ΠΡΙΝ το biometric check: φρεσκάρει το native-buffered
-      // pending share ώστε ΟΠΟΙΟΔΗΠΟΤΕ unlock-path (short-pause-skip,
-      // biometric off, ή επιτυχές auth μέσω onUnlocked) να δει το φρέσκο
-      // payload — αποφεύγει το παλιό double-call (1 πριν + 1 μετά το poll).
+      // pollPending() ΠΡΙΝ το biometric check: φρεσκάρει το native-buffered pending share ώστε ΟΠΟΙΟΔΗΠΟΤΕ unlock-path (short-pause-skip,
+      // biometric off, ή επιτυχές auth μέσω onUnlocked) να δει το φρέσκο payload — αποφεύγει το παλιό double-call (1 πριν + 1 μετά το poll).
       IncomingShareService.pollPending().then((_) {
         if (!mounted) return;
         IdleLockService.checkOnResume(reason: _biometricReason).then((_) {
@@ -413,10 +411,8 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
           DebugConfig.log(DebugConfig.providerDispose,
               'main: invalidated chatsProvider (auth change)');
         }
-        // Claims-check: τρέχει όσο ο χρήστης είναι verified — καλύπτει και
-        // cold start, άρα το restart μετά από εξωτερική επαλήθευση φρεσκάρει
-        // το stale token. Φθηνός έλεγχος (getIdTokenResult(false), χωρίς
-        // δίκτυο): αν το claim συμφωνεί ήδη με το γνωστό emailVerified=true,
+        // Claims-check: τρέχει όσο ο χρήστης είναι verified — καλύπτει και cold start, άρα το restart μετά από εξωτερική επαλήθευση φρεσκάρει
+        // το stale token. Φθηνός έλεγχος (getIdTokenResult(false), χωρίς δίκτυο): αν το claim συμφωνεί ήδη με το γνωστό emailVerified=true,
         // τίποτα άλλο. Force refresh μόνο όταν το token λέει ακόμα unverified.
         if (nextUser != null && nextUser.emailVerified) {
           nextUser.getIdTokenResult(false).then((tokenResult) async {

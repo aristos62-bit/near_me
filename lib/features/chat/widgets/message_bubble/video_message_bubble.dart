@@ -1,5 +1,3 @@
-import 'dart:ui';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
@@ -12,9 +10,11 @@ import '../../providers/chat_provider.dart';
 import 'bubble_long_press_wrapper.dart';
 import '../message_reactions.dart';
 
+import 'bubble_timestamp.dart';
 import 'reply_preview.dart';
 import 'sender_header.dart';
 import 'tail_painter.dart';
+import 'video_content_panel.dart';
 
 class VideoMessageBubble extends ConsumerStatefulWidget {
   final String content;
@@ -352,135 +352,23 @@ class _VideoMessageBubbleState extends ConsumerState<VideoMessageBubble> {
                           bubbleColor: bubbleColor,
                           isGroupChat: widget.isGroupChat,
                         ),
-                      ClipRRect(
-                    borderRadius: bubbleBorderRadius,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        GestureDetector(
-                          onTap: _togglePlayPause,
-                          child: SizedBox(
-                            width: widget.bubbleMaxWidth,
-                            child: AspectRatio(
-                              aspectRatio: videoAspectRatio,
-                              child: Stack(
-                                alignment: Alignment.center,
-                                children: [
-                                  if (isMyController && controller != null)
-                                    VideoPlayer(controller)
-                                  else if (widget.thumbnailUrl != null)
-                                    Stack(
-                                      alignment: Alignment.center,
-                                      fit: StackFit.expand,
-                                      children: [
-                                        thumbBlur
-                                            ? ImageFiltered(
-                                                imageFilter: ImageFilter.blur(
-                                                    sigmaX: widget.blurSigma,
-                                                    sigmaY: widget.blurSigma),
-                                                child: CachedNetworkImage(
-                                                  imageUrl: widget.thumbnailUrl!,
-                                                  fit: BoxFit.cover,
-                                                  errorWidget: (_, _, _) => Container(
-                                                    color: Colors.black38,
-                                                    child: const Icon(
-                                                      Icons.movie_creation_outlined,
-                                                      size: 48,
-                                                      color: Colors.white70,
-                                                    ),
-                                                  ),
-                                                ),
-                                              )
-                                            : CachedNetworkImage(
-                                                imageUrl: widget.thumbnailUrl!,
-                                                fit: BoxFit.cover,
-                                                errorWidget: (_, _, _) => Container(
-                                                  color: Colors.black38,
-                                                  child: const Icon(
-                                                    Icons.movie_creation_outlined,
-                                                    size: 48,
-                                                    color: Colors.white70,
-                                                  ),
-                                                ),
-                                              ),
-                                        if (isLoading)
-                                          const CircularProgressIndicator(
-                                            color: Colors.white70,
-                                          ),
-                                      ],
-                                    )
-                                  else
-                                    Container(
-                                      color: Colors.black38,
-                                      child: isLoading
-                                          ? const CircularProgressIndicator(
-                                              color: Colors.white70,
-                                            )
-                                          : const Icon(
-                                              Icons.movie_creation_outlined,
-                                              size: 48,
-                                              color: Colors.white70,
-                                            ),
-                                    ),
-                                  if (!isLoading)
-                                    Container(
-                                      decoration: BoxDecoration(
-                                        color: Colors.black26,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      padding: const EdgeInsets.all(8),
-                                      child: Icon(
-                                        _isPlaying
-                                            ? Icons.pause
-                                            : Icons.play_arrow,
-                                        size: 36,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  Positioned(
-                                    bottom: 4,
-                                    right: 4,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 6,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.black54,
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: Text(
-                                        '$totalMin:$totalSecStr',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 11,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  if (isMyController)
-                                    Positioned(
-                                      bottom: 4,
-                                      left: 4,
-                                      child: GestureDetector(
-                                        onTap: _toggleMute,
-                                        child: Icon(
-                                          _isMuted
-                                              ? Icons.volume_off
-                                              : Icons.volume_up,
-                                          color: Colors.white70,
-                                          size: 16,
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                      VideoContentPanel(
+                        bubbleBorderRadius: bubbleBorderRadius,
+                        controller: controller,
+                        isMyController: isMyController,
+                        thumbnailUrl: widget.thumbnailUrl,
+                        isLoading: isLoading,
+                        aspectRatio: videoAspectRatio,
+                        isPlaying: _isPlaying,
+                        isMuted: _isMuted,
+                        maxWidth: widget.bubbleMaxWidth,
+                        blurEnabled: widget.blurEnabled,
+                        videoRacyLevel: widget.videoRacyLevel,
+                        blurSigma: widget.blurSigma,
+                        durationLabel: '$totalMin:$totalSecStr',
+                        onTap: _togglePlayPause,
+                        onToggleMute: _toggleMute,
+                      ),
                 ],
                 ),
               ),
@@ -509,30 +397,7 @@ class _VideoMessageBubbleState extends ConsumerState<VideoMessageBubble> {
                 ),
             ],
           ),
-          Padding(
-            padding: EdgeInsets.only(
-              top: 2,
-              left: widget.isMe ? 0 : 14,
-              right: widget.isMe ? 14 : 0,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.lock,
-                  size: 10,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  widget.timeStr,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          BubbleTimestamp(timeStr: widget.timeStr, isMe: widget.isMe),
           ],
       ),
     );

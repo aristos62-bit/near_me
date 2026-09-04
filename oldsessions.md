@@ -253,7 +253,7 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 | Μέτρο | Τιμή |
 |---|---|
 | Completion | ~99.9% (Phases 1-3 100%, MultiChat 100%, Media 100%, Chat Redesign 100%, Audio Messages 100%, **B5 Privacy Policy 100%**) |
-| `.dart` files | ~133 (non-generated, +`vision_moderation_service.dart` + `avatar_blur.dart` + `moderation_section.dart` + `splash_screen.dart` + `firestore_cleanup.dart`) |
+| `.dart` files | ~135 (non-generated, +`vision_moderation_service.dart` + `avatar_blur.dart` + `moderation_section.dart` + `splash_screen.dart` + `firestore_cleanup.dart` + `bubble_timestamp.dart` + `video_content_panel.dart` — Session 262 refactor) |
 | Firestore indexes | 21 composite deployed |
 | Cloud Functions | 17 deployed `europe-west1` (gen1, Node 22), συμπ. `checkImageModeration` + `moderateImage` (Vision moderation, eur3), `addGroupParticipant`/`leaveGroup`, `expireStaleRequests/Messages`, `computeGeoHash`, `checkSearchRateLimit`, `deleteUserData`, `onReportCreated`, `onRequestCreated` (server `expiresAt`, Session 261), 5 FCM |
 | Build | `flutter analyze` clean ✅, release APK ~41.7MB (debug) / ~20.8MB (R8), signed `gr.nearme.app` (CN=NearMe) |
@@ -2485,6 +2485,32 @@ Global Normal (server) + User Blur (client): Vision SafeSearch thresholds — **
 
 ### Backups
 - `backups/chat_repository_impl_pre_C6_20260904_105909.dart`, `backups/app_exception_pre_C6_20260904_105909.dart`, `backups/fcm_service_pre_M2_20260904_110042.dart`, `backups/firestore_rules_pre_M3b_20260904_110121.rules`, `backups/firestore_search_repository_pre_M4_20260904_110134.dart`, `backups/request_repository_impl_pre_M3a_20260904_110507.dart`, `backups/firestore_rules_pre_M3a_20260904_110507.rules`, `backups/index_pre_M3a_20260904_110507.ts`, `backups/global_connectivity_banner_pre_M1_20260904_110708.dart`, `backups/oldsessions_pre_C6tests_20260904_113605.md`, `backups/launch_pre_C6tests_20260904_113605.md`
+
+---
+
+## Session 262 — Refactor #1: video_message_bubble 540→382 + audio dedup (100%) — 04 Σεπ 2026
+
+### Σκοπός
+Πρώτο βήμα των refactor για τα αρχεία που σπάνε την οδηγία max-500 γραμμών. Στόχος: καμία αλλαγή συμπεριφοράς/εμφάνισης, διπλοί έλεγχοι (πλήρης ανάγνωση ×2), backup πριν κάθε edit, αποκλειστικά εξαγωγές/συγχωνεύσεις σε ήδη υπάρχοντα patterns.
+
+### Λειτουργικότητα
+- **Νέο** `bubble_timestamp.dart` (41 γρ.): κοινό `BubbleTimestamp(timeStr, isMe)` — το lock+time row, πανομοιότυπο με το block που υπήρχε σε video & audio. `Theme.of(context)` εσωτερικά.
+- **Νέο** `video_content_panel.dart` (156 γρ.): `VideoContentPanel` — το μεγάλο video-body (ClipRRect + player/thumb + play/mute + duration badge) εξήχθη ακριβώς, όλα τα dependencies ως params (controller, isMyController, thumbnailUrl, isLoading, aspectRatio, isPlaying, isMuted, maxWidth, blur* , durationLabel, onTap, onToggleMute).
+- **Αλλαγή 1 — συγχώνευση blur:** το χειροκίνητο `thumbBlur ? ImageFiltered(...) : CachedNetworkImage(...)` (διπλό CachedNetworkImage) → reuse `wrapAvatarBlur` (ήδη `avatar_blur.dart`) με ίδια συνθήκη (blurOn && isRacyLevel && sigma>0).
+- **Αλλαγή 2 — full dedup timestamp:** `BubbleTimestamp` σε video **και** audio (ακριβώς πανομοιότυπο block, πλήρης έλεγχος audio για side effects).
+- **Αλλαγή 3:** `VideoContentPanel` στο video (το μεγαλύτερο μέρος του build).
+
+### Αποτέλεσμα γραμμών
+- `video_message_bubble.dart`: **540 → 382** ✅ (<500)
+- `audio_message_bubble.dart`: 386 → 344 (dedup, όφελος χωρίς κόστος)
+- Νέα αρχεία: `bubble_timestamp.dart` 41, `video_content_panel.dart` 156
+
+### Έλεγχος
+- `flutter analyze` → **0 issues** ✅ (αφαιρέθηκε `dart:ui` + `cached_network_image` unused imports)
+- `flutter test` → **106/106 πέρασαν** ✅
+
+### Backups
+- `backups/video_message_bubble_refactor_20260904_141413.dart`, `backups/audio_message_bubble_refactor_20260904_141413.dart`, `backups/oldsessions_pre_refactor_20260904_150838.md`, `backups/launch_pre_refactor_20260904_150838.md`
 
 ---
 

@@ -8,6 +8,7 @@ import '../../../../core/utils/error_messages.dart';
 import 'bubble_long_press_wrapper.dart';
 import '../message_reactions.dart';
 
+import 'bubble_timestamp.dart';
 import 'reply_preview.dart';
 import 'sender_header.dart';
 import 'tail_painter.dart';
@@ -355,30 +356,7 @@ class _AudioMessageBubbleState extends State<AudioMessageBubble> {
                 ),
             ],
           ),
-          Padding(
-            padding: EdgeInsets.only(
-              top: 2,
-              left: widget.isMe ? 0 : 14,
-              right: widget.isMe ? 14 : 0,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.lock,
-                  size: 10,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  widget.timeStr,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          BubbleTimestamp(timeStr: widget.timeStr, isMe: widget.isMe),
         ],
       ),
     );

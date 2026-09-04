@@ -25,31 +25,7 @@ mixin ChatClearMixin {
         'clearMessages: clearing messages chat=$chatId');
 
     try {
-      const batchSize = 500;
-      int totalDeleted = 0;
-      bool hasMore = true;
-
-      while (hasMore) {
-        final messages = await firestore
-            .collection('chats').doc(chatId).collection('messages')
-            .limit(batchSize)
-            .get();
-
-        if (messages.docs.isEmpty) break;
-
-        final batch = firestore.batch();
-        for (final doc in messages.docs) {
-          batch.delete(doc.reference);
-        }
-        await batch.commit();
-
-        totalDeleted += messages.docs.length;
-        DebugConfig.log(DebugConfig.firestoreWrite,
-            'clearMessages: batch deleted ${messages.docs.length} '
-            '(total=$totalDeleted) chat=$chatId');
-
-        if (messages.docs.length < batchSize) hasMore = false;
-      }
+      await deleteChatSubcollection(firestore, chatId, 'messages');
 
       await deleteAllChatMedia(chatId);
 
@@ -57,7 +33,7 @@ mixin ChatClearMixin {
       messageDecryptCache.remove(chatId);
 
       DebugConfig.log(DebugConfig.repositoryResult,
-          'clearMessages: done chat=$chatId totalDeleted=$totalDeleted');
+          'clearMessages: done chat=$chatId');
     } catch (e) {
       DebugConfig.error('clearMessages failed', data: e);
       throw AppException.firestore('clear_messages',

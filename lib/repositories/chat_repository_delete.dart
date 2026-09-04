@@ -110,32 +110,8 @@ mixin ChatDeleteMixin {
     try {
       DebugConfig.log(DebugConfig.repositoryCall, '_deleteChatForEveryone: deleting messages for chat=$chatId');
 
-      const batchSize = 500;
-      int totalDeleted = 0;
-      bool hasMore = true;
-
-      while (hasMore) {
-        final messages = await firestore
-            .collection('chats').doc(chatId).collection('messages')
-            .limit(batchSize)
-            .get();
-
-        if (messages.docs.isEmpty) break;
-
-        final batch = firestore.batch();
-        for (final doc in messages.docs) {
-          batch.delete(doc.reference);
-        }
-        await batch.commit();
-
-        totalDeleted += messages.docs.length;
-        DebugConfig.log(DebugConfig.firestoreWrite,
-            '_deleteChatForEveryone: batch deleted ${messages.docs.length} '
-            '(total=$totalDeleted) chat=$chatId');
-
-        if (messages.docs.length < batchSize) hasMore = false;
-      }
-      DebugConfig.log(DebugConfig.firestoreWrite, '_deleteChatForEveryone: messages phase done chat=$chatId totalDeleted=$totalDeleted');
+      await deleteChatSubcollection(firestore, chatId, 'messages');
+      DebugConfig.log(DebugConfig.firestoreWrite, '_deleteChatForEveryone: messages phase done chat=$chatId');
 
       await deleteAllChatMedia(chatId);
 

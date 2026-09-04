@@ -253,11 +253,11 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 | Μέτρο | Τιμή |
 |---|---|
 | Completion | ~99.9% (Phases 1-3 100%, MultiChat 100%, Media 100%, Chat Redesign 100%, Audio Messages 100%, **B5 Privacy Policy 100%**) |
-| `.dart` files | ~132 (non-generated, +`vision_moderation_service.dart` + `avatar_blur.dart` + `moderation_section.dart` + `splash_screen.dart`) |
+| `.dart` files | ~133 (non-generated, +`vision_moderation_service.dart` + `avatar_blur.dart` + `moderation_section.dart` + `splash_screen.dart` + `firestore_cleanup.dart`) |
 | Firestore indexes | 21 composite deployed |
 | Cloud Functions | 16 deployed `europe-west1` (gen1, Node 22), συμπ. `checkImageModeration` + `moderateImage` (Vision moderation, eur3), `addGroupParticipant`/`leaveGroup`, `expireStaleRequests/Messages`, `computeGeoHash`, `checkSearchRateLimit`, `deleteUserData`, `onReportCreated`, 5 FCM |
 | Build | `flutter analyze` clean ✅, release APK ~41.7MB (debug) / ~20.8MB (R8), signed `gr.nearme.app` (CN=NearMe) |
-| Tests | 30/30 passed |
+| Tests | 93/93 passed (Session 260: +57 pure-utility tests — age_validation ×16, system_message_formatter ×21, geohash_utils ×20 — πάνω στα 36 του Session 259) |
 | Schema | Drift v17, 7 tables (+crashReportsEnabled, blurExplicitEnabled, blurSigma 0/10/20/32) |
 | Moderation | Active (Sessions 253-255): Global Normal + User Blur — Vision SafeSearch `eu-vision.googleapis.com`, thresholds Adult/Violence LIKELY+ reject, Racy never \(only blur\), blur POSSIBLE/LIKELY via `avatar_blur.dart` + `blurSigma` slider SPoT (`moderation_section.dart` + `_BlurSigmaTile` reuse `_AutoLockTile`). Kill-switch `config/moderation`, `moderationLog` rules |
 | Photo Fix | `EqualUnmodifiableListView` → `List.from` `profile_editor_screen.dart:153,161` (Session 244) |
@@ -2404,6 +2404,50 @@ Global Normal (server) + User Blur (client): Vision SafeSearch thresholds — **
 - `flutter build apk --debug --dart-define=ENABLE_RELEASE_DEBUG=true` → **επιτυχές** (232s, 0 errors, warnings pre-existing KGP deprecation)
 - `grep analytics *.xml` → 0 hits (κανένα metadata)
 - `grep analytics *.dart` → 0 hits (καμία χρήση)
+
+---
+
+## Session 259 — C5: Cleanup audit_log + invites στο deleteGroup + βάση τεστ (100%) — 03 Σεπ 2026
+
+### Σκοπός
+Διόρθωση του `deleteGroup` στο `group_chat_mixin.dart`: (α) pre-existing bug — τα messages διαγράφονταν σε ΕΝΑ batch χωρίς pagination → αποτυχία σε ομάδες με >500 μηνύματα, (β) τα subcollections `audit_log` και `invites` έμεναν ορφανά μετά τη διαγραφή, (γ) δημιουργία σωστής βάσης τεστ για το βοηθητικό.
+
+### Λειτουργικότητα (ήδη εγκεκριμένη ως C5)
+- **SPoT helper** `deleteChatSubcollection` σε νέο αρχείο `lib/core/utils/firestore_cleanup.dart` (top-level, δημόσιο): batching 500, flag `fatal` (default true = αυστηρό για clearMessages/_deleteChatForEveryone, false = non-fatal για deleteGroup), debug flags `repositoryCall`/`firestoreWrite`/`repositoryResult`.
+- **`deleteGroup`** (group_chat_mixin.dart): καθαρίζει `audit_log`, `invites`, `messages` (non-fatal) → `deleteAllChatMedia` → parent `chats/{chatId}` delete **τελευταίο** (αν αποτύχει cleanup, μένει πλήρες chat doc — ποτέ μισοσβησμένο). Διορθώνει και το bug >500 μηνυμάτων.
+- **Refactor DRY**: `clearMessages` (chat_repository_clear.dart) και `_deleteChatForEveryone` (chat_repository_delete.dart) αντικαταστάθηκαν από τον SPoT helper → 3 πανομοιότυπα loops έγιναν 1. Import του helper προστέθηκε στο parent `chat_repository_impl.dart`.
+
+### Βάση τεστ
+- **Προστέθηκε** `fake_cloud_firestore` (dev dependency) — το flutter pub add παρέσυρε αυτόματα αναβαθμίσεις firebase πακέτων (firebase_core 4.10→4.14, cloud_firestore 6.5→6.9, firebase_auth 6.5→6.6, cloud_functions, firebase_storage, firebase_messaging, firebase_crashlytics) — εντός συμβατού range, κρατήθηκαν κατόπιν έγκρισης χρήστη.
+- **Νέο** `test/repositories/firestore_cleanup_test.dart` — 6 cases: διαγραφή όλων των docs, pagination >500 (multi-batch), chat-doc ανέπαφο, non-fatal σε ανύπαρκτο subcollection, fatal σε κενό subcollection (harmless), στόχευση σωστού subcollection (όχι αδερφικά).
+
+### Έλεγχος
+- `flutter analyze` → **0 issues** ✅
+- `flutter test` → **36/36 πέρασαν** ✅ (νέα βάση + προϋπάρχοντα)
+
+### Backups
+- `backups/*_pre_C5_20260903_190413.dart` (group_chat_mixin, chat_repository_clear, chat_repository_delete)
+- `backups/oldsessions_pre_C5tests_20260903_223059.md`, `backups/launch_pre_C5tests_20260903_223059.md`
+
+---
+
+## Session 260 — Βάση unit tests για pure utilities (100%) — 04 Σεπ 2026
+
+### Σκοπός
+Ολοκλήρωση της δημιουργίας σωστής βάσης unit tests για κρίσιμα/καθαρά (pure) τμήματα της εφαρμογής — χωρίς Firebase/UI/network εξαρτήσεις (μόνο `flutter_test`). Τα τεστ αρχεία ΔΕΝ επηρεάζουν το runtime build (φάκελος `test/`), τρέχουν μόνο με `flutter test`, και τα dev_dependencies μένουν εκτός του production bundle.
+
+### Λειτουργικότητα
+- **Νέο** `test/shared/age_validation_test.dart` (16 tests): ομάδες `ageFromBirthYear`, `isAdultBirthYear`, `isPlausibleBirthYear`, `validateBirthYearField` (κενό/non-numeric/min-age/valid).
+- **Νέο** `test/features/chat/system_message_formatter_test.dart` (21 tests): όλα τα actions EL + EN (group_created, group_deleted, participant_added/removed/left, name_changed, role_changed, avatar_changed/removed, max_participants_changed, permission_changed granted/revoked, permission_overrides_reset, message_expiry_changed, delete_request/approved/local, groupName prefix, unknown action).
+- **Νέο** `test/core/geohash_utils_test.dart` (20 tests): encode γνωστών geohash (London `gcpvj`), precision clamping 1..12, decode round-trip, invalid char throws, `precisionFromSetting`, `haversineDistance` (zero/111km per degree/symmetric), `getBounds`, `getNeighbours` (empty/range1/range2/unique/south-pole boundary), `searchPrecision`, `isWithinRadius`.
+- Κανένα νέο runtime αρχείο — μόνο tests.
+
+### Έλεγχος
+- `flutter test` → **93/93 πέρασαν** ✅ (30 προϋπάρχοντα + 6 firestore_cleanup + 57 νέα pure-utility)
+- `flutter analyze` → **0 issues** ✅ (αφαιρέθηκε `dart:math` unused import από geohash test)
+
+### Backups
+- `backups/oldsessions_pre_unit_tests_20260904_101600.md`, `backups/launch_pre_unit_tests_20260904_101600.md`
 
 ---
 

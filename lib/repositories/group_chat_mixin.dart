@@ -585,15 +585,11 @@ mixin GroupChatMixin {
         } catch (_) {}
       }
 
-      final messages = await firestore
-          .collection('chats').doc(chatId).collection('messages').get();
-      final batch = firestore.batch();
-      for (final doc in messages.docs) {
-        batch.delete(doc.reference);
-      }
-      batch.delete(firestore.collection('chats').doc(chatId));
+      await deleteChatSubcollection(firestore, chatId, 'audit_log', fatal: false);
+      await deleteChatSubcollection(firestore, chatId, 'invites', fatal: false);
+      await deleteChatSubcollection(firestore, chatId, 'messages', fatal: false);
       await deleteAllChatMedia(chatId);
-      await batch.commit();
+      await firestore.collection('chats').doc(chatId).delete();
       await (db.delete(db.chatCacheTable)..where((t) => t.chatId.equals(chatId))).go();
       DebugConfig.log(DebugConfig.repositoryResult, 'deleteGroup: done $chatId');
     } catch (e, s) {

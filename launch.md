@@ -1,9 +1,11 @@
 # NearMe — Launch Readiness & Action Plan
 
-> **Έκδοση:** 1.1.0+1 · **Schema:** v15 · **Firebase:** `nearme-eu` (eur3 / europe-west1) · **Τελευταία ενημέρωση:** 03 Σεπ 2026
-> **Κατάσταση:** Φάσεις 1-3 λειτουργικές, B1-B7 FIXED ✅ (26/08-03/09), C1-C4 FIXED ✅ (02-03 Σεπ 2026), moderation scaffolding (flag OFF) — εκκρεμούν C5/C6 + M1-M4
+> **Έκδοση:** 1.1.0+1 · **Schema:** v15 · **Firebase:** `nearme-eu` (eur3 / europe-west1) · **Τελευταία ενημέρωση:** 04 Σεπ 2026
+> **Κατάσταση:** Φάσεις 1-3 λειτουργικές, B1-B7 FIXED ✅ (26/08-03/09), C1-C4 FIXED ✅ (02-03 Σεπ 2026), **C5 FIXED ✅ (03 Σεπ 2026)**, βάση unit tests 93/93 ✅ (04 Σεπ), moderation scaffolding (flag OFF) — εκκρεμούν C6 + M1-M4
 
 **Changelog:**
+- **04 Σεπ 2026 — Unit tests βάση ✅:** 57 νέα pure-utility tests σε 3 αρχεία (`test/shared/age_validation_test.dart` ×16, `test/features/chat/system_message_formatter_test.dart` ×21, `test/core/geohash_utils_test.dart` ×20) πάνω στα 36 του Session 259 → **`flutter test` 93/93** ✅. Κανένα runtime αρχείο δεν άλλαξε.
+- **03 Σεπ 2026 — C5 DONE:** Cleanup `audit_log` + `invites` στο `deleteGroup` + διόρθωση bug >500 μηνυμάτων (pagination). SPoT helper `deleteChatSubcollection` (`firestore_cleanup.dart`) + refactor `clearMessages`/`_deleteChatForEveryone`. Βάση τεστ: +`fake_cloud_firestore` + `test/repositories/firestore_cleanup_test.dart` ×6 → `flutter test` 36/36 ✅. Σημείωση: `flutter pub add` παρέσυρε firebase bumps (firebase_core 4.14, cloud_firestore 6.9, firebase_auth 6.6 κλπ) — εντός range, κρατήθηκαν.
 - **03 Σεπ 2026 — B7 DONE:** Αφαίρεση `firebase-analytics` dependency (`build.gradle.kts:74`) — 1 γραμμή, `firebase-bom`+`crashlytics` παραμένουν. Data Safety "Analytics: Not collected" ευθυγραμμίστηκε.
 - **03 Σεπ 2026 — C2/C3/C4 DONE:**
   - **C2** Relabel E2E → "Encrypted (AES-256-GCM)" (`error_messages.dart:143` + `chat_screen.dart:132-135` `_showEncryptionInfo`).
@@ -275,7 +277,7 @@
 
 ---
 
-### 2.2 High Priority — Διορθώστε πριν το public launch (C1-C4 ✅ DONE, μένουν C5/C6)
+### 2.2 High Priority — Διορθώστε πριν το public launch (C1-C5 ✅ DONE, μένει C6)
 
 #### C1 — Presence Stale (60s heartbeat, όχι onDisconnect) — FIXED ✅ (Session 255, 2 Σεπ 2026)
 
@@ -418,23 +420,17 @@ await StorageHelpers.uploadBytesWithTimeout(..., stripped);
 
 ---
 
-#### C5 — Audit Log Leak μετά από deleteGroup
+#### C5 — Audit Log Leak μετά από deleteGroup — ✅ DONE (Session 259, 03 Σεπ 2026)
 
-**Υπάρχει:** `lib/repositories/group_chat_mixin.dart:583` `deleteGroup` → deletes `messages` `500` batches + `chats` doc, αλλά **όχι** `audit_log` subcollection.
+**Υπάρχει:** `lib/repositories/group_chat_mixin.dart` `deleteGroup` → deletes `messages` + `chats` doc, αλλά **δεν** καθάριζε τα subcollections `audit_log` και `invites`, και είχε pre-existing bug: τα messages διαγράφονταν σε ΕΝΑ batch χωρίς pagination → αποτυχία σε ομάδες με >500 μηνύματα.
 
 **Πρόβλημα:** Orphan docs χρεώνονται, GDPR retention.
 
-**Πρόταση:**
-```dart
-// group_chat_mixin.dart:583 — μετά το messages batch
-final auditSnap = await chatRef.collection('audit_log').get();
-for (var i = 0; i < auditSnap.docs.length; i += 500) {
-  final batch = firestore.batch();
-  for (final d in auditSnap.docs.skip(i).take(500)) batch.delete(d.reference);
-  await batch.commit();
-}
-```
-Ή CF `deleteGroupData` trigger.
+**Λύση (υλοποιημένη):**
+- Νέο SPoT helper `deleteChatSubcollection` σε `lib/core/utils/firestore_cleanup.dart` (batching 500, flag `fatal`, debug flags).
+- `deleteGroup` → `deleteChatSubcollection(audit_log)` + `(invites)` + `(messages)` (non-fatal) → `deleteAllChatMedia` → parent `chats/{chatId}` delete **τελευταίο**.
+- Refactor DRY: `clearMessages` + `_deleteChatForEveryone` χρησιμοποιούν τον ίδιο helper.
+- **Τεστ:** +`fake_cloud_firestore` dev dependency, `test/repositories/firestore_cleanup_test.dart` ×6 · +57 pure-utility tests (Session 260) → `flutter analyze` clean, `flutter test` **93/93** ✅.
 
 ---
 
@@ -533,14 +529,14 @@ for (var i = 0; i < auditSnap.docs.length; i += 500) {
 [ ]     flutter clean → pub get → build_runner → analyze → build appbundle --obfuscate --split-debug-info
 ```
 
-### Phase B — High Fixes — ✅ DONE (C1-C4), μένουν C5/C6
+### Phase B — High Fixes — ✅ DONE (C1-C5), μένει C6
 
 ```
 [x] C1  CF expireStalePresence + heartbeat 30s          ✅ DONE S255 (sweeper only, heartbeat rejected)
 [x] C2  Relabel E2E → "Encrypted" (5 min) — proper ECDH για v1.2   ✅ DONE S257
 [x] C3  CF checkMessageRateLimit (αντιγραφή search)     ✅ DONE S257 (deployed)
 [x] C4  stripExif σε group avatar                       ✅ DONE S257
-[ ] C5  audit_log delete σε deleteGroup                 (εκκρεμεί)
+[x] C5  audit_log + invites delete σε deleteGroup (+bug>500) ✅ DONE S259 + τεστ
 [ ] C6  FirestoreService.withTimeout                    (εκκρεμεί)
 ```
 
@@ -608,7 +604,7 @@ adb install build/app/outputs/bundle/release/app-release.aab --test
 | Phase | Χρόνος | Blocker; |
 |---|---|---|
 | A Store Blockers | 0 μέρες | ✅ DONE (B1-B7) |
-| B High Fixes | 0 μέρες | ✅ DONE (C1-C4) — μόνο C5/C6 απομένουν |
+| B High Fixes | 0 μέρες | ✅ DONE (C1-C5) — μόνο C6 απομένει |
 | C Medium | ~1 μέρα | NICE — M1-M4 (εκκρεμεί) |
 | D Post-launch | 2-4 εβδομάδες | v1.1 |
 

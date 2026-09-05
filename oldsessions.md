@@ -253,11 +253,11 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 | Μέτρο | Τιμή |
 |---|---|
 | Completion | ~99.9% (Phases 1-3 100%, MultiChat 100%, Media 100%, Chat Redesign 100%, Audio Messages 100%, **B5 Privacy Policy 100%**) |
-| `.dart` files | ~140 (non-generated, +`vision_moderation_service.dart` + `avatar_blur.dart` + `moderation_section.dart` + `splash_screen.dart` + `firestore_cleanup.dart` + `bubble_timestamp.dart` + `video_content_panel.dart` [Session 262] + `public_profile_sections.dart` + `public_profile_photo_gallery.dart` + `public_profile_actions.dart` [Session 263] + `chat_media_sender_mixin.dart` + `chat_input_banners.dart` [Session 265]) |
+| `.dart` files | ~142 (non-generated, +`vision_moderation_service.dart` + `avatar_blur.dart` + `moderation_section.dart` + `splash_screen.dart` + `firestore_cleanup.dart` + `bubble_timestamp.dart` + `video_content_panel.dart` [Session 262] + `public_profile_sections.dart` + `public_profile_photo_gallery.dart` + `public_profile_actions.dart` [Session 263] + `chat_media_sender_mixin.dart` + `chat_input_banners.dart` [Session 265] + `public_profile_json.dart` + `publish_payload.dart` [Session 266]) |
 | Firestore indexes | 21 composite deployed |
 | Cloud Functions | 17 deployed `europe-west1` (gen1, Node 22), συμπ. `checkImageModeration` + `moderateImage` (Vision moderation, eur3), `addGroupParticipant`/`leaveGroup`, `expireStaleRequests/Messages`, `computeGeoHash`, `checkSearchRateLimit`, `deleteUserData`, `onReportCreated`, `onRequestCreated` (server `expiresAt`, Session 261), 5 FCM |
 | Build | `flutter analyze` clean ✅, release APK ~41.7MB (debug) / ~20.8MB (R8), signed `gr.nearme.app` (CN=NearMe) |
-| Tests | 127/127 passed (Session 265: 119 +8 νέα widget tests — `chat_input_bar_test` — πάνω στα 119 του Session 264) |
+| Tests | 167/167 passed (Session 266: 127 +7 search +33 profile — πάνω στα 127 του Session 265) |
 | Schema | Drift v17, 7 tables (+crashReportsEnabled, blurExplicitEnabled, blurSigma 0/10/20/32) |
 | Moderation | Active (Sessions 253-255): Global Normal + User Blur — Vision SafeSearch `eu-vision.googleapis.com`, thresholds Adult/Violence LIKELY+ reject, Racy never \(only blur\), blur POSSIBLE/LIKELY via `avatar_blur.dart` + `blurSigma` slider SPoT (`moderation_section.dart` + `_BlurSigmaTile` reuse `_AutoLockTile`). Kill-switch `config/moderation`, `moderationLog` rules |
 | Photo Fix | `EqualUnmodifiableListView` → `List.from` `profile_editor_screen.dart:153,161` (Session 244) |
@@ -266,7 +266,7 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 | Hosting | **B5 FIXED 30/08/2026** — `firebase.json:21` hosting `public:hosting cleanUrls:true` + `hosting/privacy.html` 10.5KB + `hosting/terms.html` 1.1KB → `https://nearme-eu.web.app/privacy` (200) deployed `firebase deploy --only hosting` · tile `SettingsScreen:211` `AppConfig.privacyPolicyUrl` · email `soc.near.app@gmail.com` |
 
 ## ΚΕΦΑΛΑΙΟ 7 — KEY CONVENTIONS
-- File size ≤ 500 lines (exceptions: profile_repository_impl ~570, chat_repository_impl ~590 with user permission)
+- File size ≤ 500 lines (exceptions: profile_repository_impl ~765, chat_repository_impl ~590 with user permission)
 - `DebugConfig.log(flag, msg)` σε κάθε operational action (33 flags, 3 levels)
 - `ErrorView`/`LoadingView`/`EmptyView` + `AppMessenger` — ποτέ raw ScaffoldMessenger
 - Bilingual (el/en): `L10n.isGreek()` + `L10n.localizedMessage()`
@@ -2590,6 +2590,45 @@ Global Normal (server) + User Blur (client): Vision SafeSearch thresholds — **
 
 ### Backups
 - `backups/chat_input_bar_pre_S265_20260905_120647.dart`, `backups/oldsessions_pre_S265_20260905_122924.md`, `backups/launch_pre_S265_20260905_122924.md`
+
+## Session 266 — Repo tests: firestore_search + profile_repository_impl refactor + 40 νέα tests — 05 Σεπ 2026
+
+### Σκοπός
+Αύξηση unit/integration coverage (>8.1%) με repository tests πάνω σε `fake_cloud_firestore`. Βήμα 1: firestore_search_repository (+7). Βήμα 2: profile_repository_impl — απαιτούσε safe refactor (DI `userProvider` + extraction) για να γίνει testable → +33 νέα tests. Βήμα 3 (εκκρεμεί): chat_repository.
+
+### Βήμα 1 — firestore_search_repository_test (+7)
+- `test/repositories/firestore_search_repository_test.dart` — pure search: no-location route, εύρεση, 2 users, empty, privacy showName/photo, precision street vs neighborhood exclusions, λάθος precision.
+- SPoT fixtures `test/helpers/fake_firestore_helpers.dart`: `publicProfileDoc`, `seedPublicProfile(s)`, `geoCell`.
+- Γνωστό όριο: `fake_cloud_firestore` δεν υποστηρίζει cursor/`startAfter` με `orderBy('__name__')` → page2 branch ακάλυπτο.
+
+### Βήμα 2 — ProfileRepositoryImpl refactor (εγκρίθηκε με OK) + 33 νέα tests
+- **Επανέλεγχος πριν το edit εντόπισε 2 λάθη του αρχικού πλάνου:**
+  1. Οι 2 parsers (profile/search) ΔΕΝ ήταν ίδιοι — profile έχει uid guards (null/empty/**non-String**) + try/catch, search μόνο try/catch → το SPoT αφορά μόνο το κοινό try/catch `tryParsePublicProfile`· τα guards μένουν στο profile repo.
+  2. Το `applyPublishPreserves` ΠΡΕΠΕΙ να καλείται εντός του ίδιου try/catch (τα `as bool`/`as String` casts ρίχνουν) και να κάνει **mutation** του json map (όχι νέο map).
+- **Νέο `lib/core/utils/public_profile_json.dart`** — SPoT `tryParsePublicProfile(Map<String,dynamic>)` (try/catch + warn `profile-parse-failed`).
+- **Νέο `lib/features/profile/utils/publish_payload.dart`** — `buildPublicProfileForPublish` (+lang από PlatformDispatcher), `publicProfileToPayloadJson` (null-removal, `isOnline` removal, normalized city/country/nicknameLowercase), `applyPublishPreserves`.
+- **`profile_repository_impl.dart` 795→765** — removal `dart:ui` import· `_currentUserProvider`/`userProvider` ctor param (additive, default null)· getter `_user`: **provider-exclusive** αν δοθεί (ακόμα κι αν επιστρέφει null), αλλιώς `FirebaseAuth.instance.currentUser` (ίδια production συμπεριφορά)· helper `_profileDoc(uid)` με return `DocumentReference<Map<String, dynamic>>`· parser body → SPoT· publish block → extracted calls· path patterns → `_profileDoc(uid)`. (Εξαίρεση 500-ορίου — οριακά εγκεκριμένη.)
+- **`firestore_search_repository.dart`** — αφαίρεση `_tryParsePublicProfile`, 3 call sites → `tryParsePublicProfile(data)`.
+- **`test/helpers/fake_firestore_helpers.dart`** (+~90) — `profileTableData({int? birthYear=1995, ...})`, `privacySettingsData({...})`.
+
+### Τεχνικά ευρήματα
+- `AppDatabase.forTesting(NativeDatabase.memory())` λειτουργεί σε test VM (drift native).
+- Publish με lat/lng καλεί CF `computeGeoHash` → tests χρησιμοποιούν manual-location fixtures (χωρίς lat/lng, μηδενικό CF).
+- Firestore `updatedAt` fixtures: ISO-8601 **string** (freezed json DateTime), όχι `Timestamp`.
+- `privacySettingsData` defaults = DB defaults (`showEmail: false`, `showPhone: false`).
+- `repoWithoutUser()` → `userProvider: () => null` (provider-exclusive getter: με mock θα έπεφτε).
+- Drift errors δεν είναι `catch (_)` (self-protection asserted) — καλύπτονται στο body.
+- Fixes κατά τη διάρκεια: `DocumentReference<Map<String,dynamic>>` (Object errors), `_currentUserProvider` (lint `prefer_initializing_formals`), ISO updatedAt, `birthYear: null` support, αφαίρεση unused `cloud_firestore` import.
+
+### Αποτέλεσμα γραμμών
+- `profile_repository_impl.dart`: 795 → 765 (net −30, μοναδική εξαίρεση >500 με έγκριση)
+
+### Έλεγχος
+- `flutter analyze` → **0 issues** ✅
+- `flutter test` → **127/127 → 167/167** ✅ (+7 search · +33: `public_profile_json_test` ×5, `publish_payload_test` ×14, `profile_repository_impl_test` ×14 — integration Drift in-memory + fake firestore + mocktail `_MockUser`)
+
+### Backups
+- `backups/profile_repository_impl_pre_S266_20260905_133836.dart`, `backups/firestore_search_repository_pre_S266_20260905_133836.dart`, `backups/fake_firestore_helpers_pre_S266_20260905_134643.dart`, `backups/oldsessions_pre_S266_20260905_135723.md`, `backups/launch_pre_S266_20260905_135723.md`
 
 ---
 

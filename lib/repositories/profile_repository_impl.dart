@@ -1,12 +1,13 @@
-import 'dart:ui' show PlatformDispatcher;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:drift/drift.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../core/debug/debug_config.dart';
 import '../core/utils/app_exception.dart';
+import '../core/utils/public_profile_json.dart';
 import '../data/local/database.dart';
 import '../data/local/database_service.dart';
+import '../features/profile/utils/publish_payload.dart';
 import '../shared/models/public_profile.dart';
 import '../shared/models/user_status.dart';
 import '../shared/utils/age_validation.dart';
@@ -21,23 +22,37 @@ const Duration _presenceTTL = Duration(seconds: 120);
 class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepository {
   final AppDatabase _db;
   final FirebaseFirestore _firestore;
+  final User? Function()? _currentUserProvider;
 
   ProfileRepositoryImpl({
     required this._firestore,
     AppDatabase? db,
-  }) : _db = db ?? DatabaseService.instance;
-  User? get _user => FirebaseAuth.instance.currentUser;
+    User? Function()? userProvider,
+  })  : _db = db ?? DatabaseService.instance,
+        _currentUserProvider = userProvider;
+
+// DI hook για tests: αν δοθεί userProvider, αυτός είναι Η μόνη πηγή αλήθειας
+// (ακόμα κι αν επιστρέψει null). Default null → FirebaseAuth.instance
+// (ακριβώς η παλιά συμπεριφορά — καμία αλλαγή σε production).
+  User? get _user {
+    final provider = _currentUserProvider;
+    if (provider != null) return provider();
+    return FirebaseAuth.instance.currentUser;
+  }
+
+  DocumentReference<Map<String, dynamic>> _profileDoc(String uid) =>
+      _firestore
+          .collection('users')
+          .doc(uid)
+          .collection('public')
+          .doc('profile');
 
   PublicProfile? _safePublicProfileFromJson(Map<String, dynamic>? data) {
     if (data == null) return null;
     final uid = data['uid'];
     if (uid == null || (uid is String && uid.isEmpty)) return null;
     if (uid is! String) return null;
-    try {
-      return PublicProfile.fromJson(data);
-    } catch (_) {
-      return null;
-    }
+    return tryParsePublicProfile(data);
   }
 
   @override
@@ -55,12 +70,7 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
         DebugConfig.log(DebugConfig.repositoryResult,
             'getProfile: ${profile.nickname ?? "(unnamed)"} (local)');
         try {
-          final doc = await _firestore
-              .collection('users')
-              .doc(uid)
-              .collection('public')
-              .doc('profile')
-              .get();
+          final doc = await _profileDoc(uid).get();
           if (doc.exists) {
             final data = doc.data();
             if (data != null) {
@@ -102,12 +112,7 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
         return profile;
       }
       try {
-        final doc = await _firestore
-            .collection('users')
-            .doc(uid)
-            .collection('public')
-            .doc('profile')
-            .get();
+        final doc = await _profileDoc(uid).get();
         if (!doc.exists) {
           DebugConfig.log(
               DebugConfig.repositoryResult, 'getProfile: null (no local, no firestore)');
@@ -354,49 +359,14 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
           profile.latitudeExact != null && profile.longitudeExact != null;
 
       final now = DateTime.now();
-      final publicProfile = PublicProfile(
+      final publicProfile = buildPublicProfileForPublish(
         uid: uid,
-        nickname: privacy?.showNickname == true ? profile.nickname : null,
-        age: privacy?.showAge == true && profile.birthYear != null
-            ? now.year - profile.birthYear!
-            : null,
-        gender: privacy?.showGender == true ? profile.gender : null,
-        city: privacy?.showCity == true ? profile.city : null,
-        country: privacy?.showCountry == true ? profile.country : null,
-        interests: privacy?.showInterests == true ? profile.interests : null,
-        occupations: privacy?.showOccupation == true ? profile.occupations : null,
-        lookingFor: privacy?.showLookingFor == true ? profile.lookingFor : null,
-        bio: privacy?.showBio == true ? profile.bio : null,
-        avatarUrl: privacy?.showAvatar == true ? profile.avatarUrl : null,
-        photoUrls: privacy?.showPhotos == true ? profile.photoUrls : null,
-        avatarRacyLevel:
-            privacy?.showAvatar == true ? profile.avatarRacyLevel : null,
-        photoRacyLevels:
-            privacy?.showPhotos == true ? profile.photoRacyLevels : null,
-        email: privacy?.showEmail == true ? profile.email : null,
-        phone: privacy?.showPhone == true ? profile.phone : null,
-        allowVideoCall: privacy?.allowVideoCall ?? false,
-        allowDirectChat: privacy?.allowDirectChat ?? false,
-        isManualLocation: profile.latitudeExact == null && profile.longitudeExact == null,
-        isVisible: true,
-        lang: PlatformDispatcher.instance.locale.languageCode == 'el' ? 'el' : 'en',
-        updatedAt: now,
+        profile: profile,
+        privacy: privacy,
+        now: now,
       );
 
-      final json = publicProfile.toJson()
-        ..removeWhere((_, v) => v == null)
-        ..remove('isOnline');
-
-// Normalized fields για case-insensitive city/country search
-      if (publicProfile.city != null && publicProfile.city!.isNotEmpty) {
-        json['cityNormalized'] = publicProfile.city!.toLowerCase().trim();
-      }
-      if (publicProfile.country != null && publicProfile.country!.isNotEmpty) {
-        json['countryNormalized'] = publicProfile.country!.toLowerCase().trim();
-      }
-      if (publicProfile.nickname != null && publicProfile.nickname!.isNotEmpty) {
-        json['nicknameLowercase'] = publicProfile.nickname!.toLowerCase().trim();
-      }
+      final json = publicProfileToPayloadJson(publicProfile);
       DebugConfig.log(DebugConfig.firestoreWrite,
           'publish JSON: nicknameLowercase=${json['nicknameLowercase']}, '
               'city=${json['city']}, country=${json['country']}, '
@@ -411,29 +381,13 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
             .doc('profile')
             .get();
         if (existingDoc.exists) {
-          final existingData = existingDoc.data();
-          final existingIsOnline = existingData?['isOnline'];
-          if (existingIsOnline != null) {
-            json['isOnline'] = existingIsOnline as bool;
-          }
-          // Preserve το υπάρχον geoHash (ίδιο idiom με isOnline παραπάνω) —
-          // αποφεύγει flicker/κενό στο discovery search μέχρι να τρέξει η
-          // computeGeoHash function παρακάτω.
-          final existingGeoHash = existingData?['geoHash'];
-          if (existingGeoHash != null) {
-            json['geoHash'] = existingGeoHash as String;
-          }
-          // Preserve το ενεργό SOS helpRequest (sos.md §9.2): κρατάμε το πεδίο
-          // ΜΟΝΟ όσο ο χρήστης παραμένει verified (canUserCommunicate) — αλλιώς
-          // ο targeted validation rule θα απέρριπτε το publish (απαιτεί isVerified
-          // όταν το helpRequest γράφεται στο payload). N1.
-          final existingHelpRequest = existingData?['helpRequest'];
-          if (existingHelpRequest != null &&
-              AuthRepository.canUserCommunicate(_user)) {
-            json['helpRequest'] = existingHelpRequest;
-            DebugConfig.log(DebugConfig.helpRequest,
-                'publish: preserved active helpRequest (uid=$uid, verified)');
-          }
+          // Preserve το υπάρχον isOnline/geoHash/helpRequest (mutates το json).
+          // Οι casts μπορούν να πετάξουν TypeError και πιάνονται εδώ (όπως πριν).
+          applyPublishPreserves(
+            json,
+            existing: existingDoc.data(),
+            canCommunicate: AuthRepository.canUserCommunicate(_user),
+          );
         }
       } catch (e) {
         DebugConfig.warn('publish: failed to read existing isOnline/geoHash', data: e);
@@ -508,12 +462,7 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
       return;
     }
     try {
-      await _firestore
-          .collection('users')
-          .doc(uid)
-          .collection('public')
-          .doc('profile')
-          .delete();
+      await _profileDoc(uid).delete();
       final profile = await getProfile();
       if (profile != null) {
         await saveProfile(profile.copyWith(isPublished: false));
@@ -551,12 +500,7 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
     }
     try {
       if (active) {
-        await _firestore
-            .collection('users')
-            .doc(uid)
-            .collection('public')
-            .doc('profile')
-            .update({
+        await _profileDoc(uid).update({
           'helpRequest': {
             'active': true,
             'message': message ?? '',
@@ -568,12 +512,7 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
         DebugConfig.log(DebugConfig.helpRequest,
             'setHelpRequest: SOS ACTIVATED uid=$uid radiusKm=${radiusKm ?? 10.0} message="$message"');
       } else {
-        await _firestore
-            .collection('users')
-            .doc(uid)
-            .collection('public')
-            .doc('profile')
-            .update({
+        await _profileDoc(uid).update({
           'helpRequest': FieldValue.delete(),
         });
         await _db.logConsent(uid, 'help_request_deactivate', 'public');
@@ -654,12 +593,7 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
       DebugConfig.warn('publicProfileStream: no authenticated user');
       return const Stream.empty();
     }
-    return _firestore
-        .collection('users')
-        .doc(uid)
-        .collection('public')
-        .doc('profile')
-        .snapshots()
+    return _profileDoc(uid).snapshots()
         .map((snapshot) {
       if (!snapshot.exists) {
         DebugConfig.log(DebugConfig.firestoreStream, 'publicProfileStream: doc deleted');
@@ -687,12 +621,7 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
       return null;
     }
     try {
-      final doc = await _firestore
-          .collection('users')
-          .doc(uid)
-          .collection('public')
-          .doc('profile')
-          .get();
+      final doc = await _profileDoc(uid).get();
       if (!doc.exists) {
         DebugConfig.log(DebugConfig.repositoryResult, 'getPublicProfile: not found');
         return null;
@@ -719,12 +648,7 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
       DebugConfig.warn('streamPublicProfile: no authenticated user');
       return const Stream.empty();
     }
-    return _firestore
-        .collection('users')
-        .doc(uid)
-        .collection('public')
-        .doc('profile')
-        .snapshots()
+    return _profileDoc(uid).snapshots()
         .map((snapshot) {
       if (!snapshot.exists) return null;
       final data = snapshot.data();

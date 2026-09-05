@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/debug/debug_config.dart';
 import '../core/utils/app_exception.dart';
 import '../core/utils/geohash_utils.dart';
+import '../core/utils/public_profile_json.dart';
 import '../shared/models/public_profile.dart';
 import 'search_repository.dart';
 
@@ -10,19 +11,6 @@ class FirestoreSearchRepository implements SearchRepository {
 
   FirestoreSearchRepository({FirebaseFirestore? firestore})
       : _firestore = firestore ?? FirebaseFirestore.instance;
-
-  /// Try/catch ανά έγγραφο (sos.md §9.1 / Εύρημα #4): ένα malformed δημόσιο
-  /// προφίλ (π.χ. κατεστραμμένο nested `helpRequest`) skip-άρεται με warn αντί
-  /// να ρίξει ΟΛΗ την αναζήτηση. Χωρίς side effect σε hasMore/cursor (raw docs).
-  PublicProfile? _tryParsePublicProfile(Map<String, dynamic> data) {
-    try {
-      return PublicProfile.fromJson(data);
-    } catch (e) {
-      DebugConfig.warn(
-          'FirestoreSearchRepository: skipped malformed public profile (uid=${data['uid']}): $e');
-      return null;
-    }
-  }
 
   @override
   Future<SearchResult> search(SearchFilters filters,
@@ -147,7 +135,7 @@ class FirestoreSearchRepository implements SearchRepository {
         if (uid.isEmpty || seen.contains(uid)) continue;
         seen.add(uid);
         data['uid'] ??= uid;
-        final parsed = _tryParsePublicProfile(data);
+        final parsed = tryParsePublicProfile(data);
         if (parsed != null) all.add(parsed);
       }
     }
@@ -233,7 +221,7 @@ class FirestoreSearchRepository implements SearchRepository {
     for (final d in snapshot.docs) {
       final data = d.data() as Map<String, dynamic>;
       data['uid'] ??= d.reference.parent.parent?.id;
-      final parsed = _tryParsePublicProfile(data);
+      final parsed = tryParsePublicProfile(data);
       if (parsed != null) all.add(parsed);
     }
 
@@ -325,7 +313,7 @@ class FirestoreSearchRepository implements SearchRepository {
           if (uid.isEmpty || seen.contains(uid)) continue;
           seen.add(uid);
           data['uid'] ??= uid;
-          final parsed = _tryParsePublicProfile(data);
+          final parsed = tryParsePublicProfile(data);
           if (parsed != null) results.add(parsed);
         }
       }

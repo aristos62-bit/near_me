@@ -1141,6 +1141,136 @@ export const checkRequestRateLimit = functions.region(REGION).https.onCall(async
   }
 });
 
+export const redeemGroupInvite = functions.region(REGION).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+  }
+
+  const token = data?.token;
+  if (!token || typeof token !== 'string' || token.length === 0) {
+    throw new functions.https.HttpsError('invalid-argument', 'token must be a non-empty string');
+  }
+
+  const uid = context.auth.uid;
+
+  try {
+    // Phase A — εντοπισμός invite έξω από το transaction (collectionGroup query
+    // δεν επιτρέπεται μέσα σε runTransaction). Χρησιμοποιεί το ίδιο single-field
+    // index που χρησιμοποιεί και το getInviteInfo στον client.
+    const inviteQuery = await db
+      .collectionGroup('invites')
+      .where('token', '==', token)
+      .limit(1)
+      .get();
+
+    if (inviteQuery.empty) {
+      throw new functions.https.HttpsError('not-found', 'Invite not found');
+    }
+
+    const inviteDoc = inviteQuery.docs[0];
+    const seg = inviteDoc.ref.path.split('/'); // chats/{chatId}/invites/{inviteId}
+    const chatId = seg[1];
+    const inviteId = seg[3];
+    const chatRef = db.doc(`chats/${chatId}`);
+    const inviteRef = db.doc(`chats/${chatId}/invites/${inviteId}`);
+
+    const result = await db.runTransaction(async (transaction) => {
+      const chatSnap = await transaction.get(chatRef);
+      if (!chatSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'Chat not found');
+      }
+      const chatData = chatSnap.data()!;
+      if (chatData.isGroupChat !== true) {
+        throw new functions.https.HttpsError('failed-precondition', 'Not a group chat', { reason: 'not_group' });
+      }
+
+      const participants: string[] = chatData.participants ?? [];
+
+      // already member → επιτυχία-νύματα ΠΡΙΝ την κατανάλωση: idempotent retry
+      // (π.χ. kill-mid-CF) και re-open invite από υπάρχον μέλος.
+      if (participants.includes(uid)) {
+        return {
+          alreadyMember: true,
+          chatId,
+          groupName: (chatData.groupName as string) ?? null,
+          newNickname: null,
+        };
+      }
+
+      // Ξανα-επικύρωση invite ΜΕΣΑ στο transaction (TOCTOU-safe).
+      const inviteSnap = await transaction.get(inviteRef);
+      if (!inviteSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'Invite missing');
+      }
+      const inviteData = inviteSnap.data()!;
+
+      if (inviteData.isRevoked === true) {
+        throw new functions.https.HttpsError('failed-precondition', 'Invite revoked', { reason: 'revoked' });
+      }
+      const expiresAt = inviteData.expiresAt as admin.firestore.Timestamp | undefined;
+      if (expiresAt && expiresAt.toMillis() <= Date.now()) {
+        throw new functions.https.HttpsError('failed-precondition', 'Invite expired', { reason: 'expired' });
+      }
+      const maxUses = Number(inviteData.maxUses ?? 10);
+      const useCount = Number(inviteData.useCount ?? 0);
+      if (useCount >= maxUses) {
+        throw new functions.https.HttpsError('resource-exhausted', 'Invite uses exhausted', { reason: 'max_uses' });
+      }
+
+      if (participants.length >= Number(chatData.maxParticipants ?? 10)) {
+        throw new functions.https.HttpsError('resource-exhausted', 'Group is full', { reason: 'group_full' });
+      }
+
+      // Παράλληλα block-check + profile read (γλιτώνει 1+N roundtrips σε μεγάλες ομάδες).
+      const [blockedSnaps, profileSnap] = await Promise.all([
+        Promise.all(participants.map((pUid) => transaction.get(db.doc(`users/${pUid}/blocked/${uid}`)))),
+        transaction.get(db.doc(`users/${uid}/public/profile`)),
+      ]);
+      for (const blockedSnap of blockedSnaps) {
+        if (blockedSnap.exists) {
+          throw new functions.https.HttpsError('failed-precondition', 'Blocked by a participant', { reason: 'blocked' });
+        }
+      }
+      const newNickname = (profileSnap.data()?.nickname as string) ?? uid;
+      const newAvatarUrl = profileSnap.data()?.avatarUrl as string | undefined;
+
+      transaction.update(chatRef, {
+        participants: admin.firestore.FieldValue.arrayUnion(uid),
+        [`participantNicknames.${uid}`]: newNickname,
+        ...(newAvatarUrl ? { [`participantAvatarUrls.${uid}`]: newAvatarUrl } : {}),
+        [`participantRoles.${uid}`]: 'member',
+        [`participantJoinedAt.${uid}`]: admin.firestore.FieldValue.serverTimestamp(),
+        [`participantInvitedBy.${uid}`]: inviteData.createdBy ?? null,
+        [`participantIsActive.${uid}`]: true,
+      });
+
+      transaction.update(inviteRef, {
+        usedBy: admin.firestore.FieldValue.arrayUnion(uid),
+        useCount: admin.firestore.FieldValue.increment(1),
+      });
+
+      return {
+        alreadyMember: false,
+        chatId,
+        groupName: (chatData.groupName as string) ?? null,
+        newNickname,
+      };
+    });
+
+    functions.logger.info(
+      `redeemGroupInvite: ${uid} joined ${result.chatId} via token (alreadyMember=${result.alreadyMember})`,
+    );
+
+    return { success: true, ...result };
+  } catch (e) {
+    if (e instanceof functions.https.HttpsError) {
+      throw e;
+    }
+    functions.logger.error(`redeemGroupInvite: unexpected error for token`, e);
+    throw new functions.https.HttpsError('internal', 'Internal error');
+  }
+});
+
 export const leaveGroup = functions.region(REGION).https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');

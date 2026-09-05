@@ -68,6 +68,43 @@ mixin GroupChatMixin {
     }
   }
 
+  /// Mapper για το redeemGroupInvite. Διαχωρίζει τους overloaded κωδικούς μέσα
+  /// από το `details.reason` της CF (π.χ. failed-precondition = blocked vs
+  /// revoked/expired), ώστε ο χρήστης να βλέπει πάντα το σωστό μήνυμα.
+  AppException _cfRedeemErrorToAppException(FirebaseFunctionsException e) {
+    final code = e.code.replaceFirst('functions/', '');
+    final details = e.details;
+    final reason = (details is Map) ? details['reason'] : null;
+    switch (code) {
+      case 'failed-precondition':
+        if (reason == 'blocked') {
+          return AppException.auth('redeem_invite',
+              'Αποκλείστηκε από συμμετέχοντα / Blocked by a participant');
+        }
+        return AppException.auth('redeem_invite',
+            'Η πρόσκληση δεν είναι πλέον έγκυρη / Invite is no longer valid');
+      case 'resource-exhausted':
+        if (reason == 'group_full') {
+          return AppException.auth('redeem_invite',
+              'Η ομάδα είναι γεμάτη / Group is full');
+        }
+        return AppException.auth('redeem_invite',
+            'Η πρόσκληση εξαντλήθηκε / Invite uses exhausted');
+      case 'not-found':
+        return AppException.firestore('redeem_invite',
+            'Η πρόσκληση δεν βρέθηκε ή έχει λήξει / Invite not found or expired');
+      case 'permission-denied':
+        return AppException.auth('redeem_invite',
+            'Δεν έχεις δικαίωμα για αυτή την ενέργεια / You do not have permission for this action');
+      case 'unauthenticated':
+        return AppException.auth('redeem_invite',
+            'Απαιτείται σύνδεση / Authentication required');
+      default:
+        return AppException.firestore('redeem_invite',
+            'Αποτυχία συμμετοχής / Failed to join group');
+    }
+  }
+
   String _defaultGroupName(Map<String, String> nicknames) {
     final names = nicknames.values.toList();
     if (names.length <= 3) return names.join(', ');
@@ -934,6 +971,7 @@ mixin GroupChatMixin {
     if (user == null) throw AppException.auth('redeem_invite', 'Δεν υπάρχει χρήστης / No user');
 
     try {
+      // Fast-path pre-check: αποτρέπει κλήσεις CF για προφανώς άκυρα tokens.
       final inviteSnap = await firestore
           .collectionGroup('invites')
           .where('token', isEqualTo: token)
@@ -948,7 +986,6 @@ mixin GroupChatMixin {
 
       final inviteDoc = inviteSnap.docs.first;
       final data = inviteDoc.data();
-      final chatId = inviteDoc.reference.parent.parent!.id;
       final expiresAt = (data['expiresAt'] as Timestamp?)?.toDate();
       final maxUses = data['maxUses'] as int?;
       final useCount = data['useCount'] as int? ?? 0;
@@ -962,14 +999,40 @@ mixin GroupChatMixin {
         return null;
       }
 
-      await inviteDoc.reference.update({
-        'usedBy': FieldValue.arrayUnion([user.uid]),
-        'useCount': FieldValue.increment(1),
-      });
+      // Ατομικό join + κατανάλωση server-side (redeemGroupInvite). Ο client ΔΕΝ
+      // γράφει πια usedBy/useCount — αλλιώς το invite θα «καιγόταν» σε αποτυχία.
+      final result = await FirebaseFunctions.instanceFor(region: 'europe-west1')
+          .httpsCallable('redeemGroupInvite')
+          .call({'token': token});
+      final resultData = (result.data as Map?) ?? const {};
+      final chatId = resultData['chatId'] as String?;
+      if (chatId == null || chatId.isEmpty) {
+        throw AppException.firestore('redeem_invite', 'Αποτυχία συμμετοχής / Failed to join group');
+      }
+      final alreadyMember = resultData['alreadyMember'] == true;
 
-      await addParticipant(chatId, user.uid);
-      DebugConfig.log(DebugConfig.repositoryResult, 'redeemInviteLink: joined $chatId via token=$token');
+      if (!alreadyMember) {
+        await _sendSystemMessage(chatId, 'participant_added', user.uid, [user.uid]);
+        await _logAudit(chatId, 'invite_join', user.uid, details: {'inviteToken': token});
+        await db.logConsent(user.uid, 'group_joined', 'group');
+        await _updatePublicProfileMemberCount(chatId);
+      }
+
+      DebugConfig.log(DebugConfig.repositoryResult,
+          'redeemInviteLink: joined $chatId via token=$token (alreadyMember=$alreadyMember)');
       return chatId;
+    } on FirebaseFunctionsException catch (e) {
+      final code = e.code.replaceFirst('functions/', '');
+      if (code != 'failed-precondition' &&
+          code != 'resource-exhausted' &&
+          code != 'not-found' &&
+          code != 'permission-denied' &&
+          code != 'unauthenticated') {
+        DebugConfig.warn('redeemInviteLink: CF transient error (${e.code}) — fail-soft null', data: e);
+        return null;
+      }
+      DebugConfig.error('redeemInviteLink failed', data: e);
+      throw _cfRedeemErrorToAppException(e);
     } catch (e, s) {
       if (e is AppException) rethrow;
       DebugConfig.error('redeemInviteLink failed', data: e, exception: s);

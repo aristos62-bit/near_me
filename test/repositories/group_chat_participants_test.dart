@@ -303,18 +303,25 @@ void main() {
       expect(chatId, isNull);
     });
 
-    test('redeemInviteLink valid → addParticipant απορρίπτει τον εαυτό (auth_error)',
+    test('redeemInviteLink valid χωρίς CF → null, χωρίς consume, χωρίς προσθήκη',
         () async {
-      await seedGroup();
+      await seedGroup(participants: [kTestOther, 'u3']);
       await seedInvite('g1', 'a', token: 'tok_ok');
 
-      // Το redeem καλεί addParticipant(chatId, user.uid) — προσθήκη του
-      // ίδιου χρήστη → auth_error πριν καν την Cloud Function.
-      await expectLater(
-        h.repo.redeemInviteLink('tok_ok'),
-        throwsA(isA<AppException>()
-            .having((e) => e.code, 'code', 'auth_error')),
-      );
+      // Το join γίνεται server-side (redeemGroupInvite). Σε VM χωρίς CF η
+      // κλήση αποτυγχάνει fail-soft → null — και το invite ΔΕΝ καταναλώνεται
+      // client-side (fix Bug B), ούτε προστίθεται μέλος (fix Bug A).
+      final chatId = await h.repo.redeemInviteLink('tok_ok');
+
+      expect(chatId, isNull);
+
+      final doc = await h.firestore.collection('chats').doc('g1').get();
+      expect(doc.data()!['participants'], isNot(contains(kTestUid)));
+
+      final invite = await h.firestore
+          .collection('chats').doc('g1').collection('invites').doc('a').get();
+      expect(invite.data()!['useCount'], 0);
+      expect(invite.data()!['usedBy'], isEmpty);
     });
   });
 

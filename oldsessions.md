@@ -257,7 +257,7 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 | Firestore indexes | 21 composite deployed |
 | Cloud Functions | 17 deployed `europe-west1` (gen1, Node 22), συμπ. `checkImageModeration` + `moderateImage` (Vision moderation, eur3), `addGroupParticipant`/`leaveGroup`, `expireStaleRequests/Messages`, `computeGeoHash`, `checkSearchRateLimit`, `deleteUserData`, `onReportCreated`, `onRequestCreated` (server `expiresAt`, Session 261), 5 FCM |
 | Build | `flutter analyze` clean ✅, release APK ~41.7MB (debug) / ~20.8MB (R8), signed `gr.nearme.app` (CN=NearMe) |
-| Tests | 167/167 passed (Session 266: 127 +7 search +33 profile — πάνω στα 127 του Session 265) |
+| Tests | 280/280 passed (Session 267: 167 +113 chat repository — πάνω στα 167 του Session 266) |
 | Schema | Drift v17, 7 tables (+crashReportsEnabled, blurExplicitEnabled, blurSigma 0/10/20/32) |
 | Moderation | Active (Sessions 253-255): Global Normal + User Blur — Vision SafeSearch `eu-vision.googleapis.com`, thresholds Adult/Violence LIKELY+ reject, Racy never \(only blur\), blur POSSIBLE/LIKELY via `avatar_blur.dart` + `blurSigma` slider SPoT (`moderation_section.dart` + `_BlurSigmaTile` reuse `_AutoLockTile`). Kill-switch `config/moderation`, `moderationLog` rules |
 | Photo Fix | `EqualUnmodifiableListView` → `List.from` `profile_editor_screen.dart:153,161` (Session 244) |
@@ -266,7 +266,7 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 | Hosting | **B5 FIXED 30/08/2026** — `firebase.json:21` hosting `public:hosting cleanUrls:true` + `hosting/privacy.html` 10.5KB + `hosting/terms.html` 1.1KB → `https://nearme-eu.web.app/privacy` (200) deployed `firebase deploy --only hosting` · tile `SettingsScreen:211` `AppConfig.privacyPolicyUrl` · email `soc.near.app@gmail.com` |
 
 ## ΚΕΦΑΛΑΙΟ 7 — KEY CONVENTIONS
-- File size ≤ 500 lines (exceptions: profile_repository_impl ~765, chat_repository_impl ~590 with user permission)
+- File size ≤ 500 lines (exceptions: profile_repository_impl ~765, chat_repository_impl 1228 με εγκεκριμένα parts: delete/clear/message_actions/group_chat_mixin, main)
 - `DebugConfig.log(flag, msg)` σε κάθε operational action (33 flags, 3 levels)
 - `ErrorView`/`LoadingView`/`EmptyView` + `AppMessenger` — ποτέ raw ScaffoldMessenger
 - Bilingual (el/en): `L10n.isGreek()` + `L10n.localizedMessage()`
@@ -2629,6 +2629,45 @@ Global Normal (server) + User Blur (client): Vision SafeSearch thresholds — **
 
 ### Backups
 - `backups/profile_repository_impl_pre_S266_20260905_133836.dart`, `backups/firestore_search_repository_pre_S266_20260905_133836.dart`, `backups/fake_firestore_helpers_pre_S266_20260905_134643.dart`, `backups/oldsessions_pre_S266_20260905_135723.md`, `backups/launch_pre_S266_20260905_135723.md`
+
+---
+
+## Session 267 — Repo tests: ChatRepositoryImpl + GroupChatMixin πλήρες (113 νέα tests) — 05 Σεπ 2026
+
+### Σκοπός
+Βήμα 3 του πλάνου coverage: chat_repository πλήρης (1-1 core, delete flows, clear/actions, group management + participants/invites). Coverage: 15.9% → **21.6%**.
+
+### Δημιουργήθηκαν (113 νέα tests)
+- `test/helpers/chat_repository_test_base.dart` (135 γρ.) — shared `ChatRepoHarness`: `AppDatabase.forTesting` + `FakeFirebaseFirestore` + mocktail `_MockAuth`/`_MockUser` + seeders (`seedCacheRow`/`seedChatDoc`/`seedMessage`), `kTestUid`/`kTestOther`.
+- `test/repositories/chat_repository_impl_test.dart` (39, 416 γρ.) — core 1-1: auth guards (no user/unverified), getChats order, updateChatCache (συμπ. duplicate cleanup guard — σβήνει ΚΑΙ ΤΑ ΔΥΟ, όχι re-insert), createChat (Tier1 cache hit / Firestore scan / blocked / success), sendMessage (encrypt roundtrip, unreadCount, replyTo, expiresAt), messagesStream (decrypt / system-media types / corrupt fallback), fetchOlderMessages (`endBefore`), markAsRead, reactions.
+- `test/repositories/chat_repository_delete_test.dart` (16) — deleteMessage (δικό/άλλου/1-1), `requestDeleteChat`/`deleteChat` (active other → system `delete_request` + `pendingDelete`, χωρίς active → πλήρης διαγραφή), `approveDeleteChat`/`rejectDeleteChat`/`cancelDeleteRequest`, `deleteChatForMe` (with/without active other), `deleteAllChatMedia` non-fatal σε VM.
+- `test/repositories/chat_repository_clear_test.dart` (11) — `clearMessages` (1-1/group role/admin·no-role), `clearMessageCaches`, `editMessage` (6 σενάρια + decrypt roundtrip).
+- `test/repositories/group_chat_manage_test.dart` (26) — `createGroupChat` (5 validations + success + public profile), `updateGroupName`, `updateParticipantRole`, `updateMaxParticipants`, `updateMessageExpiry`, `deleteGroup`, `getParticipantUids`, `hasPermission`.
+- `test/repositories/group_chat_participants_test.dart` (21) — `addParticipant`/`removeParticipant` (admin path + creator transfer + self-leave CF), `joinPublicGroup` (private/already/full/success), invites (create/get/revoke/getInfo/redeem), `removeGroupAvatar` non-fatal VM.
+
+### Τεχνικά ευρήματα / documented limitations
+- `fake_cloud_firestore` batch.update με πολλαπλά dotted-key updates στο ίδιο path εφαρμόζει **μόνο το πρώτο** — όχι prod bug (real Firestore batch atomic). Το `syncMyProfileAcrossChats` multi-chat δοκιμάζεται μόνο για no-throw.
+- `fetchOlderMessages` `endBefore`+`limitToLast` λειτουργεί στο fake **με `Timestamp`, όχι DateTime**.
+- `deleteChatSubcollection` (batch.delete) λειτουργεί στο fake.
+- Cloud Functions (`addGroupParticipant`/`leaveGroup`) στο VM → AppException.firestore / raw exception — τα paths πριν/μετά την κλήση τεστάρονται, outcome τεκμηριωμένο.
+- **Πραγματικό εύρημα: `redeemInviteLink` πάντα αποτυγχάνει** — καλεί `addParticipant(chatId, user.uid)` (προσθήκη του εαυτού) → πάντα `auth_error` «Δεν μπορείς να προσθέσεις τον εαυτό σου» πριν καν το CF. Εκκρεμεί απόφαση (εκτός scope tests, δεν άλλαξε κώδικα).
+- `EncryptionUtils` fail-safe σε VM: `getKeyOrDerive`/`storeKey`/`deleteKey` MissingPluginException caught → `derive` fallback → πραγματικό encrypt/decrypt roundtrip στα tests.
+- 3 test fixes στη ροή: duplicate-cleanup expectation (prod σβήνει και τα 2), `fetchOlderMessages` timestamps (m2 Jun 2 > beforeTimestamp Jun 1 12:00), group system message prefix = **νέο** groupName (διάβασμα μετά το update).
+
+### Refactor: splittting test αρχείου ≤500
+- `chat_repository_impl_test.dart` **601→416** + νέο `chat_repository_misc_test.dart` (111) — `syncMyProfileAcrossChats`/`searchUsersByNickname`/`chatDocStream`/`clearMessageCaches`. Backup `backups/chat_repository_impl_test_pre_split_*.dart`.
+- Όλα τα νέα test/helper αρχεία ≤500 γρ.
+
+### Έλεγχος
+- `flutter analyze` → **0 issues** ✅
+- `flutter test` → **167/167 → 280/280** ✅ (+113)
+- Coverage: 15.9% → **21.6%** (LF 19524, LH 4208)
+
+### Backups
+- `backups/oldsessions_pre_S267_*.md`, `backups/launch_pre_S267_*.md`, `backups/chat_repository_impl_test_pre_split_*.dart`
+
+### Εκκρεμεί
+- Μελλοντικά: block/report/request repository tests (βήμα 4) · catch-up στα CF paths με emulator · απόφαση για `redeemInviteLink`.
 
 ---
 

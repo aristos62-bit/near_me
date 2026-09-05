@@ -1,28 +1,20 @@
 import 'dart:async';
-import 'dart:io';
-import 'dart:typed_data';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_cropper/image_cropper.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:video_player/video_player.dart';
-import 'package:get_thumbnail_video/index.dart';
-import 'package:get_thumbnail_video/video_thumbnail.dart';
+
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/services/incoming_share_service.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/error_messages.dart';
-import '../../../shared/utils/image_utils.dart';
 import '../../../repositories/auth_repository.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
-import 'audio_recorder_sheet.dart';
+import 'chat_input_banners.dart';
+import 'chat_media_sender_mixin.dart';
 import 'emoji_only_bubble.dart';
-import 'gif_picker_sheet.dart';
-import 'media_picker_sheet.dart';
-import 'message_bubble/reply_preview.dart';
 
 class ChatInputBar extends ConsumerStatefulWidget {
   final String chatId;
@@ -48,7 +40,8 @@ class ChatInputBar extends ConsumerStatefulWidget {
   ConsumerState<ChatInputBar> createState() => _ChatInputBarState();
 }
 
-class _ChatInputBarState extends ConsumerState<ChatInputBar> {
+class _ChatInputBarState extends ConsumerState<ChatInputBar>
+    with ChatMediaSenderMixin<ChatInputBar> {
   final _focusNode = FocusNode();
   bool _isLoading = false;
   String? _errorMessage;
@@ -59,6 +52,21 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
   // καθαρίσουμε το stale quote στο dispose ΧΩΡΙΣ ref.read (απαγορεύεται στο
   // Riverpod 3 κατά το unmount — crash "Using ref when unmounted").
   late final ReplyToMessageNotifier _replyNotifier;
+
+  @override
+  String get chatId => widget.chatId;
+
+  @override
+  bool get emojiPickerVisible => widget.emojiPickerVisible;
+
+  @override
+  VoidCallback get onEmojiDismiss => widget.onEmojiDismiss;
+
+  @override
+  VoidCallback get onEmojiToggle => widget.onEmojiToggle;
+
+  @override
+  void setSending(bool value) => setState(() => _isLoading = value);
 
   @override
   void initState() {
@@ -94,14 +102,16 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     super.dispose();
   }
 
-  void _clearError() {
+  @override
+  void clearError() {
     _errorTimer?.cancel();
     if (_errorMessage != null) {
       setState(() => _errorMessage = null);
     }
   }
 
-  void _showInlineError(String code) {
+  @override
+  void showInlineError(String code) {
     final msg = ErrorMessages.get(code, L10n.isGreek(context));
     _errorTimer?.cancel();
     setState(() => _errorMessage = msg);
@@ -126,15 +136,15 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     }
     _lastSendAt = now;
     final editingMsg = ref.read(editingMessageProvider.select((s) => s[widget.chatId]));
-    _clearError();
-    setState(() => _isLoading = true);
+    clearError();
+    setSending(true);
     if (editingMsg != null) {
       final msgId = editingMsg['id'] as String? ?? '';
       final ok = await ref
           .read(chatActionsProvider.notifier)
           .editMessage(widget.chatId, msgId, text);
       if (!mounted) return;
-      setState(() => _isLoading = false);
+      setSending(false);
       if (ok) {
         widget.textController.clear();
         _clearEdit();
@@ -142,28 +152,29 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
       } else {
         widget.textController.text = text;
         final chatState = ref.read(chatActionsProvider);
-        _showInlineError(chatState.errorMessage ?? 'chat/edit-failed');
+        showInlineError(chatState.errorMessage ?? 'chat/edit-failed');
       }
     } else {
-      final replyToData = _buildReplyData();
+      final replyToData = buildReplyData();
       final ok = await ref
           .read(chatActionsProvider.notifier)
           .sendMessage(widget.chatId, text, replyTo: replyToData);
       if (!mounted) return;
-      setState(() => _isLoading = false);
+      setSending(false);
       if (ok) {
         widget.textController.clear();
-        _clearReply();
+        clearReply();
         widget.onEmojiDismiss();
       } else {
         widget.textController.text = text;
         final chatState = ref.read(chatActionsProvider);
-        _showInlineError(chatState.errorMessage ?? 'chat/send-failed');
+        showInlineError(chatState.errorMessage ?? 'chat/send-failed');
       }
     }
   }
 
-  void _clearReply() {
+  @override
+  void clearReply() {
     DebugConfig.log(DebugConfig.chatReply, 'ChatInputBar: clear reply');
     ref.read(replyToMessageProvider.notifier).clear(widget.chatId);
   }
@@ -173,16 +184,8 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     ref.read(editingMessageProvider.notifier).clear(widget.chatId);
   }
 
-  String _mediaPreview(String type, String content, bool isEmoji, {bool greek = false}) {
-    if (type == 'audio') return greek ? '🎵 Ηχογράφηση' : '🎵 Recording';
-    if (type == 'gif') return '🎞️ GIF';
-    if (type == 'image') return greek ? '📷 Φωτογραφία' : '📷 Photo';
-    if (type == 'video') return greek ? '🎬 Βίντεο' : '🎬 Video';
-    if (isEmoji) return content.trim();
-    return content.length > 80 ? '${content.substring(0, 80)}...' : content;
-  }
-
-  Map<String, dynamic>? _buildReplyData() {
+  @override
+  Map<String, dynamic>? buildReplyData() {
     final replyToMsg = ref.read(replyToMessageProvider.select((s) => s[widget.chatId]));
     if (replyToMsg == null) return null;
 
@@ -192,7 +195,7 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     final currentUid = ref.read(authStateProvider).value?.uid ?? '';
     final isEmoji = type == 'text' && isOnlyEmoji(content);
 
-    final contentPreview = _mediaPreview(type, content, isEmoji);
+    final contentPreview = chatMediaPreview(type, content, isEmoji);
     final thumbnailUrl = replyToMsg['thumbnailUrl'] as String?;
     final hasMediaUrl = (type == 'image' || type == 'gif') && content.isNotEmpty
         || type == 'video' && thumbnailUrl != null && thumbnailUrl.isNotEmpty;
@@ -216,349 +219,13 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     };
   }
 
-  Future<void> _pickGif() async {
-    DebugConfig.log(DebugConfig.uiInteraction, 'ChatInputBar: GIF picker shown');
-    if (widget.emojiPickerVisible) widget.onEmojiDismiss();
-    await showGifPickerSheet(context, onSelected: (url) async {
-      if (!mounted) return;
-      final replyToData = _buildReplyData();
-      _clearReply();
-      _clearError();
-      setState(() => _isLoading = true);
-      final ok = await ref.read(chatActionsProvider.notifier)
-          .sendMediaMessage(widget.chatId, content: url, type: 'gif', replyTo: replyToData);
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-      if (!ok) {
-        _showInlineError('chat/gif-send-failed');
-      }
-    });
-  }
-
-  Future<void> _pickAndSendPhoto() => _pickImage(ImageSource.gallery, 'photo');
-
-  Future<void> _pickAndSendCamera() => _pickImage(ImageSource.camera, 'camera');
-
-  Future<void> _pickImage(ImageSource source, String debugLabel) async {
-    DebugConfig.log(DebugConfig.uiInteraction, 'ChatInputBar: $debugLabel picker shown');
-    if (widget.emojiPickerVisible) widget.onEmojiDismiss();
-    try {
-      final picker = ImagePicker();
-      final picked = await picker.pickImage(
-        source: source,
-        imageQuality: 70,
-        maxWidth: 1280,
-        maxHeight: 1280,
-      );
-      if (picked == null || !mounted) return;
-      final cropped = await ImageCropper.platform.cropImage(
-        sourcePath: picked.path,
-        maxWidth: 1024,
-        maxHeight: 1024,
-      );
-      if (cropped == null || !mounted) return;
-      final bytes = await ImageUtils.stripExif(
-          await File(cropped.path).readAsBytes());
-      final replyToData = _buildReplyData();
-      _clearReply();
-      _clearError();
-      setState(() => _isLoading = true);
-      final ok = await ref.read(chatActionsProvider.notifier)
-          .sendMediaMessage(widget.chatId, content: '', type: 'image', replyTo: replyToData, imageBytes: bytes);
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-      if (!ok) {
-        final chatState = ref.read(chatActionsProvider);
-        _showInlineError(chatState.errorMessage ?? 'chat/image-send-failed');
-      }
-    } catch (e, s) {
-      DebugConfig.error('ChatInputBar: _$debugLabel pick failed', data: e, exception: s);
-      if (mounted) {
-        _showInlineError('chat/image-send-failed');
-      }
-    }
-  }
-
-  Future<void> _recordAndSend() async {
-    if (widget.emojiPickerVisible) widget.onEmojiDismiss();
-    final result = await showAudioRecorderSheet(context);
-    if (!mounted || result == null) return;
-    final replyToData = _buildReplyData();
-    _clearReply();
-    _clearError();
-    setState(() => _isLoading = true);
-    final ok = await ref.read(chatActionsProvider.notifier)
-        .sendMediaMessage(widget.chatId,
-            content: '', type: 'audio',
-            replyTo: replyToData,
-            audioBytes: result.bytes,
-            duration: result.durationSeconds);
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-    if (!ok) {
-      _showInlineError('chat/audio-send-failed');
-    }
-  }
-
-  Future<void> _pickAndSendVideoGallery() =>
-      _pickVideo(ImageSource.gallery, 'videoGallery');
-
-  Future<void> _pickAndSendVideoCamera() =>
-      _pickVideo(ImageSource.camera, 'videoCamera');
-
-  Future<void> _pickVideo(ImageSource source, String debugLabel) async {
-    DebugConfig.log(DebugConfig.chatVideo,
-        'ChatInputBar: $debugLabel picker shown');
-    if (widget.emojiPickerVisible) widget.onEmojiDismiss();
-
-    try {
-      final picker = ImagePicker();
-      final picked = await picker.pickVideo(
-        source: source,
-        maxDuration: const Duration(seconds: 30),
-      );
-      if (picked == null || !mounted) return;
-
-      final fileSize = await picked.length();
-      if (fileSize >= 50 * 1024 * 1024) {
-        if (!mounted) return;
-        _showInlineError('chat/video-too-large');
-        return;
-      }
-
-      int durationSeconds = 0;
-      try {
-        final controller = VideoPlayerController.file(File(picked.path));
-        await controller.initialize();
-        durationSeconds = controller.value.duration.inSeconds;
-        await controller.dispose();
-      } catch (e) {
-        DebugConfig.warn('ChatInputBar: video duration read failed', data: e);
-      }
-
-      if (!mounted) return;
-      if (durationSeconds > 30) {
-        _showInlineError('chat/video-too-long');
-        return;
-      }
-      if (durationSeconds < 1) {
-        _showInlineError('chat/video-too-short');
-        return;
-      }
-
-      Uint8List? thumbBytes;
-      try {
-        thumbBytes = await VideoThumbnail.thumbnailData(
-          video: picked.path,
-          imageFormat: ImageFormat.JPEG,
-          maxWidth: 480,
-          quality: 70,
-        );
-      } catch (e) {
-        DebugConfig.warn('ChatInputBar: thumbnail generation failed', data: e);
-      }
-
-      if (!mounted) return;
-      final replyToData = _buildReplyData();
-      _clearReply();
-      _clearError();
-      setState(() => _isLoading = true);
-      final ok = await ref.read(chatActionsProvider.notifier)
-          .sendMediaMessage(widget.chatId,
-          content: '', type: 'video',
-          replyTo: replyToData,
-          videoPath: picked.path,
-          duration: durationSeconds,
-          thumbnailBytes: thumbBytes);
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-      if (!ok) {
-        final chatState = ref.read(chatActionsProvider);
-        _showInlineError(chatState.errorMessage ?? 'chat/video-send-failed');
-      }
-    } catch (e, s) {
-      DebugConfig.error('ChatInputBar: $debugLabel pick failed', data: e,
-          exception: s);
-      if (mounted) {
-        _showInlineError('chat/video-send-failed');
-      }
-    }
-  }
-
-  Future<void> _showMediaPicker() async {
-    DebugConfig.log(DebugConfig.uiInteraction, 'ChatInputBar: media + pressed');
-    if (widget.emojiPickerVisible) widget.onEmojiDismiss();
-    final action = await showMediaPickerSheet(context);
-    if (!mounted || action == null) return;
-    switch (action) {
-      case MediaAction.emoji:
-        DebugConfig.log(DebugConfig.uiInteraction,
-            'ChatInputBar: media popup: emoji');
-        widget.onEmojiToggle();
-      case MediaAction.gif:
-        DebugConfig.log(DebugConfig.uiInteraction,
-            'ChatInputBar: media popup: gif');
-        _pickGif();
-      case MediaAction.photo:
-        DebugConfig.log(DebugConfig.uiInteraction,
-            'ChatInputBar: media popup: photo');
-        _pickAndSendPhoto();
-      case MediaAction.camera:
-        DebugConfig.log(DebugConfig.uiInteraction,
-            'ChatInputBar: media popup: camera');
-        _pickAndSendCamera();
-      case MediaAction.record:
-        DebugConfig.log(DebugConfig.chatAudio,
-            'ChatInputBar: record pressed');
-        _recordAndSend();
-      case MediaAction.videoGallery:
-        DebugConfig.log(DebugConfig.chatVideo,
-            'ChatInputBar: media popup: video gallery');
-        _pickAndSendVideoGallery();
-      case MediaAction.videoCamera:
-        DebugConfig.log(DebugConfig.chatVideo,
-            'ChatInputBar: media popup: video camera');
-        _pickAndSendVideoCamera();
-    }
-  }
-
-  Widget _buildReplyBanner(BuildContext context, ThemeData theme, bool greek, Map<String, dynamic> replyToMsg) {
-    final senderId = replyToMsg['senderId'] as String? ?? '';
-    final content = replyToMsg['content'] as String? ?? '';
-    final type = replyToMsg['type'] as String? ?? 'text';
-    final currentUid = ref.read(authStateProvider).value?.uid ?? '';
-    final isEmoji = type == 'text' && isOnlyEmoji(content);
-
-    final preview = _mediaPreview(type, content, isEmoji);
-    final thumbnailUrl = replyToMsg['thumbnailUrl'] as String?;
-    final mediaUrl = (type == 'image' || type == 'gif') && content.isNotEmpty
-        ? content
-        : (type == 'video' && thumbnailUrl != null && thumbnailUrl.isNotEmpty
-            ? thumbnailUrl
-            : null);
-
-    final senderNickname = senderId == currentUid
-        ? ''
-        : (replyToMsg['_privateReplySenderNickname'] as String? ??
-        widget.participantNicknames[senderId] ??
-        senderId);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withAlpha(120),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      child: Row(
-        children: [
-          Icon(Icons.reply, size: 18, color: theme.colorScheme.onSurfaceVariant),
-          const SizedBox(width: 8),
-          if (mediaUrl != null) ...[
-            ReplyMediaThumbnail(imageUrl: mediaUrl),
-            const SizedBox(width: 8),
-          ],
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (senderNickname.isNotEmpty)
-                  Text(
-                    senderNickname,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
-                Text(
-                  preview,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.close, size: 18),
-            onPressed: _clearReply,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-            visualDensity: VisualDensity.compact,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEditBanner(BuildContext context, ThemeData theme, bool greek, Map<String, dynamic> editingMsg) {
-    final content = editingMsg['content'] as String? ?? '';
-    final type = editingMsg['type'] as String? ?? 'text';
-    final isEmoji = type == 'text' && isOnlyEmoji(content);
-
-    final preview = _mediaPreview(type, content, isEmoji, greek: greek);
-
-    DebugConfig.log(DebugConfig.chatReply,
-        'ChatInputBar: edit banner: $preview');
-
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer.withAlpha(120),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      child: Row(
-        children: [
-          Icon(Icons.edit, size: 18, color: theme.colorScheme.onSurfaceVariant),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  greek ? 'Επεξεργασία μηνύματος' : 'Editing message',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-                Text(
-                  preview,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.close, size: 18),
-            onPressed: () {
-              widget.textController.clear();
-              _clearEdit();
-            },
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-            visualDensity: VisualDensity.compact,
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final greek = L10n.isGreek(context);
     final theme = Theme.of(context);
     final currentUser =
         ref.watch(authStateProvider).value ?? FirebaseAuth.instance.currentUser;
+    final authUid = ref.watch(authStateProvider).value?.uid ?? '';
     final canComm = AuthRepository.canUserCommunicate(currentUser);
     final replyToMsg = ref.watch(replyToMessageProvider.select((s) => s[widget.chatId]));
     final editingMsg = ref.watch(editingMessageProvider.select((s) => s[widget.chatId]));
@@ -597,9 +264,21 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (editingMsg != null)
-                _buildEditBanner(context, theme, greek, editingMsg)
+                ChatEditBanner(
+                  message: editingMsg,
+                  greek: greek,
+                  onClose: () {
+                    widget.textController.clear();
+                    _clearEdit();
+                  },
+                )
               else if (replyToMsg != null)
-                _buildReplyBanner(context, theme, greek, replyToMsg),
+                ChatReplyBanner(
+                  message: replyToMsg,
+                  participantNicknames: widget.participantNicknames,
+                  currentUid: authUid,
+                  onClose: clearReply,
+                ),
               if (_errorMessage != null)
                 Container(
                   width: double.infinity,
@@ -639,7 +318,7 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
                   if (!_isLoading && !incomingShareUploading)
                     IconButton(
                       icon: const Icon(Icons.add_circle_outline),
-                      onPressed: _showMediaPicker,
+                      onPressed: showMediaPicker,
                       tooltip: greek ? 'Προσθήκη' : 'Add',
                     ),
                   Expanded(child: TextField(

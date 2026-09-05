@@ -253,11 +253,11 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 | Μέτρο | Τιμή |
 |---|---|
 | Completion | ~99.9% (Phases 1-3 100%, MultiChat 100%, Media 100%, Chat Redesign 100%, Audio Messages 100%, **B5 Privacy Policy 100%**) |
-| `.dart` files | ~138 (non-generated, +`vision_moderation_service.dart` + `avatar_blur.dart` + `moderation_section.dart` + `splash_screen.dart` + `firestore_cleanup.dart` + `bubble_timestamp.dart` + `video_content_panel.dart` [Session 262] + `public_profile_sections.dart` + `public_profile_photo_gallery.dart` + `public_profile_actions.dart` [Session 263]) |
+| `.dart` files | ~140 (non-generated, +`vision_moderation_service.dart` + `avatar_blur.dart` + `moderation_section.dart` + `splash_screen.dart` + `firestore_cleanup.dart` + `bubble_timestamp.dart` + `video_content_panel.dart` [Session 262] + `public_profile_sections.dart` + `public_profile_photo_gallery.dart` + `public_profile_actions.dart` [Session 263] + `chat_media_sender_mixin.dart` + `chat_input_banners.dart` [Session 265]) |
 | Firestore indexes | 21 composite deployed |
 | Cloud Functions | 17 deployed `europe-west1` (gen1, Node 22), συμπ. `checkImageModeration` + `moderateImage` (Vision moderation, eur3), `addGroupParticipant`/`leaveGroup`, `expireStaleRequests/Messages`, `computeGeoHash`, `checkSearchRateLimit`, `deleteUserData`, `onReportCreated`, `onRequestCreated` (server `expiresAt`, Session 261), 5 FCM |
 | Build | `flutter analyze` clean ✅, release APK ~41.7MB (debug) / ~20.8MB (R8), signed `gr.nearme.app` (CN=NearMe) |
-| Tests | 119/119 passed (Session 264: 109 +10 νέα widget tests — `public_profile_actions_test` με mocktail — πάνω στα 109 του Session 263) |
+| Tests | 127/127 passed (Session 265: 119 +8 νέα widget tests — `chat_input_bar_test` — πάνω στα 119 του Session 264) |
 | Schema | Drift v17, 7 tables (+crashReportsEnabled, blurExplicitEnabled, blurSigma 0/10/20/32) |
 | Moderation | Active (Sessions 253-255): Global Normal + User Blur — Vision SafeSearch `eu-vision.googleapis.com`, thresholds Adult/Violence LIKELY+ reject, Racy never \(only blur\), blur POSSIBLE/LIKELY via `avatar_blur.dart` + `blurSigma` slider SPoT (`moderation_section.dart` + `_BlurSigmaTile` reuse `_AutoLockTile`). Kill-switch `config/moderation`, `moderationLog` rules |
 | Photo Fix | `EqualUnmodifiableListView` → `List.from` `profile_editor_screen.dart:153,161` (Session 244) |
@@ -2564,6 +2564,32 @@ Global Normal (server) + User Blur (client): Vision SafeSearch thresholds — **
 
 ### Backups
 - `backups/public_profile_actions_test_pre_20260905_113236.dart`, `backups/oldsessions_pre_S264_20260905_114731.md`, `backups/launch_pre_S264_20260905_114731.md`
+
+---
+
+## Session 265 — Refactor #3: chat_input_bar 683→~365 + widget tests (100%) — 05 Σεπ 2026
+
+### Σκοπός
+Μείωση του `chat_input_bar.dart` (683 γρ.) κάτω από το όριο 500 + δημιουργία widget tests — χωρίς καμία αλλαγή συμπεριφοράς/εμφάνισης/API (constructor παραμένει, μοναδικός καταναλωτής `chat_screen.dart:384` δεν άλλαξε).
+
+### Λειτουργικότητα
+- **Νέο `lib/features/chat/widgets/chat_media_sender_mixin.dart`** (~215 γρ.) — `mixin ChatMediaSenderMixin<T extends ConsumerStatefulWidget> on ConsumerState<T>`. Pure move των media senders: `pickGif`, `pickAndSendPhoto/Camera`, `pickAndSendVideoGallery/Camera`, `recordAndSend`, `showMediaPicker` + ιδιωτικά `_pickImage`/`_pickVideo`. Μόνο 8 abstract members (chatId, emojiPickerVisible, onEmojiDismiss, onEmojiToggle, buildReplyData, clearReply, clearError, showInlineError, setSending). Ίδια DebugConfig flags/prefixes, ίδια error codes (`chat/gif-send-failed`, `chat/image-send-failed`, `chat/audio-send-failed`, `chat/video-too-large/long/short`), ίδια offsets (50MB, 30s, crop 1024, quality 70).
+- **Νέο `lib/features/chat/widgets/chat_input_banners.dart`** (~185 γρ.) — `ChatReplyBanner`/`ChatEditBanner` (StatelessWidgets με explicit props) + free function `chatMediaPreview` (ex-`_mediaPreview`).
+- **`chat_input_bar.dart`** 683→~365: delete media methods/banners, `with ChatMediaSenderMixin<ChatInputBar>`, banners ως widgets, `buildReplyData` synchronous abstract (και όχι Future — σημαντικό). `authUid` περνιέται στο `ChatReplyBanner` από `authStateProvider.value?.uid` **ακριβώς** όπως πριν (το `build` έχει `.value ?? FirebaseAuth.instance.currentUser` fallback).
+- **Τεχνικά ευρήματα κατά την υλοποίηση**:
+  1. Στο Riverpod 3 το `AsyncValue` **δεν έχει `valueOrNull`** — μόνο `.value`.
+  2. standalone `mixin on ConsumerState` (χωρίς generic) ερμηνεύεται ως `ConsumerState<ConsumerStatefulWidget>` → `conflicting_generic_interfaces`· λύση: generic mixin.
+  3. Στα widget tests το `await` σε fake-async zone δεν ολοκληρώνει ένα πραγματικό `future` (γι' αυτό και το αρχικό κρέμασμα) — το `FirebaseAuth.instance` fallback (χωρίς Firebase app) πετάει `[core/no-app]`. Λύση: warm-up με `ProviderContainer.listen` + `pump()` + assertion `${container.read(...).value}` πριν το build, και μετά `UncontrolledProviderScope`.
+
+### Αποτέλεσμα γραμμών
+- `chat_input_bar.dart`: 683 → ~365 · νέα `chat_media_sender_mixin.dart` (~215) · νέα `chat_input_banners.dart` (~185)
+
+### Έλεγχος
+- `flutter analyze` → **0 issues** ✅
+- `flutter test` → **119/119 → 127/127** ✅ (+8 widget tests `test/widgets/chat_input_bar_test.dart`)
+
+### Backups
+- `backups/chat_input_bar_pre_S265_20260905_120647.dart`, `backups/oldsessions_pre_S265_20260905_122924.md`, `backups/launch_pre_S265_20260905_122924.md`
 
 ---
 

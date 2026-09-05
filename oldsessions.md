@@ -253,11 +253,11 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 | Μέτρο | Τιμή |
 |---|---|
 | Completion | ~99.9% (Phases 1-3 100%, MultiChat 100%, Media 100%, Chat Redesign 100%, Audio Messages 100%, **B5 Privacy Policy 100%**) |
-| `.dart` files | ~135 (non-generated, +`vision_moderation_service.dart` + `avatar_blur.dart` + `moderation_section.dart` + `splash_screen.dart` + `firestore_cleanup.dart` + `bubble_timestamp.dart` + `video_content_panel.dart` — Session 262 refactor) |
+| `.dart` files | ~138 (non-generated, +`vision_moderation_service.dart` + `avatar_blur.dart` + `moderation_section.dart` + `splash_screen.dart` + `firestore_cleanup.dart` + `bubble_timestamp.dart` + `video_content_panel.dart` [Session 262] + `public_profile_sections.dart` + `public_profile_photo_gallery.dart` + `public_profile_actions.dart` [Session 263]) |
 | Firestore indexes | 21 composite deployed |
 | Cloud Functions | 17 deployed `europe-west1` (gen1, Node 22), συμπ. `checkImageModeration` + `moderateImage` (Vision moderation, eur3), `addGroupParticipant`/`leaveGroup`, `expireStaleRequests/Messages`, `computeGeoHash`, `checkSearchRateLimit`, `deleteUserData`, `onReportCreated`, `onRequestCreated` (server `expiresAt`, Session 261), 5 FCM |
 | Build | `flutter analyze` clean ✅, release APK ~41.7MB (debug) / ~20.8MB (R8), signed `gr.nearme.app` (CN=NearMe) |
-| Tests | 106/106 passed (Session 261: C6+M1-M4 fixes +13 tests — timeouts ×5, app_exception ×5, connectivity banner ×3 — πάνω στα 93 του Session 260) |
+| Tests | 119/119 passed (Session 264: 109 +10 νέα widget tests — `public_profile_actions_test` με mocktail — πάνω στα 109 του Session 263) |
 | Schema | Drift v17, 7 tables (+crashReportsEnabled, blurExplicitEnabled, blurSigma 0/10/20/32) |
 | Moderation | Active (Sessions 253-255): Global Normal + User Blur — Vision SafeSearch `eu-vision.googleapis.com`, thresholds Adult/Violence LIKELY+ reject, Racy never \(only blur\), blur POSSIBLE/LIKELY via `avatar_blur.dart` + `blurSigma` slider SPoT (`moderation_section.dart` + `_BlurSigmaTile` reuse `_AutoLockTile`). Kill-switch `config/moderation`, `moderationLog` rules |
 | Photo Fix | `EqualUnmodifiableListView` → `List.from` `profile_editor_screen.dart:153,161` (Session 244) |
@@ -2511,6 +2511,59 @@ Global Normal (server) + User Blur (client): Vision SafeSearch thresholds — **
 
 ### Backups
 - `backups/video_message_bubble_refactor_20260904_141413.dart`, `backups/audio_message_bubble_refactor_20260904_141413.dart`, `backups/oldsessions_pre_refactor_20260904_150838.md`, `backups/launch_pre_refactor_20260904_150838.md`
+
+---
+
+## Session 263 — Refactor #2: public_profile_view_screen 607→131 + widget tests (100%) — 04 Σεπ 2026
+
+### Σκοπός
+Δεύτερο βήμα των refactor για αρχεία >500 γραμμών (δηλωμένο στο μητρώο ως 566, στην πραγματικότητα **607**). Στόχος: καμία αλλαγή συμπεριφοράς/εμφάνισης, διπλοί έλεγχοι (πλήρης ανάγνωση ×2), backup πριν κάθε edit, πλάνο εγκεκριμένο από τον χρήστη με διορθώσεις #1-#4.
+
+### Λειτουργικότητα
+- **Νέο** `public_profile_sections.dart` (185 γρ.): top-level functions `buildProfileLookingForCard` / `buildProfileInterestsCard` / `buildProfileBioCard` / `buildProfileCommunicationCard` / `buildProfileContactCard` / `buildProfileSectionCard` με `BuildContext` ως πρώτο όρισμα· η `buildProfileContactCard(context, profile, theme, isGreek, uid)` κρατά το `DebugConfig.log` με uid.
+- **Νέο** `public_profile_photo_gallery.dart` (64 γρ.): `PublicProfilePhotoGallery` ConsumerWidget, prop μόνο `profile`.
+- **Νέο** `public_profile_actions.dart` (263 γρ.): `PublicProfileActions` ConsumerWidget, props `uid` + `profile`· `mounted`→`context.mounted` ×9 (γραμμές 461, 465, 513, 524, 535, 541, 570, 583, 586)· αφαιρέθηκε λανθασμένο `_isSelf` getter· `_reporterUid` → `ref.read(authStateProvider).value?.uid` μέσα στο `_showReportDialog`.
+- **Αλλαγή 1:** `public_profile_view_screen.dart` **607 → 131** ✅ — σειρά build: `PublicProfileHeader` → `PublicProfilePhotoGallery` (αν photoUrls) → looking-for → interests → bio → communication → contact → `PublicProfileActions`· σειρά actions: request, invite, block, report.
+- **Διορθώσεις χρήστη #1-#4:** (1) `mounted`→`context.mounted` ×9, (2) σειρά υλοποίησης 1→2→3 (sections → gallery → actions), (3) SPoT consistency — gallery/actions υπολογίζουν `isGreek`/`theme` εσωτερικά (pattern `PublicProfileHeader`), (4) αφαίρεση unused imports (`dart:ui`, `cached_network_image`, `feature_flags`, `auth_repository`, `app_messenger`, `avatar_blur`, `report_user_dialog`, `app_settings_provider`, `auth_provider`, `block_provider`, `report_provider`, `chat_provider`) + επαναφορά `profile_provider` (`publicProfileStreamProvider`).
+
+### Αποτέλεσμα γραμμών
+- `public_profile_view_screen.dart`: **607 → 131** ✅ (<500)
+- Νέα αρχεία: `public_profile_sections.dart` 185, `public_profile_photo_gallery.dart` 64, `public_profile_actions.dart` 263
+
+### Έλεγχος
+- `flutter analyze` → **0 issues** ✅
+- `flutter test` → **106/106** ✅ + **3 νέα widget tests** → **109/109** ✅
+- Widget tests (`test/widgets/public_profile_widgets_refactor_test.dart`): (1) PhotoGallery τίτλος «Φωτογραφίες» + 3 placeholders, (2) section cards πλήρες προφίλ — όλα τα πεδία, (3) section cards κενό προφίλ — conditional cards hidden, «Επικοινωνία» πάντα· `appSettingsProvider` override μέσω `_MockAppSettingsNotifier extends AppSettingsNotifier`· `pump(2s)` στο τέλος για το `DebugConfig` 1s Timer.
+- Runtime verification στην εφαρμογή (flagged logs): init/stream/distance, send request, group invite → αναμενόμενο AppException "Το άτομο είναι ήδη στην ομάδα" → error snackbar, block/unblock, request button hidden για no-comm profiles (log `PublicProfileViewScreen: request button hidden (no comm enabled)`)· **κανένα exception**.
+
+### Backups
+- `backups/public_profile_view_screen_refactor_20260904_190842.dart`, `backups/oldsessions_pre_S263_20260904_194702.md`, `backups/launch_pre_S263_20260904_194702.md`
+
+---
+
+## Session 264 — Widget tests: public_profile_actions + mocktail (100%) — 05 Σεπ 2026
+
+### Σκοπός
+Κλείσιμο της κάλυψης για το `PublicProfileActions` — το μόνο widget του Refactor #2 χωρίς tests, με την πιο σύνθετη λογική (canComm/isSelf/no-comm/block-toggle/sheets/dialogs). Προσθήκη `mocktail` (dev dep) για mocking των abstract repos + του Firebase `User`.
+
+### Λειτουργικότητα
+- **mocktail:** `pubspec.yaml:86` `^1.0.4` (→ lock 1.0.5), σωστά τοποθετημένο, `flutter pub get` καθαρό.
+- **3 πραγματικές ρίζες failures που βγήκαν από το τρέξιμο** (όχι προληπτικές αλλαγές):
+  1. **`DebugConfig` 1s Timer** — το `pump(2s)` μόνο του δεν αρκεί: deferred stream-rebuild κάνει build→`log`→νέο timer **μετά** το advance. Λύση: πριν το τελικό `pump(2s)`, `pumpWidget(const SizedBox())` (ξεφόρτωμα δέντρου χωρίς rebuild).
+  2. **Stream timing (`blockedUidsProvider`)** — ένα `pump()` δεν προλαβαίνει το microtask του `Stream.value` → `pumpAndSettle()` πριν από expects που εξαρτώνται από stream data.
+  3. **«Κρύο» `chatsProvider`** — το `ref.read(...).asData` στο group-sheet είναι `null` όταν κανείς δεν κάνει `watch`· το `containerOf.read`-ζέσταμα δεν κρατάει data → λύση `Consumer` + `ref.watch(chatsProvider)` (ίδιο pattern με τον γονικό screen στο app).
+- **Δομή test file:** mocks `Mock implements User/BlockRepository/ReportRepository` + `_FakeChatActionsNotifier` (subclass `ChatActionsNotifier`, records `addParticipant`) + `_verifiedUser` (stubs μόνο `uid`/`isAnonymous`/`emailVerified`/`phoneNumber` — όσα χρειάζεται η στατική `AuthRepository.canUserCommunicate`) + harness `MaterialApp+Scaffold` (locale `el`).
+- **10 tests:** null user → όλα κρυμμένα · isSelf → όλα κρυμμένα · verified stranger → 4 κουμπιά · no-comm → request κρυμμένο · block flow → confirm → `block()` + snackbar · cancel → `block()` never · blocked → «Ξεμπλοκάρισμα» → `unblock()` χωρίς dialog · χωρίς ομάδες → info · με ομάδες → sheet → `addParticipant('chat-1', uid)` + success · report → λόγος + confirm → `submitReport` με σωστά args.
+
+### Αποτέλεσμα γραμμών
+- `test/widgets/public_profile_actions_test.dart`: 369 → ~395 (10 tests)
+
+### Έλεγχος
+- `flutter analyze` → **0 issues** ✅
+- `flutter test` → **109/109 → 119/119** ✅ (+10 widget tests)
+
+### Backups
+- `backups/public_profile_actions_test_pre_20260905_113236.dart`, `backups/oldsessions_pre_S264_20260905_114731.md`, `backups/launch_pre_S264_20260905_114731.md`
 
 ---
 

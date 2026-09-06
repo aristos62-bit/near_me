@@ -476,6 +476,7 @@ class _NearMeAppState extends ConsumerState<NearMeApp> with WidgetsBindingObserv
           'Please restart the app. If the issue persists, reinstall the app.');
     }
 
+
     return MaterialApp.router(
       title: L10n.appNameFromLocale(_deviceLocale),
       debugShowCheckedModeBanner: false,

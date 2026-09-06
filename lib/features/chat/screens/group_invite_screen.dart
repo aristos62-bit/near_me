@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
@@ -98,14 +99,73 @@ class GroupInviteScreen extends ConsumerWidget {
     if (result == null) return;
     final token = await ref.read(chatActionsProvider.notifier)
         .createInviteLink(chatId, expiresIn: Duration(days: result.days), maxUses: result.maxUses);
-    if (token != null && context.mounted) {
-      await Clipboard.setData(ClipboardData(text: token));
+    if (token == null || !context.mounted) return;
+    final snap = ref.read(chatDocProvider(chatId)).value;
+    final groupName = (snap?.data() as Map<String, dynamic>?)?['groupName'] as String?;
+    await _showInviteMessage(context, ref, token: token, groupName: groupName);
+  }
+
+  Future<void> _showInviteMessage(
+    BuildContext context,
+    WidgetRef ref, {
+    required String token,
+    String? groupName,
+  }) async {
+    final greek = L10n.isGreek(context);
+    final message = L10n.inviteInvitationMessage(
+      groupName: groupName ?? '',
+      token: token,
+      isGreek: greek,
+    );
+    DebugConfig.log(DebugConfig.uiInteraction,
+        'GroupInviteScreen: showing invite message dialog (token=${token.length >= 8 ? token.substring(0, 8) : token}...)');
+    final action = await showDialog<_InviteAction>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(greek ? 'Μήνυμα πρόσκλησης' : 'Invitation message'),
+        content: SingleChildScrollView(
+          child: SelectionArea(
+            child: SelectableText(message, style: const TextStyle(height: 1.5)),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, _InviteAction.close),
+            child: Text(greek ? 'Κλείσιμο' : 'Close'),
+          ),
+          TextButton.icon(
+            onPressed: () => Navigator.pop(context, _InviteAction.share),
+            icon: const Icon(Icons.ios_share, size: 18),
+            label: Text(greek ? 'Κοινή χρήση…' : 'Share…'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(context, _InviteAction.copy),
+            icon: const Icon(Icons.copy, size: 18),
+            label: Text(greek ? 'Αντιγραφή' : 'Copy'),
+          ),
+        ],
+      ),
+    );
+    if (action == null || !context.mounted) return;
+    if (action == _InviteAction.copy) {
+      await Clipboard.setData(ClipboardData(text: message));
       if (context.mounted) {
         AppMessenger.showSuccess(context, ErrorMessages.get('group/invite-token-copied', greek));
+      }
+    } else if (action == _InviteAction.share) {
+      try {
+        await SharePlus.instance.share(ShareParams(text: message));
+      } catch (e) {
+        DebugConfig.error('GroupInviteScreen: share invite failed', data: e);
+        if (context.mounted) {
+          AppMessenger.showError(context, ErrorMessages.get('chat/share-failed', greek));
+        }
       }
     }
   }
 }
+
+enum _InviteAction { copy, share, close }
 
 class _CreateResult {
   final int days;
@@ -191,11 +251,18 @@ class _InviteTile extends ConsumerWidget {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () {
-                      Clipboard.setData(ClipboardData(text: invite.token));
-                      AppMessenger.showSuccess(context, ErrorMessages.get('group/invite-copied', greek));
+                      final snap = ref.read(chatDocProvider(chatId)).value;
+                      final groupName = (snap?.data() as Map<String, dynamic>?)?['groupName'] as String?;
+                      final message = L10n.inviteInvitationMessage(
+                        groupName: groupName ?? '',
+                        token: invite.token,
+                        isGreek: greek,
+                      );
+                      Clipboard.setData(ClipboardData(text: message));
+                      AppMessenger.showSuccess(context, ErrorMessages.get('group/invite-token-copied', greek));
                     },
                     icon: const Icon(Icons.copy, size: 16),
-                    label: Text(greek ? 'Αντιγραφή' : 'Copy'),
+                    label: Text(greek ? 'Αντιγραφή πρόσκλησης' : 'Copy invite'),
                   ),
                 ),
               if (isValid) const SizedBox(width: 8),

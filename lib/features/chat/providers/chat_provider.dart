@@ -705,19 +705,19 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
     }
   }
 
-  Future<String?> redeemInviteLink(String token) async {
+  Future<RedeemInviteResult?> redeemInviteLink(String token) async {
     if (!await _checkOnline()) return null;
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: redeemInviteLink');
     state = const ChatActionState(status: ChatActionStatus.loading);
     try {
-      final chatId = await _chatRepo.redeemInviteLink(token);
-      if (chatId != null) {
-        state = ChatActionState(status: ChatActionStatus.success, createdChatId: chatId);
+      final result = await _chatRepo.redeemInviteLink(token);
+      if (result != null) {
+        state = ChatActionState(status: ChatActionStatus.success, createdChatId: result.chatId);
         ref.invalidate(chatsProvider);
       } else {
         state = const ChatActionState(status: ChatActionStatus.success);
       }
-      return chatId;
+      return result;
     } catch (e, s) {
       DebugConfig.error('ChatActions: redeemInviteLink failed', data: e, exception: s);
       state = ChatActionState(status: ChatActionStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'chat'));

@@ -201,6 +201,8 @@ class ErrorMessages {
         return isGreek ? 'Αποτυχία αφαίρεσης μέλους' : 'Failed to remove member';
       case 'group/joined':
         return isGreek ? 'Εντάχθηκες στην ομάδα' : 'Joined the group';
+      case 'group/already-member':
+        return isGreek ? 'Είσαι ήδη μέλος της ομάδας' : 'You are already a member of this group';
       case 'group/join-failed':
         return isGreek ? 'Αποτυχία εισόδου στην ομάδα' : 'Failed to join group';
       case 'group/invite-days-invalid':
@@ -208,7 +210,7 @@ class ErrorMessages {
       case 'group/invite-uses-invalid':
         return isGreek ? 'Οι χρήσεις πρέπει να είναι 1-1000' : 'Uses must be 1-1000';
       case 'group/invite-token-copied':
-        return isGreek ? 'Το invite token αντιγράφηκε στο clipboard' : 'Invite token copied to clipboard';
+        return isGreek ? 'Το μήνυμα πρόσκλησης αντιγράφηκε' : 'Invitation message copied';
       case 'group/invite-copied':
         return isGreek ? 'Αντιγράφηκε' : 'Copied';
       case 'profile/gps-permission-denied':

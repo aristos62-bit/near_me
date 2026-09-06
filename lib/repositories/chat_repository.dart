@@ -65,6 +65,13 @@ class InviteInfo {
   });
 }
 
+class RedeemInviteResult {
+  final String chatId;
+  final bool alreadyMember;
+
+  const RedeemInviteResult({required this.chatId, required this.alreadyMember});
+}
+
 // ── ChatRepository Interface ─────────────────────────────────
 
 abstract class ChatRepository {
@@ -120,7 +127,7 @@ abstract class ChatRepository {
 
   // Invite links
   Future<String> createInviteLink(String chatId, {Duration expiresIn = const Duration(days: 7), int? maxUses});
-  Future<String?> redeemInviteLink(String token);
+  Future<RedeemInviteResult?> redeemInviteLink(String token);
   Future<InviteInfo?> getInviteInfo(String token);
   Future<void> revokeInvite(String chatId, String inviteId);
   Future<List<InviteInfo>> getActiveInvites(String chatId);

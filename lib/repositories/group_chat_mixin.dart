@@ -965,7 +965,7 @@ mixin GroupChatMixin {
     }
   }
 
-  Future<String?> redeemInviteLink(String token) async {
+  Future<RedeemInviteResult?> redeemInviteLink(String token) async {
     DebugConfig.log(DebugConfig.repositoryCall, 'redeemInviteLink: token=$token');
     final user = auth.currentUser;
     if (user == null) throw AppException.auth('redeem_invite', 'Δεν υπάρχει χρήστης / No user');
@@ -1020,7 +1020,7 @@ mixin GroupChatMixin {
 
       DebugConfig.log(DebugConfig.repositoryResult,
           'redeemInviteLink: joined $chatId via token=$token (alreadyMember=$alreadyMember)');
-      return chatId;
+      return RedeemInviteResult(chatId: chatId, alreadyMember: alreadyMember);
     } on FirebaseFunctionsException catch (e) {
       final code = e.code.replaceFirst('functions/', '');
       if (code != 'failed-precondition' &&

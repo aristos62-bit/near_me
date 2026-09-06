@@ -5,6 +5,7 @@ import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../core/utils/app_messenger.dart';
+import '../../../core/utils/connectivity_guard.dart';
 import '../../../core/utils/error_messages.dart';
 import '../../../repositories/chat_repository.dart';
 import '../../../shared/widgets/app_state_widget.dart';
@@ -23,6 +24,7 @@ class _JoinConfirmationScreenState extends ConsumerState<JoinConfirmationScreen>
   InviteInfo? _inviteInfo;
   bool _isLoading = true;
   bool _isJoining = false;
+  bool _isOffline = false;
   String? _error;
 
   @override
@@ -34,6 +36,7 @@ class _JoinConfirmationScreenState extends ConsumerState<JoinConfirmationScreen>
   }
 
   Future<void> _fetchInviteInfo() async {
+    _isOffline = false;
     try {
       final info = await ref.read(chatActionsProvider.notifier)
           .getInviteInfo(widget.token);
@@ -44,6 +47,16 @@ class _JoinConfirmationScreenState extends ConsumerState<JoinConfirmationScreen>
           _isLoading = false;
         });
       } else {
+        final online = await ConnectivityGuard.isOnline();
+        if (!mounted) return;
+        if (!online) {
+          setState(() {
+            _error = ErrorMessages.get('network/no-connectivity', L10n.isGreek(context));
+            _isOffline = true;
+            _isLoading = false;
+          });
+          return;
+        }
         setState(() {
           _error = null;
           _isLoading = false;
@@ -64,12 +77,14 @@ class _JoinConfirmationScreenState extends ConsumerState<JoinConfirmationScreen>
     final greek = L10n.isGreek(context);
     setState(() => _isJoining = true);
     try {
-      final chatId = await ref.read(chatActionsProvider.notifier)
+      final result = await ref.read(chatActionsProvider.notifier)
           .redeemInviteLink(widget.token);
       if (!mounted) return;
-      if (chatId != null && chatId.isNotEmpty) {
-        AppMessenger.showSuccess(context, ErrorMessages.get('group/joined', greek));
-        context.go('/chat/$chatId');
+      if (result != null) {
+        AppMessenger.showSuccess(context, result.alreadyMember
+            ? ErrorMessages.get('group/already-member', greek)
+            : ErrorMessages.get('group/joined', greek));
+        context.go('/chat/${result.chatId}');
       } else {
         final state = ref.read(chatActionsProvider);
         AppMessenger.showError(context, state.errorMessage ??
@@ -123,27 +138,46 @@ class _JoinConfirmationScreenState extends ConsumerState<JoinConfirmationScreen>
     if (_error != null) {
       return [
         const SizedBox(height: 64),
-        Icon(Icons.link_off, size: 64,
+        Icon(_isOffline ? Icons.cloud_off : Icons.link_off, size: 64,
             color: theme.colorScheme.error),
         const SizedBox(height: 16),
         Text(
-          greek ? 'Μη έγκυρη πρόσκληση' : 'Invalid invitation',
+          _isOffline
+              ? (greek ? 'Χωρίς σύνδεση' : 'No connection')
+              : (greek ? 'Μη έγκυρη πρόσκληση' : 'Invalid invitation'),
           style: theme.textTheme.titleLarge,
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 8),
         Text(
-          greek
-              ? 'Αυτός ο σύνδεσμος πρόσκλησης δεν είναι έγκυρος ή έχει λήξει.'
-              : 'This invitation link is invalid or has expired.',
+          _isOffline
+              ? greek
+                  ? 'Δεν μπορούμε να φορτώσουμε τις πληροφορίες πρόσκλησης. Έλεγξε τη σύνδεσή σου και δοκίμασε ξανά.'
+                  : 'We could not load the invite info. Check your connection and try again.'
+              : greek
+                  ? 'Αυτός ο σύνδεσμος πρόσκλησης δεν είναι έγκυρος ή έχει λήξει.'
+                  : 'This invitation link is invalid or has expired.',
           style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 24),
-        FilledButton(
-          onPressed: () => context.pop(),
-          child: Text(greek ? 'Επιστροφή' : 'Go back'),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            TextButton(
+              onPressed: () => context.pop(),
+              child: Text(greek ? 'Επιστροφή' : 'Go back'),
+            ),
+            if (_isOffline) ...[
+              const SizedBox(width: 8),
+              FilledButton.icon(
+                onPressed: _fetchInviteInfo,
+                icon: const Icon(Icons.refresh, size: 18),
+                label: Text(greek ? 'Δοκίμασε ξανά' : 'Try again'),
+              ),
+            ],
+          ],
         ),
       ];
     }

@@ -269,6 +269,22 @@ class L10n {
     return isGreek(context) ? bilingual.substring(0, idx) : bilingual.substring(idx + sep.length);
   }
 
+  /// SPoT: parameterized μήνυμα πρόσκλησης ομάδας (περιέχει token + οδηγίες
+  /// επικόλλησης). Pattern με το [autoLockSubtitle]. Το [groupName] falls back
+  /// στο generic όταν είναι null (φρέσκο create / deleted group).
+  static String inviteInvitationMessage({
+    required String groupName,
+    required String token,
+    required bool isGreek,
+  }) {
+    final name = groupName.isEmpty
+        ? (isGreek ? 'μια ομάδα' : 'a group')
+        : groupName;
+    return isGreek
+        ? 'Έχεις πρόσκληση στην ομάδα "$name"! Κάνε επικόλληση τον κωδικό $token στη σελίδα Συνομιλιών, πατώντας το κλειδί στο επάνω μέρος της σελίδας, για να ενταχθείς στη συνομιλία.'
+        : 'You have been invited to join the group "$name"! Paste the code $token on the Chats page by tapping the key at the top of the page to join the conversation.';
+  }
+
   static String autoLockTitle({required bool isGreek}) =>
       isGreek ? 'Αυτόματο κλείδωμα' : 'Auto-lock';
 

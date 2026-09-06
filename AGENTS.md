@@ -136,6 +136,7 @@ lib/
 - `shared/utils/consent_action_config.dart` — ConsentActionConfig (centralized action→icon/color/label ιδιότητες)
 - `core/l10n/l10n.dart` — L10n (locale detection, isGreek(), formatters)
 - `core/theme/responsive_utils.dart` — ResponsiveUtils + ResponsiveBuilder + ResponsivePadding
+- `shared/utils/invite_utils.dart` — InviteUtils (token extraction/validation `^[0-9a-f]{32}$`, SPoT για invite codes, Session 268)
 
 ## Φάσεις Υλοποίησης (από blueprint)
 1. **Φάση 1 — Core & Privacy**: Drift schemas (7 tables, schema v8), Firebase init, Anonymous auth, Profile CRUD (local), PrivacySettings editor, ConsentLog, Publish/Unpublish, GPS flow, i18n, Theme, Delete account, Feature flags, Security Rules

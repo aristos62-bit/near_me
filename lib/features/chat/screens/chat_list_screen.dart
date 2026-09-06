@@ -11,6 +11,7 @@ import '../../../core/utils/app_messenger.dart';
 import '../../../data/local/database.dart';
 import '../../../repositories/auth_repository.dart';
 import '../../../shared/utils/avatar_blur.dart';
+import '../../../shared/utils/invite_utils.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../../settings/providers/app_settings_provider.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -34,12 +35,17 @@ class ChatListScreen extends ConsumerWidget {
     return Scaffold(
       resizeToAvoidBottomInset: false,
       appBar: AppBar(
-        title: Text(greek ? 'Μηνύματα' : 'Messages'),
+        title: Text(greek ? 'Συνομιλίες' : 'Chats'),
         actions: [
           IconButton(
             icon: const Icon(Icons.explore),
             tooltip: greek ? 'Ανακάλυψη ομάδων' : 'Discover groups',
             onPressed: () => context.push('/groups/search'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.vpn_key),
+            tooltip: greek ? 'Έχεις κωδικό πρόσκλησης;' : 'Have an invite code?',
+            onPressed: () => _promptInviteToken(context),
           ),
         ],
       ),
@@ -65,7 +71,13 @@ class ChatListScreen extends ConsumerWidget {
                 if (chats.isEmpty) {
                   return EmptyView(
                     icon: Icons.chat_bubble_outline,
-                    message: greek ? 'Δεν υπάρχουν μηνύματα' : 'No messages yet',
+                    message: greek
+                        ? 'Δεν υπάρχουν συνομιλίες'
+                        : 'No conversations yet',
+                    actionLabel: greek
+                        ? 'Έχεις κωδικό πρόσκλησης;'
+                        : 'Have an invite code?',
+                    onAction: () => _promptInviteToken(context),
                   );
                 }
                 // SPoT blurEnabled/sigma — μία φορά, όχι per-tile watch (storm fix Session 224)
@@ -89,6 +101,57 @@ class ChatListScreen extends ConsumerWidget {
               },
             ),
     );
+  }
+
+  // Έχεις κωδικό πρόσκλησης; — tolerant extraction (URL / whitespace) + strict validation
+  Future<void> _promptInviteToken(BuildContext context) async {
+    final greek = L10n.isGreek(context);
+    final controller = TextEditingController();
+    final token = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(greek ? 'Έχεις κωδικό πρόσκλησης;' : 'Have an invite code?'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          autocorrect: false,
+          enableSuggestions: false,
+          textInputAction: TextInputAction.done,
+          decoration: InputDecoration(
+            hintText: greek
+                ? 'Επικόλλησε τον κωδικό πρόσκλησης'
+                : 'Paste your invite code',
+          ),
+          onSubmitted: (_) => _confirmToken(ctx, controller.text),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(greek ? 'Ακύρωση' : 'Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => _confirmToken(ctx, controller.text),
+            child: Text(greek ? 'Συνέχεια' : 'Continue'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (token == null || token.isEmpty || !context.mounted) return;
+    DebugConfig.log(DebugConfig.uiInteraction,
+        'ChatListScreen: invite token -> /join (token=${token.length >= 8 ? token.substring(0, 8) : token}...)');
+    context.push('/join?token=$token');
+  }
+
+  void _confirmToken(BuildContext ctx, String raw) {
+    // Tolerant: strip whitespace, κρατάμε το token από URL (?token=...) αν υπάρχει.
+    final cleaned = InviteUtils.extractInviteToken(raw);
+    if (cleaned == null) {
+      AppMessenger.showError(
+          ctx, L10n.localizedMessage(ctx, 'Μη έγκυρος κωδικός πρόσκλησης. / Invalid invite code.'));
+      return;
+    }
+    Navigator.pop(ctx, cleaned);
   }
 
   Widget _buildVerifyBanner(BuildContext context, bool greek) {

@@ -15,6 +15,26 @@ void main() {
       expect(msg, contains('κλειδί'));
     });
 
+    test('GR: ξεκινά με το token (paste whole message → join OK)', () {
+      final msg = L10n.inviteInvitationMessage(
+        groupName: 'Παρέα',
+        token: 'abc123',
+        isGreek: true,
+      );
+      expect(msg.startsWith('abc123 '), isTrue);
+      expect(msg.startsWith('Έχεις'), isFalse);
+    });
+
+    test('EN: ξεκινά με το token (paste whole message → join OK)', () {
+      final msg = L10n.inviteInvitationMessage(
+        groupName: 'Friends',
+        token: 'abc123',
+        isGreek: false,
+      );
+      expect(msg.startsWith('abc123 '), isTrue);
+      expect(msg.startsWith('You'), isFalse);
+    });
+
     test('EN: περιέχει groupName + token + οδηγίες Chats page', () {
       final msg = L10n.inviteInvitationMessage(
         groupName: 'Friends',

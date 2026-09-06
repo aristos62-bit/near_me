@@ -7,7 +7,13 @@ import '../message_reactions.dart';
 
 import 'read_receipt_footer.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/debug/debug_config.dart';
+import '../../../../core/l10n/l10n.dart';
+import '../../../../core/utils/app_messenger.dart';
+import '../../../../core/utils/error_messages.dart';
+import '../../../../shared/utils/invite_utils.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 
 class TextMessageBubble extends StatelessWidget {
   final String content;
@@ -172,6 +178,7 @@ class TextMessageBubble extends StatelessWidget {
     final receivedColor = theme.colorScheme.surfaceContainerHighest;
     final bubbleColor = isMe ? sentColor : receivedColor;
     final textColor = isMe ? _sentTextColor : theme.colorScheme.onSurface;
+    final inviteToken = InviteUtils.findInviteTokenInText(content);
 
     final bubbleBorderRadius = BorderRadius.only(
       topLeft: const Radius.circular(_bubbleRadius),
@@ -281,6 +288,43 @@ class TextMessageBubble extends StatelessWidget {
                                             ? Colors.white.withAlpha(180)
                                             : theme.colorScheme.onSurfaceVariant
                                                   .withAlpha(180),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              if (inviteToken != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 3),
+                                  child: Align(
+                                    alignment: AlignmentDirectional.bottomEnd,
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(10),
+                                      onTap: () {
+                                        Clipboard.setData(
+                                          ClipboardData(text: inviteToken),
+                                        );
+                                        DebugConfig.log(
+                                          DebugConfig.uiInteraction,
+                                          'TextMessageBubble: invite token '
+                                          'copied (chatId=$chatId)',
+                                        );
+                                        AppMessenger.showSuccess(
+                                          context,
+                                          ErrorMessages.get(
+                                            'group/invite-copied',
+                                            L10n.isGreek(context),
+                                          ),
+                                        );
+                                      },
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(4),
+                                        child: Icon(
+                                          Icons.copy,
+                                          size: 14,
+                                          color: isMe
+                                              ? Colors.white.withAlpha(200)
+                                              : theme.colorScheme.onSurfaceVariant,
+                                        ),
                                       ),
                                     ),
                                   ),

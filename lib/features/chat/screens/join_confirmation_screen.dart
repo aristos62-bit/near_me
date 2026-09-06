@@ -84,7 +84,9 @@ class _JoinConfirmationScreenState extends ConsumerState<JoinConfirmationScreen>
         AppMessenger.showSuccess(context, result.alreadyMember
             ? ErrorMessages.get('group/already-member', greek)
             : ErrorMessages.get('group/joined', greek));
-        context.go('/chat/${result.chatId}');
+        final router = GoRouter.of(context);
+        router.go('/chats');
+        router.push('/chat/${result.chatId}');
       } else {
         final state = ref.read(chatActionsProvider);
         AppMessenger.showError(context, state.errorMessage ??

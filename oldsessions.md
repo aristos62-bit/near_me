@@ -252,12 +252,12 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 
 | Μέτρο | Τιμή |
 |---|---|
-| Completion | ~99.9% (Phases 1-3 100%, MultiChat 100%, Media 100%, Chat Redesign 100%, Audio Messages 100%, **B5 Privacy Policy 100%**, Invite flow 100% [Session 268]) |
+| Completion | ~99.9% (Phases 1-3 100%, MultiChat 100%, Media 100%, Chat Redesign 100%, Audio Messages 100%, **B5 Privacy Policy 100%**, Invite flow 100% [Session 268], **Invite bubble copy 100% [Session 269]**) |
 | `.dart` files | ~142 (non-generated, +`vision_moderation_service.dart` + `avatar_blur.dart` + `moderation_section.dart` + `splash_screen.dart` + `firestore_cleanup.dart` + `bubble_timestamp.dart` + `video_content_panel.dart` [Session 262] + `public_profile_sections.dart` + `public_profile_photo_gallery.dart` + `public_profile_actions.dart` [Session 263] + `chat_media_sender_mixin.dart` + `chat_input_banners.dart` [Session 265] + `public_profile_json.dart` + `publish_payload.dart` [Session 266] + `invite_utils.dart` [Session 268]) |
 | Firestore indexes | 21 composite deployed |
 | Cloud Functions | 17 deployed `europe-west1` (gen1, Node 22), συμπ. `checkImageModeration` + `moderateImage` (Vision moderation, eur3), `addGroupParticipant`/`leaveGroup`, `expireStaleRequests/Messages`, `computeGeoHash`, `checkSearchRateLimit`, `deleteUserData`, `onReportCreated`, `onRequestCreated` (server `expiresAt`, Session 261), 5 FCM |
 | Build | `flutter analyze` clean ✅, release APK ~41.7MB (debug) / ~20.8MB (R8), signed `gr.nearme.app` (CN=NearMe) |
-| Tests | 296/296 passed (Session 268: 280 +16 invite_utils/l10n — πάνω στα 280 του Session 267) |
+| Tests | 312/312 passed (Session 269: 296 +16 invite bubble copy — πάνω στα 296 του Session 268) |
 | Schema | Drift v17, 7 tables (+crashReportsEnabled, blurExplicitEnabled, blurSigma 0/10/20/32) |
 | Moderation | Active (Sessions 253-255): Global Normal + User Blur — Vision SafeSearch `eu-vision.googleapis.com`, thresholds Adult/Violence LIKELY+ reject, Racy never \(only blur\), blur POSSIBLE/LIKELY via `avatar_blur.dart` + `blurSigma` slider SPoT (`moderation_section.dart` + `_BlurSigmaTile` reuse `_AutoLockTile`). Kill-switch `config/moderation`, `moderationLog` rules |
 | Photo Fix | `EqualUnmodifiableListView` → `List.from` `profile_editor_screen.dart:153,161` (Session 244) |
@@ -2697,6 +2697,43 @@ Global Normal (server) + User Blur (client): Vision SafeSearch thresholds — **
 
 ### Εκκρεμεί
 - Release build χωρίς dart-define → E2E 2ου λογαριασμού: copy μήνυμα → paste → JoinConfirmation «Aris» → Εγγραφή → `alreadyMember=false` + system msg + audit + `useCount→1` (με OK χρήστη).
+
+---
+
+## Session 269 — Invite token copy σε chat bubbles + token-first μήνυμα + device E2E (2 συσκευές) + 2 fixes (16 νέα tests) — 06 Σεπ 2026
+
+### Σκοπός
+Το μήνυμα πρόσκλησης να γίνει άμεσα «δηλώσιμο» μέσα από chat bubbles: το token να αντιγράφεται με ένα tap από το ίδιο το μήνυμα (ώστε να στέλνεται μέσω email/Messenger/Viber), και το μήνυμα να ξεκινά από το token ώστε το paste ολόκληρου του κειμένου στο 🔑 να δουλεύει. Μετά: E2E σε 2 συσκευές → 3 ευρήματα → 2 fixes + 1 σκόπιμη μη-αλλαγή.
+
+### Υλοποιήθηκαν (feature)
+- **invite_utils.dart** — νέο SPoT `InviteUtils.findInviteTokenInText(String)`: regex `[0-9a-f]{32}` (unanchored, firstMatch) → βρίσκει το token οπουδήποτε στο μήνυμα. Backup `backups/invite_utils_find_token_20260906_213500.dart`.
+- **text_message_bubble.dart** — όταν το κείμενο περιέχει token, εικονίδιο copy 14px σε δική του γραμμή ΚΑΤΩ από το timestamp (Align bottomEnd, όχι στο Row του ReactionTriggerIcon — v3 μετά από review). Tap → `Clipboard.setData` + `DebugConfig.log(uiInteraction)` + `AppMessenger.showSuccess('group/invite-copied', L10n.isGreek(context))` — L10n ΜΟΝΟ σε handler (rebuild-storm compliant). Backup `backups/text_message_bubble_token_copy_20260906_213500.dart`.
+- **l10n.dart** — `inviteInvitationMessage` → token-FIRST: `$token Έχεις πρόσκληση… Επικόλλησε αυτό το μήνυμα…` (GR) / `$token You have been invited… Paste this message…` (EN). `extractInviteToken` (πρώτη λέξη) ΜΕΝΕΙ αμετάβλητο — δουλεύει με όλο το μήνυμα. Backups `backups/l10n_invite_msg_token_first_20260906_220000.dart`.
+
+### E2E device test (2 συσκευές, release APK 20.5MB)
+- Συσκευή Α (Aris62 `hTPgFYNgOXRbnyDc8szd2VV9rlG2`): invite για «Aris» (chat `upYDGwdyX0KbqDyUHrgO`, token `013ab7930b2b43d9bb8365f404559d79`) → copy όλο το μήνυμα → send στο 1:1 Yahooman (`6BhNvE6zLYH2u2ukeQdM`) → εμφάνιση σωστή.
+- Συσκευή Β (Yahooman `mvngvBFgPBXDsM4KO74HYDCKNzv1`): tap εικονίδιο 22:09:27.374 → `TextMessageBubble: invite token copied` + snackbar «Αντιγράφηκε» ✅ · paste στο 🔑 → `/join` → «Άγνωστη Ομάδα» (#2) → Εγγραφή → `redeemInviteLink` OK (μέλος, 22:11:12) → redirect group chat. WARN `No encryption key found` → derived key OK (decrypt δούλεψε).
+
+### Fixes από device test
+- **Fix #1 — εικονίδιο αόρατο (συσκευή Β, received bubble):** χρώμα `Colors.black.withAlpha(120)` → `theme.colorScheme.onSurfaceVariant` (full opacity· ξεχωρίζει πάνω σε `surfaceContainerHighest`). Backup `backups/text_message_bubble_icon_color_20260906_221500.dart`.
+- **Fix #3 — κανένα back arrow μετά join:** `join_confirmation_screen.dart` `context.go('/chat/..')` → `final router = GoRouter.of(context); router.go('/chats'); router.push('/chat/..')` — το back επιστρέφει στη λίστα. Backup `backups/join_confirmation_back_nav_20260906_222500.dart`.
+- **#2 — «Άγνωστη Ομάδα» ΔΕΝ αλλάχθηκε (απόφαση χρήστη):** σωστό privacy-wise — `firestore.rules` μπλοκάρουν `chats/{chatId}` read για μη-μέλη· `getInviteInfo` επιστρέφει `InviteInfo` με `groupName=null` (το log `getInviteInfo -> ${info?.groupName}` δείχνει `null` που μπερδεύει, αλλά το `info` είναι non-null).
+
+### Δημιουργήθηκαν (16 νέα tests → 312)
+- `invite_utils_test.dart` +8 `findInviteTokenInText` (backup `invite_utils_test_find_token_20260906_213800.dart`) · +2 E2E: πλήρες token-first μήνυμα GR/EN → extraction (backup `invite_utils_test_token_first_20260906_220000.dart`).
+- `l10n_invite_message_test.dart` +2 startsWith-token (backup `l10n_invite_message_test_token_first_20260906_220000.dart`).
+- **Νέο** `test/widgets/text_message_bubble_invite_copy_test.dart` (4): no token → κανένα icon · πλήρες μήνυμα → icon + copy ακριβού token · μόνο token → icon + copy · sent bubble (isMe) → icon. Τεχνικά: `testWidgets` (όχι `test`), `ensureVisible` (εικονίδιο εκτός viewport), `pump(1s+4s)` για pending timers (DebugConfig 1s, snackbar 4s).
+
+### Έλεγχος
+- `flutter analyze` → **0 issues** ✅
+- `flutter test` → **296/296 → 312/312** ✅ (+16)
+- Device: fixes #1+#3 OK («μια χαρά ολα»).
+
+### Backups
+- Βλ. παραπάνω + `backups/oldsessions_pre_S269_20260906_224500.md` + `backups/launch_pre_S269_20260906_224500.md`
+
+### Εκκρεμεί
+- Commit όλων των uncommitted (ο χρήστης κάνει commit).
 
 ---
 

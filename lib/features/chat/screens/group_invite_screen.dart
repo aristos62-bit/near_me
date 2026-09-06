@@ -121,12 +121,42 @@ class GroupInviteScreen extends ConsumerWidget {
         'GroupInviteScreen: showing invite message dialog (token=${token.length >= 8 ? token.substring(0, 8) : token}...)');
     final action = await showDialog<_InviteAction>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Text(greek ? 'Μήνυμα πρόσκλησης' : 'Invitation message'),
-        content: SingleChildScrollView(
-          child: SelectionArea(
-            child: SelectableText(message, style: const TextStyle(height: 1.5)),
-          ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: Theme.of(dialogContext).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Theme.of(dialogContext).colorScheme.outlineVariant),
+              ),
+              child: Row(children: [
+                Expanded(
+                  child: Text(
+                    token,
+                    style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                IconButton(
+                  tooltip: greek ? 'Αντιγραφή κωδικού' : 'Copy code',
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.copy, size: 18),
+                  onPressed: () => _copyToken(dialogContext, token, greek),
+                ),
+              ]),
+            ),
+            const SizedBox(height: 12),
+            SingleChildScrollView(
+              child: SelectionArea(
+                child: SelectableText(message, style: const TextStyle(height: 1.5)),
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -163,6 +193,12 @@ class GroupInviteScreen extends ConsumerWidget {
       }
     }
   }
+}
+
+void _copyToken(BuildContext context, String token, bool greek) {
+  Clipboard.setData(ClipboardData(text: token));
+  AppMessenger.showSuccess(context,
+      L10n.localizedMessage(context, 'Ο κωδικός πρόσκλησης αντιγράφηκε. / Invite code copied.'));
 }
 
 enum _InviteAction { copy, share, close }
@@ -238,6 +274,15 @@ class _InviteTile extends ConsumerWidget {
                   style: theme.textTheme.bodyMedium?.copyWith(fontFamily: 'monospace'),
                   overflow: TextOverflow.ellipsis,
                 ),
+              ),
+              IconButton(
+                tooltip: greek ? 'Αντιγραφή κωδικού' : 'Copy code',
+                visualDensity: VisualDensity.compact,
+                iconSize: 18,
+                constraints: const BoxConstraints(),
+                padding: EdgeInsets.zero,
+                icon: const Icon(Icons.copy, size: 16),
+                onPressed: () => _copyToken(context, invite.token, greek),
               ),
             ]),
             const SizedBox(height: 8),

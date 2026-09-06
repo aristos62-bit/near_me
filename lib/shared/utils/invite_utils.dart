@@ -28,4 +28,12 @@ class InviteUtils {
     final firstWord = trimmed.split(RegExp(r'\s+')).first.trim();
     return _tokenPattern.hasMatch(firstWord) ? firstWord : null;
   }
+
+  static final RegExp _tokenInText = RegExp(r'[0-9a-f]{32}');
+
+  /// Ανιχνεύει invite token (32 lowercase hex) οπουδήποτε στο κείμενο —
+  /// π.χ. μέσα στο invite μήνυμα που στάλθηκε/προωθήθηκε σε chat.
+  /// Επιστρέφει το token ή null αν δεν υπάρχει.
+  static String? findInviteTokenInText(String text) =>
+      _tokenInText.firstMatch(text)?.group(0);
 }

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:near_me/core/l10n/l10n.dart';
 import 'package:near_me/shared/utils/invite_utils.dart';
 
 void main() {
@@ -60,11 +61,76 @@ void main() {
       expect(InviteUtils.extractInviteToken('Πρόσκληση $valid'), isNull);
     });
 
+    test('full invite message token-first (GR) → token extracted', () {
+      final msg = L10n.inviteInvitationMessage(
+        groupName: 'Παρέα',
+        token: valid,
+        isGreek: true,
+      );
+      expect(InviteUtils.extractInviteToken(msg), valid);
+    });
+
+    test('full invite message token-first (EN) → token extracted', () {
+      final msg = L10n.inviteInvitationMessage(
+        groupName: 'Friends',
+        token: valid,
+        isGreek: false,
+      );
+      expect(InviteUtils.extractInviteToken(msg), valid);
+    });
+
     test('natural-language message without leading token → null', () {
       expect(
         InviteUtils.extractInviteToken('Έχεις πρόσκληση! Κωδικός: $valid'),
         isNull,
       );
+    });
+  });
+
+  group('findInviteTokenInText', () {
+    test('token mid-sentence in invite message → found', () {
+      expect(
+        InviteUtils.findInviteTokenInText(
+          'Έχεις πρόσκληση στην ομάδα "Παρέα"! Κάνε επικόλληση τον '
+          'κωδικό $valid στη σελίδα Συνομιλιών.',
+        ),
+        valid,
+      );
+    });
+
+    test('token inside URL in text → found', () {
+      expect(
+        InviteUtils.findInviteTokenInText('Δες αυτό: https://nearme.app/join?token=$valid&x=1'),
+        valid,
+      );
+    });
+
+    test('anchor token at start → found', () {
+      expect(InviteUtils.findInviteTokenInText('$valid μη εξουσιοδοτημένο'), valid);
+    });
+
+    test('31-char hex in text → null', () {
+      expect(InviteUtils.findInviteTokenInText('κωδικός ${valid.substring(0, 31)} εδώ'), isNull);
+    });
+
+    test('non-hex 32-char in text → null', () {
+      expect(
+        InviteUtils.findInviteTokenInText('κωδικός 0123456789abcdef0123456789abcdeg εδώ'),
+        isNull,
+      );
+    });
+
+    test('uppercase hex in text → null (strict lowercase)', () {
+      expect(InviteUtils.findInviteTokenInText('κωδικός ${valid.toUpperCase()} εδώ'), isNull);
+    });
+
+    test('plain text without token → null', () {
+      expect(InviteUtils.findInviteTokenInText('just a normal hello message'), isNull);
+    });
+
+    test('empty / short text → null', () {
+      expect(InviteUtils.findInviteTokenInText(''), isNull);
+      expect(InviteUtils.findInviteTokenInText('hi'), isNull);
     });
   });
 }

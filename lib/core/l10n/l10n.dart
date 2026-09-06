@@ -281,8 +281,8 @@ class L10n {
         ? (isGreek ? 'μια ομάδα' : 'a group')
         : groupName;
     return isGreek
-        ? 'Έχεις πρόσκληση στην ομάδα "$name"! Κάνε επικόλληση τον κωδικό $token στη σελίδα Συνομιλιών, πατώντας το κλειδί στο επάνω μέρος της σελίδας, για να ενταχθείς στη συνομιλία.'
-        : 'You have been invited to join the group "$name"! Paste the code $token on the Chats page by tapping the key at the top of the page to join the conversation.';
+        ? '$token Έχεις πρόσκληση στην ομάδα "$name"! Κάνε επικόλληση αυτό το μήνυμα στη σελίδα Συνομιλιών, πατώντας το κλειδί στο επάνω μέρος της σελίδας, για να ενταχθείς στη συνομιλία.'
+        : '$token You have been invited to join the group "$name"! Paste this message on the Chats page by tapping the key at the top of the page to join the conversation.';
   }
 
   static String autoLockTitle({required bool isGreek}) =>

@@ -19,11 +19,17 @@ class RequestRepositoryImpl implements RequestRepository {
   final AppDatabase _db;
   final ChatRepository _chatRepo;
 
+  /// DI hook για tests: αν οριστεί, χρησιμοποιείται ΑΝΤΙ του πραγματικού
+  /// rate-limit ελέγχου (CF checkRequestRateLimit + connectivity). Default
+  /// null → παραμένει η σημερινή συμπεριφορά (καμία αλλαγή στο production).
+  final Future<bool> Function()? rateLimitCheck;
+
   RequestRepositoryImpl({
     FirebaseFirestore? firestore,
     FirebaseAuth? auth,
     AppDatabase? db,
     ChatRepository? chatRepo,
+    this.rateLimitCheck,
   })  : _firestore = firestore ?? FirebaseFirestore.instance,
         _auth = auth ?? FirebaseAuth.instance,
         _db = db ?? DatabaseService.instance,
@@ -90,7 +96,10 @@ class RequestRepositoryImpl implements RequestRepository {
 
     // Rate-limit ΠΡΙΝ από τα pre-check reads — ένας rate-limited χρήστης δεν
     // προκαλεί ούτε Firestore reads (protect resources first, ίδιο με το chat).
-    if (!await _checkRequestRateLimit()) {
+    final rateLimitOk = rateLimitCheck != null
+        ? await rateLimitCheck!()
+        : await _checkRequestRateLimit();
+    if (!rateLimitOk) {
       DebugConfig.log(DebugConfig.rateLimit, 'sendRequest: blocked by request rate limit');
       throw AppException(
         message: 'Πολλά αιτήματα σε σύντομο χρονικό διάστημα. Δοκίμασε ξανά αργότερα. / Too many requests. Try again later.',

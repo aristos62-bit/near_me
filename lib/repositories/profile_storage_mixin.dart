@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import '../core/debug/debug_config.dart';
 import '../core/utils/app_exception.dart';
 import '../data/local/database.dart';
@@ -7,7 +8,28 @@ import '../data/local/database_service.dart';
 import '../data/remote/storage_service.dart';
 
 mixin ProfileStorageMixin {
-  StorageService get _storage => StorageService();
+  /// DI hook για tests: αν οριστεί, χρησιμοποιείται ΑΝΤΙ του real
+  /// `StorageService()` (που φτιάχνει νέο με FirebaseStorage.instance).
+  /// Default null → σημερινή συμπεριφορά (καμία αλλαγή στο production).
+  @visibleForTesting
+  StorageService? storageOverride;
+
+  /// DI hook για tests: πηγή του authenticated user (για uid) αντί για
+  /// σκληρό `FirebaseAuth.instance.currentUser`. Default null → σημερινή
+  /// συμπεριφορά (καμία αλλαγή στο production).
+  @visibleForTesting
+  User? Function()? storageUserProvider;
+
+  /// DI hook για tests: logger για το consent action αντί για σκληρό
+  /// `DatabaseService.instance.logConsent` (που απαιτεί initialized DB).
+  /// Default null → σημερινή συμπεριφορά (καμία αλλαγή στο production).
+  @visibleForTesting
+  Future<void> Function(String uid, String action, String dataType)? consentLogger;
+
+  StorageService get _storage => storageOverride ?? StorageService();
+
+  String? get _storageUid =>
+      storageUserProvider?.call()?.uid ?? FirebaseAuth.instance.currentUser?.uid;
 
   Future<UserProfileTableData?> getProfile();
   Future<void> saveProfile(UserProfileTableData profile);
@@ -15,7 +37,7 @@ mixin ProfileStorageMixin {
 
   Future<String> saveAvatar(Uint8List bytes) async {
     DebugConfig.log(DebugConfig.repositoryCall, 'saveAvatar');
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = _storageUid;
     if (uid == null || uid.isEmpty) {
       throw const AppException(
           message: 'No authenticated user', code: 'auth_required');
@@ -48,7 +70,7 @@ mixin ProfileStorageMixin {
           rethrow;
         }
       }
-      await DatabaseService.instance.logConsent(uid, 'uploaded_photo', 'avatar');
+      await _logConsent(uid, 'avatar');
       DebugConfig.log(DebugConfig.repositoryResult,
           'saveAvatar OK: $uid racyLevel=$racyLevel');
       return url;
@@ -61,7 +83,7 @@ mixin ProfileStorageMixin {
 
   Future<void> deleteAvatar() async {
     DebugConfig.log(DebugConfig.repositoryCall, 'deleteAvatar');
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = _storageUid;
     if (uid == null || uid.isEmpty) {
       DebugConfig.warn('deleteAvatar: no authenticated user');
       return;
@@ -93,7 +115,7 @@ mixin ProfileStorageMixin {
       throw const AppException(
           message: 'Cannot save empty photo', code: 'validation_error');
     }
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = _storageUid;
     if (uid == null || uid.isEmpty) {
       throw const AppException(
           message: 'No authenticated user', code: 'auth_required');
@@ -133,7 +155,7 @@ mixin ProfileStorageMixin {
         ));
         if (profile.isPublished) await publish();
       }
-      await DatabaseService.instance.logConsent(uid, 'uploaded_photo', 'photo');
+      await _logConsent(uid, 'photo');
       DebugConfig.log(DebugConfig.repositoryResult,
           'savePhoto OK: $uid/$index racyLevel=$racyLevel');
       return url;
@@ -150,7 +172,7 @@ mixin ProfileStorageMixin {
       DebugConfig.warn('deletePhoto: invalid index $index');
       return;
     }
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = _storageUid;
     if (uid == null || uid.isEmpty) {
       DebugConfig.warn('deletePhoto: no authenticated user');
       return;
@@ -183,5 +205,14 @@ mixin ProfileStorageMixin {
       DebugConfig.error('deletePhoto failed', data: e, exception: s);
       throw AppException.storage('deletePhoto', e, s);
     }
+  }
+
+  Future<void> _logConsent(String uid, String dataType) async {
+    final logger = consentLogger;
+    if (logger != null) {
+      await logger(uid, 'uploaded_photo', dataType);
+      return;
+    }
+    await DatabaseService.instance.logConsent(uid, 'uploaded_photo', dataType);
   }
 }

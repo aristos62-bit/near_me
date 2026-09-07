@@ -376,7 +376,7 @@ Routing logic: `hasGeoSearch && (!hasLocationFilter || hasRadiusFilter)` → `_g
 | P0 Fixes | `unawaited` `then<void> onError` + `await close()` + `chatId` null check (Session 245, 3 αρχεία, 5 γραμμές) |
 | Schema | Drift **v15** (7 tables: UserProfile, PrivacySettings, ConsentLog, ChatCache, SavedSearch, AppSettings, BlockedUser) |
 | Firebase | `nearme-eu` (eur3) / europe-west1 — migrated 22 Αυγ 2026 from `nearme-gr/nam5` |
-| Tests | 30/30 passed ✅ |
+| Tests | 30/30 (αναφορά Session 249) → **487/487** ✅ (07 Σεπ 2026, Session 270, `flutter test` πλήρες) · widget tests: 99/99 στο `test/widgets/` |
 | Backups | `backups/appid_pre_fix_20260826_170000/` + `backups/b2_signing_20260826_193000/` + `backups/moderation_init_20260826_213000/` + `backups/photo_unmodifiable_20260826_225000/` + `*_pre_groupavatar_20260828.bak` (6) + `*_pre_moderation_spot_20260828.bak` (3) + `oldsessions/audit_report_pre_248_20260828.bak` + `feature_flags_pre_videomod_20260829.bak` + `vision_moderation_service_pre_rejecttest_20260829.bak` + `oldsessions/audit_report_pre_249_20260829.bak` |
 
 ## Υπόλοιπα Gaps

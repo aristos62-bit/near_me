@@ -252,12 +252,12 @@ Comm settings cleanup, Chat rebuild loop fix, Auto-publish, Request validation (
 
 | Μέτρο | Τιμή |
 |---|---|
-| Completion | ~99.9% (Phases 1-3 100%, MultiChat 100%, Media 100%, Chat Redesign 100%, Audio Messages 100%, **B5 Privacy Policy 100%**, Invite flow 100% [Session 268], **Invite bubble copy 100% [Session 269]**) |
+| Completion | ~99.9% (Phases 1-3 100%, MultiChat 100%, Media 100%, Chat Redesign 100%, Audio Messages 100%, **B5 Privacy Policy 100%**, Invite flow 100% [Session 268], **Invite bubble copy 100% [Session 269]**, **Shared widgets widget-tests ~95% [Session 270]**) |
 | `.dart` files | ~142 (non-generated, +`vision_moderation_service.dart` + `avatar_blur.dart` + `moderation_section.dart` + `splash_screen.dart` + `firestore_cleanup.dart` + `bubble_timestamp.dart` + `video_content_panel.dart` [Session 262] + `public_profile_sections.dart` + `public_profile_photo_gallery.dart` + `public_profile_actions.dart` [Session 263] + `chat_media_sender_mixin.dart` + `chat_input_banners.dart` [Session 265] + `public_profile_json.dart` + `publish_payload.dart` [Session 266] + `invite_utils.dart` [Session 268]) |
 | Firestore indexes | 21 composite deployed |
 | Cloud Functions | 17 deployed `europe-west1` (gen1, Node 22), συμπ. `checkImageModeration` + `moderateImage` (Vision moderation, eur3), `addGroupParticipant`/`leaveGroup`, `expireStaleRequests/Messages`, `computeGeoHash`, `checkSearchRateLimit`, `deleteUserData`, `onReportCreated`, `onRequestCreated` (server `expiresAt`, Session 261), 5 FCM |
 | Build | `flutter analyze` clean ✅, release APK ~41.7MB (debug) / ~20.8MB (R8), signed `gr.nearme.app` (CN=NearMe) |
-| Tests | 312/312 passed (Session 269: 296 +16 invite bubble copy — πάνω στα 296 του Session 268) |
+| Tests | 487/487 passed (Session 270: 312 +53 shared-widget tests · πλήρες `flutter test`, analyze 0 issues) |
 | Schema | Drift v17, 7 tables (+crashReportsEnabled, blurExplicitEnabled, blurSigma 0/10/20/32) |
 | Moderation | Active (Sessions 253-255): Global Normal + User Blur — Vision SafeSearch `eu-vision.googleapis.com`, thresholds Adult/Violence LIKELY+ reject, Racy never \(only blur\), blur POSSIBLE/LIKELY via `avatar_blur.dart` + `blurSigma` slider SPoT (`moderation_section.dart` + `_BlurSigmaTile` reuse `_AutoLockTile`). Kill-switch `config/moderation`, `moderationLog` rules |
 | Photo Fix | `EqualUnmodifiableListView` → `List.from` `profile_editor_screen.dart:153,161` (Session 244) |
@@ -2734,6 +2734,46 @@ Global Normal (server) + User Blur (client): Vision SafeSearch thresholds — **
 
 ### Εκκρεμεί
 - Commit όλων των uncommitted (ο χρήστης κάνει commit).
+
+---
+
+## Session 270 — Widget tests: shared widgets (FormSection/FormToggle/ChipSelector/OnlineIndicator/ConsentBadge/ReportUserDialog/ProfileCard/AvatarStack/SplashScreen/BlurRevealImage/EditorScaffold) (53 νέα tests) — 07 Σεπ 2026
+
+### Σκοπός
+Πλήρης κάλυψη όλων των shared widgets με widget tests (συνέχεια εκστρατείας Σessions 264-265). Αυτή η φάση: τα περισσότερα γενικά shared widgets + EditorScaffold + επιβεβαίωση ότι ο production κώδικας παραμένει αμετάβλητος.
+
+### Δημιουργήθηκαν (53 νέα tests)
+- **Βήμα 3** `test/widgets/form_widgets_test.dart` (11): FormSection 100% (22/22), FormToggle 100% (9/9), ChipSelector 100% (13/13). Tap warning λύθηκε με `find.byType(ChoiceChip).at(1)` + `warnIfMissed: false`.
+- **Βήμα 4** `test/widgets/status_widgets_test.dart` (14): OnlineIndicator 100%, ConsentBadge 100% (χρειάστηκε `supportedLocales: [el, en]` + `locale: el` στο harness), **GpsStrengthIndicator 54.9%** (blocked: `LocationService.lastAccuracy` private — testability hook ΔΕΝ εγκρίθηκε από χρήστη).
+- **Βήμα 5** `test/widgets/profile_card_report_dialog_test.dart` (12): ReportUserDialog 100%, ProfileCard 92.9% (λείπει μόνο CachedNetworkImage avatar path, `profile_card.dart:209-226`). Overflow guard: `SizedBox(width: 320)`.
+- **Νέο** `test/widgets/avatar_stack_blur_splash_test.dart` (8): AvatarStack 100%, SplashScreen 100%, BlurRevealImage 97.2%.
+- **Νέο** `test/widgets/editor_scaffold_test.dart` (8): EditorScaffold 96.9%. GoRouter harness: `initialLocation: /home` → κουμπί που κάνει push `/editor` (χρειάζεται stack για `context.pop()`).
+
+### Σημαντικό εύρημα
+«Editor dialog δεν εμφανίζεται» στο test → **ΔΕΝ ήταν bug του κώδικα**: το harness δεν είχε `locale: Locale('el')` οπότε το app έδειχνε «Save changes?» αντί «Αποθήκευση αλλαγών;». Κώδικας σωστός — το test λάθος. Λύθηκε με `locale: const Locale('el')` στο MaterialApp. Η διάγνωση έγινε με απομονωμένο πείραμα (test file διαγράφηκε μετά).
+
+### Τεχνικά μαθήματα (keep)
+- **DebugConfig 1s timer**: κάθε test που σκανάρει `DebugConfig.log` απαιτεί `await tester.pump(const Duration(seconds: 2))` στο τέλος — το `pumpAndSettle` δεν το φλσάρει.
+- **`pumpAndSettle` timeout**: με ενεργό CircularProgressIndicator (loading) κολλάει — χρησιμοποιούνται bounded pumps.
+- **GoRouter + `context.pop()`**: «There is nothing to pop» αν το route είναι initial — χρειάζεται stack (home + push).
+- **`showDialog` context**: χρειάζεται context κάτω από MaterialLocalizations — `Builder` μέσα στο home.
+
+### Έλεγχος
+- `flutter analyze` → **0 issues** ✅
+- `flutter test test/widgets/` → **99/99** ✅
+- `flutter test` (ολόκληρο) → **487/487** ✅
+
+### Coverage shared widgets (cumulative εκστρατεία)
+100%: app_state_widget, gradient_header, save_button, form_section, form_toggle, chip_selector, online_indicator, consent_badge, report_user_dialog, avatar_stack, splash_screen · 97.2%: blur_reveal_image · 96.9%: editor_scaffold · 92.9%: profile_card · 54.9%: gps_strength_indicator
+
+### Εκκρεμεί
+- Widget tests για: `chat_recipient_picker`, `incoming_share_sheet`, `read_receipt_indicator` (feature-specific chat).
+- GpsStrengthIndicator 54.9% — χρειάζεται production testability hook (δεν εγκρίθηκε).
+- ProfileCard 92.9% — CachedNetworkImage avatar path.
+- Commit uncommitted (ο χρήστης κάνει commit).
+
+### Backups
+- `backups/oldsessions_pre_S270_20260907_150000.md`
 
 ---
 

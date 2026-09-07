@@ -399,12 +399,108 @@
 - `flutter test --coverage` (πλήρες, ~3:40) → chat **9.4% → 14.2%** (751/5273) · **σύνολο 26.8% → 28.5%** (4469/15662, excl. generated)
 
 ### Εκκρεμεί
-- Φάση 3 (message_bubble, emoji_only_bubble, message_reactions, media_picker_sheet, group_call_screen) — ο χρήστης αποφασίζει μετά τον έλεγχο.
-- Commit uncommitted (test files + oldsessions + README κ.λπ.) — ο χρήστης κάνει commit.
+- Commit της Φάσης 3 (01fd859 — features/chat tests + provider tests + docs, pushed).
 - CI re-run για επιβεβαίωση ότι εξαφανίστηκαν τα Node 20 warnings.
+- `media_picker_sheet_test.dart`: υποψήφιο production bug — `_MediaPickerContent` = μη-scrollable Column με 7 ListTiles, overflow 87px σε viewport 800x600 (αναφέρθηκε ως εύρημα, δεν άλλαξε production χωρίς άδεια).
 
 ### Backups
 - `backups/{oldsessions,oldsessions_06_current_state,oldsessions_13_sessions_261_270}_pre_S272_20260907_193505.md`
+
+---
+
+## Session 273 — Εκστρατεία coverage features/chat Φάση 3 (62 νέα tests) + ανάλυση coverage — 07 Σεπ 2026
+
+### Σκοπός
+Ολοκλήρωση της εκστρατείας coverage `features/chat` με τα 5 υπολοίπους targets (B→C→D→E→A) που αποφασίστηκαν στη Session 272. Κάθε αρχείο γράφτηκε βήμα-βήμα με έγκριση χρήστη, CRLF/UTF-8 verified, tests pass.
+
+### Νέα test αρχεία (Φάση 3 — 62 tests)
+
+**B** `test/features/chat/emoji_only_bubble_test.dart` (25 tests):
+- isOnlyEmoji (8): single Greek emoji, Latin emoji, mixed scripts, ASCII letters, numbers, trailing spaces, repeated emoji, combined scripts → all false.
+- emojiFontSize (8): single emoji → 28.0, multiple → 14.0, mixed scripts → 14.0, single Greek → 28.0, numbers → 14.0, single Japanese → 28.0, ASCII → 14.0, trailing spaces → 14.0.
+- EmojiOnlyBubble widget (9): renders emoji + text, large font (28.0) for single, small font (14.0) for multiple, replies overlay, reaction icon visible when chatId set, reaction icon absent when chatId null, isMe true → orange/reactions, isMe false → primary, isMe false/reactions → blueAccent.
+- Σημαντικό: `ReactionTriggerIcon` υπάρχει πάντα στο tree (SizedBox.shrink internally) → assertions με `find.byIcon(Icons.add_reaction_outlined)`.
+
+**C** `test/features/chat/message_reactions_test.dart` (11 tests):
+- ReactionTriggerIcon (7): invisible when chatId null, icon visible when chatId set, my emoji text present, emoji absent for different user, reaction absent when no reactions, null user key ignored, multiple reactions all shown.
+- showReactionPicker (4): shows picker sheet, tapping preset calls onReact with emoji, tapping current emoji calls onRemove, dismissing sheet returns null.
+- Σημαντικό: `ModalBottomSheetRoute` private class → replaced with `find.text('😂')` assertions + host passes `void Function(BuildContext) onOpen`.
+
+**D** `test/features/chat/media_picker_sheet_test.dart` (6 tests):
+- 7 tiles present (el locale), English labels, tap photo returns MediaAction.photo, each tile maps to its own action, dismiss returns null, ListTile count 7.
+- Σημαντικό: `_MediaPickerContent` = non-scrollable Column → RenderFlex overflow 87px σε viewport 800x600. Fix: `tester.view.physicalSize = Size(1200, 2400)` + `addTearDown(tester.view.reset)` + `_settleTimer` μετά από κάθε sheet open. Loop: `pumpHost` κάθε iteration (το `_settleTimer` ξεριζώνει το tree). **Πιθανό production bug (δεν άλλαξε χωρίς άδεια).**
+- Leftover dead `open()` helper + unused `result`/`future` variables cleaned up μετά analyze warnings.
+
+**E** `test/features/chat/group_call_screen_test.dart` (5 tests):
+- Greek labels (el): "Οι κλήσεις δεν είναι διαθέσιμες" + future update text.
+- English labels (en): "Calls not available" + future update text.
+- AppBar title = groupName ("Παρέα").
+- AppBar title falls back to chatId ("chat_999") when groupName null.
+- `Icons.videocam_off_outlined` rendered.
+- `FeatureFlags.videoCallEnabled` const = false → only else branch reachable.
+
+**A** `test/features/chat/message_bubble_test.dart` (15 tests):
+- Type dispatch (8): text → TextMessageBubble, missing type → default, emoji-only → EmojiOnlyBubble, mixed text+emoji → TextMessageBubble, audio → AudioMessageBubble (content/duration/isMe fields), video → VideoMessageBubble + ProviderScope + settle, image → GifImageBubble isImage=true + settle, gif → GifImageBubble isImage=false + settle.
+- System branch (3): content/contentEn/action/chatId passthrough (widget inspection), isRequester true (senderId==currentUid), isRequester false.
+- Text/rich (2): mentions+nicknames → rich highlighted spans (`findRichText:true`), link span → `onLinkTap` callback fires.
+- Edge cases (2): no timestamp → no crash + takeException null, reactions my emoji → shows via ReactionTriggerIcon.
+- Σημαντικό: ProviderScope μόνο για video/image/gif (Consumer widgets). DebugConfig providerCreate + moderation logs → `_settleTimer` για video/gif/image tests. Link tap: content = pure URL → single RichText → `find.descendant(of: find.byType(MessageBubble), matching: find.byType(RichText))`.
+
+### Τεχνικά μαθήματα (keep)
+- **Finder gotcha**: `ReactionTriggerIcon` υπάρχει πάντα στο widget tree (κρύβεται μέσω `SizedBox.shrink()`) → έλεγχος με `find.byIcon(...)` όχι `find.byType`.
+- **ModalBottomSheetRoute private class**: δεν χρησιμοποιείται σε finders — assert μέσω `find.text(...)` αντίκειμένων στο sheet.
+- **Viewport overflow σε tests**: μη-scrollable Column με πολλά ListTiles → `tester.view.physicalSize` override + `addTearDown(tester.view.reset)` για μεγάλα bottom sheets.
+- **Loop + pumpWidget**: το `_settleTimer` ξεριζώνει το widget tree → `pumpHost` πριν κάθε iteration σε loop tests (χωρίς `_settleTimer` μέσα στο loop).
+- **Link tap test**: `find.descendant(of: find.byType(MessageBubble), matching: find.byType(RichText))` → tap → triggers TapGestureRecognizer → `onLinkTap` callback. Αποφυγή fragile pixel-position tapping.
+- **RenderFlex overflow (production concern)**: `_MediaPickerContent` 7 tiles, ~87px overflow σε 600px viewport. Προτείνεται `SingleChildScrollView` — δεν άλλαξε production χωρίς άδεια χρήστη.
+- **DebugConfig logs in bubbles**: `VideoPlaybackNotifier` (providerCreate), `GifImageBubble` (moderation log) → pending 1s timers → `_settleTimer` υποχρεωτικός. TextMessageBubble/AudioMessageBubble/SystemMessageBubble/EmojiOnlyBubble ΔΕΝ κάνουν log → χωρίς settle.
+
+### Έλεγχος
+- `flutter analyze` → **0 issues** ✅ (cleaned dead helper + unused import στα 2 αρχεία μετά warnings)
+- `flutter test test/features/chat/` → **156/156** ✅ (22 παλιά + 73 Phase 1+2 + 62 Phase 3)
+- `flutter test` (πλήρες) → **635/635** ✅ (was 573)
+- `flutter test --coverage` (πλήρες, ~4:06) → chat **14.2% → 29.2%** (1538/5273) · **σύνολο 28.5% → 33.6%** (5262/15662, excl. generated)
+
+### Δέλτα Session 273 (Phase 3 μόνο)
+- +62 tests (B 25 + C 11 + D 6 + E 5 + A 15)
+- +5 νέα test files
+- Chat coverage: +15.0pp (751→1538 hit lines, 14.2%→29.2%)
+- Overall coverage: +5.1pp (4469→5262 hit lines, 28.5%→33.6%)
+- Bonus coverage: ReadReceiptFooter, TailPainter, BubbleQuoteSection, MessageCallbacks (transitive via message_bubble dispatch)
+- 1 υποψήφιο production bug αναφέρθηκε (media_picker overflow)
+
+### Backups
+- `backups/{oldsessions,oldsessions_06_current_state,oldsessions_13_sessions_261_270}_pre_S273_20260907_202813.md`
+
+---
+
+## Session 274 — Fix production bug: media_picker_sheet overflow (isScrollControlled + SingleChildScrollView) — 07 Σεπ 2026
+
+### Σκοπός
+Επίλυση του υποψήφιου production bug που εντοπίστηκε στη Session 273 (D): `_MediaPickerContent` = μη-scrollable `Column` με 7 `ListTile` (≈424px) μέσα σε `showModalBottomSheet` χωρίς `isScrollControlled` → RenderFlex overflow (~87px σε viewport 800×600, ~64px σε 360×640, μεγαλύτερο σε landscape/με πληκτρολόγιο). Ο caller (`chat_media_sender_mixin.dart:208`) ΔΕΝ κάνει unfocus → το πληκτρολόγιο παραμένει ανοιχτό κι επιδεινώνει το πρόβλημα.
+
+### Απόφαση — ισομέτρια (έπειτα από πλήρη επανέλεγχο με ανάγνωση όλων των άλλων sheet widgets)
+- **Αλλαγή 1** `media_picker_sheet.dart:32`: προσθήκη `isScrollControlled: true` στο `showModalBottomSheet` — ίδιο pattern με `gif_picker_sheet.dart:16`, `audio_recorder_sheet.dart:25`, `chat_messages_list.dart:177,347`.
+- **Αλλαγή 2** `media_picker_sheet.dart:56`: το `Column(min)` τυλίχθηκε σε `SingleChildScrollView` — ίδιο pattern με `incoming_share_sheet.dart:62`. Συνδυαστικά: auto-height όταν χωράει (πανομοιότυπο με πριν σε κανονικές συσκευές) + scrolling όταν δεν χωράει (short phones, landscape, keyboard open) → μηδέν overflow.
+- **Απορρίφθηκε** η πρόταση DraggableScrollableSheet (B1/B2 της προηγούμενης ανάλυσης): το `initialChildSize` είναι κλάσμα του ύψους οθόνης → σε 600px δείχνει μόνο ~5 tiles (κόβει ό,τι δεν χωράει), σε tall phones μεγαλώνει (450px > 424px σήμερα) = UX regression. Κατάλληλο μόνο για variable-length lists (reader sheet).
+- **Καμία MediaQuery/LayoutBuilder στο build** → μηδέν κίνδυνος rebuild storm (Κεφ.10: «ΠΟΤΕ MediaQuery σε build», rejected fix2/fix4). Widget παραμένει `StatelessWidget`.
+- Όριο 500 γραμμών σεβαστό (92 → 95). Καμία νέα dependency. Μόνος caller grep-verified.
+
+### Tests (Session 274, D: 6 → 7 tests)
+- Αφαιρέθηκε το viewport override (`tester.view.physicalSize = Size(1200, 2400)`) από το `pumpHost` — τα 6 υπάρχοντα tests περνάνε πλέον στο default 800×600 (όπου πριν έπερταν με overflow).
+- Νέο test `no overflow and scrollable on a short viewport`: viewport 400×400 → `takeException` null + `find.descendant(of: find.byType(BottomSheet), matching: find.byType(SingleChildScrollView))` + 7 ListTiles.
+- Σύνολο media_picker_sheet_test: **7/7**.
+
+### Έλεγχος
+- `flutter analyze` → **0 issues** ✅
+- `flutter test test/features/chat/media_picker_sheet_test.dart` → **7/7** ✅
+- Πλήρες `flutter test` → **636/636** ✅ (Session 273: 635 + 1 νέο short-viewport test)
+- Line endings: production `.dart` LF / test `.dart` CRLF / `.md` CRLF — όλα διατηρήθηκαν, UTF-8 no BOM.
+
+### Backups
+- `backups/media_picker_sheet_pre_S274_20260907_204734.dart`
+- `backups/media_picker_sheet_test_pre_S274_20260907_204734.dart`
+- `backups/{oldsessions,oldsessions_06_current_state,oldsessions_13_sessions_261_270}_pre_S274_20260907_205855.md`
 
 ---
 

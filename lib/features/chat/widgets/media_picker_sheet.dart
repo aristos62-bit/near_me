@@ -29,6 +29,7 @@ Future<MediaAction?> showMediaPickerSheet(
   DebugConfig.log(DebugConfig.uiInteraction, 'MediaPickerSheet: shown');
   final result = await showModalBottomSheet<MediaAction>(
     context: context,
+    isScrollControlled: true,
     builder: (_) => _MediaPickerContent(actions: available, greek: greek),
   );
 
@@ -52,11 +53,13 @@ class _MediaPickerContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: actions.map((action) => _buildTile(context, theme, action)).toList(),
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: actions.map((action) => _buildTile(context, theme, action)).toList(),
+          ),
         ),
       ),
     );

@@ -1,0 +1,70 @@
+name: CI Verification (Manual)
+
+# Χειροκίνητο trigger μόνο — ΔΕΝ τρέχει αυτόματα σε push/PR.
+# Χρήση: GitHub → Actions tab → διαλέγεις αυτό το workflow → "Run workflow"
+# και επιλέγεις ποια βήματα θες με τα checkboxes παρακάτω.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_analyze:
+        description: 'Flutter analyze (lint)'
+        type: boolean
+        default: true
+      run_test:
+        description: 'Flutter test (500 tests + coverage)'
+        type: boolean
+        default: true
+      run_build:
+        description: 'Build APK release + web (πιο βαρύ)'
+        type: boolean
+        default: false
+
+jobs:
+  analyze:
+    if: github.event.inputs.run_analyze == 'true'
+    name: Analyze
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+
+  test:
+    if: github.event.inputs.run_test == 'true'
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Run tests with coverage
+        run: flutter test --coverage
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lcov-report
+          path: coverage/lcov.info
+
+  build:
+    if: github.event.inputs.run_build == 'true'
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Build release APK
+        run: flutter build apk --release
+      - name: Build web
+        run: flutter build web

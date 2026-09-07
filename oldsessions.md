@@ -26,7 +26,7 @@
 | Firestore indexes | 21 composite deployed |
 | Cloud Functions | 17 deployed `europe-west1` (gen1, Node 22) + Vision moderation (eur3) |
 | Build | `flutter analyze` clean ✅ · release APK ~20.8MB (R8) · signed `gr.nearme.app` |
-| Tests | 495/495 passed (`flutter test`, Session 270) |
+| Tests | 573/573 passed (`flutter test`, Session 272) · coverage 28.5% line |
 | Schema | Drift v17, 7 tables |
 | Moderation | Active (Sessions 253-255): Global Normal + User Blur · Vision SafeSearch `eu-vision.googleapis.com` · kill-switch `config/moderation` |
 | Feature Flags | ~24 (core 21 + moderation: contentModerationEnabled, autoModerateProfilePhotos, autoModerateChatMedia, blurExplicitByDefault) |
@@ -55,7 +55,7 @@
 | 10 | `oldsessions/oldsessions_10_rebuild_storms.md` | Κεφ.10 Rebuild storms — SETTLED / PENDING / REJECTED |
 | 11 | `oldsessions/oldsessions_11_sessions_227_245.md` | Sessions 227-245 (Quote-in-Bubble, Reactions, ImageCacheGuard, Phone UI removal, SPoT, Video rebuild, ID token claims, CP allowVideoCall, EU migration, Auth timeouts, Crashlytics consent, Selective forwarding, Storage timeout, ApplicationId, Release signing, Moderation scaffold, UnmodifiableListView, P0 startup, Prune) |
 | 12 | `oldsessions/oldsessions_12_sessions_246_260.md` | Sessions 246-260 (Prune, GDPR fixes, SPoT errors, Moderation video, Hygiene 1/2, DRY cleanup, Double-call, iOS Info.plist, Privacy Policy, Global Normal+Blur, Chat media privacy, Presence sweeper, empty-uid guards, AES-256 wording, Rate limit, Group avatar, firebase-analytics, audit_log cleanup, unit tests) |
-| 13 | `oldsessions/oldsessions_13_sessions_261_270.md` | Sessions 261-270 (C6+M1-M4, Refactors video_bubble/public_profile/chat_input, widget tests, repo tests ChatRepository+GroupChat, invite SPoT copy + token-first, shared-widget tests) |
+| 13 | `oldsessions/oldsessions_13_sessions_261_270.md` | Sessions 261-272 (C6+M1-M4, Refactors video_bubble/public_profile/chat_input, widget tests, repo tests ChatRepository+GroupChat, invite SPoT copy + token-first, shared-widget tests, provider tests [271], features/chat tests Φάση 1+2 [272]) |
 | 14 | `oldsessions/oldsessions_14_archive_refactor.md` | **Θεματικό:** Archive Refactor (7 Σεπ 2026) — το ιστορικό χωρίστηκε σε 13 κεφάλαια, root = index/TOC |
 
 > Κανόνας αρίθμησης: όταν προστίθενται νέες ομάδες sessions συνεχίζουν στο επόμενο νούμερο (π.χ. #14). Θεματικά αρχεία (π.χ. για μια νέα μεγάλη φάση) παίρνουν επίσης επόμενο διαθέσιμο αριθμό — ο TOC ενημερώνεται πάντα εδώ.

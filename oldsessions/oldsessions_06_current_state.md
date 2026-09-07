@@ -2,12 +2,13 @@
 
 | Μέτρο | Τιμή |
 |---|---|
-| Completion | ~99.9% (Phases 1-3 100%, MultiChat 100%, Media 100%, Chat Redesign 100%, Audio Messages 100%, **B5 Privacy Policy 100%**, Invite flow 100% [Session 268], **Invite bubble copy 100% [Session 269]**, **Shared widgets widget-tests ~95% [Session 270]**) |
+| Completion | ~99.9% (Phases 1-3 100%, MultiChat 100%, Media 100%, Chat Redesign 100%, Audio Messages 100%, **B5 Privacy Policy 100%**, Invite flow 100% [Session 268], **Invite bubble copy 100% [Session 269]**, **Shared widgets widget-tests ~95% [Session 270]**, **Provider tests [Session 271]**, **features/chat tests Φάση 1+2 [Session 272]**) |
 | `.dart` files | ~142 (non-generated, +`vision_moderation_service.dart` + `avatar_blur.dart` + `moderation_section.dart` + `splash_screen.dart` + `firestore_cleanup.dart` + `bubble_timestamp.dart` + `video_content_panel.dart` [Session 262] + `public_profile_sections.dart` + `public_profile_photo_gallery.dart` + `public_profile_actions.dart` [Session 263] + `chat_media_sender_mixin.dart` + `chat_input_banners.dart` [Session 265] + `public_profile_json.dart` + `publish_payload.dart` [Session 266] + `invite_utils.dart` [Session 268]) |
 | Firestore indexes | 21 composite deployed |
 | Cloud Functions | 17 deployed `europe-west1` (gen1, Node 22), συμπ. `checkImageModeration` + `moderateImage` (Vision moderation, eur3), `addGroupParticipant`/`leaveGroup`, `expireStaleRequests/Messages`, `computeGeoHash`, `checkSearchRateLimit`, `deleteUserData`, `onReportCreated`, `onRequestCreated` (server `expiresAt`, Session 261), 5 FCM |
 | Build | `flutter analyze` clean ✅, release APK ~41.7MB (debug) / ~20.8MB (R8), signed `gr.nearme.app` (CN=NearMe) |
-| Tests | 495/495 passed (Session 270: 487 αρχικά + 8 error-path repo tests · + encoding fix auth/profile test files · πλήρες `flutter test`, analyze 0 issues) |
+| Tests | 573/573 passed (Session 272: +73 features/chat tests · Φάση 1+2 · πλήρες `flutter test`, analyze 0 issues) |
+| Code Coverage | **28.5%** line (4469/15662, πλήρες run, excl. generated) — repos 69.4% · core/utils 63.4% · shared/widgets 80.3% · shared/utils 20.1% · lib/providers 72.2% · features/chat 14.2% (Session 272, από 9.4%) · features/requests 1.9% · features/auth 1.5% · data/local 7.1% · data/remote 0% · screens (features) χαμηλά, φάση 4 |
 | Schema | Drift v17, 7 tables (+crashReportsEnabled, blurExplicitEnabled, blurSigma 0/10/20/32) |
 | Moderation | Active (Sessions 253-255): Global Normal + User Blur — Vision SafeSearch `eu-vision.googleapis.com`, thresholds Adult/Violence LIKELY+ reject, Racy never \(only blur\), blur POSSIBLE/LIKELY via `avatar_blur.dart` + `blurSigma` slider SPoT (`moderation_section.dart` + `_BlurSigmaTile` reuse `_AutoLockTile`). Kill-switch `config/moderation`, `moderationLog` rules |
 | Photo Fix | `EqualUnmodifiableListView` → `List.from` `profile_editor_screen.dart:153,161` (Session 244) |

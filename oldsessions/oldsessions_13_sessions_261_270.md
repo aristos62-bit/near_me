@@ -308,7 +308,7 @@
 ### Έλεγχος
 - `flutter analyze` → **0 issues** ✅
 - `flutter test test/widgets/` → **99/99** ✅
-- `flutter test` (ολόκληρο) → **495/495** ✅ (487 αρχικά + 8 error-path repo tests από τη συνέχεια παρακάτω)
+- `flutter test` (ολόκληρο) → **495/495** ✅ (487 αρχικά + 8 error-path repo tests από τη συνέχεια παρακάτω + 5 provider tests [Session 271])
 
 ### Συνέχεια — ξεχασμένες repo-test υποχρεώσεις
 Μετά το κλείσιμο της εκστρατείας εντοπίστηκαν εκκρεμότητες της αρχικής πρότασης κάλυψης που δεν είχαν γίνει + encoding bug σε παλιά test files:
@@ -318,11 +318,39 @@
   - `saved_search_repository_test.dart`: `save` / `getAll` / `delete Drift λάθος → database_error`
   - `request_repository_impl_test.dart`: `sendRequest` / `getIncomingRequests` / `getOutgoingRequests` / `respondToRequest` → `firestore_error`
 - **Νέα helpers**: `test/helpers/failing_drift.dart` (Mock QueryExecutor για Drift errors — το κλειστό DB επέστρεφε `[]` χωρίς throw, γι' αυτό χρειάστηκε mock executor) + `failingRequestsFirestore()` στο `failing_firestore.dart` (Mock Firestore για request error paths).
-- **Έλεγχος**: `flutter analyze` 0 issues · πλήρες `flutter test` → **495/495** ✅
+- **Έλεγχος**: `flutter analyze` 0 issues · πλήρες `flutter test` → **500/500** ✅
 - **Backups**: `backups/*_pre_coverage_20260907_140647.bak`
 
 ### Coverage shared widgets (cumulative εκστρατεία)
 100%: app_state_widget, gradient_header, save_button, form_section, form_toggle, chip_selector, online_indicator, consent_badge, report_user_dialog, avatar_stack, splash_screen · 97.2%: blur_reveal_image · 96.9%: editor_scaffold · 92.9%: profile_card · 54.9%: gps_strength_indicator
+
+### Συνέχεια — Provider tests (Session 271)
+Προστέθηκαν unit tests για τον `unreadBadgeProvider` (τον μόνο provider με πραγματική business logic):
+- `test/providers/unread_badge_provider_test.dart`: 5 tests — fold unread + request sum, error fallback, empty, all-read, mixed
+- **Παραλείψεις**: `connectivityProvider` (καλύπτεται ήδη από `global_connectivity_banner_test.dart`, mapping 1 γραμμή), `databaseProvider` (pure singleton getter, 0 logic, global state risk)
+- **Έλεγχος**: `flutter analyze` 0 issues · `flutter test` → **500/500** ✅
+
+### Συνολική κάλυψη tests — πλήρης καταγραφή (Session 271)
+`flutter test --coverage` (πλήρες run, 500 tests, ~3:20, `coverage/lcov.info`) · excluded generated `.g/.freezed/.gen`:
+
+| Περιοχή | Coverage | Σχόλιο |
+|---|---|---|
+| **ΣΥΝΟΛΟ** | **26.8%** (4204/15662) | Regressions μέσω 500 tests |
+| repositories | **69.4%** (2006/2891) | Ισχυρή — κύρια εκστρατεία |
+| core/utils | 63.4% (441/696) | timeouts, app_exception, geohash, json κλπ |
+| shared/widgets | **80.3%** (504/628) | Εκστρατεία Session 270 |
+| shared/utils | 20.1% (38/189) | age_validation, invite_utils κλπ |
+| lib/providers (3) | 72.2% (13/18) | unread_badge 100%, connectivity 50%, database 0% |
+| core/theme | 59.3% (70/118) | responsive_utils κλπ |
+| core/router | 33.8% (69/204) | app_router/main_shell (smoke) |
+| core/l10n | 23.8% (53/223) | L10n formatters |
+| **screens (features\*)** | **~9.4%** (chat) / 1.9% (requests) / 1.5% (auth) / 2% (settings) / 4.9% (profile) | **Το μεγαλύτερο κενό** — ελάχιστα widget tests σε screens |
+| features/chat (σύνολο) | 9.4% (494/5273) | Σχεδόν όλα από chat_input_bar_test |
+| data/local | 7.1% (19/268) | DB τον χειριζόμαστε μέσω repo tests |
+| data/remote | 0% | firestore/storage services |
+| core/services | 3.3% | presence, moderation, idle_lock κλπ |
+
+**Εκκρεμή (επόμενα βήματα κάλυψης)**: screens widget tests (features: chat/requests/auth/settings/profile) — το μεγαλύτερο κενό · data/remote services · core/services · shared/utils (giphy, help_request_config, image_utils) · core/l10n
 
 ### Εκκρεμεί
 - Widget tests για: `chat_recipient_picker`, `incoming_share_sheet`, `read_receipt_indicator` (feature-specific chat).
@@ -332,6 +360,51 @@
 
 ### Backups
 - `backups/oldsessions_pre_S270_20260907_150000.md`
+- `backups/{oldsessions,oldsessions_06_current_state,oldsessions_13_sessions_261_270}_pre_provider_test_20260907_150805.md`
+- `backups/{oldsessions,oldsessions_06_current_state,oldsessions_13_sessions_261_270}_pre_coverage_update_20260907_180829.md`
+
+---
+
+## Session 272 — Εκστρατεία coverage features/chat Φάση 1+2 (73 νέα tests) + CI actions upgrade — 07 Σεπ 2026
+
+### Σκοπός
+Κάλυψη του μεγαλύτερου κενού (`features/chat` 9.4%) με Φάση 1 (unit tests σε pure utils) + Φάση 2 (widget tests σε μικρά widgets). Στο ίδιο session: αναβάθμιση GitHub Actions για κατάργηση των Node 20 deprecation warnings. Χρήστης επέλεξε «Φάση 1+2» και ελέγχει αν συνεχίσουμε σε Φάση 3.
+
+### Φάση 1 — Unit tests utils (44 νέα tests)
+- `test/features/chat/audit_detail_formatter_test.dart` (28): `format` null/empty→'', role/permission/newValue/participantUids/newMax/oldMax fields (el+en), dash για null, unknown keys passthrough, `auditActionLabel` για όλες τις 11 actions + unknown fallback.
+- `test/features/chat/chat_ui_utils_test.dart` (16): `RenderItem` factories + `ChatGroupingCalculator.calculate` — empty→[], single, grouping ≤5min, sender change, system message break, >5min gap, date separator σε νέα μέρα, identity cache, recalc με νέο list, no-timestamp/no-senderId messages, mixed system+text, 3-message group avatar flags.
+
+### Φάση 2 — Widget tests μικρά widgets (29 νέα tests)
+- `test/features/chat/bubble_timestamp_test.dart` (4): timeStr, lock icon, padding left/right ανάλογα `isMe`.
+- `test/features/chat/sender_header_test.dart` (5): initial letter χωρίς URL, nickname σε group, hidden εκτός group, null nickname, CircleAvatar always.
+- `test/features/chat/date_separator_test.dart` (3): label text, 2 dividers, label non-empty (localized harness el).
+- `test/features/chat/system_message_bubble_test.dart` (10): content, timeStr, κρυφό όταν empty, delete_request buttons visible/hidden (isRequester/no chatId), callbacks approve/reject (tap), delete_rejected buttons, action null.
+- `test/features/chat/message_action_bar_test.dart` (2): show returns Future + popup items render (FeatureFlags const → accept current values).
+- `test/features/chat/bubble_long_press_wrapper_test.dart` (3): renders child, child tappable, long-press ανοίγει action bar.
+- `test/features/chat/emoji_picker_panel_test.dart` (2): renders χωρίς exception, callback δεν καλείται στο build. (Χρειάστηκε `_settleTimer` — δείτε μάθημα παρακάτω.)
+
+### Σημαντικά τεχνικά μαθήματα (keep)
+- **UTF-8/CRLF normalization**: το `Set-Content -Encoding UTF8` του PowerShell 5.1 «έσπαγε» τα ελληνικά (mojibake). Σωστή μέθοδος: `[System.IO.File]::ReadAllText($path, [Text.UTF8Encoding]::new($false))` → `-replace "(?<!\r)\n", "\r\n"` → `[System.IO.File]::WriteAllText($path, $content, [Text.UTF8Encoding]::new($false))` (UTF-8 **χωρίς BOM**, CRLF αναλλοίωτα).
+- Αρχικά γράφτηκαν unicode escapes (`\u03C0` κ.λπ.) για τα ελληνικά είναι-safe, αλλά ο χρήστης ζήτησε **πραγματικούς χαρακτήρες** — ξαναγράφτηκαν και τα 2 affected files. Verify πάντα με Read tool/`[IO.File]::ReadAllText` (το `Get-Content`/Select-String στην κονσόλα δείχνει mojibake λόγω code page, όχι λόγω αρχείου).
+- **DebugConfig 1s timer**: σε `testWidgets` πάντα `await tester.pump(const Duration(seconds: 2))` ή `_settleTimer` (pumpWidget SizedBox + pump 2s). Το `EmojiPickerPanel.dispose` κάνει και το ίδιο `DebugConfig.log` → ο τελικός pump 2s είναι υποχρεωτικός.
+- PowerShell 5.1: η κονσόλα εμφανίζει τα ελληνικά σχεδόν πάντα σπασμένα (code page) — η επαλήθευση encoding γίνεται ΜΟΝΟ μέσω byte/ReadAllText.
+
+### CI actions upgrade (commit `ce67068`, pushed)
+- `.github/workflows/ci.yml`: `actions/checkout@v4` → `@v5`, `actions/upload-artifact@v4` → `@v6` (το v6 είναι το πρώτο με default Node 24 — το v5 έτρεχε Node 20, δεν λύνει το warning). Backup `backups/ci.yml_pre_checkout_artifact_upgrade_20260907.md`. Pull request/re-run παραμένει εκκρεμές για επιβεβαίωση (no warnings).
+
+### Έλεγχος
+- `flutter analyze` → **0 issues** ✅
+- `flutter test test/features/chat/` → **94/94** ✅ (21 παλιά + 73 νέα)
+- `flutter test` (πλήρες) → **573/573** ✅ (was 500)
+- `flutter test --coverage` (πλήρες, ~3:40) → chat **9.4% → 14.2%** (751/5273) · **σύνολο 26.8% → 28.5%** (4469/15662, excl. generated)
+
+### Εκκρεμεί
+- Φάση 3 (message_bubble, emoji_only_bubble, message_reactions, media_picker_sheet, group_call_screen) — ο χρήστης αποφασίζει μετά τον έλεγχο.
+- Commit uncommitted (test files + oldsessions + README κ.λπ.) — ο χρήστης κάνει commit.
+- CI re-run για επιβεβαίωση ότι εξαφανίστηκαν τα Node 20 warnings.
+
+### Backups
+- `backups/{oldsessions,oldsessions_06_current_state,oldsessions_13_sessions_261_270}_pre_S272_20260907_193505.md`
 
 ---
 

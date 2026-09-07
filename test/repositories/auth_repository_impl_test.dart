@@ -1,4 +1,4 @@
-﻿import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
+import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -47,30 +47,30 @@ void main() {
   });
 
   group('canUserCommunicate', () {
-    test('null â†’ false', () {
+    test('null → false', () {
       expect(AuthRepository.canUserCommunicate(null), isFalse);
     });
 
-    test('anonymous â†’ false', () {
+    test('anonymous → false', () {
       when(() => user.isAnonymous).thenReturn(true);
       expect(AuthRepository.canUserCommunicate(user), isFalse);
     });
 
-    test('non-anon + emailVerified â†’ true', () {
+    test('non-anon + emailVerified → true', () {
       when(() => user.isAnonymous).thenReturn(false);
       when(() => user.emailVerified).thenReturn(true);
       when(() => user.phoneNumber).thenReturn(null);
       expect(AuthRepository.canUserCommunicate(user), isTrue);
     });
 
-    test('non-anon + phone â†’ true (Ï‡Ï‰ÏÎ¯Ï‚ email verify)', () {
+    test('non-anon + phone → true (χωρίς email verify)', () {
       when(() => user.isAnonymous).thenReturn(false);
       when(() => user.emailVerified).thenReturn(false);
       when(() => user.phoneNumber).thenReturn('+306900000000');
       expect(AuthRepository.canUserCommunicate(user), isTrue);
     });
 
-    test('non-anon + Ï„Î¯Ï€Î¿Ï„Î± â†’ false', () {
+    test('non-anon + τίποτα → false', () {
       when(() => user.isAnonymous).thenReturn(false);
       when(() => user.emailVerified).thenReturn(false);
       when(() => user.phoneNumber).thenReturn(null);
@@ -79,7 +79,7 @@ void main() {
   });
 
   group('signInAnonymously / email sign-in / create', () {
-    test('signInAnonymously â†’ ÎµÏ€Î¹ÏƒÏ„ÏÎ­Ï†ÎµÎ¹ user', () async {
+    test('signInAnonymously → επιστρέφει user', () async {
       final cred = MockUserCredential();
       when(() => cred.user).thenReturn(user);
       when(() => auth.signInAnonymously()).thenAnswer((_) async => cred);
@@ -88,7 +88,7 @@ void main() {
       expect(result, same(user));
     });
 
-    test('signInWithEmailAndPassword â†’ ÎµÏ€Î¹ÏƒÏ„ÏÎ­Ï†ÎµÎ¹ user', () async {
+    test('signInWithEmailAndPassword → επιστρέφει user', () async {
       final cred = MockUserCredential();
       when(() => cred.user).thenReturn(user);
       when(() => auth.signInWithEmailAndPassword(
@@ -100,7 +100,7 @@ void main() {
       expect(result, same(user));
     });
 
-    test('createUserWithEmailAndPassword â†’ ÎµÏ€Î¹ÏƒÏ„ÏÎ­Ï†ÎµÎ¹ user', () async {
+    test('createUserWithEmailAndPassword → επιστρέφει user', () async {
       final cred = MockUserCredential();
       when(() => cred.user).thenReturn(user);
       when(() => auth.createUserWithEmailAndPassword(
@@ -114,7 +114,7 @@ void main() {
   });
 
   group('linkWithEmailAndPassword', () {
-    test('no user â†’ auth_error', () async {
+    test('no user → auth_error', () async {
       when(() => auth.currentUser).thenReturn(null);
       await expectLater(
         repo.linkWithEmailAndPassword('a@b.c', 'pass'),
@@ -123,7 +123,7 @@ void main() {
       );
     });
 
-    test('ÎµÏ€Î¹Ï„Ï…Ï‡Î¯Î± â†’ linkWithCredential ÎºÎ±Î»ÎµÎ¯Ï„Î±Î¹', () async {
+    test('επιτυχία → linkWithCredential καλείται', () async {
       when(() => user.linkWithCredential(any()))
           .thenAnswer((_) async => MockUserCredential());
       await repo.linkWithEmailAndPassword('a@b.c', 'pass');
@@ -132,7 +132,7 @@ void main() {
   });
 
   group('sendEmailVerification', () {
-    test('no user â†’ auth_error', () async {
+    test('no user → auth_error', () async {
       when(() => auth.currentUser).thenReturn(null);
       await expectLater(
         repo.sendEmailVerification(),
@@ -141,7 +141,7 @@ void main() {
       );
     });
 
-    test('ÎµÏ€Î¹Ï„Ï…Ï‡Î¯Î± â†’ sendEmailVerification ÎºÎ±Î»ÎµÎ¯Ï„Î±Î¹', () async {
+    test('επιτυχία → sendEmailVerification καλείται', () async {
       when(() => user.sendEmailVerification()).thenAnswer((_) async {});
       await repo.sendEmailVerification();
       verify(() => user.sendEmailVerification()).called(1);
@@ -149,7 +149,7 @@ void main() {
   });
 
   group('sendPasswordResetEmail', () {
-    test('ÎµÏ€Î¹Ï„Ï…Ï‡Î¯Î± â†’ sendPasswordResetEmail ÎºÎ±Î»ÎµÎ¯Ï„Î±Î¹', () async {
+    test('επιτυχία → sendPasswordResetEmail καλείται', () async {
       when(() => auth.sendPasswordResetEmail(email: any(named: 'email')))
           .thenAnswer((_) async {});
       await repo.sendPasswordResetEmail('a@b.c');
@@ -170,14 +170,14 @@ void main() {
       expect(repo.isPhoneVerified, isTrue);
     });
 
-    test('authStateChanges â†’ stream emit user', () async {
+    test('authStateChanges → stream emit user', () async {
       when(() => auth.authStateChanges())
           .thenAnswer((_) => Stream.value(user));
       final emitted = await repo.authStateChanges().first;
       expect(emitted, same(user));
     });
 
-    test('reloadUser â†’ reload ÎºÎ±Î»ÎµÎ¯Ï„Î±Î¹', () async {
+    test('reloadUser → reload καλείται', () async {
       when(() => user.reload()).thenAnswer((_) async {});
       await repo.reloadUser();
       verify(() => user.reload()).called(1);
@@ -185,7 +185,7 @@ void main() {
   });
 
   group('sendPhoneOtp', () {
-    test('codeSent â†’ ÎµÏ€Î¹ÏƒÏ„ÏÎ­Ï†ÎµÎ¹ vId', () async {
+    test('codeSent → επιστρέφει vId', () async {
       when(() => auth.verifyPhoneNumber(
             phoneNumber: any(named: 'phoneNumber'),
             verificationCompleted: any(named: 'verificationCompleted'),
@@ -201,7 +201,7 @@ void main() {
       expect(vId, 'vid123');
     });
 
-    test('verificationCompleted (auto) â†’ link + AUTO_VERIFIED', () async {
+    test('verificationCompleted (auto) → link + AUTO_VERIFIED', () async {
       when(() => user.linkWithCredential(any()))
           .thenAnswer((_) async => MockUserCredential());
       when(() => auth.verifyPhoneNumber(
@@ -221,7 +221,7 @@ void main() {
       verify(() => user.linkWithCredential(any())).called(1);
     });
 
-    test('verificationFailed â†’ mapped AppException', () async {
+    test('verificationFailed → mapped AppException', () async {
       when(() => auth.verifyPhoneNumber(
             phoneNumber: any(named: 'phoneNumber'),
             verificationCompleted: any(named: 'verificationCompleted'),
@@ -248,7 +248,7 @@ void main() {
   });
 
   group('verifyPhoneOtp', () {
-    test('no user â†’ auth_required', () async {
+    test('no user → auth_required', () async {
       when(() => auth.currentUser).thenReturn(null);
       await expectLater(
         repo.verifyPhoneOtp('vid', '1234'),
@@ -257,7 +257,7 @@ void main() {
       );
     });
 
-    test('ÎµÏ€Î¹Ï„Ï…Ï‡Î¯Î± â†’ link + reload', () async {
+    test('επιτυχία → link + reload', () async {
       when(() => user.linkWithCredential(any()))
           .thenAnswer((_) async => MockUserCredential());
       when(() => user.reload()).thenAnswer((_) async {});
@@ -266,7 +266,7 @@ void main() {
       verify(() => user.reload()).called(1);
     });
 
-    test('Î»Î¬Î¸Î¿Ï‚ â†’ mapped auth_error', () async {
+    test('λάθος → mapped auth_error', () async {
       when(() => user.linkWithCredential(any()))
           .thenThrow(FirebaseAuthException(code: 'invalid-verification-code'));
       await expectLater(
@@ -278,7 +278,7 @@ void main() {
   });
 
   group('unlinkPhone', () {
-    test('no user â†’ auth_error', () async {
+    test('no user → auth_error', () async {
       when(() => auth.currentUser).thenReturn(null);
       await expectLater(
         repo.unlinkPhone(),
@@ -287,14 +287,14 @@ void main() {
       );
     });
 
-    test('no-such-provider â†’ treated as success', () async {
+    test('no-such-provider → treated as success', () async {
       when(() => user.unlink('phone'))
           .thenThrow(FirebaseAuthException(code: 'no-such-provider'));
       await repo.unlinkPhone();
       verify(() => user.unlink('phone')).called(1);
     });
 
-    test('Î¬Î»Î»Î¿ FirebaseAuthException â†’ auth_error', () async {
+    test('άλλο FirebaseAuthException → auth_error', () async {
       when(() => user.unlink('phone')).thenThrow(
           FirebaseAuthException(code: 'network-request-failed'));
       await expectLater(
@@ -304,7 +304,7 @@ void main() {
       );
     });
 
-    test('ÎµÏ€Î¹Ï„Ï…Ï‡Î¯Î± â†’ unlinked + reload', () async {
+    test('επιτυχία → unlinked + reload', () async {
       when(() => user.unlink('phone')).thenAnswer((_) async => MockUser());
       when(() => user.reload()).thenAnswer((_) async {});
       await repo.unlinkPhone();

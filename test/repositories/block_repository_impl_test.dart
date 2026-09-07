@@ -6,6 +6,7 @@ import 'package:near_me/core/utils/app_exception.dart';
 import 'package:near_me/data/local/database.dart';
 import 'package:near_me/repositories/block_repository_impl.dart';
 
+import '../helpers/failing_drift.dart';
 import '../helpers/failing_firestore.dart';
 
 void main() {
@@ -17,6 +18,10 @@ void main() {
     db = AppDatabase.forTesting(NativeDatabase.memory());
     firestore = FakeFirebaseFirestore();
     repo = BlockRepositoryImpl(db: db, firestore: firestore);
+  });
+
+  setUpAll(() {
+    registerDriftFallbacks();
   });
 
   tearDown(() async {
@@ -149,6 +154,18 @@ void main() {
 
       final rows = await repo.getBlockedUsers('me');
       expect(rows.map((r) => r.blockedUid).toList(), ['b', 'a']);
+    });
+
+    test('Drift λάθος → database_error', () async {
+      final failingRepo = BlockRepositoryImpl(
+        db: AppDatabase.forTesting(failingDriftExecutor()),
+        firestore: firestore,
+      );
+      await expectLater(
+        failingRepo.getBlockedUsers('me'),
+        throwsA(isA<AppException>()
+            .having((e) => e.code, 'code', 'database_error')),
+      );
     });
   });
 

@@ -1,0 +1,17 @@
+## ΚΕΦΑΛΑΙΟ 6 — CURRENT STATE
+
+| Μέτρο | Τιμή |
+|---|---|
+| Completion | ~99.9% (Phases 1-3 100%, MultiChat 100%, Media 100%, Chat Redesign 100%, Audio Messages 100%, **B5 Privacy Policy 100%**, Invite flow 100% [Session 268], **Invite bubble copy 100% [Session 269]**, **Shared widgets widget-tests ~95% [Session 270]**) |
+| `.dart` files | ~142 (non-generated, +`vision_moderation_service.dart` + `avatar_blur.dart` + `moderation_section.dart` + `splash_screen.dart` + `firestore_cleanup.dart` + `bubble_timestamp.dart` + `video_content_panel.dart` [Session 262] + `public_profile_sections.dart` + `public_profile_photo_gallery.dart` + `public_profile_actions.dart` [Session 263] + `chat_media_sender_mixin.dart` + `chat_input_banners.dart` [Session 265] + `public_profile_json.dart` + `publish_payload.dart` [Session 266] + `invite_utils.dart` [Session 268]) |
+| Firestore indexes | 21 composite deployed |
+| Cloud Functions | 17 deployed `europe-west1` (gen1, Node 22), συμπ. `checkImageModeration` + `moderateImage` (Vision moderation, eur3), `addGroupParticipant`/`leaveGroup`, `expireStaleRequests/Messages`, `computeGeoHash`, `checkSearchRateLimit`, `deleteUserData`, `onReportCreated`, `onRequestCreated` (server `expiresAt`, Session 261), 5 FCM |
+| Build | `flutter analyze` clean ✅, release APK ~41.7MB (debug) / ~20.8MB (R8), signed `gr.nearme.app` (CN=NearMe) |
+| Tests | 495/495 passed (Session 270: 487 αρχικά + 8 error-path repo tests · + encoding fix auth/profile test files · πλήρες `flutter test`, analyze 0 issues) |
+| Schema | Drift v17, 7 tables (+crashReportsEnabled, blurExplicitEnabled, blurSigma 0/10/20/32) |
+| Moderation | Active (Sessions 253-255): Global Normal + User Blur — Vision SafeSearch `eu-vision.googleapis.com`, thresholds Adult/Violence LIKELY+ reject, Racy never \(only blur\), blur POSSIBLE/LIKELY via `avatar_blur.dart` + `blurSigma` slider SPoT (`moderation_section.dart` + `_BlurSigmaTile` reuse `_AutoLockTile`). Kill-switch `config/moderation`, `moderationLog` rules |
+| Photo Fix | `EqualUnmodifiableListView` → `List.from` `profile_editor_screen.dart:153,161` (Session 244) |
+| P0 Fixes | `unawaited` `then<void> onError` + `await close()` + `chatId` null check (Session 245) · Hygiene 1.1/1.2/1.3/1.5/1.6/2.2/2.3/2.4/3.1-3.3/4.1/5 (Session 248) · Follow-up dead-catch + 3.1 postFrame + 4.6 listener (Session 249) · Double-call resume (Session 250) · B3+B6 iOS Info.plist (Session 251) · **B5 Hosting privacy.html (Session 252)** |
+| Feature Flags | ~24 (core 21: typesense, videoCall, groupChat, gifSupport, mediaMessages, audioMessages, videoMessages, messageExpiry, messageReactions, replyToMessage, **replyPrivately**, editMessage, deleteMessage, messageInfo, messageEmail, messageShare, groupEvents, webVersion, aiMatching, verifiedBadge, premiumTier + moderation: contentModerationEnabled, autoModerateProfilePhotos, autoModerateChatMedia, blurExplicitByDefault) |
+| Hosting | **B5 FIXED 30/08/2026** — `firebase.json:21` hosting `public:hosting cleanUrls:true` + `hosting/privacy.html` 10.5KB + `hosting/terms.html` 1.1KB → `https://nearme-eu.web.app/privacy` (200) deployed `firebase deploy --only hosting` · tile `SettingsScreen:211` `AppConfig.privacyPolicyUrl` · email `soc.near.app@gmail.com` |
+

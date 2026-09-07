@@ -1,4 +1,4 @@
-﻿import 'dart:typed_data';
+import 'dart:typed_data';
 import 'package:drift/drift.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -60,8 +60,8 @@ const _bytes = [1, 2, 3, 4, 5];
 
 Uint8List _jpeg() => Uint8List.fromList(_bytes);
 
-/// Î’Î¿Î·Î¸Î·Ï„Î¹ÎºÏŒ: Î¦Ï„Î¹Î¬Ï‡Î½ÎµÎ¹ Î­Î½Î± UserProfileTableData Î¼Îµ ÏƒÏ…Î¼Ï€Î»Î®ÏÏ‰ÏƒÎ· Ï„Ï‰Î½ required
-/// Ï€ÎµÎ´Î¯Ï‰Î½ (companion Î¼Ï€Î¿ÏÎµÎ¯ Î½Î± Î­Ï‡ÎµÎ¹ nullable) â€” Î²Î¬Î¶Î¿Ï…Î¼Îµ Î­Î½Î± ÎµÎ»Î¬Ï‡Î¹ÏƒÏ„Î¿.
+/// Βοηθητικό: Φτιάχνει ένα UserProfileTableData με συμπλήρωση των required
+/// πεδίων (companion μπορεί να έχει nullable) — βάζουμε ένα ελάχιστο.
 UserProfileTableData _minProfile({
   String? avatarUrl,
   List<String>? photoUrls,
@@ -97,7 +97,7 @@ void main() {
   });
 
   group('saveAvatar', () {
-    test('no user â†’ auth_required', () async {
+    test('no user → auth_required', () async {
       final h = _Harness(
         storage: storage,
         storageUserProvider: () => _emptyUser(),
@@ -111,7 +111,7 @@ void main() {
       );
     });
 
-    test('empty bytes â†’ validation_error', () async {
+    test('empty bytes → validation_error', () async {
       final h = _Harness(
         storage: storage,
         storageUserProvider: () => user,
@@ -125,7 +125,7 @@ void main() {
       );
     });
 
-    test('ÎµÏ€Î¹Ï„Ï…Ï‡Î¯Î± â†’ upload + consent logger', () async {
+    test('επιτυχία → upload + consent logger', () async {
       final logs = <(String, String, String)>[];
       when(() => storage.uploadAvatar('u_test', any()))
           .thenAnswer((_) async => (url: 'https://img', racyLevel: 'RACY'));
@@ -142,7 +142,7 @@ void main() {
       expect(logs, [( 'u_test', 'uploaded_photo', 'avatar')]);
     });
 
-    test('upload throws â†’ storage_error', () async {
+    test('upload throws → storage_error', () async {
       when(() => storage.uploadAvatar('u_test', any()))
           .thenThrow(Exception('boom'));
       final h = _Harness(
@@ -158,7 +158,7 @@ void main() {
       );
     });
 
-    test('save failure â†’ rollback (deleteAvatar + restore)', () async {
+    test('save failure → rollback (deleteAvatar + restore)', () async {
       final profile = _minProfile(avatarUrl: 'old');
       when(() => storage.uploadAvatar('u_test', any()))
           .thenAnswer((_) async => (url: 'new', racyLevel: null));
@@ -182,7 +182,7 @@ void main() {
   });
 
   group('deleteAvatar', () {
-    test('no user â†’ no-op Ï‡Ï‰ÏÎ¯Ï‚ throw', () async {
+    test('no user → no-op χωρίς throw', () async {
       final h = _Harness(
         storage: storage,
         storageUserProvider: () => _emptyUser(),
@@ -193,7 +193,7 @@ void main() {
       verifyNever(() => storage.deleteAvatar('u_test'));
     });
 
-    test('ÎµÏ€Î¹Ï„Ï…Ï‡Î¯Î± â†’ deleteAvatar + publish (Î±Î½ published)', () async {
+    test('επιτυχία → deleteAvatar + publish (αν published)', () async {
       when(() => storage.deleteAvatar('u_test')).thenAnswer((_) async {});
       final profile = _minProfile(avatarUrl: 'old', published: true);
       final h = _Harness(
@@ -209,7 +209,7 @@ void main() {
   });
 
   group('savePhoto', () {
-    test('invalid index â†’ validation_error', () async {
+    test('invalid index → validation_error', () async {
       final h = _Harness(
         storage: storage,
         storageUserProvider: () => user,
@@ -223,7 +223,7 @@ void main() {
       );
     });
 
-    test('empty bytes â†’ validation_error', () async {
+    test('empty bytes → validation_error', () async {
       final h = _Harness(
         storage: storage,
         storageUserProvider: () => user,
@@ -237,7 +237,7 @@ void main() {
       );
     });
 
-    test('no user â†’ auth_required', () async {
+    test('no user → auth_required', () async {
       final h = _Harness(
         storage: storage,
         storageUserProvider: () => _emptyUser(),
@@ -251,7 +251,7 @@ void main() {
       );
     });
 
-    test('ÎµÏ€Î¹Ï„Ï…Ï‡Î¯Î± â†’ upload + consent', () async {
+    test('επιτυχία → upload + consent', () async {
       final logs = <(String, String, String)>[];
       when(() => storage.uploadPhoto('u_test', 0, any()))
           .thenAnswer((_) async => (url: 'https://p0', racyLevel: null));
@@ -269,7 +269,7 @@ void main() {
       expect(logs, [( 'u_test', 'uploaded_photo', 'photo')]);
     });
 
-    test('upload throws â†’ storage_error', () async {
+    test('upload throws → storage_error', () async {
       when(() => storage.uploadPhoto('u_test', 0, any()))
           .thenThrow(Exception('boom'));
       final h = _Harness(
@@ -287,7 +287,7 @@ void main() {
   });
 
   group('deletePhoto', () {
-    test('invalid index â†’ no-op', () async {
+    test('invalid index → no-op', () async {
       final h = _Harness(
         storage: storage,
         storageUserProvider: () => user,
@@ -298,7 +298,7 @@ void main() {
       verifyNever(() => storage.deletePhoto('u_test', -1));
     });
 
-    test('no user â†’ no-op', () async {
+    test('no user → no-op', () async {
       final h = _Harness(
         storage: storage,
         storageUserProvider: () => _emptyUser(),
@@ -309,7 +309,7 @@ void main() {
       verifyNever(() => storage.deletePhoto('u_test', 0));
     });
 
-    test('ÎµÏ€Î¹Ï„Ï…Ï‡Î¯Î± â†’ deletePhoto + publish (Î±Î½ published)', () async {
+    test('επιτυχία → deletePhoto + publish (αν published)', () async {
       when(() => storage.deletePhoto('u_test', 0)).thenAnswer((_) async {});
       final profile = _minProfile(photoUrls: ['a', 'b'], published: true);
       final h = _Harness(
@@ -324,5 +324,3 @@ void main() {
     });
   });
 }
-
-

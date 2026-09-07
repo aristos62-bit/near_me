@@ -1,7 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:near_me/core/utils/app_exception.dart';
 import 'package:near_me/repositories/auth_repository.dart';
+import 'package:near_me/repositories/request_repository_impl.dart';
 
+import '../helpers/failing_firestore.dart';
 import '../helpers/request_repository_test_base.dart';
 
 void main() {
@@ -115,6 +117,21 @@ void main() {
       final logs = await (h.db.select(h.db.consentLogTable)).get();
       expect(logs.map((l) => l.action), contains('sent_request'));
     });
+
+    test('Firestore write fail → firestore_error', () async {
+      final failing = RequestRepositoryImpl(
+        firestore: failingRequestsFirestore(),
+        auth: h.auth,
+        db: h.db,
+        chatRepo: h.realChatRepo,
+        rateLimitCheck: () async => true,
+      );
+      await expectLater(
+        failing.sendRequest(kReqOtherUid, 'chat'),
+        throwsA(isA<AppException>()
+            .having((e) => e.code, 'code', 'firestore_error')),
+      );
+    });
   });
 
   group('getIncomingRequests / getOutgoingRequests', () {
@@ -139,6 +156,30 @@ void main() {
       final results = await h.repo.getOutgoingRequests();
       expect(results, hasLength(1));
       expect(results.single['id'], 'req1');
+    });
+
+    RequestRepositoryImpl failingRepo() => RequestRepositoryImpl(
+          firestore: failingRequestsFirestore(),
+          auth: h.auth,
+          db: h.db,
+          chatRepo: h.realChatRepo,
+          rateLimitCheck: () async => true,
+        );
+
+    test('getIncomingRequests Firestore read fail → firestore_error', () async {
+      await expectLater(
+        failingRepo().getIncomingRequests(),
+        throwsA(isA<AppException>()
+            .having((e) => e.code, 'code', 'firestore_error')),
+      );
+    });
+
+    test('getOutgoingRequests Firestore read fail → firestore_error', () async {
+      await expectLater(
+        failingRepo().getOutgoingRequests(),
+        throwsA(isA<AppException>()
+            .having((e) => e.code, 'code', 'firestore_error')),
+      );
     });
   });
 
@@ -259,6 +300,21 @@ void main() {
       final doc = await h.firestore.collection('requests').doc('req1').get();
       expect(doc.data()!['status'], 'declined');
       expect(doc.data()!['chatId'], isNull);
+    });
+
+    test('Firestore read fail → firestore_error', () async {
+      final failing = RequestRepositoryImpl(
+        firestore: failingRequestsFirestore(),
+        auth: h.auth,
+        db: h.db,
+        chatRepo: h.realChatRepo,
+        rateLimitCheck: () async => true,
+      );
+      await expectLater(
+        failing.respondToRequest('req1', 'accepted'),
+        throwsA(isA<AppException>()
+            .having((e) => e.code, 'code', 'firestore_error')),
+      );
     });
   });
 

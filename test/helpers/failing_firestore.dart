@@ -62,3 +62,15 @@ MockFirestore failingGroupWriteFirestore({String chatId = 'g_new'}) {
   when(() => doc.set(any())).thenThrow(Exception('write failure'));
   return fs;
 }
+
+/// [SPoT] Επιστρέφει ένα `FirebaseFirestore` του οποίου η `requests`
+/// collection αποτυγχάνει στα write/read paths — για τα error-paths του
+/// `RequestRepositoryImpl`. Τα reads (doc.get / query) αφήνονται χωρίς stub:
+/// το MissingStubError που ρίχνει το mocktail πιάνεται από τα repo catch.
+MockFirestore failingRequestsFirestore() {
+  final fs = MockFirestore();
+  final requests = MockCollection();
+  when(() => fs.collection('requests')).thenReturn(requests);
+  when(() => requests.add(any())).thenThrow(Exception('write failure'));
+  return fs;
+}

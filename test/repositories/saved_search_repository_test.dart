@@ -1,9 +1,12 @@
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:near_me/core/utils/app_exception.dart';
 import 'package:near_me/data/local/database.dart';
 import 'package:near_me/repositories/saved_search_repository.dart';
 import 'package:near_me/repositories/search_repository.dart';
+
+import '../helpers/failing_drift.dart';
 
 void main() {
   late AppDatabase db;
@@ -12,6 +15,10 @@ void main() {
   setUp(() {
     db = AppDatabase.forTesting(NativeDatabase.memory());
     repo = SavedSearchRepositoryImpl(db: db);
+  });
+
+  setUpAll(() {
+    registerDriftFallbacks();
   });
 
   tearDown(() async {
@@ -73,6 +80,26 @@ void main() {
       final rows = await repo.getAll();
       expect(rows.map((r) => r.label).toList(), ['newer', 'older']);
     });
+
+    test('save Drift λάθος → database_error', () async {
+      final failingDb = AppDatabase.forTesting(failingDriftExecutor());
+      final failingRepo = SavedSearchRepositoryImpl(db: failingDb);
+      await expectLater(
+        failingRepo.save(fullFilters(), 'My search'),
+        throwsA(isA<AppException>()
+            .having((e) => e.code, 'code', 'database_error')),
+      );
+    });
+
+    test('getAll Drift λάθος → database_error', () async {
+      final failingDb = AppDatabase.forTesting(failingDriftExecutor());
+      final failingRepo = SavedSearchRepositoryImpl(db: failingDb);
+      await expectLater(
+        failingRepo.getAll(),
+        throwsA(isA<AppException>()
+            .having((e) => e.code, 'code', 'database_error')),
+      );
+    });
   });
 
   group('delete', () {
@@ -82,6 +109,16 @@ void main() {
       await repo.delete(rows.single.id);
 
       expect(await repo.getAll(), isEmpty);
+    });
+
+    test('delete Drift λάθος → database_error', () async {
+      final failingDb = AppDatabase.forTesting(failingDriftExecutor());
+      final failingRepo = SavedSearchRepositoryImpl(db: failingDb);
+      await expectLater(
+        failingRepo.delete(1),
+        throwsA(isA<AppException>()
+            .having((e) => e.code, 'code', 'database_error')),
+      );
     });
   });
 

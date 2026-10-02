@@ -226,7 +226,11 @@ class FirestoreSearchRepository implements SearchRepository {
       '_generalSearch: city=${filters.city}, country=${filters.country}',
     );
 
-    final snapshot = await query.get();
+    final snapshot = await withTimeout(
+      query.get(),
+      'search.general',
+      timeout: const Duration(seconds: 8),
+    );
     final all = <PublicProfile>[];
     for (final d in snapshot.docs) {
       final data = d.data() as Map<String, dynamic>;

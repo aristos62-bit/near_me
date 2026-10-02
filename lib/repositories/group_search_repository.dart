@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/debug/debug_config.dart';
 import '../core/utils/app_exception.dart';
+import '../core/utils/timeouts.dart';
 
 class GroupPublicProfile {
   final String chatId;
@@ -101,7 +102,11 @@ class FirestoreGroupSearchRepository implements GroupSearchRepository {
         );
       }
 
-      final snapshot = await queryRef.limit(limit).get();
+      final snapshot = await withTimeout(
+        queryRef.limit(limit).get(),
+        'group.searchGroups',
+        timeout: const Duration(seconds: 8),
+      );
 
       var results = snapshot.docs
           .map((doc) => GroupPublicProfile.fromFirestore(doc))

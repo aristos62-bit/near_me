@@ -14,7 +14,16 @@ mixin ChatClearMixin {
           'Δεν υπάρχει συνδεδεμένος χρήστης / No authenticated user');
     }
 
-    final chatDoc = await firestore.collection('chats').doc(chatId).get();
+    late final DocumentSnapshot<Map<String, dynamic>> chatDoc;
+    try {
+      chatDoc = await withTimeout(
+        firestore.collection('chats').doc(chatId).get(),
+        'clear.preCheck',
+        timeout: const Duration(seconds: 6),
+      );
+    } on TimeoutException {
+      throwTimeoutAs('clear.preCheck', 'chat/unknown-error');
+    }
     if (chatDoc.data()?['isGroupChat'] == true) {
       await _requirePermission(chatId, GroupPermission.deleteMessages);
       DebugConfig.log(DebugConfig.authGuard,

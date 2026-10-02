@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../debug/debug_config.dart';
+import '../utils/timeouts.dart';
 import '../router/app_router.dart';
 
 @pragma('vm:entry-point')
@@ -241,9 +242,13 @@ class FcmService {
     if (user == null) return;
 
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('users/${user.uid}/fcm_tokens')
-          .get();
+      final snap = await withTimeout(
+        FirebaseFirestore.instance
+            .collection('users/${user.uid}/fcm_tokens')
+            .get(),
+        'fcm.clearTokens',
+        timeout: const Duration(seconds: 6),
+      );
       final batch = FirebaseFirestore.instance.batch();
       for (final doc in snap.docs) { batch.delete(doc.reference); }
       await batch.commit();

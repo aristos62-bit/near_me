@@ -185,12 +185,16 @@ class RequestRepositoryImpl implements RequestRepository {
     DebugConfig.log(DebugConfig.repositoryCall, 'getIncomingRequests: uid=$uid');
 
     try {
-      final snapshot = await _firestore
-          .collection('requests')
-          .where('toUid', isEqualTo: uid)
-          .where('status', whereIn: ['pending', 'accepted', 'declined', 'expired'])
-          .orderBy('createdAt', descending: true)
-          .get();
+      final snapshot = await withTimeout(
+        _firestore
+            .collection('requests')
+            .where('toUid', isEqualTo: uid)
+            .where('status', whereIn: ['pending', 'accepted', 'declined', 'expired'])
+            .orderBy('createdAt', descending: true)
+            .get(),
+        'request.incoming',
+        timeout: const Duration(seconds: 8),
+      );
 
       final result = snapshot.docs.map((doc) {
         final data = doc.data();
@@ -215,12 +219,16 @@ class RequestRepositoryImpl implements RequestRepository {
     DebugConfig.log(DebugConfig.repositoryCall, 'getOutgoingRequests: uid=$uid');
 
     try {
-      final snapshot = await _firestore
-          .collection('requests')
-          .where('fromUid', isEqualTo: uid)
-          .where('status', whereIn: ['pending', 'accepted', 'declined', 'expired'])
-          .orderBy('createdAt', descending: true)
-          .get();
+      final snapshot = await withTimeout(
+        _firestore
+            .collection('requests')
+            .where('fromUid', isEqualTo: uid)
+            .where('status', whereIn: ['pending', 'accepted', 'declined', 'expired'])
+            .orderBy('createdAt', descending: true)
+            .get(),
+        'request.outgoing',
+        timeout: const Duration(seconds: 8),
+      );
 
       final result = snapshot.docs.map((doc) {
         final data = doc.data();
@@ -315,7 +323,11 @@ class RequestRepositoryImpl implements RequestRepository {
 
     try {
       final docRef = _firestore.collection('requests').doc(requestId);
-      final docSnap = await docRef.get();
+      final docSnap = await withTimeout(
+        docRef.get(),
+        'request.respond',
+        timeout: const Duration(seconds: 6),
+      );
 
       if (!docSnap.exists) {
         DebugConfig.warn('respondToRequest: request not found id=$requestId');
@@ -389,7 +401,11 @@ class RequestRepositoryImpl implements RequestRepository {
 
     try {
       final docRef = _firestore.collection('requests').doc(requestId);
-      final docSnap = await docRef.get();
+      final docSnap = await withTimeout(
+        docRef.get(),
+        'request.delete',
+        timeout: const Duration(seconds: 6),
+      );
 
       if (!docSnap.exists) {
         DebugConfig.warn('deleteRequest: not found id=$requestId');

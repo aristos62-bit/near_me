@@ -20,7 +20,16 @@ mixin ChatDeleteMixin {
     final uid = _deleteUid;
     DebugConfig.log(DebugConfig.chatDelete, 'requestDeleteChat: chat=$chatId uid=$uid');
 
-    final chatSnap = await firestore.collection('chats').doc(chatId).get();
+    late final DocumentSnapshot<Map<String, dynamic>> chatSnap;
+    try {
+      chatSnap = await withTimeout(
+        firestore.collection('chats').doc(chatId).get(),
+        'delete.preCheck',
+        timeout: const Duration(seconds: 6),
+      );
+    } on TimeoutException {
+      throwTimeoutAs('delete.preCheck', 'chat/delete-failed');
+    }
     if (!chatSnap.exists) return;
     final chatData = chatSnap.data()!;
 
@@ -71,7 +80,16 @@ mixin ChatDeleteMixin {
     final uid = _deleteUid;
     DebugConfig.log(DebugConfig.chatDelete, 'deleteChatForMe: chat=$chatId uid=$uid');
 
-    final chatSnap = await firestore.collection('chats').doc(chatId).get();
+    late final DocumentSnapshot<Map<String, dynamic>> chatSnap;
+    try {
+      chatSnap = await withTimeout(
+        firestore.collection('chats').doc(chatId).get(),
+        'delete.preCheck',
+        timeout: const Duration(seconds: 6),
+      );
+    } on TimeoutException {
+      throwTimeoutAs('delete.preCheck', 'chat/delete-failed');
+    }
     if (chatSnap.exists) {
       final data = chatSnap.data()!;
       final participants = List<String>.from(data['participants'] ?? []);
@@ -142,7 +160,16 @@ mixin ChatDeleteMixin {
   Future<void> _sendDeleteSystemMessage(String chatId, String action, String actorUid) async {
     if (actorUid.isEmpty) return;
 
-    final chatSnap = await firestore.collection('chats').doc(chatId).get();
+    late final DocumentSnapshot<Map<String, dynamic>> chatSnap;
+    try {
+      chatSnap = await withTimeout(
+        firestore.collection('chats').doc(chatId).get(),
+        'delete.systemMsg',
+        timeout: const Duration(seconds: 6),
+      );
+    } on TimeoutException {
+      throwTimeoutAs('delete.systemMsg', 'chat/delete-failed');
+    }
     if (!chatSnap.exists) return;
     final chatData = chatSnap.data()!;
     final nicknames = chatData['participantNicknames'] as Map<String, dynamic>? ?? {};

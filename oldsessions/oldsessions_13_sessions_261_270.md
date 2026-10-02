@@ -532,3 +532,28 @@
 
 ---
 
+## Session 276 — C6b: μονά reads + CF κλήσεις + cleanup per-batch (100%) — 02 Οκτ 2026
+
+### Σκοπός
+Κλείσιμο όλων των υπόλοιπων one-shot Firestore reads (zombie sockets): ~30 μονά `.get()`, 4 CF κλήσεις, cleanup loop. Μηδέν νέα helpers/codes/strings — reuse `withTimeout`+`throwTimeoutAs` (S275).
+
+### Υλοποίηση (11 αρχεία, +0 νέα, 0 νέα tests)
+- **Fail-closed (9, throwTimeoutAs):** createChat block/scan (scan: duplicate-κίνδυνος S153), sendMessage/sendMedia pre-checks (block-bypass!), delete ×3 (`chat/delete-failed`), clear (`chat/unknown-error`), updateMax/updateExpiry (group + expiry codes).
+- **Wrap-only (30):** fetchOlder/markAsRead/syncMyProfile/reactions/searchUsers, edit/delete message, request ×4, profile ×5 (silent), _generalSearch, group_search, group singles (silent όπου warn/null), fcm clearTokens.
+- **CF:** add/leave/redeem 8s 0-mapping (leaveGroup raw→locked `chat/network-error`· redeem→fail-soft null) · computeGeoHash 4s silent.
+- **L1 cleanup:** per-batch 10s, fatal→rethrow / non-fatal→warn+break (anti-infinite-loop).
+- **Εκτός (τεκμηριωμένα):** streams, Drift/block ολόκληρο, writes/runTransaction/deleteAccount-φάση (=C6c), DESIGN.md ανύπαρκτο.
+
+### Έλεγχος
+- `flutter analyze` → **0 issues** ✅
+- Targeted: request/search/profile +84 ✅ · chat/group/cleanup +119 ✅ · core/sanity +39 ✅
+- Πλήρες `flutter test` → **640/640** ✅ (0 νέα tests — fake ακαριαίο, hang μη αναπαραγώγιμο· δηλωμένο στην πρόταση)
+
+### Backups
+- `backups/{11 αρχεία}_pre_C6b_20261002_*.dart`, `backups/oldsessions_{13,06,root}_pre_S276_*.md`
+
+### Εκκρεμεί (ουρά C6c)
+- Writes/idempotency review (set/update/delete/add/batch.commit/runTransaction).
+
+---
+

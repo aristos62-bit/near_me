@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../debug/debug_config.dart';
+import 'timeouts.dart';
 
 /// Διαγράφει όλα τα έγγραφα ενός subcollection με batching (SPoT).
 /// Χρησιμοποιείται από deleteGroup (audit_log, invites, messages),
@@ -20,10 +22,28 @@ Future<void> deleteChatSubcollection(
     bool hasMore = true;
 
     while (hasMore) {
-      final docs = await firestore
-          .collection('chats').doc(chatId).collection(subcollection)
-          .limit(batchSize)
-          .get();
+      late final QuerySnapshot<Map<String, dynamic>> docs;
+      try {
+        docs = await withTimeout(
+          firestore
+              .collection('chats').doc(chatId).collection(subcollection)
+              .limit(batchSize)
+              .get(),
+          'cleanup.$subcollection',
+          timeout: const Duration(seconds: 10),
+        );
+      } on TimeoutException {
+        // Zombie batch (no-progress), όχι slow-progress: με fatal
+        // συμπεριφερόμαστε όπως σε κάθε σφάλμα (rethrow)· με non-fatal
+        // σπάμε το loop (όχι retry-in-place → anti-infinite-loop) και ο
+        // caller προχωρά (deleteGroup σβήνει το parent — orphans όπως
+        // στο error-case).
+        if (fatal) rethrow;
+        DebugConfig.warn(
+            'deleteChatSubcollection: batch TIMEOUT, stopping $subcollection '
+            '(non-fatal, partial) chat=$chatId');
+        break;
+      }
 
       if (docs.docs.isEmpty) break;
 

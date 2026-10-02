@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../core/debug/debug_config.dart';
 import '../core/utils/app_exception.dart';
 import '../core/utils/public_profile_json.dart';
+import '../core/utils/timeouts.dart';
 import '../data/local/database.dart';
 import '../data/local/database_service.dart';
 import '../features/profile/utils/publish_payload.dart';
@@ -70,7 +71,11 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
         DebugConfig.log(DebugConfig.repositoryResult,
             'getProfile: ${profile.nickname ?? "(unnamed)"} (local)');
         try {
-          final doc = await _profileDoc(uid).get();
+          final doc = await withTimeout(
+            _profileDoc(uid).get(),
+            'profile.mergeCheck',
+            timeout: const Duration(seconds: 6),
+          );
           if (doc.exists) {
             final data = doc.data();
             if (data != null) {
@@ -112,7 +117,11 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
         return profile;
       }
       try {
-        final doc = await _profileDoc(uid).get();
+        final doc = await withTimeout(
+          _profileDoc(uid).get(),
+          'profile.restore',
+          timeout: const Duration(seconds: 6),
+        );
         if (!doc.exists) {
           DebugConfig.log(
               DebugConfig.repositoryResult, 'getProfile: null (no local, no firestore)');
@@ -374,12 +383,16 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
               'showPhotos=${privacy?.showPhotos}, showCity=${privacy?.showCity}, showCountry=${privacy?.showCountry}, '
               'avatarUrl=${json['avatarUrl'] != null ? "present (${json['avatarUrl'].toString().length} chars)" : "absent"}');
       try {
-        final existingDoc = await _firestore
-            .collection('users')
-            .doc(uid)
-            .collection('public')
-            .doc('profile')
-            .get();
+        final existingDoc = await withTimeout(
+          _firestore
+              .collection('users')
+              .doc(uid)
+              .collection('public')
+              .doc('profile')
+              .get(),
+          'profile.preserveRead',
+          timeout: const Duration(seconds: 6),
+        );
         if (existingDoc.exists) {
           // Preserve το υπάρχον isOnline/geoHash/helpRequest (mutates το json).
           // Οι casts μπορούν να πετάξουν TypeError και πιάνονται εδώ (όπως πριν).
@@ -400,12 +413,16 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
           .set(json);
       if (DebugConfig.debugMode) {
         try {
-          final verifyDoc = await _firestore
-              .collection('users')
-              .doc(uid)
-              .collection('public')
-              .doc('profile')
-              .get();
+          final verifyDoc = await withTimeout(
+            _firestore
+                .collection('users')
+                .doc(uid)
+                .collection('public')
+                .doc('profile')
+                .get(),
+            'profile.verifyRead',
+            timeout: const Duration(seconds: 6),
+          );
           if (verifyDoc.exists) {
             final rawData = verifyDoc.data()!;
             DebugConfig.log(DebugConfig.firestoreWrite,
@@ -432,12 +449,16 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
       // σπάει το publish (ίδιο σκεπτικό με deleteAccount CF call).
       if (hasLocation) {
         try {
-          final result = await FirebaseFunctions.instanceFor(region: 'europe-west1')
-              .httpsCallable('computeGeoHash')
-              .call({
-            'latitude': profile.latitudeExact,
-            'longitude': profile.longitudeExact,
-          });
+          final result = await withTimeout(
+            FirebaseFunctions.instanceFor(region: 'europe-west1')
+                .httpsCallable('computeGeoHash')
+                .call({
+              'latitude': profile.latitudeExact,
+              'longitude': profile.longitudeExact,
+            }),
+            'profile.computeGeoHash',
+            timeout: const Duration(seconds: 4),
+          );
           DebugConfig.log(DebugConfig.cloudFunctions,
               'publish: CF computeGeoHash success: ${result.data}');
         } catch (e) {
@@ -621,7 +642,11 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
       return null;
     }
     try {
-      final doc = await _profileDoc(uid).get();
+      final doc = await withTimeout(
+        _profileDoc(uid).get(),
+        'profile.getPublic',
+        timeout: const Duration(seconds: 6),
+      );
       if (!doc.exists) {
         DebugConfig.log(DebugConfig.repositoryResult, 'getPublicProfile: not found');
         return null;

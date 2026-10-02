@@ -16,7 +16,11 @@ mixin GroupChatMixin {
   Future<void> _requirePermission(String chatId, GroupPermission permission) async {
     final uid = auth.currentUser?.uid;
     if (uid == null) throw AppException.auth('permission', 'Δεν υπάρχει χρήστης / No user');
-    final chatDoc = await firestore.collection('chats').doc(chatId).get();
+    final chatDoc = await withTimeout(
+      firestore.collection('chats').doc(chatId).get(),
+      'group.requirePermission',
+      timeout: const Duration(seconds: 6),
+    );
     if (!chatDoc.exists) throw AppException.firestore('permission', 'Η συνομιλία δεν βρέθηκε / Chat not found');
     final data = chatDoc.data()!;
     final roles = Map<String, String>.from(data['participantRoles'] ?? {});
@@ -114,7 +118,11 @@ mixin GroupChatMixin {
   Future<void> _sendSystemMessage(String chatId, String action, String actorUid, [List<String>? targets]) async {
     if (actorUid.isEmpty) return;
     try {
-      final chatDoc = await firestore.collection('chats').doc(chatId).get();
+      final chatDoc = await withTimeout(
+        firestore.collection('chats').doc(chatId).get(),
+        'group.systemMsg',
+        timeout: const Duration(seconds: 6),
+      );
       if (!chatDoc.exists) {
         DebugConfig.warn('_sendSystemMessage: chat doc not found $chatId');
         return;
@@ -277,7 +285,11 @@ mixin GroupChatMixin {
 
   Future<void> _maybeTransferCreatorOnLeave(String chatId, String departingUid) async {
     try {
-      final chatDoc = await firestore.collection('chats').doc(chatId).get();
+      final chatDoc = await withTimeout(
+        firestore.collection('chats').doc(chatId).get(),
+        'group.creatorTransfer',
+        timeout: const Duration(seconds: 6),
+      );
       final roles = Map<String, String>.from(chatDoc.data()?['participantRoles'] ?? {});
       if (roles[departingUid] != 'creator') return;
       final activeParticipants = List<String>.from(chatDoc.data()?['participants'] ?? [])
@@ -437,9 +449,13 @@ mixin GroupChatMixin {
     }
 
     try {
-      await FirebaseFunctions.instanceFor(region: 'europe-west1')
-          .httpsCallable('addGroupParticipant')
-          .call({'chatId': chatId, 'newUid': newUid});
+      await withTimeout(
+        FirebaseFunctions.instanceFor(region: 'europe-west1')
+            .httpsCallable('addGroupParticipant')
+            .call({'chatId': chatId, 'newUid': newUid}),
+        'cf.addParticipant',
+        timeout: const Duration(seconds: 8),
+      );
 
       await _sendSystemMessage(chatId, 'participant_added', uid, [newUid]);
       await _logAudit(chatId, 'participant_added', uid, targetUid: newUid);
@@ -469,9 +485,13 @@ mixin GroupChatMixin {
     if (isSelf) {
       // ── Self-removal via Cloud Function (bypasses Firestore rules) ──
       try {
-        await FirebaseFunctions.instanceFor(region: 'europe-west1')
-            .httpsCallable('leaveGroup')
-            .call({'chatId': chatId});
+        await withTimeout(
+          FirebaseFunctions.instanceFor(region: 'europe-west1')
+              .httpsCallable('leaveGroup')
+              .call({'chatId': chatId}),
+          'cf.leaveGroup',
+          timeout: const Duration(seconds: 8),
+        );
 
         // Non-fatal local cleanup (CF already handled server-side)
         try { await EncryptionUtils.deleteKey(chatId); } catch (_) {}
@@ -556,7 +576,11 @@ mixin GroupChatMixin {
     }
 
     try {
-      final chatDoc = await firestore.collection('chats').doc(chatId).get();
+      final chatDoc = await withTimeout(
+        firestore.collection('chats').doc(chatId).get(),
+        'group.updateRole',
+        timeout: const Duration(seconds: 6),
+      );
       final roles = Map<String, String>.from(chatDoc.data()?['participantRoles'] ?? {});
       if (roles[targetUid] == 'creator') {
         throw AppException.auth('update_role',
@@ -621,7 +645,11 @@ mixin GroupChatMixin {
     DebugConfig.log(DebugConfig.repositoryCall, 'deleteGroup: $chatId');
     final uid = _currentUid;
     try {
-      final chatDoc = await firestore.collection('chats').doc(chatId).get();
+      final chatDoc = await withTimeout(
+        firestore.collection('chats').doc(chatId).get(),
+        'group.deleteHead',
+        timeout: const Duration(seconds: 6),
+      );
       if (!chatDoc.exists) return;
       final data = chatDoc.data()!;
       final isGroup = data['isGroupChat'] == true;
@@ -658,7 +686,16 @@ mixin GroupChatMixin {
     DebugConfig.log(DebugConfig.repositoryCall, 'updateMaxParticipants: $chatId -> $newMax');
 
     final uid = _currentUid;
-    final chatSnap = await firestore.collection('chats').doc(chatId).get();
+    late final DocumentSnapshot<Map<String, dynamic>> chatSnap;
+    try {
+      chatSnap = await withTimeout(
+        firestore.collection('chats').doc(chatId).get(),
+        'group.maxPreCheck',
+        timeout: const Duration(seconds: 6),
+      );
+    } on TimeoutException {
+      throwTimeoutAs('group.maxPreCheck', 'group/max-participants-update-failed');
+    }
     final roles = Map<String, String>.from(chatSnap.data()?['participantRoles'] as Map? ?? {});
     final role = roles[uid];
     if (role != 'creator' && role != 'admin') {
@@ -696,7 +733,16 @@ mixin GroupChatMixin {
         'updateMessageExpiry: chat=$chatId value=$value');
 
     final uid = _currentUid;
-    final chatSnap = await firestore.collection('chats').doc(chatId).get();
+    late final DocumentSnapshot<Map<String, dynamic>> chatSnap;
+    try {
+      chatSnap = await withTimeout(
+        firestore.collection('chats').doc(chatId).get(),
+        'group.expiryPreCheck',
+        timeout: const Duration(seconds: 6),
+      );
+    } on TimeoutException {
+      throwTimeoutAs('group.expiryPreCheck', 'chat/message-expiry-update-failed');
+    }
     final roles = Map<String, String>.from(chatSnap.data()?['participantRoles'] as Map? ?? {});
     if (roles[uid] != 'creator') {
       throw AppException(
@@ -730,7 +776,11 @@ mixin GroupChatMixin {
 
   Future<List<String>> getParticipantUids(String chatId) async {
     try {
-      final doc = await firestore.collection('chats').doc(chatId).get();
+      final doc = await withTimeout(
+        firestore.collection('chats').doc(chatId).get(),
+        'group.participants',
+        timeout: const Duration(seconds: 6),
+      );
       final participants = List<String>.from(doc.data()?['participants'] ?? []);
       final activeMap = (doc.data()?['participantIsActive'] as Map?) ?? {};
       return participants.where((p) => activeMap[p] != false).toList();
@@ -763,7 +813,11 @@ mixin GroupChatMixin {
   }
 
   Future<GroupPermissionsInfo> getPermissionsInfo(String chatId) async {
-    final doc = await firestore.collection('chats').doc(chatId).get();
+    final doc = await withTimeout(
+      firestore.collection('chats').doc(chatId).get(),
+      'group.permInfo',
+      timeout: const Duration(seconds: 6),
+    );
     final roles = Map<String, String>.from(doc.data()?['participantRoles'] ?? {});
     final overrides = Map<String, Map<String, bool>>.from(
       (doc.data()?['permissionOverrides'] as Map?)?.map(
@@ -867,8 +921,12 @@ mixin GroupChatMixin {
     DebugConfig.log(DebugConfig.repositoryCall, 'joinPublicGroup: $chatId by $uid');
 
     try {
-      final newDoc = await firestore
-          .collection('users').doc(uid).collection('public').doc('profile').get();
+      final newDoc = await withTimeout(
+        firestore
+            .collection('users').doc(uid).collection('public').doc('profile').get(),
+        'group.joinProfile',
+        timeout: const Duration(seconds: 6),
+      );
       final newNickname = newDoc.data()?['nickname'] as String? ?? uid;
       DebugConfig.log(DebugConfig.repositoryResult, 'joinPublicGroup: resolved nickname=$newNickname');
 
@@ -989,12 +1047,16 @@ mixin GroupChatMixin {
 
     try {
       // Fast-path pre-check: αποτρέπει κλήσεις CF για προφανώς άκυρα tokens.
-      final inviteSnap = await firestore
-          .collectionGroup('invites')
-          .where('token', isEqualTo: token)
-          .where('isRevoked', isEqualTo: false)
-          .limit(1)
-          .get();
+      final inviteSnap = await withTimeout(
+        firestore
+            .collectionGroup('invites')
+            .where('token', isEqualTo: token)
+            .where('isRevoked', isEqualTo: false)
+            .limit(1)
+            .get(),
+        'group.redeemPreCheck',
+        timeout: const Duration(seconds: 6),
+      );
 
       if (inviteSnap.docs.isEmpty) {
         DebugConfig.warn('redeemInviteLink: invalid/expired token=$token');
@@ -1018,9 +1080,13 @@ mixin GroupChatMixin {
 
       // Ατομικό join + κατανάλωση server-side (redeemGroupInvite). Ο client ΔΕΝ
       // γράφει πια usedBy/useCount — αλλιώς το invite θα «καιγόταν» σε αποτυχία.
-      final result = await FirebaseFunctions.instanceFor(region: 'europe-west1')
-          .httpsCallable('redeemGroupInvite')
-          .call({'token': token});
+      final result = await withTimeout(
+        FirebaseFunctions.instanceFor(region: 'europe-west1')
+            .httpsCallable('redeemGroupInvite')
+            .call({'token': token}),
+        'cf.redeemInvite',
+        timeout: const Duration(seconds: 8),
+      );
       final resultData = (result.data as Map?) ?? const {};
       final chatId = resultData['chatId'] as String?;
       if (chatId == null || chatId.isEmpty) {
@@ -1059,11 +1125,15 @@ mixin GroupChatMixin {
 
   Future<InviteInfo?> getInviteInfo(String token) async {
     try {
-      final inviteSnap = await firestore
-          .collectionGroup('invites')
-          .where('token', isEqualTo: token)
-          .limit(1)
-          .get();
+      final inviteSnap = await withTimeout(
+        firestore
+            .collectionGroup('invites')
+            .where('token', isEqualTo: token)
+            .limit(1)
+            .get(),
+        'group.inviteInfo',
+        timeout: const Duration(seconds: 6),
+      );
       if (inviteSnap.docs.isEmpty) return null;
 
       final doc = inviteSnap.docs.first;
@@ -1072,7 +1142,11 @@ mixin GroupChatMixin {
       String? groupName;
       int? memberCount;
       try {
-        final chatDoc = await firestore.collection('chats').doc(chatId).get();
+        final chatDoc = await withTimeout(
+          firestore.collection('chats').doc(chatId).get(),
+          'group.inviteChatDoc',
+          timeout: const Duration(seconds: 6),
+        );
         groupName = chatDoc.data()?['groupName'] as String?;
         memberCount = (chatDoc.data()?['participants'] as List?)?.length;
       } catch (_) { /* non-fatal */ }
@@ -1111,10 +1185,14 @@ mixin GroupChatMixin {
 
   Future<List<InviteInfo>> getActiveInvites(String chatId) async {
     try {
-      final snap = await firestore
-          .collection('chats').doc(chatId).collection('invites')
-          .where('isRevoked', isEqualTo: false)
-          .get();
+      final snap = await withTimeout(
+        firestore
+            .collection('chats').doc(chatId).collection('invites')
+            .where('isRevoked', isEqualTo: false)
+            .get(),
+        'group.activeInvites',
+        timeout: const Duration(seconds: 8),
+      );
       return snap.docs.map((doc) {
         final data = doc.data();
         return InviteInfo(

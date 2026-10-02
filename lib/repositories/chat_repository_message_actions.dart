@@ -20,10 +20,14 @@ mixin ChatMessageActionsMixin {
     DebugConfig.log(DebugConfig.repositoryCall, 'editMessage: chat=$chatId msg=$messageId');
 
     try {
-      final msgDoc = await firestore
-          .collection('chats').doc(chatId)
-          .collection('messages').doc(messageId)
-          .get();
+      final msgDoc = await withTimeout(
+        firestore
+            .collection('chats').doc(chatId)
+            .collection('messages').doc(messageId)
+            .get(),
+        'message.edit',
+        timeout: const Duration(seconds: 6),
+      );
 
       if (!msgDoc.exists) {
         throw AppException.firestore('edit_message', 'Το μήνυμα δεν βρέθηκε / Message not found');
@@ -80,10 +84,14 @@ mixin ChatMessageActionsMixin {
     DebugConfig.log(DebugConfig.repositoryCall, 'deleteMessage: chat=$chatId msg=$messageId');
 
     try {
-      final msgDoc = await firestore
-          .collection('chats').doc(chatId)
-          .collection('messages').doc(messageId)
-          .get();
+      final msgDoc = await withTimeout(
+        firestore
+            .collection('chats').doc(chatId)
+            .collection('messages').doc(messageId)
+            .get(),
+        'message.delete',
+        timeout: const Duration(seconds: 6),
+      );
 
       if (!msgDoc.exists) return;
 
@@ -91,7 +99,11 @@ mixin ChatMessageActionsMixin {
       final senderId = msgData['senderId'] as String? ?? '';
 
       if (senderId != user.uid) {
-        final chatDoc = await firestore.collection('chats').doc(chatId).get();
+        final chatDoc = await withTimeout(
+          firestore.collection('chats').doc(chatId).get(),
+          'message.deleteCheck',
+          timeout: const Duration(seconds: 6),
+        );
         if (chatDoc.data()?['isGroupChat'] == true) {
           await _requirePermission(chatId, GroupPermission.deleteMessages);
         } else {

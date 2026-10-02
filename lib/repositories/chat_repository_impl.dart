@@ -82,9 +82,18 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
     final uid = user.uid;
 
     try {
-      final blockedDoc = await firestore
-          .collection('users').doc(otherUid).collection('blocked').doc(uid)
-          .get();
+      late final DocumentSnapshot<Map<String, dynamic>> blockedDoc;
+      try {
+        blockedDoc = await withTimeout(
+          firestore
+              .collection('users').doc(otherUid).collection('blocked').doc(uid)
+              .get(),
+          'createChat.blockCheck',
+          timeout: const Duration(seconds: 6),
+        );
+      } on TimeoutException {
+        throwTimeoutAs('createChat.blockCheck', 'chat/network-error');
+      }
       if (blockedDoc.exists) {
         DebugConfig.log(DebugConfig.repositoryCall, 'createChat: blocked by $otherUid');
         throw AppException.auth('create_chat',
@@ -187,11 +196,20 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
     try {
       DebugConfig.log(DebugConfig.repositoryCall,
           '_findExistingChat: Tier 2 Firestore scan uid1=$uid1');
-      final snapshot = await firestore
-          .collection('chats')
-          .where('participants', arrayContains: uid1)
-          .limit(150)
-          .get();
+      late final QuerySnapshot<Map<String, dynamic>> snapshot;
+      try {
+        snapshot = await withTimeout(
+          firestore
+              .collection('chats')
+              .where('participants', arrayContains: uid1)
+              .limit(150)
+              .get(),
+          'createChat.existingScan',
+          timeout: const Duration(seconds: 8),
+        );
+      } on TimeoutException {
+        throwTimeoutAs('createChat.existingScan', 'chat/network-error');
+      }
 
       for (final doc in snapshot.docs) {
         final data = doc.data();
@@ -228,7 +246,16 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
     bool isGroupChat = false;
     String messageExpiry = 'off';
     try {
-      final chatDoc = await firestore.collection('chats').doc(chatId).get();
+      late final DocumentSnapshot<Map<String, dynamic>> chatDoc;
+      try {
+        chatDoc = await withTimeout(
+          firestore.collection('chats').doc(chatId).get(),
+          'sendMessage.chatDoc',
+          timeout: const Duration(seconds: 6),
+        );
+      } on TimeoutException {
+        throwTimeoutAs('sendMessage.chatDoc', 'chat/network-error');
+      }
       if (!chatDoc.exists) {
         throw AppException.firestore('send_message', 'Η συνομιλία δεν βρέθηκε / Chat not found');
       }
@@ -250,9 +277,18 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
       if (!isGroupChat) {
         final otherUid = participants.where((p) => p != user.uid).firstOrNull;
         if (otherUid != null) {
-          final blockedDoc = await firestore
-              .collection('users').doc(otherUid).collection('blocked').doc(user.uid)
-              .get();
+          late final DocumentSnapshot<Map<String, dynamic>> blockedDoc;
+          try {
+            blockedDoc = await withTimeout(
+              firestore
+                  .collection('users').doc(otherUid).collection('blocked').doc(user.uid)
+                  .get(),
+              'sendMessage.blockCheck',
+              timeout: const Duration(seconds: 6),
+            );
+          } on TimeoutException {
+            throwTimeoutAs('sendMessage.blockCheck', 'chat/network-error');
+          }
           if (blockedDoc.exists) {
             DebugConfig.log(DebugConfig.repositoryCall, 'sendMessage: blocked by $otherUid');
             throw AppException.auth('send_message',
@@ -466,12 +502,16 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
       final decCache = _messageDecryptCache.putIfAbsent(chatId, () => {});
 
       // One-shot read (όχι listener) — δε δημιουργεί συνεχές κόστος.
-      final snapshot = await firestore
-          .collection('chats').doc(chatId).collection('messages')
-          .orderBy('timestamp', descending: false)
-          .endBefore([Timestamp.fromDate(beforeTimestamp)])
-          .limitToLast(limit)
-          .get();
+      final snapshot = await withTimeout(
+        firestore
+            .collection('chats').doc(chatId).collection('messages')
+            .orderBy('timestamp', descending: false)
+            .endBefore([Timestamp.fromDate(beforeTimestamp)])
+            .limitToLast(limit)
+            .get(),
+        'chat.fetchOlder',
+        timeout: const Duration(seconds: 8),
+      );
 
       final messages = snapshot.docs
           .map((doc) => _decodeMessageDoc(chatId, doc.id, doc.data(), key, encCache, decCache))
@@ -514,11 +554,15 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
       }
 
       if (!isGroupChat) {
-        final unread = await firestore
-            .collection('chats').doc(chatId).collection('messages')
-            .where('isRead', isEqualTo: false)
-            .limit(50)
-            .get();
+        final unread = await withTimeout(
+          firestore
+              .collection('chats').doc(chatId).collection('messages')
+              .where('isRead', isEqualTo: false)
+              .limit(50)
+              .get(),
+          'chat.markAsRead',
+          timeout: const Duration(seconds: 8),
+        );
 
         final docs = unread.docs.where((d) => d.data()['senderId'] != user.uid).toList();
 
@@ -839,7 +883,16 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
     bool isGroupChat = false;
     String messageExpiry = 'off';
     try {
-      final chatDoc = await firestore.collection('chats').doc(chatId).get();
+      late final DocumentSnapshot<Map<String, dynamic>> chatDoc;
+      try {
+        chatDoc = await withTimeout(
+          firestore.collection('chats').doc(chatId).get(),
+          'sendMedia.chatDoc',
+          timeout: const Duration(seconds: 6),
+        );
+      } on TimeoutException {
+        throwTimeoutAs('sendMedia.chatDoc', 'chat/network-error');
+      }
       if (!chatDoc.exists) {
         throw AppException.firestore('send_media', 'Η συνομιλία δεν βρέθηκε / Chat not found');
       }
@@ -851,9 +904,18 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
       if (!isGroupChat) {
         final otherUid = participants.where((p) => p != user.uid).firstOrNull;
         if (otherUid != null) {
-          final blockedDoc = await firestore
-              .collection('users').doc(otherUid).collection('blocked').doc(user.uid)
-              .get();
+          late final DocumentSnapshot<Map<String, dynamic>> blockedDoc;
+          try {
+            blockedDoc = await withTimeout(
+              firestore
+                  .collection('users').doc(otherUid).collection('blocked').doc(user.uid)
+                  .get(),
+              'sendMedia.blockCheck',
+              timeout: const Duration(seconds: 6),
+            );
+          } on TimeoutException {
+            throwTimeoutAs('sendMedia.blockCheck', 'chat/network-error');
+          }
           if (blockedDoc.exists) {
             throw AppException.auth('send_media',
                 'Δεν μπορείς να στείλεις μήνυμα σε αυτόν τον χρήστη / You cannot send messages to this user');
@@ -1020,10 +1082,14 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
     if (chats.isEmpty) {
       DebugConfig.log(DebugConfig.firestoreRead,
           'syncMyProfileAcrossChats: Drift empty, fallback Firestore query');
-      final snapshot = await firestore
-          .collection('chats')
-          .where('participants', arrayContains: uid)
-          .get();
+      final snapshot = await withTimeout(
+        firestore
+            .collection('chats')
+            .where('participants', arrayContains: uid)
+            .get(),
+        'chat.syncMyProfile',
+        timeout: const Duration(seconds: 8),
+      );
       if (snapshot.docs.isEmpty) {
         DebugConfig.log(DebugConfig.repositoryResult,
             'syncMyProfileAcrossChats: no chats found');
@@ -1081,16 +1147,24 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
 
     try {
       // ── Block check (ίδιο pattern με sendMessage) ──────────────
-      final chatDoc = await firestore.collection('chats').doc(chatId).get();
+      final chatDoc = await withTimeout(
+        firestore.collection('chats').doc(chatId).get(),
+        'reaction.chatDoc',
+        timeout: const Duration(seconds: 6),
+      );
       if (chatDoc.exists) {
         final data = chatDoc.data()!;
         final participants = List<String>.from(data['participants'] ?? []);
         if (data['isGroupChat'] != true) {
           final otherUid = participants.where((p) => p != uid).firstOrNull;
           if (otherUid != null) {
-            final blockedDoc = await firestore
-                .collection('users').doc(otherUid).collection('blocked').doc(uid)
-                .get();
+            final blockedDoc = await withTimeout(
+              firestore
+                  .collection('users').doc(otherUid).collection('blocked').doc(uid)
+                  .get(),
+              'reaction.blockCheck',
+              timeout: const Duration(seconds: 6),
+            );
             if (blockedDoc.exists) {
               DebugConfig.log(DebugConfig.chatReactions, 'addReaction: blocked by $otherUid');
               throw AppException.auth('add_reaction',
@@ -1182,14 +1256,18 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
     try {
       final lowerQuery = query.trim().toLowerCase();
       if (lowerQuery.isEmpty) return [];
-      final snap = await firestore
-          .collectionGroup('public')
-          .where('isVisible', isEqualTo: true)
-          .where('nicknameLowercase', isGreaterThanOrEqualTo: lowerQuery)
-          .where('nicknameLowercase', isLessThanOrEqualTo: '$lowerQuery\uf8ff')
-          .orderBy('nicknameLowercase')
-          .limit(limit)
-          .get();
+      final snap = await withTimeout(
+        firestore
+            .collectionGroup('public')
+            .where('isVisible', isEqualTo: true)
+            .where('nicknameLowercase', isGreaterThanOrEqualTo: lowerQuery)
+            .where('nicknameLowercase', isLessThanOrEqualTo: '$lowerQuery\uf8ff')
+            .orderBy('nicknameLowercase')
+            .limit(limit)
+            .get(),
+        'chat.searchUsers',
+        timeout: const Duration(seconds: 8),
+      );
       // Curated πεδία μόνο — το 'public' doc μπορεί να περιέχει email/phone
       // (αν showEmail/showPhone === true), δεν πρέπει να φεύγουν από το repository.
       final results = snap.docs.map((doc) {

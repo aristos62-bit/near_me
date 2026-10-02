@@ -7,7 +7,7 @@
 | Firestore indexes | 21 composite deployed |
 | Cloud Functions | 17 deployed `europe-west1` (gen1, Node 22), συμπ. `checkImageModeration` + `moderateImage` (Vision moderation, eur3), `addGroupParticipant`/`leaveGroup`, `expireStaleRequests/Messages`, `computeGeoHash`, `checkSearchRateLimit`, `deleteUserData`, `onReportCreated`, `onRequestCreated` (server `expiresAt`, Session 261), 5 FCM |
 | Build | `flutter analyze` clean ✅, release APK ~41.7MB (debug) / ~20.8MB (R8), signed `gr.nearme.app` (CN=NearMe) |
-| Tests | 643/643 passed (Session 275: +4 throwTimeoutAs · Session 276: C6b 43 sites, +0 tests · Session 277: C6c writes, +3 tests · πλήρες `flutter test`, analyze 0 issues) |
+| Tests | 803/803 passed (Session 275: +4 throwTimeoutAs · Session 276: C6b 43 sites, +0 tests · Session 277: C6c writes, +3 tests · Session 278: Coverage P1-P4, +160 tests · πλήρες `flutter test`, analyze 0 issues) |
 | Code Coverage | **33.6%** line (5262/15662, πλήρες run, excl. generated) — repos 69.4% · core/utils 63.4% · shared/widgets 80.3% · shared/utils 20.1% · lib/providers 72.2% · features/chat 29.2% (Session 273, από 14.2%) · features/requests 1.9% · features/auth 1.5% · data/local 7.1% · data/remote 0% · screens (features) χαμηλά, φάση 4 |
 | Schema | Drift v17, 7 tables (+crashReportsEnabled, blurExplicitEnabled, blurSigma 0/10/20/32) |
 | Moderation | Active (Sessions 253-255): Global Normal + User Blur — Vision SafeSearch `eu-vision.googleapis.com`, thresholds Adult/Violence LIKELY+ reject, Racy never \(only blur\), blur POSSIBLE/LIKELY via `avatar_blur.dart` + `blurSigma` slider SPoT (`moderation_section.dart` + `_BlurSigmaTile` reuse `_AutoLockTile`). Kill-switch `config/moderation`, `moderationLog` rules |

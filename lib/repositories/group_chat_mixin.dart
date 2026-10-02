@@ -323,8 +323,17 @@ mixin GroupChatMixin {
 
     DebugConfig.log(DebugConfig.repositoryCall, 'createGroupChat: by $uid with ${participantUids.length} others');
 
-    final myProfile = await firestore
-        .collection('users').doc(uid).collection('public').doc('profile').get();
+    late final DocumentSnapshot<Map<String, dynamic>> myProfile;
+    try {
+      myProfile = await withTimeout(
+        firestore
+            .collection('users').doc(uid).collection('public').doc('profile').get(),
+        'group.myProfile',
+        timeout: const Duration(seconds: 6),
+      );
+    } on TimeoutException {
+      throwTimeoutAs('group.myProfile', 'group/create-failed');
+    }
     final myNickname = myProfile.data()?['nickname'] as String? ?? uid;
     final myAvatarUrl = myProfile.data()?['avatarUrl'] as String?;
 
@@ -335,7 +344,15 @@ mixin GroupChatMixin {
       final avatarUrl = doc.data()?['avatarUrl'] as String?;
       return (uid: pUid, nickname: nickname, avatarUrl: avatarUrl);
     });
-    final profileResults = await Future.wait(profileFutures);
+    late final List<({String uid, String nickname, String? avatarUrl})> profileResults;
+    try {
+      profileResults = await withTimeout(
+        Future.wait(profileFutures),
+        'group.profileFetch',
+      );
+    } on TimeoutException {
+      throwTimeoutAs('group.profileFetch', 'group/create-failed');
+    }
     final nicknames = {uid: myNickname, for (final r in profileResults) r.uid: r.nickname};
     final avatarUrls = <String, String>{
       uid: ?myAvatarUrl,

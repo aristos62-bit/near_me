@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:near_me/core/utils/app_exception.dart';
 import 'package:near_me/core/utils/timeouts.dart';
 
 void main() {
@@ -75,6 +76,45 @@ void main() {
       // Metro: το late ERROR πρέπει να περάσει από τον onError του unawaited.
       completer.completeError(StateError('late boom'));
       await Future<void>.delayed(const Duration(milliseconds: 100));
+    });
+  });
+
+  group('throwTimeoutAs', () {
+    test('throws AppException with search code + bilingual message', () {
+      expect(
+        () => throwTimeoutAs('search.geoFanOut', 'search/unknown-error'),
+        throwsA(isA<AppException>()
+            .having((e) => e.code, 'code', 'search/unknown-error')
+            .having((e) => e.message, 'message', contains(' / '))),
+      );
+    });
+
+    test('throws AppException with request code', () {
+      expect(
+        () => throwTimeoutAs('request.preChecks', 'request/send-failed'),
+        throwsA(isA<AppException>()
+            .having((e) => e.code, 'code', 'request/send-failed')),
+      );
+    });
+
+    test('throws AppException with group code', () {
+      expect(
+        () => throwTimeoutAs('group.profileFetch', 'group/create-failed'),
+        throwsA(isA<AppException>()
+            .having((e) => e.code, 'code', 'group/create-failed')),
+      );
+    });
+
+    test('bilingual message passes through toFriendlyMessage as-is', () {
+      AppException? caught;
+      try {
+        throwTimeoutAs('search.geoFanOut', 'search/unknown-error');
+      } on AppException catch (e) {
+        caught = e;
+      }
+      expect(caught, isNotNull);
+      expect(AppException.toFriendlyMessage(caught, domain: 'search'),
+          contains(' / '));
     });
   });
 }

@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/debug/debug_config.dart';
 import '../core/utils/app_exception.dart';
 import '../core/utils/geohash_utils.dart';
 import '../core/utils/public_profile_json.dart';
+import '../core/utils/timeouts.dart';
 import '../shared/models/public_profile.dart';
 import 'search_repository.dart';
 
@@ -122,7 +124,15 @@ class FirestoreSearchRepository implements SearchRepository {
       return q.get();
     }).toList();
 
-    final snapshots = await Future.wait(futures);
+    late final List<QuerySnapshot<Object?>> snapshots;
+    try {
+      snapshots = await withTimeout(
+        Future.wait(futures),
+        'search.geoFanOut',
+      );
+    } on TimeoutException {
+      throwTimeoutAs('search.geoFanOut', 'search/unknown-error');
+    }
 
     // Συγχώνευση αποτελεσμάτων - deduplication με uid
     final seen = <String>{};
@@ -301,7 +311,15 @@ class FirestoreSearchRepository implements SearchRepository {
         return q.get();
       }).toList();
 
-      final snapshots = await Future.wait(futures);
+      late final List<QuerySnapshot<Object?>> snapshots;
+      try {
+        snapshots = await withTimeout(
+          Future.wait(futures),
+          'search.nearbyFanOut',
+        );
+      } on TimeoutException {
+        throwTimeoutAs('search.nearbyFanOut', 'search/unknown-error');
+      }
 
       final seen = <String>{};
       final results = <PublicProfile>[];

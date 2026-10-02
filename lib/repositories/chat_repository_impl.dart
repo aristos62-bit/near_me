@@ -105,13 +105,18 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
 
     DebugConfig.log(DebugConfig.repositoryCall,
         'createChat: fetching profiles in parallel uid=$uid with=$otherUid');
-    final results = await withTimeout(
-      Future.wait([
-        firestore.collection('users').doc(uid).collection('public').doc('profile').get(),
-        firestore.collection('users').doc(otherUid).collection('public').doc('profile').get(),
-      ]),
-      'createChat.profileFetch',
-    );
+    late final List<DocumentSnapshot<Map<String, dynamic>>> results;
+    try {
+      results = await withTimeout(
+        Future.wait([
+          firestore.collection('users').doc(uid).collection('public').doc('profile').get(),
+          firestore.collection('users').doc(otherUid).collection('public').doc('profile').get(),
+        ]),
+        'createChat.profileFetch',
+      );
+    } on TimeoutException {
+      throwTimeoutAs('createChat.profileFetch', 'chat/network-error');
+    }
     final myProfile = results[0];
     final myNickname = myProfile.data()?['nickname'] as String? ?? uid;
     final myAvatarUrl = myProfile.data()?['avatarUrl'] as String?;
@@ -1219,7 +1224,11 @@ Future<void> deleteAllChatMedia(String chatId) async {
     final ref = FirebaseStorage.instance.ref().child('chat_media/$chatId');
     final result = await ref.listAll();
     if (result.items.isNotEmpty) {
-      await Future.wait(result.items.map((item) => item.delete()));
+      await withTimeout(
+        Future.wait(result.items.map((item) => item.delete())),
+        'media.deleteAll',
+        timeout: const Duration(seconds: 30),
+      );
       DebugConfig.log(DebugConfig.storageUpload, 'deleteAllChatMedia: deleted ${result.items.length} files for $chatId');
     }
   } catch (e) {

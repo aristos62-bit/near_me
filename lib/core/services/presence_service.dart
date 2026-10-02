@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../debug/debug_config.dart';
+import '../utils/timeouts.dart';
 
 class PresenceService {
   static Timer? _timer;
@@ -66,10 +67,14 @@ class PresenceService {
   static Future<void> _touch() async {
     if (_ref == null) return;
     try {
-      await _ref!.set({
-        'isOnline': true,
-        'lastSeen': FieldValue.serverTimestamp(),
-      });
+      await withTimeout(
+        _ref!.set({
+          'isOnline': true,
+          'lastSeen': FieldValue.serverTimestamp(),
+        }),
+        'presence.touch',
+        timeout: const Duration(seconds: 6),
+      );
       DebugConfig.log(DebugConfig.presence, 'Presence touch: heartbeat');
     } catch (e) {
       DebugConfig.warn('PresenceService touch failed', data: e);
@@ -94,14 +99,18 @@ class PresenceService {
       return;
     }
     try {
-      await Future.wait<void>([
-        _ref!.set({
-          'isOnline': false,
-          'lastSeen': FieldValue.serverTimestamp(),
-        }),
-        if (_publicRef != null)
-          _publicRef!.set({'isOnline': false}, SetOptions(merge: true)),
-      ]);
+      await withTimeout(
+        Future.wait<void>([
+          _ref!.set({
+            'isOnline': false,
+            'lastSeen': FieldValue.serverTimestamp(),
+          }),
+          if (_publicRef != null)
+            _publicRef!.set({'isOnline': false}, SetOptions(merge: true)),
+        ]),
+        'presence.setOffline',
+        timeout: const Duration(seconds: 6),
+      );
       DebugConfig.log(DebugConfig.presence, 'Presence setOffline');
     } catch (e) {
       DebugConfig.warn('PresenceService setOffline failed', data: e);

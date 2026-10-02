@@ -1,5 +1,6 @@
 import 'dart:async';
 import '../debug/debug_config.dart';
+import 'app_exception.dart';
 
 /// SPoT για futures με timeout + ασφαλή κατανάλωση του late completion.
 ///
@@ -24,4 +25,14 @@ Future<T> withTimeout<T>(
     DebugConfig.warn('$op: timed out after ${timeout.inSeconds}s');
     throw TimeoutException('$op: timeout after ${timeout.inSeconds}s', timeout);
   });
+}
+
+/// Μετατρέπει ένα [TimeoutException] σε domain [AppException] με υπάρχον
+/// error code + bilingual μήνυμα (passthrough στο `toFriendlyMessage`).
+/// Μόνο υπάρχοντα codes (ποτέ νέο key) — assert-safe στο `ErrorMessages.get`.
+Never throwTimeoutAs(String op, String code) {
+  throw AppException(
+    message: 'Σφάλμα δικτύου. Δοκίμασε ξανά. / Network error. Try again.',
+    code: code,
+  );
 }

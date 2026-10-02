@@ -504,3 +504,31 @@
 
 ---
 
+## Session 275 — C6 timeout fan-out: 7 wraps + throwTimeoutAs + 4 tests (100%) — 02 Οκτ 2026
+
+### Σκοπός
+Επέκταση του S261 `withTimeout` (μόνο `createChat`) σε όλα τα υπόλοιπα `Future.wait` zombie-sockets: search fan-out ×2, request pre-checks, group myProfile+batch, presence touch+setOffline, media deleteAll. Χωρίς `DESIGN.md` στο repo (εξακριβώθηκε: 0 αποτελέσματα) — αρχιτεκτονική από blueprint + Κεφ.2/7.
+
+### Υλοποίηση (7 αρχεία, 0 νέα)
+- **`core/utils/timeouts.dart:29`** — νέο SPoT `throwTimeoutAs(op, code)`: `Never`, bilingual network message + υπάρχον code (passthrough `toFriendlyMessage`). `app_exception.dart` ΔΕΝ αγγίχτηκε (το test κλειδώνει `TimeoutException → chat/network-error`).
+- **`firestore_search_repository.dart:125,304`** — `_geoSearch`/`searchNearby` → `withTimeout(..., 8s)` + `throwTimeoutAs(..., 'search/unknown-error')`.
+- **`request_repository_impl.dart:113`** — pre-checks → `withTimeout(..., 6s)` + fail-closed `throwTimeoutAs(..., 'request/send-failed')` πριν το generic catch (κενό ασφαλείας: raw timeout θα παρέκαμπτε το block-check).
+- **`group_chat_mixin.dart:326,338`** — myProfile (6s) + profile batch (8s) → `throwTimeoutAs(..., 'group/create-failed')`.
+- **`presence_service.dart:69,97`** — `_touch` + `setOffline` → `withTimeout(..., 6s)`, silent (υπάρχον catch warn, backstop ο sweeper S255).
+- **`chat_repository_impl.dart:108`** — `createChat` υιοθετεί `throwTimeoutAs(..., 'chat/network-error')` · `:1222` `deleteAllChatMedia` → `withTimeout(..., 30s)` non-fatal.
+- **Απορρίφθηκαν τεκμηριωμένα:** νέα αρχεία/helpers, `ConnectivityGuard` σε reads (κανόνας = CF μόνο), αναβίωση `firestore_service.dart` stub, νέα ErrorMessages keys, ενοποίηση CF gates + `_withAuthTimeout` (διαφορετική σημασιολογία/ρίσκο), μονά gets (~20) + cleanup loop → followup.
+
+### Έλεγχος
+- `flutter analyze` → **0 issues** ✅ (2 διαδοχικά test-lint fixes: `dead_code` fail() μετά Never → `unnecessary_non_null_assertion` → direct use)
+- `flutter test test/core/timeouts_test.dart` → **9/9** ✅ (+4 `throwTimeoutAs`: search/request/group codes + passthrough)
+- `flutter test test/core/app_exception_test.dart` → **5/5** ✅ · request+search repos → **41/41** ✅ · chat/group/profile → **+131** ✅
+- Πλήρες `flutter test` → **640/640** ✅ (was 636)
+
+### Backups
+- `backups/timeouts_pre_C6_20261002_142206.dart`, `backups/{firestore_search_repository,request_repository_impl,group_chat_mixin,presence_service,chat_repository_impl,timeouts_test}_pre_C6_20261002_142444.dart`, `backups/oldsessions_{13,06,root}_pre_S275_*.md`
+
+### Εκκρεμεί (ουρά C6b)
+- Μονά Firestore gets (~20) · CF κλήσεις group χωρίς timeout · cleanup per-batch timeout.
+
+---
+

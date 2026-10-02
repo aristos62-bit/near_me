@@ -10,6 +10,7 @@ import 'request_repository.dart';
 import '../core/debug/debug_config.dart';
 import '../core/utils/app_exception.dart';
 import '../core/utils/connectivity_guard.dart';
+import '../core/utils/timeouts.dart';
 import 'chat_repository.dart';
 import 'chat_repository_impl.dart';
 
@@ -110,10 +111,20 @@ class RequestRepositoryImpl implements RequestRepository {
     DebugConfig.log(DebugConfig.repositoryCall,
         'sendRequest: parallel pre-checks from=$uid to=$toUid type=$type');
     try {
-      final results = await Future.wait([
-        _firestore.doc('users/$toUid/blocked/$uid').get(),
-        _firestore.collection('users').doc(toUid).collection('public').doc('profile').get(),
-      ]);
+      late final List<DocumentSnapshot<Map<String, dynamic>>> results;
+      try {
+        results = await withTimeout(
+          Future.wait([
+            _firestore.doc('users/$toUid/blocked/$uid').get(),
+            _firestore.collection('users').doc(toUid).collection('public').doc('profile').get(),
+          ]),
+          'request.preChecks',
+          timeout: const Duration(seconds: 6),
+        );
+      } on TimeoutException {
+        // Fail-closed: το timeout ΔΕΝ καταπίνεται (θα παρέκαμπτε το block-check).
+        throwTimeoutAs('request.preChecks', 'request/send-failed');
+      }
       final blockDoc = results[0];
       final targetDoc = results[1];
       if (blockDoc.exists) {

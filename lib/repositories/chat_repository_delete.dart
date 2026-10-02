@@ -105,10 +105,14 @@ mixin ChatDeleteMixin {
 
     await _sendDeleteSystemMessage(chatId, 'delete_local', uid);
 
-    await firestore.collection('chats').doc(chatId).update({
+    await withTimeout(
+      firestore.collection('chats').doc(chatId).update({
       'participants': FieldValue.arrayRemove([uid]),
       'participantIsActive.$uid': false,
-    });
+    }),
+      'delete.leaveUpdate',
+      timeout: const Duration(seconds: 6),
+    );
 
     await (db.delete(db.chatCacheTable)..where((t) => t.chatId.equals(chatId))).go();
     await EncryptionUtils.deleteKey(chatId);
@@ -134,7 +138,11 @@ mixin ChatDeleteMixin {
       await deleteAllChatMedia(chatId);
 
       try {
-        await firestore.collection('chats').doc(chatId).delete();
+        await withTimeout(
+          firestore.collection('chats').doc(chatId).delete(),
+          'delete.chatDoc',
+          timeout: const Duration(seconds: 8),
+        );
         DebugConfig.log(DebugConfig.firestoreWrite, '_deleteChatForEveryone: chat document deleted OK chat=$chatId');
       } catch (e) {
         DebugConfig.error('_deleteChatForEveryone: chat doc delete failed', data: e);
@@ -222,7 +230,11 @@ mixin ChatDeleteMixin {
       batch.update(firestore.collection('chats').doc(chatId), updateData);
     }
 
-    await batch.commit();
+    await withTimeout(
+      batch.commit(),
+      'delete.systemMsgCommit',
+      timeout: const Duration(seconds: 8),
+    );
 
     DebugConfig.log(DebugConfig.firestoreWrite,
         '_sendDeleteSystemMessage: chat=$chatId action=$action actor=$actorNickname');

@@ -6,6 +6,7 @@ import '../../core/debug/debug_config.dart';
 import '../../core/services/vision_moderation_service.dart';
 import '../../core/utils/app_exception.dart';
 import '../../core/utils/storage_helpers.dart';
+import '../../core/utils/timeouts.dart';
 
 typedef StorageUploadResult = ({String url, String? racyLevel});
 
@@ -69,7 +70,11 @@ class StorageService {
     DebugConfig.log(DebugConfig.storageUpload, 'deleteAvatar: $uid');
     final ref = _storage.ref().child('avatars/$uid/profile.jpg');
     try {
-      await ref.delete();
+      await withTimeout(
+        ref.delete(),
+        'storage.deleteAvatar',
+        timeout: const Duration(seconds: 10),
+      );
       DebugConfig.log(DebugConfig.storageUpload, 'deleteAvatar OK: $uid');
     } catch (e) {
       DebugConfig.warn('deleteAvatar failed (may not exist)', data: e);
@@ -80,7 +85,11 @@ class StorageService {
     DebugConfig.log(DebugConfig.storageUpload, 'deletePhoto: $uid/$index');
     final ref = _storage.ref().child('photos/$uid/$index.jpg');
     try {
-      await ref.delete();
+      await withTimeout(
+        ref.delete(),
+        'storage.deletePhoto',
+        timeout: const Duration(seconds: 10),
+      );
       DebugConfig.log(DebugConfig.storageUpload, 'deletePhoto OK: $uid/$index');
     } catch (e) {
       DebugConfig.warn('deletePhoto failed (may not exist)', data: e);

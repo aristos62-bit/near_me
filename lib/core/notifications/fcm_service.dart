@@ -128,13 +128,17 @@ class FcmService {
     StackTrace? lastStack;
     for (var attempt = 0; attempt < 2; attempt++) {
       try {
-        await FirebaseFirestore.instance
-            .doc('users/${user.uid}/fcm_tokens/$token')
-            .set({
-          'token': token,
-          'platform': _platform,
-          'createdAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        await withTimeout(
+          FirebaseFirestore.instance
+              .doc('users/${user.uid}/fcm_tokens/$token')
+              .set({
+            'token': token,
+            'platform': _platform,
+            'createdAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true)),
+          'fcm.saveToken',
+          timeout: const Duration(seconds: 6),
+        );
         return;
       } catch (e, s) {
         lastError = e;
@@ -251,7 +255,11 @@ class FcmService {
       );
       final batch = FirebaseFirestore.instance.batch();
       for (final doc in snap.docs) { batch.delete(doc.reference); }
-      await batch.commit();
+      await withTimeout(
+        batch.commit(),
+        'fcm.clearTokens.commit',
+        timeout: const Duration(seconds: 8),
+      );
       DebugConfig.log(DebugConfig.chatFcm,
         'Cleared ${snap.docs.length} tokens');
     } catch (e, s) {

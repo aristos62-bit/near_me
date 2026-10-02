@@ -321,12 +321,16 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
     // server-side. Best-effort: δεν σπάει το topical save αν αποτύχει,
     // ίδιο σκεπτικό με το deleteAccount (μη-κρίσιμο cleanup βήμα).
     try {
-      await _firestore
-          .collection('users')
-          .doc(uid)
-          .collection('privacy')
-          .doc('settings')
-          .set({'geoPrecision': settings.geoPrecision});
+      await withTimeout(
+        _firestore
+            .collection('users')
+            .doc(uid)
+            .collection('privacy')
+            .doc('settings')
+            .set({'geoPrecision': settings.geoPrecision}),
+        'profile.geoSync',
+        timeout: const Duration(seconds: 6),
+      );
       DebugConfig.log(DebugConfig.firestoreWrite,
           'savePrivacySettings: geoPrecision synced to Firestore: ${settings.geoPrecision}');
     } catch (e, s) {
@@ -405,12 +409,16 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
       } catch (e) {
         DebugConfig.warn('publish: failed to read existing isOnline/geoHash', data: e);
       }
-      await _firestore
-          .collection('users')
-          .doc(uid)
-          .collection('public')
-          .doc('profile')
-          .set(json);
+      await withTimeout(
+        _firestore
+            .collection('users')
+            .doc(uid)
+            .collection('public')
+            .doc('profile')
+            .set(json),
+        'profile.publishSet',
+        timeout: const Duration(seconds: 8),
+      );
       if (DebugConfig.debugMode) {
         try {
           final verifyDoc = await withTimeout(
@@ -483,7 +491,11 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
       return;
     }
     try {
-      await _profileDoc(uid).delete();
+      await withTimeout(
+        _profileDoc(uid).delete(),
+        'profile.unpublish',
+        timeout: const Duration(seconds: 6),
+      );
       final profile = await getProfile();
       if (profile != null) {
         await saveProfile(profile.copyWith(isPublished: false));
@@ -521,21 +533,29 @@ class ProfileRepositoryImpl with ProfileStorageMixin implements ProfileRepositor
     }
     try {
       if (active) {
-        await _profileDoc(uid).update({
+        await withTimeout(
+          _profileDoc(uid).update({
           'helpRequest': {
             'active': true,
             'message': message ?? '',
             'radiusKm': radiusKm ?? 10.0,
             'updatedAt': DateTime.now().toUtc().toIso8601String(),
           }
-        });
+        }),
+          'profile.helpRequestOn',
+          timeout: const Duration(seconds: 6),
+        );
         await _db.logConsent(uid, 'help_request_activate', 'public');
         DebugConfig.log(DebugConfig.helpRequest,
             'setHelpRequest: SOS ACTIVATED uid=$uid radiusKm=${radiusKm ?? 10.0} message="$message"');
       } else {
-        await _profileDoc(uid).update({
+        await withTimeout(
+          _profileDoc(uid).update({
           'helpRequest': FieldValue.delete(),
-        });
+        }),
+          'profile.helpRequestOff',
+          timeout: const Duration(seconds: 6),
+        );
         await _db.logConsent(uid, 'help_request_deactivate', 'public');
         DebugConfig.log(
             DebugConfig.helpRequest, 'setHelpRequest: SOS DEACTIVATED uid=$uid');

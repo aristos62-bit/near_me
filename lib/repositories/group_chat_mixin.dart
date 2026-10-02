@@ -299,10 +299,14 @@ mixin GroupChatMixin {
       for (final p in activeParticipants) {
         if (roles[p] == 'admin') { newCreator = p; break; }
       }
-      await firestore.collection('chats').doc(chatId).update({
+      await withTimeout(
+        firestore.collection('chats').doc(chatId).update({
         'participantRoles.$newCreator': 'creator',
         'participantRoles.$departingUid': FieldValue.delete(),
-      });
+      }),
+        'group.creatorTransferWrite',
+        timeout: const Duration(seconds: 6),
+      );
       DebugConfig.log(DebugConfig.repositoryResult, '_maybeTransferCreatorOnLeave: $chatId -> $newCreator');
     } catch (e) {
       DebugConfig.warn('_maybeTransferCreatorOnLeave failed', data: e);
@@ -377,7 +381,9 @@ mixin GroupChatMixin {
     _enforceParticipantLimit(allUids.length, 10);
 
     try {
-      await firestore.collection('chats').doc(chatId).set({
+      try {
+        await withTimeout(
+          firestore.collection('chats').doc(chatId).set({
         'participants': allUids,
         'participantNicknames': nicknames,
         'participantAvatarUrls': avatarUrls,
@@ -398,7 +404,13 @@ mixin GroupChatMixin {
         'messageExpiry': 'off',
         'unreadCount': {for (final p in allUids) p: 0},
         if (isPublic) 'isPublic': true,
-      });
+      }),
+          'group.createSet',
+          timeout: const Duration(seconds: 8),
+        );
+      } on TimeoutException {
+        throwTimeoutAs('group.createSet', 'group/create-failed');
+      }
 
       final key = EncryptionUtils.deriveKey(chatId);
       await EncryptionUtils.storeKey(chatId, key);
@@ -523,10 +535,14 @@ mixin GroupChatMixin {
 
     // ── Admin-removes-member (unchanged) ──
     try {
-      await firestore.collection('chats').doc(chatId).update({
+      await withTimeout(
+        firestore.collection('chats').doc(chatId).update({
         'participants': FieldValue.arrayRemove([targetUid]),
         'participantIsActive.$targetUid': false,
-      });
+      }),
+        'group.removeParticipant',
+        timeout: const Duration(seconds: 6),
+      );
 
       await _maybeTransferCreatorOnLeave(chatId, targetUid);
       await _sendSystemMessage(chatId, 'participant_removed', uid, [targetUid]);
@@ -550,7 +566,11 @@ mixin GroupChatMixin {
     }
 
     try {
-      await firestore.collection('chats').doc(chatId).update({'groupName': name.trim()});
+      await withTimeout(
+        firestore.collection('chats').doc(chatId).update({'groupName': name.trim()}),
+        'group.updateName',
+        timeout: const Duration(seconds: 6),
+      );
       await _syncPublicProfileField(chatId, {'groupName': name.trim()});
       await updateChatCache(chatId, groupName: name.trim());
       await _sendSystemMessage(chatId, 'name_changed', _currentUid, [name.trim()]);
@@ -588,10 +608,14 @@ mixin GroupChatMixin {
       }
 
       final oldRole = roles[targetUid];
-      await firestore.collection('chats').doc(chatId).update({
+      await withTimeout(
+        firestore.collection('chats').doc(chatId).update({
         'participantRoles.$targetUid': newRole,
         if (newRole == 'member') 'permissionOverrides.$targetUid': {},
-      });
+      }),
+        'group.updateRole',
+        timeout: const Duration(seconds: 6),
+      );
       await _logAudit(chatId, 'role_changed', uid,
           targetUid: targetUid, details: {'oldRole': oldRole, 'newRole': newRole});
       await _sendSystemMessage(chatId, 'role_changed', uid, [targetUid, newRole]);
@@ -608,9 +632,13 @@ mixin GroupChatMixin {
     await _requirePermission(chatId, GroupPermission.managePermissions);
 
     try {
-      await firestore.collection('chats').doc(chatId).update({
+      await withTimeout(
+        firestore.collection('chats').doc(chatId).update({
         'permissionOverrides.$targetUid.${permission.name}': value,
-      });
+      }),
+        'group.updatePermOverride',
+        timeout: const Duration(seconds: 6),
+      );
       await _logAudit(chatId, 'permission_changed', _currentUid,
           targetUid: targetUid, details: {'permission': permission.name, 'newValue': value});
       await _sendSystemMessage(chatId, 'permission_changed', _currentUid,
@@ -627,9 +655,13 @@ mixin GroupChatMixin {
     await _requirePermission(chatId, GroupPermission.managePermissions);
 
     try {
-      await firestore.collection('chats').doc(chatId).update({
+      await withTimeout(
+        firestore.collection('chats').doc(chatId).update({
         'permissionOverrides.$targetUid': FieldValue.delete(),
-      });
+      }),
+        'group.deletePermOverrides',
+        timeout: const Duration(seconds: 6),
+      );
       await _logAudit(chatId, 'permission_overrides_reset', _currentUid,
           targetUid: targetUid);
       await _sendSystemMessage(chatId, 'permission_overrides_reset', _currentUid, [targetUid]);
@@ -671,7 +703,11 @@ mixin GroupChatMixin {
       await deleteChatSubcollection(firestore, chatId, 'invites', fatal: false);
       await deleteChatSubcollection(firestore, chatId, 'messages', fatal: false);
       await deleteAllChatMedia(chatId);
-      await firestore.collection('chats').doc(chatId).delete();
+      await withTimeout(
+        firestore.collection('chats').doc(chatId).delete(),
+        'group.deleteDoc',
+        timeout: const Duration(seconds: 8),
+      );
       await (db.delete(db.chatCacheTable)..where((t) => t.chatId.equals(chatId))).go();
       DebugConfig.log(DebugConfig.repositoryResult, 'deleteGroup: done $chatId');
     } catch (e, s) {
@@ -716,7 +752,11 @@ mixin GroupChatMixin {
             'Το όριο δεν μπορεί να είναι μικρότερο από τα τρέχοντα μέλη / Cannot be less than current members');
       }
 
-      await firestore.collection('chats').doc(chatId).update({'maxParticipants': newMax});
+      await withTimeout(
+        firestore.collection('chats').doc(chatId).update({'maxParticipants': newMax}),
+        'group.updateMax',
+        timeout: const Duration(seconds: 6),
+      );
       await _logAudit(chatId, 'max_participants_changed', _currentUid,
           details: {'oldMax': oldMax, 'newMax': newMax});
       await _sendSystemMessage(chatId, 'max_participants_changed', _currentUid, [newMax.toString()]);
@@ -760,7 +800,11 @@ mixin GroupChatMixin {
     }
 
     try {
-      await firestore.collection('chats').doc(chatId).update({'messageExpiry': value});
+      await withTimeout(
+        firestore.collection('chats').doc(chatId).update({'messageExpiry': value}),
+        'group.updateExpiry',
+        timeout: const Duration(seconds: 6),
+      );
       await _logAudit(chatId, 'message_expiry_changed', _currentUid,
           details: {'value': value});
       await _sendSystemMessage(chatId, 'message_expiry_changed', _currentUid);
@@ -868,10 +912,14 @@ mixin GroupChatMixin {
       await StorageHelpers.uploadBytesWithTimeout(storageRef, stripped,
           contentType: 'image/jpeg', type: 'avatar');
       final url = await StorageHelpers.downloadUrlWithTimeout(storageRef);
-      await firestore.collection('chats').doc(chatId).update({
+      await withTimeout(
+        firestore.collection('chats').doc(chatId).update({
         'groupAvatarUrl': url,
         'groupAvatarRacyLevel': res.racyLevel,
-      });
+      }),
+        'group.updateAvatar',
+        timeout: const Duration(seconds: 8),
+      );
       await _syncPublicProfileField(chatId, {
         'groupAvatarUrl': url,
         'groupAvatarRacyLevel': res.racyLevel,
@@ -895,12 +943,20 @@ mixin GroupChatMixin {
     DebugConfig.log(DebugConfig.repositoryCall, 'removeGroupAvatar: $chatId');
     await _requirePermission(chatId, GroupPermission.changeGroupAvatar);
     try {
-      await FirebaseStorage.instance
-          .ref().child('group_avatars').child(chatId).child('avatar.jpg').delete();
-      await firestore.collection('chats').doc(chatId).update({
+      await withTimeout(
+        FirebaseStorage.instance
+            .ref().child('group_avatars').child(chatId).child('avatar.jpg').delete(),
+        'group.deleteAvatarFile',
+        timeout: const Duration(seconds: 10),
+      );
+      await withTimeout(
+        firestore.collection('chats').doc(chatId).update({
         'groupAvatarUrl': FieldValue.delete(),
         'groupAvatarRacyLevel': FieldValue.delete(),
-      });
+      }),
+        'group.removeAvatarDoc',
+        timeout: const Duration(seconds: 6),
+      );
       await _syncPublicProfileField(chatId, {
         'groupAvatarUrl': FieldValue.delete(),
         'groupAvatarRacyLevel': FieldValue.delete(),
@@ -984,10 +1040,18 @@ mixin GroupChatMixin {
 
   Future<void> _updatePublicProfileMemberCount(String chatId) async {
     try {
-      final chatDoc = await firestore.collection('chats').doc(chatId).get();
+      final chatDoc = await withTimeout(
+        firestore.collection('chats').doc(chatId).get(),
+        'group.memberCountHead',
+        timeout: const Duration(seconds: 6),
+      );
       if (chatDoc.data()?['isPublic'] != true) return;
       final count = (chatDoc.data()?['participants'] as List?)?.length ?? 0;
-      await firestore.collection('groups').doc(chatId).update({'memberCount': count});
+      await withTimeout(
+        firestore.collection('groups').doc(chatId).update({'memberCount': count}),
+        'group.memberCountWrite',
+        timeout: const Duration(seconds: 6),
+      );
       DebugConfig.log(DebugConfig.firestoreWrite, '_updatePublicProfileMemberCount: $chatId -> $count');
     } on FirebaseException catch (e) {
       if (e.code != 'NOT_FOUND') {
@@ -1000,7 +1064,11 @@ mixin GroupChatMixin {
 
   Future<void> _syncPublicProfileField(String chatId, Map<String, dynamic> fields) async {
     try {
-      await firestore.collection('groups').doc(chatId).update(fields);
+      await withTimeout(
+        firestore.collection('groups').doc(chatId).update(fields),
+        'group.syncPublicField',
+        timeout: const Duration(seconds: 6),
+      );
       DebugConfig.log(DebugConfig.firestoreWrite, '_syncPublicProfileField: $chatId');
     } on FirebaseException catch (e) {
       if (e.code != 'NOT_FOUND') {
@@ -1022,7 +1090,8 @@ mixin GroupChatMixin {
       final inviteRef = firestore
           .collection('chats').doc(chatId).collection('invites').doc();
       final token = const Uuid().v4().replaceAll('-', '');
-      await inviteRef.set({
+      await withTimeout(
+        inviteRef.set({
         'token': token,
         'createdBy': uid,
         'expiresAt': Timestamp.fromDate(DateTime.now().add(expiresIn)),
@@ -1031,7 +1100,10 @@ mixin GroupChatMixin {
         'useCount': 0,
         'isRevoked': false,
         'createdAt': FieldValue.serverTimestamp(),
-      });
+      }),
+        'group.createInvite',
+        timeout: const Duration(seconds: 6),
+      );
       DebugConfig.log(DebugConfig.repositoryResult, 'createInviteLink: $chatId token=$token');
       return token;
     } catch (e, s) {
@@ -1173,9 +1245,13 @@ mixin GroupChatMixin {
     DebugConfig.log(DebugConfig.repositoryCall, 'revokeInvite: $chatId/$inviteId');
     await _requirePermission(chatId, GroupPermission.inviteMembers);
     try {
-      await firestore
-          .collection('chats').doc(chatId).collection('invites').doc(inviteId)
-          .update({'isRevoked': true});
+      await withTimeout(
+        firestore
+            .collection('chats').doc(chatId).collection('invites').doc(inviteId)
+            .update({'isRevoked': true}),
+        'group.revokeInvite',
+        timeout: const Duration(seconds: 6),
+      );
       DebugConfig.log(DebugConfig.repositoryResult, 'revokeInvite: done');
     } catch (e, s) {
       DebugConfig.error('revokeInvite failed', data: e, exception: s);

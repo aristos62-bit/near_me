@@ -7,6 +7,7 @@ import '../data/local/database_service.dart';
 import 'auth_repository.dart';
 import '../core/debug/debug_config.dart';
 import '../core/utils/app_exception.dart';
+import '../core/utils/timeouts.dart';
 import '../core/notifications/fcm_service.dart';
 import '../core/services/presence_service.dart';
 import '../features/profile/providers/location_service.dart';
@@ -62,9 +63,13 @@ class AuthRepositoryImpl implements AuthRepository {
     DebugConfig.log(DebugConfig.authFlow, 'deleteAccount started: $uid (isSigningOut=true)');
     try {
       try {
-        final result = await FirebaseFunctions.instanceFor(region: 'europe-west1')
-            .httpsCallable('deleteUserData')
-            .call({'uid': uid});
+        final result = await withTimeout(
+          FirebaseFunctions.instanceFor(region: 'europe-west1')
+              .httpsCallable('deleteUserData')
+              .call({'uid': uid}),
+          'deleteAccount.cf',
+          timeout: const Duration(seconds: 8),
+        );
         DebugConfig.log(DebugConfig.cloudFunctions, 'deleteAccount: CF deleteUserData success: ${result.data}');
     } catch (e) {
       DebugConfig.warn('deleteAccount: CF deleteUserData failed, continuing with local cleanup', data: e);
@@ -77,14 +82,38 @@ class AuthRepositoryImpl implements AuthRepository {
     } catch (_) {}
 
     try {
-      await _firestore.collection('users').doc(uid).collection('public').doc('profile').delete();
-      await _firestore.collection('users').doc(uid).collection('status').doc('status').delete();
+      await withTimeout(
+        _firestore.collection('users').doc(uid).collection('public').doc('profile').delete(),
+        'deleteAccount.public',
+        timeout: const Duration(seconds: 6),
+      );
+      await withTimeout(
+        _firestore.collection('users').doc(uid).collection('status').doc('status').delete(),
+        'deleteAccount.status',
+        timeout: const Duration(seconds: 6),
+      );
       // Defense-in-depth: orphaned subcollections
-      await _firestore.collection('users').doc(uid).collection('privacy').doc('settings').delete();
-      await _firestore.collection('users').doc(uid).collection('rateLimits').doc('search').delete();
-      final blockedSnap = await _firestore.collection('users').doc(uid).collection('blocked').get();
+      await withTimeout(
+        _firestore.collection('users').doc(uid).collection('privacy').doc('settings').delete(),
+        'deleteAccount.privacy',
+        timeout: const Duration(seconds: 6),
+      );
+      await withTimeout(
+        _firestore.collection('users').doc(uid).collection('rateLimits').doc('search').delete(),
+        'deleteAccount.rateLimits',
+        timeout: const Duration(seconds: 6),
+      );
+      final blockedSnap = await withTimeout(
+        _firestore.collection('users').doc(uid).collection('blocked').get(),
+        'deleteAccount.blockedScan',
+        timeout: const Duration(seconds: 6),
+      );
       for (final doc in blockedSnap.docs) {
-        await doc.reference.delete();
+        await withTimeout(
+          doc.reference.delete(),
+          'deleteAccount.blockedDoc',
+          timeout: const Duration(seconds: 6),
+        );
       }
       DebugConfig.log(DebugConfig.firestoreWrite, 'deleteAccount: Firestore data cleared (incl. privacy, rateLimits, blocked)');
     } catch (e) {
@@ -99,15 +128,16 @@ class AuthRepositoryImpl implements AuthRepository {
     }
 
     try {
-      await user.delete();
+      await _withAuthTimeout(user.delete(), 'deleteAccountAuthDelete');
       DebugConfig.log(DebugConfig.authFlow, 'deleteAccount: Firebase Auth user deleted');
     } on FirebaseAuthException catch (e) {
       if (e.code == 'requires-recent-login') {
         if (password != null && user.email != null && user.email!.isNotEmpty) {
           DebugConfig.log(DebugConfig.authFlow, 'deleteAccount: reauthenticating');
           final credential = EmailAuthProvider.credential(email: user.email!, password: password);
-          await user.reauthenticateWithCredential(credential);
-          await user.delete();
+          await _withAuthTimeout(
+              user.reauthenticateWithCredential(credential), 'deleteAccountReauth');
+          await _withAuthTimeout(user.delete(), 'deleteAccountAuthDeleteAfterReauth');
           DebugConfig.log(DebugConfig.authFlow, 'deleteAccount: deleted after reauth');
         } else {
           DebugConfig.warn('deleteAccount: requires-recent-login, no password provided');

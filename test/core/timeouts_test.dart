@@ -105,6 +105,31 @@ void main() {
       );
     });
 
+    test('throws AppException with chat network code (C6c writes)', () {
+      expect(
+        () => throwTimeoutAs('sendMessage.commit', 'chat/network-error'),
+        throwsA(isA<AppException>()
+            .having((e) => e.code, 'code', 'chat/network-error')
+            .having((e) => e.message, 'message', contains(' / '))),
+      );
+    });
+
+    test('throws AppException with chat delete code (C6c writes)', () {
+      expect(
+        () => throwTimeoutAs('delete.preCheck', 'chat/delete-failed'),
+        throwsA(isA<AppException>()
+            .having((e) => e.code, 'code', 'chat/delete-failed')),
+      );
+    });
+
+    test('throws AppException with chat unknown code (C6c clear)', () {
+      expect(
+        () => throwTimeoutAs('clear.preCheck', 'chat/unknown-error'),
+        throwsA(isA<AppException>()
+            .having((e) => e.code, 'code', 'chat/unknown-error')),
+      );
+    });
+
     test('bilingual message passes through toFriendlyMessage as-is', () {
       AppException? caught;
       try {

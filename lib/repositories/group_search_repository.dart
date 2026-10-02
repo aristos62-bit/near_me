@@ -139,7 +139,8 @@ class FirestoreGroupSearchRepository implements GroupSearchRepository {
         'createPublicProfile: chatId=$chatId');
 
     try {
-      await firestore.collection('groups').doc(chatId).set({
+      await withTimeout(
+        firestore.collection('groups').doc(chatId).set({
         'chatId': chatId,
         'groupName': profile.groupName,
         if (profile.groupAvatarUrl != null)
@@ -154,7 +155,10 @@ class FirestoreGroupSearchRepository implements GroupSearchRepository {
         'createdBy': profile.createdBy,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
-      });
+      }),
+        'group.createPublicProfile',
+        timeout: const Duration(seconds: 6),
+      );
       DebugConfig.log(DebugConfig.repositoryResult,
           'createPublicProfile: done chatId=$chatId');
     } on FirebaseException catch (e) {
@@ -202,7 +206,11 @@ class FirestoreGroupSearchRepository implements GroupSearchRepository {
       } else {
         data['city'] = FieldValue.delete();
       }
-      await firestore.collection('groups').doc(chatId).update(data);
+      await withTimeout(
+        firestore.collection('groups').doc(chatId).update(data),
+        'group.updatePublicProfile',
+        timeout: const Duration(seconds: 6),
+      );
       DebugConfig.log(DebugConfig.repositoryResult,
           'updatePublicProfile: done chatId=$chatId');
     } on FirebaseException catch (e) {
@@ -221,7 +229,11 @@ class FirestoreGroupSearchRepository implements GroupSearchRepository {
         'deletePublicProfile: chatId=$chatId');
 
     try {
-      await firestore.collection('groups').doc(chatId).delete();
+      await withTimeout(
+        firestore.collection('groups').doc(chatId).delete(),
+        'group.deletePublicProfile',
+        timeout: const Duration(seconds: 6),
+      );
       DebugConfig.log(DebugConfig.repositoryResult,
           'deletePublicProfile: done chatId=$chatId');
     } on FirebaseException catch (e) {

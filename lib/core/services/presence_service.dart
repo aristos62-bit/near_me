@@ -31,7 +31,15 @@ class PresenceService {
     _publicRef = FirebaseFirestore.instance.doc('users/$uid/public/profile');
     await _touch();
     if (_publicRef != null) {
-      await _publicRef!.set({'isOnline': true}, SetOptions(merge: true));
+      try {
+        await withTimeout(
+          _publicRef!.set({'isOnline': true}, SetOptions(merge: true)),
+          'presence.startOnline',
+          timeout: const Duration(seconds: 6),
+        );
+      } catch (e) {
+        DebugConfig.warn('PresenceService start online flag failed (non-fatal)', data: e);
+      }
     }
     if (!_startLogged) {
       DebugConfig.log(DebugConfig.presence,

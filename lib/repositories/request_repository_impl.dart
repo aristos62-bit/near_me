@@ -159,18 +159,27 @@ class RequestRepositoryImpl implements RequestRepository {
     final now = DateTime.now();
 
     try {
-      await _firestore.collection('requests').add({
+      try {
+        await withTimeout(
+          _firestore.collection('requests').add({
         'fromUid': uid,
         'toUid': toUid,
         'type': type,
         'status': 'pending',
         'message': message,
         'createdAt': now,
-      });
+      }),
+          'request.sendAdd',
+          timeout: const Duration(seconds: 8),
+        );
+      } on TimeoutException {
+        throwTimeoutAs('request.sendAdd', 'request/send-failed');
+      }
       DebugConfig.log(DebugConfig.repositoryResult, 'sendRequest: success to=$toUid type=$type');
 
       await _logConsent(uid, toUid, type);
     } catch (e) {
+      if (e is AppException) rethrow;
       DebugConfig.error('sendRequest failed', data: e);
       throw AppException.firestore('send_request', 'Αποτυχία αποστολής αιτήματος / Failed to send request');
     }
@@ -370,13 +379,29 @@ class RequestRepositoryImpl implements RequestRepository {
           'readAt': FieldValue.serverTimestamp(),
         };
         if (chatId != null) updateData['chatId'] = chatId;
-        await docRef.update(updateData);
+        try {
+          await withTimeout(
+            docRef.update(updateData),
+            'request.respondUpdate',
+            timeout: const Duration(seconds: 6),
+          );
+        } on TimeoutException {
+          throwTimeoutAs('request.respondUpdate', 'request/send-failed');
+        }
       } else {
-        await docRef.update({
+        try {
+          await withTimeout(
+            docRef.update({
           'status': status,
           'respondedAt': FieldValue.serverTimestamp(),
           'readAt': FieldValue.serverTimestamp(),
-        });
+        }),
+            'request.respondUpdate',
+            timeout: const Duration(seconds: 6),
+          );
+        } on TimeoutException {
+          throwTimeoutAs('request.respondUpdate', 'request/send-failed');
+        }
       }
 
       DebugConfig.log(DebugConfig.repositoryResult, 'respondToRequest: success id=$requestId status=$status chatId=$chatId');
@@ -420,7 +445,11 @@ class RequestRepositoryImpl implements RequestRepository {
         throw AppException.auth('delete_request', 'Δεν έχετε δικαίωμα / Unauthorized');
       }
 
-      await docRef.delete();
+      await withTimeout(
+        docRef.delete(),
+        'request.deleteDoc',
+        timeout: const Duration(seconds: 6),
+      );
       DebugConfig.log(DebugConfig.repositoryResult, 'deleteRequest: done id=$requestId');
     } catch (e) {
       if (e is AppException) rethrow;
@@ -437,9 +466,13 @@ class RequestRepositoryImpl implements RequestRepository {
     DebugConfig.log(DebugConfig.repositoryCall, 'markRequestAsSeen: requestId=$requestId');
 
     try {
-      await _firestore.collection('requests').doc(requestId).update({
+      await withTimeout(
+        _firestore.collection('requests').doc(requestId).update({
         'readAt': FieldValue.serverTimestamp(),
-      });
+      }),
+        'request.markSeen',
+        timeout: const Duration(seconds: 6),
+      );
       DebugConfig.log(DebugConfig.repositoryResult, 'markRequestAsSeen: done requestId=$requestId');
     } catch (e) {
       DebugConfig.warn('markRequestAsSeen failed', data: e);

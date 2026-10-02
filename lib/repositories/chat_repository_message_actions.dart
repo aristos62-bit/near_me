@@ -50,14 +50,18 @@ mixin ChatMessageActionsMixin {
       final key = await EncryptionUtils.getKeyOrDerive(chatId);
       final encrypted = EncryptionUtils.encryptMessage(key, newContent);
 
-      await firestore
-          .collection('chats').doc(chatId)
-          .collection('messages').doc(messageId)
-          .update({
+      await withTimeout(
+        firestore
+            .collection('chats').doc(chatId)
+            .collection('messages').doc(messageId)
+            .update({
         'content': encrypted,
         'edited': true,
         'editedAt': FieldValue.serverTimestamp(),
-      });
+      }),
+        'message.editWrite',
+        timeout: const Duration(seconds: 6),
+      );
 
       messageDecryptCache[chatId]?.remove(messageId);
       messageEncryptCache[chatId]?.remove(messageId);
@@ -112,10 +116,14 @@ mixin ChatMessageActionsMixin {
         }
       }
 
-      await firestore
-          .collection('chats').doc(chatId)
-          .collection('messages').doc(messageId)
-          .delete();
+      await withTimeout(
+        firestore
+            .collection('chats').doc(chatId)
+            .collection('messages').doc(messageId)
+            .delete(),
+        'message.deleteDoc',
+        timeout: const Duration(seconds: 6),
+      );
 
       messageDecryptCache[chatId]?.remove(messageId);
       messageEncryptCache[chatId]?.remove(messageId);

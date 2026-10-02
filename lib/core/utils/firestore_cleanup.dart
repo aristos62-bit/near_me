@@ -51,7 +51,19 @@ Future<void> deleteChatSubcollection(
       for (final doc in docs.docs) {
         batch.delete(doc.reference);
       }
-      await batch.commit();
+      try {
+        await withTimeout(
+          batch.commit(),
+          'cleanup.$subcollection.commit',
+          timeout: const Duration(seconds: 10),
+        );
+      } on TimeoutException {
+        if (fatal) rethrow;
+        DebugConfig.warn(
+            'deleteChatSubcollection: commit TIMEOUT, stopping $subcollection '
+            '(non-fatal, partial) chat=$chatId');
+        break;
+      }
 
       totalDeleted += docs.docs.length;
       DebugConfig.log(DebugConfig.firestoreWrite,

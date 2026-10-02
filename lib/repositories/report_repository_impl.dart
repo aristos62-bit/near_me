@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/debug/debug_config.dart';
 import '../core/utils/app_exception.dart';
+import '../core/utils/timeouts.dart';
 import 'report_repository.dart';
 
 class ReportRepositoryImpl implements ReportRepository {
@@ -18,13 +19,17 @@ class ReportRepositoryImpl implements ReportRepository {
     DebugConfig.log(DebugConfig.firestoreWrite,
         'ReportRepository submitReport: target=$reportedUid reason=$reason');
     try {
-      await _firestore.collection('reports').add({
+      await withTimeout(
+        _firestore.collection('reports').add({
         'reporterUid': reporterUid,
         'reportedUid': reportedUid,
         'reason': reason,
         'createdAt': FieldValue.serverTimestamp(),
         'status': 'pending',
-      });
+      }),
+        'report.submit',
+        timeout: const Duration(seconds: 8),
+      );
       DebugConfig.log(DebugConfig.firestoreWrite,
           'ReportRepository submitReport success: $reportedUid');
     } catch (e, s) {

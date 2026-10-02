@@ -143,7 +143,9 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
     final sortedPair = [uid, otherUid]..sort();
     final pairKey = '${sortedPair[0]}_${sortedPair[1]}';
     final key = EncryptionUtils.deriveKey(chatId);
-    await firestore.collection('chats').doc(chatId).set({
+    try {
+      await withTimeout(
+        firestore.collection('chats').doc(chatId).set({
       'participants': [uid, otherUid],
       'participantPair': pairKey,
       'isGroupChat': false,
@@ -156,7 +158,13 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
       'isActive': true,
       'maxParticipants': 2,
       'unreadCount': {uid: 0, otherUid: 0},
-    });
+    }),
+        'createChat.set',
+        timeout: const Duration(seconds: 8),
+      );
+    } on TimeoutException {
+      throwTimeoutAs('createChat.set', 'chat/network-error');
+    }
     DebugConfig.log(DebugConfig.repositoryResult, 'createChat: new chat created: $chatId pair=$pairKey');
     DebugConfig.log(DebugConfig.repositoryResult, 'createChat: new chat created: $chatId');
 
@@ -343,12 +351,21 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
         }
       }
       batch.update(chatRef, updateData);
-      await batch.commit();
+      try {
+        await withTimeout(
+          batch.commit(),
+          'sendMessage.commit',
+          timeout: const Duration(seconds: 8),
+        );
+      } on TimeoutException {
+        throwTimeoutAs('sendMessage.commit', 'chat/network-error');
+      }
 
       DebugConfig.log(DebugConfig.repositoryResult, 'sendMessage: success chat=$chatId');
 
       await updateChatCache(chatId, hasUnread: false);
     } catch (e, s) {
+      if (e is AppException) rethrow;
       DebugConfig.error('sendMessage failed',
           data: e, stack: s, reportToCrashlytics: true);
       throw AppException.firestore('send_message', 'Αποτυχία αποστολής μηνύματος / Failed to send message');
@@ -544,10 +561,14 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
       final hadUnread = cachedRow == null || cachedRow.unreadCount > 0;
 
       if (hadUnread) {
-        await firestore.collection('chats').doc(chatId).update({
+        await withTimeout(
+          firestore.collection('chats').doc(chatId).update({
           'lastReadTimestamps.${user.uid}': FieldValue.serverTimestamp(),
           'unreadCount.${user.uid}': 0,
-        });
+        }),
+          'chat.markAsReadHead',
+          timeout: const Duration(seconds: 6),
+        );
       } else {
         DebugConfig.log(DebugConfig.repositoryCall,
             'markAsRead: skipped lastReadTimestamps write (already 0 unread) chat=$chatId');
@@ -571,7 +592,11 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
           for (final doc in docs) {
             batch.update(doc.reference, {'isRead': true});
           }
-          await batch.commit();
+          await withTimeout(
+            batch.commit(),
+            'chat.markAsReadCommit',
+            timeout: const Duration(seconds: 8),
+          );
           DebugConfig.log(DebugConfig.repositoryResult, 'markAsRead: marked ${docs.length} messages chat=$chatId');
         } else {
           DebugConfig.log(DebugConfig.repositoryResult, 'markAsRead: no unread messages chat=$chatId');
@@ -1051,7 +1076,15 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
         }
       }
       batch.update(chatRef, updateData);
-      await batch.commit();
+      try {
+        await withTimeout(
+          batch.commit(),
+          'sendMedia.commit',
+          timeout: const Duration(seconds: 8),
+        );
+      } on TimeoutException {
+        throwTimeoutAs('sendMedia.commit', 'chat/network-error');
+      }
 
       DebugConfig.log(DebugConfig.repositoryResult, 'sendMediaMessage: success chat=$chatId type=$type');
 
@@ -1095,7 +1128,7 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
             'syncMyProfileAcrossChats: no chats found');
         return;
       }
-      _batchUpdateChatDocs(snapshot.docs.map((d) => d.reference).toList(),
+      await _batchUpdateChatDocs(snapshot.docs.map((d) => d.reference).toList(),
           uid, nickname, avatarUrl);
       return;
     }
@@ -1104,7 +1137,7 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
         .where((c) => c.chatId != null)
         .map((c) => firestore.collection('chats').doc(c.chatId!))
         .toList();
-    _batchUpdateChatDocs(refs, uid, nickname, avatarUrl);
+    await _batchUpdateChatDocs(refs, uid, nickname, avatarUrl);
   }
 
   Future<void> _batchUpdateChatDocs(
@@ -1113,28 +1146,42 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
     String nickname,
     String? avatarUrl,
   ) async {
-    final updates = <String, dynamic>{
-      'participantNicknames.$uid': nickname,
-    };
-    if (avatarUrl != null) {
-      updates['participantAvatarUrls.$uid'] = avatarUrl;
-    }
-
-    const batchLimit = 500;
-    var batch = firestore.batch();
-    var count = 0;
-    for (final ref in refs) {
-      batch.update(ref, updates);
-      count++;
-      if (count % batchLimit == 0) {
-        await batch.commit();
-        batch = firestore.batch();
+    try {
+      final updates = <String, dynamic>{
+        'participantNicknames.$uid': nickname,
+      };
+      if (avatarUrl != null) {
+        updates['participantAvatarUrls.$uid'] = avatarUrl;
       }
-    }
-    if (count % batchLimit != 0) await batch.commit();
 
-    DebugConfig.log(DebugConfig.firestoreWrite,
-        'syncMyProfileAcrossChats: updated $count chats');
+      const batchLimit = 500;
+      var batch = firestore.batch();
+      var count = 0;
+      for (final ref in refs) {
+        batch.update(ref, updates);
+        count++;
+        if (count % batchLimit == 0) {
+          await withTimeout(
+            batch.commit(),
+            'chat.syncMyProfile.commit',
+            timeout: const Duration(seconds: 8),
+          );
+          batch = firestore.batch();
+        }
+      }
+      if (count % batchLimit != 0) {
+        await withTimeout(
+          batch.commit(),
+          'chat.syncMyProfile.commit',
+          timeout: const Duration(seconds: 8),
+        );
+      }
+
+      DebugConfig.log(DebugConfig.firestoreWrite,
+          'syncMyProfileAcrossChats: updated $count chats');
+    } catch (e) {
+      DebugConfig.warn('syncMyProfileAcrossChats: batch update failed (non-fatal)', data: e);
+    }
   }
 
   @override
@@ -1175,10 +1222,14 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
       }
       // ───────────────────────────────────────────────────────────
 
-      await firestore
-          .collection('chats').doc(chatId)
-          .collection('messages').doc(messageId)
-          .update({'reactions.$uid': emoji});
+      await withTimeout(
+        firestore
+            .collection('chats').doc(chatId)
+            .collection('messages').doc(messageId)
+            .update({'reactions.$uid': emoji}),
+        'chat.addReaction',
+        timeout: const Duration(seconds: 6),
+      );
       DebugConfig.log(DebugConfig.firestoreWrite, 'addReaction: success chat=$chatId msg=$messageId');
     } catch (e) {
       if (e is AppException) rethrow;
@@ -1195,10 +1246,14 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
     DebugConfig.log(DebugConfig.chatReactions, 'removeReaction: chat=$chatId msg=$messageId uid=$uid');
 
     try {
-      await firestore
-          .collection('chats').doc(chatId)
-          .collection('messages').doc(messageId)
-          .update({'reactions.$uid': FieldValue.delete()});
+      await withTimeout(
+        firestore
+            .collection('chats').doc(chatId)
+            .collection('messages').doc(messageId)
+            .update({'reactions.$uid': FieldValue.delete()}),
+        'chat.removeReaction',
+        timeout: const Duration(seconds: 6),
+      );
       DebugConfig.log(DebugConfig.firestoreWrite, 'removeReaction: success chat=$chatId msg=$messageId');
     } catch (e) {
       DebugConfig.error('removeReaction failed', data: e);

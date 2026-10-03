@@ -1,8 +1,8 @@
 import 'dart:async';
-import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:collection/collection.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/utils/app_exception.dart';
@@ -14,6 +14,17 @@ import '../../../repositories/group_search_repository.dart';
 import 'package:video_player/video_player.dart';
 
 final _chatDocSnapCaches = <String, DocumentSnapshot?>{};
+
+/// Test-only reset των module-level chat caches (S174/S178 suppression).
+/// Καλείται ΜΟΝΟ από tests (setUp) για determinism μεταξύ containers —
+/// ποτέ σε production. Οι instance caches του repository δεν το χρειάζονται
+/// (πεθαίνουν με το container)· για αυτές υπάρχει η `clearMessageCaches`.
+@visibleForTesting
+void resetChatProviderCaches() {
+  _chatDocSnapCaches.clear();
+  _participantUidCaches.clear();
+  DebugConfig.log(DebugConfig.providerDispose, 'resetChatProviderCaches: cleared');
+}
 
 final chatDocProvider = StreamProvider.autoDispose.family<DocumentSnapshot?, String>((ref, chatId) {
   DebugConfig.log(DebugConfig.providerCreate, 'chatDocProvider created for chat: $chatId');

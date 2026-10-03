@@ -200,4 +200,36 @@ void main() {
       expect(exists, isFalse);
     });
   });
+
+  group('GroupPublicProfile.fromFirestore', () {
+    test('πλήρες doc → όλα τα πεδία', () async {
+      await seedGroup(chatId: 'g1', groupName: 'Παρέα', city: 'Athens');
+      final snap = await firestore.collection('groups').doc('g1').get();
+      final p = GroupPublicProfile.fromFirestore(snap);
+      expect(p.chatId, 'g1');
+      expect(p.groupName, 'Παρέα');
+      expect(p.city, 'Athens');
+      expect(p.memberCount, 3);
+      expect(p.isPublic, isTrue);
+      expect(p.createdBy, 'creator');
+    });
+
+    test('chatId fallback στο doc.id όταν λείπει', () async {
+      await firestore.collection('groups').doc('g9').set({
+        'groupName': 'Χωρίς chatId',
+      });
+      final snap = await firestore.collection('groups').doc('g9').get();
+      final p = GroupPublicProfile.fromFirestore(snap);
+      expect(p.chatId, 'g9');
+      expect(p.memberCount, 0);
+      expect(p.tags, isEmpty);
+    });
+
+    test('tags list + memberCount διαβάζονται', () async {
+      await seedGroup(chatId: 'g1', groupName: 'Ομάδα', tags: ['a', 'b']);
+      final snap = await firestore.collection('groups').doc('g1').get();
+      final p = GroupPublicProfile.fromFirestore(snap);
+      expect(p.tags, ['a', 'b']);
+    });
+  });
 }

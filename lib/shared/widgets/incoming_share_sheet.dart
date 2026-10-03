@@ -32,47 +32,50 @@ Future<bool?> showIncomingShareSheet(
       return SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(icon),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      greek ? 'Εισερχόμενο περιεχόμενο' : 'Incoming content',
-                      style: Theme.of(ctx).textTheme.titleMedium,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                constraints: const BoxConstraints(maxHeight: 200),
-                decoration: BoxDecoration(
-                  color: Theme.of(ctx).colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: isMedia
-                    ? _buildMediaPreview(type, filePath, thumbnailBytes)
-                    : SingleChildScrollView(
-                        child: SelectableText(content, style: Theme.of(ctx).textTheme.bodyMedium),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(icon),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        greek ? 'Εισερχόμενο περιεχόμενο' : 'Incoming content',
+                        style: Theme.of(ctx).textTheme.titleMedium,
                       ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  icon: const Icon(Icons.send),
-                  label: Text(greek ? 'Προώθηση σε συνομιλία' : 'Forward to a chat'),
-                  onPressed: () => Navigator.of(ctx).pop(true),
+                    ),
+                  ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  constraints: const BoxConstraints(maxHeight: 200),
+                  decoration: BoxDecoration(
+                    color: Theme.of(ctx).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: isMedia
+                      ? _buildMediaPreview(type, filePath, thumbnailBytes)
+                      : SingleChildScrollView(
+                          child: SelectableText(content,
+                              style: Theme.of(ctx).textTheme.bodyMedium),
+                        ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    icon: const Icon(Icons.send),
+                    label: Text(greek ? 'Προώθηση σε συνομιλία' : 'Forward to a chat'),
+                    onPressed: () => Navigator.of(ctx).pop(true),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );

@@ -25,7 +25,14 @@ class ChatListScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final greek = L10n.isGreek(context);
     final authUser = ref.watch(authStateProvider).value;
-    final syncUser = FirebaseAuth.instance.currentUser;
+    // VM-safe: χωρίς Firebase app το instance πετάει — fallback null
+    // (ίδια συμπεριφορά με app, όπου επιστρέφει τον current user).
+    User? syncUser;
+    try {
+      syncUser = FirebaseAuth.instance.currentUser;
+    } catch (_) {
+      syncUser = null;
+    }
     final user = authUser ?? syncUser;
     final canComm = AuthRepository.canUserCommunicate(user);
     final chatsAsync = ref.watch(chatsProvider);
@@ -106,13 +113,15 @@ class ChatListScreen extends ConsumerWidget {
   // Έχεις κωδικό πρόσκλησης; — tolerant extraction (URL / whitespace) + strict validation
   Future<void> _promptInviteToken(BuildContext context) async {
     final greek = L10n.isGreek(context);
-    final controller = TextEditingController();
+    // Χωρίς TextEditingController επίτηδες: το dispose μετά το pop
+    // προλάβαινε το exit animation του dialog (used-after-dispose).
+    // Το draft κρατάει τον ίδιο χαρακτήρα-χαρακτήρα τιμή μέσω onChanged.
+    var draft = '';
     final token = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(greek ? 'Έχεις κωδικό πρόσκλησης;' : 'Have an invite code?'),
         content: TextField(
-          controller: controller,
           autofocus: true,
           autocorrect: false,
           enableSuggestions: false,
@@ -122,7 +131,8 @@ class ChatListScreen extends ConsumerWidget {
                 ? 'Επικόλλησε τον κωδικό πρόσκλησης'
                 : 'Paste your invite code',
           ),
-          onSubmitted: (_) => _confirmToken(ctx, controller.text),
+          onChanged: (v) => draft = v,
+          onSubmitted: (_) => _confirmToken(ctx, draft),
         ),
         actions: [
           TextButton(
@@ -130,13 +140,12 @@ class ChatListScreen extends ConsumerWidget {
             child: Text(greek ? 'Ακύρωση' : 'Cancel'),
           ),
           FilledButton(
-            onPressed: () => _confirmToken(ctx, controller.text),
+            onPressed: () => _confirmToken(ctx, draft),
             child: Text(greek ? 'Συνέχεια' : 'Continue'),
           ),
         ],
       ),
     );
-    controller.dispose();
     if (token == null || token.isEmpty || !context.mounted) return;
     DebugConfig.log(DebugConfig.uiInteraction,
         'ChatListScreen: invite token -> /join (token=${token.length >= 8 ? token.substring(0, 8) : token}...)');
@@ -218,7 +227,13 @@ class _ChatTile extends ConsumerWidget {
         'title=$title');
     final initial = title.isNotEmpty ? title[0].toUpperCase() : '?';
     final avatarUrl = isGroup ? chat.groupAvatarUrl : chat.otherAvatarUrl;
-    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    // VM-safe (όπως παραπάνω) για τα widget tests χωρίς Firebase app.
+    String? currentUid;
+    try {
+      currentUid = FirebaseAuth.instance.currentUser?.uid;
+    } catch (_) {
+      currentUid = null;
+    }
     final hasUnread = chat.hasUnread;
     final lastTime = chat.lastMessageAt;
     final unreadCount = chat.unreadCount;

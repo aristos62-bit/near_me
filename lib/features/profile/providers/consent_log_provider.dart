@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../data/local/database.dart';
@@ -10,6 +11,19 @@ class ConsentLogNotifier extends Notifier<AsyncValue<List<ConsentLogTableData>>>
   int _page = 0;
   bool hasMore = true;
   bool _isLoading = false;
+
+  /// DI hook για tests: αν οριστεί, χρησιμοποιείται ΑΠΟΚΛΕΙΣΤΙΚΑ (ακόμα κι
+  /// αν επιστρέφει null = no user) ΑΝΤΙ του `FirebaseAuth...currentUser?.uid`.
+  /// Default null → σημερινή συμπεριφορά (καμία αλλαγή στο production).
+  /// Ίδιο pattern με τα `@visibleForTesting` hooks του `ProfileStorageMixin`
+  /// και τον provider-exclusive κανόνα του S266.
+  /// Σημείωση: αν οριστεί ΑΦΟΥ χτιστεί ο notifier, χρειάζεται `refresh()`.
+  @visibleForTesting
+  String? Function()? consentUidProvider;
+
+  String? get _uid => consentUidProvider != null
+      ? consentUidProvider!()
+      : FirebaseAuth.instance.currentUser?.uid;
 
   @override
   AsyncValue<List<ConsentLogTableData>> build() {
@@ -25,8 +39,7 @@ class ConsentLogNotifier extends Notifier<AsyncValue<List<ConsentLogTableData>>>
     _isLoading = true;
     try {
       final db = ref.read(databaseProvider);
-      final user = FirebaseAuth.instance.currentUser;
-      final uid = user?.uid;
+      final uid = _uid;
       if (uid == null || uid.isEmpty) {
         state = const AsyncValue.data([]);
         return;
@@ -55,8 +68,7 @@ class ConsentLogNotifier extends Notifier<AsyncValue<List<ConsentLogTableData>>>
     _isLoading = true;
     try {
       final db = ref.read(databaseProvider);
-      final user = FirebaseAuth.instance.currentUser;
-      final uid = user?.uid;
+      final uid = _uid;
       if (uid == null || uid.isEmpty) return;
 
       final rows = await (db.select(db.consentLogTable)

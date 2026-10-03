@@ -26,7 +26,7 @@
 | Firestore indexes | 21 composite deployed |
 | Cloud Functions | 17 deployed `europe-west1` (gen1, Node 22) + Vision moderation (eur3) |
 | Build | `flutter analyze` clean ✅ · release APK ~20.8MB (R8) · signed `gr.nearme.app` |
-| Tests | 934/934 passed (`flutter test`, Sessions 275-283, analyze 0 issues) · coverage: μέτρηση εκκρεμεί (`flutter test --coverage`) |
+| Tests | 941/941 passed (`flutter test`, Sessions 275-284, analyze 0 issues) · coverage: μέτρηση εκκρεμεί (`flutter test --coverage`) |
 | Schema | Drift v17, 7 tables |
 | Moderation | Active (Sessions 253-255): Global Normal + User Blur · Vision SafeSearch `eu-vision.googleapis.com` · kill-switch `config/moderation` |
 | Feature Flags | ~24 (core 21 + moderation: contentModerationEnabled, autoModerateProfilePhotos, autoModerateChatMedia, blurExplicitByDefault) |
@@ -64,6 +64,7 @@
 | 19 | `oldsessions/oldsessions_19_sessions_281_phonecleanup.md` | Session 281 Phone cleanup μετά από unlink (+7 tests, 925 tests) |
 | 20 | `oldsessions/oldsessions_20_sessions_282_1to1expiry.md` | Session 282 1-1 message expiry + gif overflow fix (925 tests) |
 | 21 | `oldsessions/oldsessions_21_sessions_283_expiryspot.md` | Session 283 Shared SPoT message expiry (+9 tests, 934 tests) |
+| 22 | `oldsessions/oldsessions_22_sessions_284_consenthook.md` | Session 284 Φάση Β4 consent_log DI hook + tests (+7 tests, 941 tests) |
 
 > Κανόνας αρίθμησης: όταν προστίθενται νέες ομάδες sessions συνεχίζουν στο επόμενο νούμερο (π.χ. #14). Θεματικά αρχεία (π.χ. για μια νέα μεγάλη φάση) παίρνουν επίσης επόμενο διαθέσιμο αριθμό — ο TOC ενημερώνεται πάντα εδώ.
 

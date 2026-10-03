@@ -5,6 +5,8 @@ import '../../../core/l10n/l10n.dart';
 import '../../../core/utils/error_messages.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/responsive_utils.dart';
+import '../../../shared/utils/auth_validation.dart';
+import '../../../shared/widgets/forgot_password_dialog.dart';
 import '../../../shared/widgets/form_section.dart';
 import '../../../shared/widgets/gradient_header.dart';
 import '../../../shared/widgets/save_button.dart';
@@ -21,6 +23,7 @@ class WelcomeScreen extends ConsumerStatefulWidget {
 }
 
 class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
+  final _formKey = GlobalKey<FormState>();
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _confirmCtrl = TextEditingController();
@@ -45,39 +48,8 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
     super.dispose();
   }
 
-  String? _emailError;
-  String? _passwordError;
-  String? _confirmError;
-
-  bool _validate() {
-    setState(() {
-      _emailError = null;
-      _passwordError = null;
-      _confirmError = null;
-    });
-    final email = _emailCtrl.text.trim();
-    final password = _passwordCtrl.text;
-    bool valid = true;
-
-    if (email.isEmpty || !RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(email)) {
-      _emailError = 'Μη έγκυρο email / Invalid email';
-      valid = false;
-    }
-    if (password.length < 6) {
-      _passwordError = 'Τουλάχιστον 6 χαρακτήρες / At least 6 characters';
-      valid = false;
-    }
-    if (_mode == _WelcomeMode.register) {
-      if (_confirmCtrl.text != password) {
-        _confirmError = 'Οι κωδικοί δεν ταιριάζουν / Passwords do not match';
-        valid = false;
-      }
-    }
-    return valid;
-  }
-
   void _submit() {
-    if (!_validate()) return;
+    if (!(_formKey.currentState?.validate() ?? false)) return;
     final email = _emailCtrl.text.trim();
     final password = _passwordCtrl.text;
     final notifier = ref.read(welcomeProvider.notifier);
@@ -95,54 +67,15 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
     ref.read(welcomeProvider.notifier).browseAnonymously();
   }
 
-  void _showForgotPassword() {
-    final isGreek = L10n.isGreek(context);
-    final resetCtrl = TextEditingController(text: _emailCtrl.text);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(L10n.localizedMessage(context, 'Ξέχασες τον κωδικό; / Forgot Password?')),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(L10n.localizedMessage(context, 'Θα σου στείλουμε email επαναφοράς κωδικού / We will send you a password reset email')),
-            const SizedBox(height: 16),
-            TextField(
-              controller: resetCtrl,
-              decoration: InputDecoration(
-                labelText: 'Email',
-                border: const OutlineInputBorder(),
-                prefixIcon: const Icon(Icons.email_outlined),
-              ),
-              keyboardType: TextInputType.emailAddress,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              resetCtrl.dispose();
-            },
-            child: Text(isGreek ? 'Ακύρωση' : 'Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final email = resetCtrl.text.trim();
-              if (email.isEmpty) return;
-              Navigator.of(ctx).pop();
-              resetCtrl.dispose();
-              DebugConfig.log(DebugConfig.authFlow, 'WelcomeScreen: password reset for $email');
-              ref.read(verifyAccountProvider.notifier).sendPasswordReset(email);
-              AppMessenger.showSuccess(context,
-                  ErrorMessages.get('auth/reset-email-sent', L10n.isGreek(context)));
-            },
-            child: Text(isGreek ? 'Αποστολή' : 'Send'),
-          ),
-        ],
-      ),
-    );
+  Future<void> _showForgotPassword() async {
+    final email = await showForgotPasswordDialog(context, _emailCtrl.text);
+    if (email == null || email.isEmpty) return;
+    if (!mounted) return;
+    DebugConfig.log(DebugConfig.authFlow, 'WelcomeScreen: password reset for $email');
+    ref.read(verifyAccountProvider.notifier).sendPasswordReset(email);
+    if (!mounted) return;
+    AppMessenger.showSuccess(context,
+        ErrorMessages.get('auth/reset-email-sent', L10n.isGreek(context)));
   }
 
   void _switchMode() {
@@ -155,7 +88,6 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
   Widget build(BuildContext context) {
     final isGreek = L10n.isGreek(context);
     final state = ref.watch(welcomeProvider);
-    DebugConfig.log(DebugConfig.uiInteraction, 'WelcomeScreen build: ${state.status}');
 
     ref.listen<WelcomeState>(welcomeProvider, (prev, next) {
       if (next.status == WelcomeStatus.error && next.errorMessage != null) {
@@ -183,140 +115,147 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
   Widget _buildContent(bool isGreek, WelcomeState state) {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-      child: Column(
-        children: [
-          const SizedBox(height: 48),
-          GradientHeader(
-            gradientColors: [AppColors.primary, AppColors.primaryDark],
-            icon: Icons.near_me_rounded,
-            title: L10n.appName(context),
-            subtitle: isGreek
-                ? 'Βρες ανθρώπους κοντά σου — για συγκατοίκηση, παρέα, φιλία και δικτύωση'
-                : 'Find people near you — for roommates, social, friendship and networking',
-          ),
-          const SizedBox(height: 24),
-          _buildModeToggle(isGreek),
-          const SizedBox(height: 24),
-          FormSection(
-            title: isGreek ? 'Στοιχεία Λογαριασμού' : 'Account Details',
-            children: [
-              TextField(
-                controller: _emailCtrl,
-                decoration: InputDecoration(
-                  labelText: 'Email',
-                  border: const OutlineInputBorder(),
-                  prefixIcon: const Icon(Icons.email_outlined),
-                  errorText: _emailError != null ? L10n.localizedMessage(context, _emailError!) : null,
-                ),
-                keyboardType: TextInputType.emailAddress,
-                textInputAction: TextInputAction.next,
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _passwordCtrl,
-                obscureText: _obscurePassword,
-                decoration: InputDecoration(
-                  labelText: isGreek ? 'Κωδικός' : 'Password',
-                  border: const OutlineInputBorder(),
-                  prefixIcon: const Icon(Icons.lock_outlined),
-                  errorText: _passwordError != null ? L10n.localizedMessage(context, _passwordError!) : null,
-                  suffixIcon: IconButton(
-                    icon: Icon(_obscurePassword
-                        ? Icons.visibility_outlined
-                        : Icons.visibility_off_outlined),
-                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          children: [
+            const SizedBox(height: 48),
+            GradientHeader(
+              gradientColors: [AppColors.primary, AppColors.primaryDark],
+              icon: Icons.near_me_rounded,
+              title: L10n.appName(context),
+              subtitle: isGreek
+                  ? 'Βρες ανθρώπους κοντά σου — για συγκατοίκηση, παρέα, φιλία και δικτύωση'
+                  : 'Find people near you — for roommates, social, friendship and networking',
+            ),
+            const SizedBox(height: 24),
+            _buildModeToggle(isGreek),
+            const SizedBox(height: 24),
+            FormSection(
+              title: isGreek ? 'Στοιχεία Λογαριασμού' : 'Account Details',
+              children: [
+                TextFormField(
+                  controller: _emailCtrl,
+                  validator: (v) => AuthValidation.validateEmailField(v, isGreek: isGreek),
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.email_outlined),
                   ),
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
                 ),
-                textInputAction:
-                    _mode == _WelcomeMode.register ? TextInputAction.next : TextInputAction.done,
-                onSubmitted: _mode == _WelcomeMode.register ? null : (_) => _submit(),
-              ),
-              if (_mode == _WelcomeMode.register) ...[
                 const SizedBox(height: 16),
-                TextField(
-                  controller: _confirmCtrl,
-                  obscureText: _obscureConfirm,
+                TextFormField(
+                  controller: _passwordCtrl,
+                  obscureText: _obscurePassword,
+                  validator: (v) => AuthValidation.validatePasswordField(v, isGreek: isGreek),
                   decoration: InputDecoration(
-                    labelText: isGreek ? 'Επιβεβαίωση Κωδικού' : 'Confirm Password',
+                    labelText: isGreek ? 'Κωδικός' : 'Password',
                     border: const OutlineInputBorder(),
                     prefixIcon: const Icon(Icons.lock_outlined),
-                    errorText: _confirmError != null ? L10n.localizedMessage(context, _confirmError!) : null,
                     suffixIcon: IconButton(
-                      icon: Icon(_obscureConfirm
+                      icon: Icon(_obscurePassword
                           ? Icons.visibility_outlined
                           : Icons.visibility_off_outlined),
-                      onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                     ),
                   ),
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: (_) => _submit(),
+                  textInputAction:
+                      _mode == _WelcomeMode.register ? TextInputAction.next : TextInputAction.done,
+                  onFieldSubmitted: _mode == _WelcomeMode.register ? null : (_) => _submit(),
                 ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 16),
-          SaveButton(
-            isSaving: state.status == WelcomeStatus.loading,
-            label: _mode == _WelcomeMode.login
-                ? (isGreek ? 'Είσοδος' : 'Login')
-                : (isGreek ? 'Εγγραφή' : 'Register'),
-            onPressed: state.status == WelcomeStatus.loading ? null : _submit,
-          ),
-          if (_mode == _WelcomeMode.login)
-            Center(
-              child: TextButton.icon(
-                onPressed: _showForgotPassword,
-                icon: const Icon(Icons.lock_reset_outlined, size: 18),
-                label: Text(isGreek ? 'Ξέχασες τον κωδικό;' : 'Forgot password?'),
-              ),
-            ),
-          const SizedBox(height: 12),
-          TextButton(
-            onPressed: _switchMode,
-            child: Text(
-              _mode == _WelcomeMode.login
-                  ? (isGreek ? 'Δεν έχεις λογαριασμό; Εγγράψου' : "Don't have an account? Register")
-                  : (isGreek ? 'Έχεις ήδη λογαριασμό; Είσοδος' : 'Already have an account? Login'),
-              style: TextStyle(color: AppColors.primary),
-            ),
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
-            child: Row(
-              children: [
-                Expanded(child: Divider()),
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16),
-                  child: Text('ή', style: TextStyle(color: Colors.grey)),
-                ),
-                Expanded(child: Divider()),
+                if (_mode == _WelcomeMode.register) ...[
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _confirmCtrl,
+                    obscureText: _obscureConfirm,
+                    validator: (v) => AuthValidation.validateConfirmField(
+                        v, _passwordCtrl.text, isGreek: isGreek),
+                    decoration: InputDecoration(
+                      labelText: isGreek ? 'Επιβεβαίωση Κωδικού' : 'Confirm Password',
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.lock_outlined),
+                      suffixIcon: IconButton(
+                        icon: Icon(_obscureConfirm
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined),
+                        onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                      ),
+                    ),
+                    textInputAction: TextInputAction.done,
+                    onFieldSubmitted: (_) => _submit(),
+                  ),
+                ],
               ],
             ),
-          ),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: _browse,
-              icon: const Icon(Icons.explore_outlined, size: 20),
-              label: Text(isGreek ? 'Περιήγηση χωρίς λογαριασμό' : 'Browse without account'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(48),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            const SizedBox(height: 16),
+            SaveButton(
+              isSaving: state.status == WelcomeStatus.loading,
+              label: _mode == _WelcomeMode.login
+                  ? (isGreek ? 'Είσοδος' : 'Login')
+                  : (isGreek ? 'Εγγραφή' : 'Register'),
+              onPressed: state.status == WelcomeStatus.loading ? null : _submit,
+            ),
+            if (_mode == _WelcomeMode.login)
+              Center(
+                child: TextButton.icon(
+                  onPressed: _showForgotPassword,
+                  icon: const Icon(Icons.lock_reset_outlined, size: 18),
+                  label: Text(isGreek ? 'Ξέχασες τον κωδικό;' : 'Forgot password?'),
+                ),
+              ),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: _switchMode,
+              child: Text(
+                _mode == _WelcomeMode.login
+                    ? (isGreek ? 'Δεν έχεις λογαριασμό; Εγγράψου' : "Don't have an account? Register")
+                    : (isGreek ? 'Έχεις ήδη λογαριασμό; Είσοδος' : 'Already have an account? Login'),
+                style: TextStyle(color: AppColors.primary),
               ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            isGreek
-                ? 'Μπορείς να περιηγηθείς ανώνυμα. Για αποστολή μηνυμάτων θα χρειαστεί επαλήθευση.'
-                : 'You can browse anonymously. Verification is required to send messages.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: [
+                  const Expanded(child: Divider()),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      L10n.localizedMessage(context, 'ή / or'),
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                  ),
+                  const Expanded(child: Divider()),
+                ],
+              ),
+            ),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _browse,
+                icon: const Icon(Icons.explore_outlined, size: 20),
+                label: Text(isGreek ? 'Περιήγηση χωρίς λογαριασμό' : 'Browse without account'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 48),
-        ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              isGreek
+                  ? 'Μπορείς να περιηγηθείς ανώνυμα. Για αποστολή μηνυμάτων θα χρειαστεί επαλήθευση.'
+                  : 'You can browse anonymously. Verification is required to send messages.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 48),
+          ],
+        ),
       ),
     );
   }
@@ -384,5 +323,4 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
       ),
     );
   }
-
 }

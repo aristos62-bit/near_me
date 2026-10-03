@@ -20,6 +20,8 @@ class ErrorMessages {
         return isGreek ? 'Μη έγκυρο email' : 'Invalid email';
       case 'auth/weak-password':
         return isGreek ? 'Ο κωδικός είναι πολύ αδύναμος' : 'Password too weak';
+      case 'auth/passwords-mismatch':
+        return isGreek ? 'Οι κωδικοί δεν ταιριάζουν' : 'Passwords do not match';
       case 'auth/user-not-found':
         return isGreek ? 'Δεν βρέθηκε χρήστης' : 'User not found';
       case 'auth/wrong-password':

@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +8,7 @@ import '../../../core/utils/error_messages.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/app_messenger.dart';
 import '../../../core/theme/responsive_utils.dart';
+import '../../../shared/utils/auth_validation.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../../../shared/widgets/form_section.dart';
 import '../../../shared/widgets/gradient_header.dart';
@@ -27,11 +29,14 @@ class _PhoneVerifyScreenState extends ConsumerState<PhoneVerifyScreen> {
   bool _isSending = false;
   bool _isVerifying = false;
   bool _otpFormActive = false;
+  // Cached auth user — δεν υπολογίζεται στο build (pattern settings_screen).
+  User? _authUser;
 
   @override
   void initState() {
     super.initState();
     DebugConfig.log(DebugConfig.uiInteraction, 'PhoneVerifyScreen init');
+    _authUser = ref.read(authStateProvider).value;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final notifier = ref.read(phoneVerifyProvider.notifier);
       notifier.reset();
@@ -48,21 +53,13 @@ class _PhoneVerifyScreenState extends ConsumerState<PhoneVerifyScreen> {
 
   Future<void> _sendOtp() async {
     final g = L10n.isGreek(context);
-    final code = L10n.phoneCountryCode();
-    var phone = _phoneCtrl.text.trim().replaceAll(' ', '');
-    if (!phone.startsWith('+')) {
-      phone = '$code$phone';
-    }
-    phone = phone.replaceAll(RegExp(r'[^\d]'), '');
-    final phonePattern = RegExp(r'^[1-9]\d{6,14}$');
-    if (!phonePattern.hasMatch(phone)) {
+    final phone = AuthValidation.normalizePhone(
+        _phoneCtrl.text, L10n.phoneCountryCode());
+    if (phone == null) {
       AppMessenger.showError(
-        context,
-        g ? 'Μη έγκυρος αριθμός τηλεφώνου' : 'Invalid phone number',
-      );
+          context, ErrorMessages.get('auth/invalid-phone', g));
       return;
     }
-    phone = '+$phone';
     DebugConfig.log(DebugConfig.authPhone, 'PhoneVerifyScreen: sendOtp $phone');
     if (_otpFormActive) {
       _otpCtrl.clear();
@@ -73,23 +70,33 @@ class _PhoneVerifyScreenState extends ConsumerState<PhoneVerifyScreen> {
   }
 
   Future<void> _verifyOtp() async {
-    final code = _otpCtrl.text.trim();
-    if (code.isEmpty) {
-      AppMessenger.showError(context, ErrorMessages.get('auth/enter-verification-code', L10n.isGreek(context)));
+    final g = L10n.isGreek(context);
+    final err = AuthValidation.validateOtpField(_otpCtrl.text, isGreek: g);
+    if (err != null) {
+      AppMessenger.showError(context, err);
       return;
     }
     DebugConfig.log(DebugConfig.authPhone, 'PhoneVerifyScreen: verifyOtp');
     setState(() => _isVerifying = true);
-    await ref.read(phoneVerifyProvider.notifier).verifyOtp(code);
+    await ref.read(phoneVerifyProvider.notifier).verifyOtp(_otpCtrl.text.trim());
     if (mounted) setState(() => _isVerifying = false);
   }
 
   @override
   Widget build(BuildContext context) {
     final g = L10n.isGreek(context);
-    final user = ref.watch(authStateProvider).value;
-    final isAnonymous = user?.isAnonymous ?? true;
-    final isEmailVerified = user?.emailVerified ?? false;
+    ref.listen<AsyncValue<User?>>(authStateProvider, (_, next) {
+      final newUser = next.value;
+      if (newUser?.uid != _authUser?.uid ||
+          newUser?.isAnonymous != _authUser?.isAnonymous ||
+          newUser?.emailVerified != _authUser?.emailVerified ||
+          newUser?.phoneNumber != _authUser?.phoneNumber) {
+        DebugConfig.log(DebugConfig.uiInteraction, 'PhoneVerifyScreen: user changed → rebuild');
+        if (mounted) setState(() => _authUser = newUser);
+      }
+    });
+    final isAnonymous = _authUser?.isAnonymous ?? true;
+    final isEmailVerified = _authUser?.emailVerified ?? false;
     final state = ref.watch(phoneVerifyProvider);
     final theme = Theme.of(context);
 
@@ -242,7 +249,7 @@ class _PhoneVerifyScreenState extends ConsumerState<PhoneVerifyScreen> {
                                   TextButton.icon(
                                     onPressed: _isSending ? null : _sendOtp,
                                     icon: _isSending
-                                        ? SizedBox(
+                                        ? const SizedBox(
                                             width: 18, height: 18,
                                             child: CircularProgressIndicator(strokeWidth: 2))
                                         : const Icon(Icons.refresh_outlined, size: 18),
@@ -305,5 +312,4 @@ class _PhoneVerifyScreenState extends ConsumerState<PhoneVerifyScreen> {
       ),
     );
   }
-
 }

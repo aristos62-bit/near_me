@@ -15,8 +15,10 @@ import '../../../core/utils/lock_screen.dart';
 import '../../../core/config/feature_flags.dart';
 import '../../../providers/unread_badge_provider.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../profile/providers/profile_provider.dart';
 import '../../requests/providers/requests_provider.dart';
 import '../providers/app_settings_provider.dart';
+import '../utils/phone_unlink_cleanup.dart';
 import '../widgets/moderation_section.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -75,6 +77,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         _authUser = updatedUser;
         _phoneVerified = _computePhoneVerified(updatedUser);
       });
+      try {
+        await clearLocalPhone(ref.read(profileRepositoryProvider));
+      } catch (e) {
+        DebugConfig.warn('SettingsScreen: local phone cleanup failed (non-fatal)', data: e);
+      }
+      if (!mounted) return;
       AppMessenger.showSuccess(context, ErrorMessages.get('auth/phone-removed', L10n.isGreek(context)));
     } catch (e) {
       DebugConfig.error('SettingsScreen: unlink phone failed', exception: e);

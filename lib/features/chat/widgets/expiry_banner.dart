@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/l10n/l10n.dart';
 import '../providers/chat_provider.dart';
+import '../utils/message_expiry.dart';
 
 /// Banner αυτόματης διαγραφής μηνυμάτων (P3.2).
 ///
@@ -65,7 +66,7 @@ class _ExpiryBannerState extends ConsumerState<ExpiryBanner> {
 
   Widget _buildBanner(String expiry) {
     final greek = L10n.isGreek(context);
-    final display = _expiryDisplay(expiry, greek);
+    final display = MessageExpiry.display(expiry, greek: greek);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Card(
@@ -91,15 +92,4 @@ class _ExpiryBannerState extends ConsumerState<ExpiryBanner> {
     );
   }
 
-  String _expiryDisplay(String value, bool greek) {
-    return switch (value) {
-      '1min' => greek ? '1 λεπτό' : '1 minute',
-      '5min' => greek ? '5 λεπτά' : '5 minutes',
-      '30min' => greek ? '30 λεπτά' : '30 minutes',
-      '6h' => greek ? '6 ώρες' : '6 hours',
-      '12h' => greek ? '12 ώρες' : '12 hours',
-      '24h' => greek ? '24 ώρες' : '24 hours',
-      _ => '',
-    };
-  }
 }

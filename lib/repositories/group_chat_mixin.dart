@@ -791,8 +791,7 @@ mixin GroupChatMixin {
       );
     }
 
-    final validValues = {'off', '1min', '5min', '30min', '6h', '12h', '24h'};
-    if (!validValues.contains(value)) {
+    if (!MessageExpiry.isValid(value)) {
       throw AppException(
         code: 'chat/message-expiry-invalid-value',
         message: 'Μη έγκυρη τιμή / Invalid value',

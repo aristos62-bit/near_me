@@ -8,6 +8,7 @@ import '../../../core/utils/app_messenger.dart';
 import '../../../core/utils/connectivity_guard.dart';
 import '../../../core/utils/error_messages.dart';
 import '../providers/chat_provider.dart';
+import '../utils/message_expiry.dart';
 
 /// Φύλλο επιλογής αυτόματης διαγραφής μηνυμάτων για 1-1 chats (P3.2 extension).
 ///
@@ -92,13 +93,13 @@ class _ExpiryDialogState extends State<_ExpiryDialog> {
               border: InputBorder.none,
             ),
             items: [
-              _item('off', greek ? 'Απενεργοποιημένο' : 'Off'),
-              _item('1min', greek ? '1 λεπτό' : '1 minute'),
-              _item('5min', greek ? '5 λεπτά' : '5 minutes'),
-              _item('30min', greek ? '30 λεπτά' : '30 minutes'),
-              _item('6h', greek ? '6 ώρες' : '6 hours'),
-              _item('12h', greek ? '12 ώρες' : '12 hours'),
-              _item('24h', greek ? '24 ώρες' : '24 hours'),
+              for (final v in MessageExpiry.values)
+                _item(
+                  v,
+                  v == MessageExpiry.off
+                      ? (greek ? 'Απενεργοποιημένο' : 'Off')
+                      : MessageExpiry.display(v, greek: greek),
+                ),
             ],
             onChanged: (value) {
               if (value == null) return;

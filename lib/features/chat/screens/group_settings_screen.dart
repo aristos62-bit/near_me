@@ -15,6 +15,7 @@ import '../../../shared/widgets/app_state_widget.dart';
 import '../../settings/providers/app_settings_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
+import '../utils/message_expiry.dart';
 
 class GroupSettingsScreen extends ConsumerStatefulWidget {
   final String chatId;
@@ -283,13 +284,13 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
                               border: InputBorder.none,
                             ),
                             items: [
-                              _expiryDropdownItem('off', greek ? 'Απενεργοποιημένο' : 'Off'),
-                              _expiryDropdownItem('1min', greek ? '1 λεπτό' : '1 minute'),
-                              _expiryDropdownItem('5min', greek ? '5 λεπτά' : '5 minutes'),
-                              _expiryDropdownItem('30min', greek ? '30 λεπτά' : '30 minutes'),
-                              _expiryDropdownItem('6h', greek ? '6 ώρες' : '6 hours'),
-                              _expiryDropdownItem('12h', greek ? '12 ώρες' : '12 hours'),
-                              _expiryDropdownItem('24h', greek ? '24 ώρες' : '24 hours'),
+                              for (final v in MessageExpiry.values)
+                                _expiryDropdownItem(
+                                  v,
+                                  v == MessageExpiry.off
+                                      ? (greek ? 'Απενεργοποιημένο' : 'Off')
+                                      : MessageExpiry.display(v, greek: greek),
+                                ),
                             ],
                             onChanged: _isSavingExpiry ? null : (value) {
                               if (value != null && value != chatData?['messageExpiry']) {

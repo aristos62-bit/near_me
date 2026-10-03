@@ -22,6 +22,7 @@ import '../core/utils/storage_helpers.dart';
 import '../core/utils/timeouts.dart';
 import '../shared/utils/image_utils.dart';
 import '../shared/utils/mention_utils.dart';
+import '../features/chat/utils/message_expiry.dart';
 import '../features/chat/utils/system_message_formatter.dart';
 import 'group_search_repository.dart';
 import 'package:collection/collection.dart';
@@ -333,7 +334,7 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
         msgData['replyTo'] = replyTo;
       }
       if (messageExpiry != 'off') {
-        final duration = _expiryDuration(messageExpiry);
+        final duration = MessageExpiry.durationFor(messageExpiry);
         if (duration != null) {
           msgData['expiresAt'] = Timestamp.fromDate(DateTime.now().add(duration));
         }
@@ -1060,7 +1061,7 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
         msgData['replyTo'] = replyTo;
       }
       if (messageExpiry != 'off') {
-        final duration = _expiryDuration(messageExpiry);
+        final duration = MessageExpiry.durationFor(messageExpiry);
         if (duration != null) {
           msgData['expiresAt'] = Timestamp.fromDate(DateTime.now().add(duration));
         }
@@ -1133,8 +1134,7 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
           'Αποτυχία αλλαγής αυτόματης διαγραφής / Failed to update auto-delete');
     }
 
-    const validValues = {'off', '1min', '5min', '30min', '6h', '12h', '24h'};
-    if (!validValues.contains(value)) {
+    if (!MessageExpiry.isValid(value)) {
       throw AppException(
         code: 'chat/message-expiry-invalid-value',
         message: 'Μη έγκυρη τιμή / Invalid value',
@@ -1352,18 +1352,6 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
     } catch (e, s) {
       DebugConfig.error('createChat consent log failed', data: e, exception: s);
     }
-  }
-
-  Duration? _expiryDuration(String value) {
-    return switch (value) {
-      '1min' => const Duration(minutes: 1),
-      '5min' => const Duration(minutes: 5),
-      '30min' => const Duration(minutes: 30),
-      '6h' => const Duration(hours: 6),
-      '12h' => const Duration(hours: 12),
-      '24h' => const Duration(hours: 24),
-      _ => null,
-    };
   }
 
   @override

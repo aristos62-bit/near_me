@@ -127,11 +127,12 @@ Future<ProviderContainer> _pump(
   required AppSettingsNotifier Function() appSettings,
   _MockAuthRepository? authRepo,
   GoRouter? router,
+  bool phoneVerified = false,
 }) async {
   final repo = authRepo ?? _MockAuthRepository();
   // Το initState + ο authState-listener καλούν πάντα isPhoneVerified
   // για μη-anon user — default stub για να μην πετάξει null-bool.
-  when(() => repo.isPhoneVerified).thenReturn(false);
+  when(() => repo.isPhoneVerified).thenReturn(phoneVerified);
   // Ψηλό viewport: η ListView χτίζει τεμπέλικα — τα κάτω tiles
   // (blocked/signout/delete) δεν υπάρχουν καν χωρίς scroll.
   tester.view.physicalSize = const Size(800, 2200);
@@ -225,12 +226,74 @@ void main() {
       await _settleTimer(tester);
     });
 
-    testWidgets('phone section απουσιάζει (flag const off)', (tester) async {
+    testWidgets('phone section ορατή (flag on) + verified state', (tester) async {
       await _pump(tester,
           user: _user(),
+          phoneVerified: true,
           appSettings: () => _FakeAppSettingsNotifier(_settings()));
-      expect(find.text('Επαλήθευση Τηλεφώνου'), findsNothing);
+      expect(find.text('Επαλήθευση Τηλεφώνου'), findsOneWidget);
+      expect(find.text('Επαληθεύτηκε'), findsOneWidget);
+      expect(find.text('Αφαίρεση Τηλεφώνου'), findsOneWidget);
+      await _settleTimer(tester);
+    });
+
+    testWidgets('phone unverified → prompt κείμενο, χωρίς remove', (tester) async {
+      await _pump(tester,
+          user: _user(),
+          phoneVerified: false,
+          appSettings: () => _FakeAppSettingsNotifier(_settings()));
+      expect(find.text('Επαλήθευση Τηλεφώνου'), findsOneWidget);
+      expect(find.text('Επιβεβαίωσε τον αριθμό τηλεφώνου σου'), findsOneWidget);
       expect(find.text('Αφαίρεση Τηλεφώνου'), findsNothing);
+      await _settleTimer(tester);
+    });
+
+    testWidgets('unlink confirm → repo.unlinkPhone + snackbar', (tester) async {
+      final repo = _MockAuthRepository();
+      when(() => repo.unlinkPhone()).thenAnswer((_) async {});
+      await _pump(tester,
+          user: _user(),
+          phoneVerified: true,
+          appSettings: () => _FakeAppSettingsNotifier(_settings()),
+          authRepo: repo);
+      await _tapText(tester, 'Αφαίρεση Τηλεφώνου');
+      await tester.tap(find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.widgetWithText(FilledButton, 'Αφαίρεση')));
+      await tester.pumpAndSettle();
+      verify(() => repo.unlinkPhone()).called(1);
+      expect(find.text('Το τηλέφωνο αφαιρέθηκε'), findsOneWidget);
+      await _settleTimer(tester);
+    });
+
+    testWidgets('unlink cancel → χωρίς repo call', (tester) async {
+      final repo = _MockAuthRepository();
+      await _pump(tester,
+          user: _user(),
+          phoneVerified: true,
+          appSettings: () => _FakeAppSettingsNotifier(_settings()),
+          authRepo: repo);
+      await _tapText(tester, 'Αφαίρεση Τηλεφώνου');
+      await tester.tap(find.text('Ακύρωση'));
+      await tester.pumpAndSettle();
+      verifyNever(() => repo.unlinkPhone());
+      await _settleTimer(tester);
+    });
+
+    testWidgets('unlink fail → error snackbar', (tester) async {
+      final repo = _MockAuthRepository();
+      when(() => repo.unlinkPhone()).thenThrow(Exception('boom'));
+      await _pump(tester,
+          user: _user(),
+          phoneVerified: true,
+          appSettings: () => _FakeAppSettingsNotifier(_settings()),
+          authRepo: repo);
+      await _tapText(tester, 'Αφαίρεση Τηλεφώνου');
+      await tester.tap(find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.widgetWithText(FilledButton, 'Αφαίρεση')));
+      await tester.pumpAndSettle();
+      expect(find.text('Αποτυχία αφαίρεσης τηλεφώνου'), findsOneWidget);
       await _settleTimer(tester);
     });
 

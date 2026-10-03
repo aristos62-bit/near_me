@@ -134,7 +134,17 @@ void main() {
       await _settleTimer(tester);
     });
 
-    // ΣΗΜΕΙΩΣΗ: το tile δεν έχει try/catch γύρω από το unblock —
-    // αποτυχία repo διαρρέει ως unhandled (παρατήρηση, όχι αλλαγή).
+    testWidgets('unblock fail → error snackbar, tile μένει', (tester) async {
+      final blockRepo = _MockBlockRepository();
+      when(() => blockRepo.unblockUser(any(), any()))
+          .thenThrow(Exception('db locked'));
+      await _pump(tester,
+          user: _verifiedUser(), blocked: {'b1'}, blockRepo: blockRepo);
+      await tester.tap(find.text('Ξεμπλοκάρισμα'));
+      await tester.pumpAndSettle();
+      expect(find.text('Σφάλμα συστήματος. Δοκίμασε ξανά.'), findsOneWidget);
+      expect(find.text('b1'), findsWidgets);
+      await _settleTimer(tester);
+    });
   });
 }

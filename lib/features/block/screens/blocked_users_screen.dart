@@ -118,7 +118,16 @@ class _BlockedUserTile extends ConsumerWidget {
             onPressed: () async {
               if (uid == null) return;
               DebugConfig.log(DebugConfig.uiInteraction, '_BlockedUserTile unblock: $blockedUid');
-              await ref.read(blockActionsProvider).unblock(uid, blockedUid);
+              try {
+                await ref.read(blockActionsProvider).unblock(uid, blockedUid);
+              } catch (e) {
+                DebugConfig.error('_BlockedUserTile unblock failed', data: e);
+                if (context.mounted) {
+                  AppMessenger.showError(context,
+                      ErrorMessages.get('unknown', L10n.isGreek(context)));
+                }
+                return;
+              }
               if (context.mounted) {
                 AppMessenger.showSuccess(context,
                     ErrorMessages.get('block/unblocked', L10n.isGreek(context)));

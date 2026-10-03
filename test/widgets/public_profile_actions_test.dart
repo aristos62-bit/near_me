@@ -221,6 +221,33 @@ void main() {
           await tester.pump(const Duration(seconds: 2));
         });
 
+    testWidgets('Αποτυχία block → error snackbar', (tester) async {
+      final me = _verifiedUser(uid: 'my-uid');
+      final profile = _profile(uid: 'other-uid');
+      final mockBlockRepo = _MockBlockRepository();
+      when(() => mockBlockRepo.blockUser('my-uid', 'other-uid', reason: any(named: 'reason')))
+          .thenThrow(Exception('db locked'));
+
+      await tester.pumpWidget(_harness(ProviderScope(
+        overrides: [
+          authStateProvider.overrideWith((ref) => Stream.value(me)),
+          blockedUidsProvider('my-uid').overrideWith((ref) => Stream.value({})),
+          blockRepositoryProvider.overrideWithValue(mockBlockRepo),
+        ],
+        child: PublicProfileActions(uid: 'other-uid', profile: profile),
+      )));
+      await tester.pump();
+
+      await tester.tap(find.text('Μπλοκάρισμα'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Μπλοκάρισμα'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Σφάλμα συστήματος. Δοκίμασε ξανά.'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 2));
+    });
+
     testWidgets('Ακύρωση στο confirm dialog → block() ΔΕΝ καλείται',
             (tester) async {
           final me = _verifiedUser(uid: 'my-uid');
@@ -276,6 +303,32 @@ void main() {
           await tester.pumpWidget(const SizedBox());
           await tester.pump(const Duration(seconds: 2));
         });
+
+    testWidgets('Αποτυχία unblock → error snackbar', (tester) async {
+      final me = _verifiedUser(uid: 'my-uid');
+      final profile = _profile(uid: 'other-uid');
+      final mockBlockRepo = _MockBlockRepository();
+      when(() => mockBlockRepo.unblockUser('my-uid', 'other-uid'))
+          .thenThrow(Exception('db locked'));
+
+      await tester.pumpWidget(_harness(ProviderScope(
+        overrides: [
+          authStateProvider.overrideWith((ref) => Stream.value(me)),
+          blockedUidsProvider('my-uid')
+              .overrideWith((ref) => Stream.value({'other-uid'})),
+          blockRepositoryProvider.overrideWithValue(mockBlockRepo),
+        ],
+        child: PublicProfileActions(uid: 'other-uid', profile: profile),
+      )));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Ξεμπλοκάρισμα'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Σφάλμα συστήματος. Δοκίμασε ξανά.'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 2));
+    });
   });
 
   group('Πρόσκληση σε Ομάδα', () {

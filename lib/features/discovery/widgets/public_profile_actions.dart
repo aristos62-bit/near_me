@@ -244,7 +244,16 @@ class PublicProfileActions extends ConsumerWidget {
           onPressed: () async {
             if (isBlocked) {
               DebugConfig.log(DebugConfig.uiInteraction, 'PublicProfile unblock: $uid');
-              await ref.read(blockActionsProvider).unblock(user.uid, uid);
+              try {
+                await ref.read(blockActionsProvider).unblock(user.uid, uid);
+              } catch (e) {
+                DebugConfig.error('PublicProfile unblock failed', data: e);
+                if (context.mounted) {
+                  AppMessenger.showError(context,
+                      ErrorMessages.get('unknown', L10n.isGreek(context)));
+                }
+                return;
+              }
               if (context.mounted) {
                 AppMessenger.showSuccess(context,
                     ErrorMessages.get('block/unblocked', L10n.isGreek(context)));
@@ -260,7 +269,16 @@ class PublicProfileActions extends ConsumerWidget {
               );
               if (confirm && context.mounted) {
                 DebugConfig.log(DebugConfig.uiInteraction, 'PublicProfile block: $uid');
-                await ref.read(blockActionsProvider).block(user.uid, uid);
+                try {
+                  await ref.read(blockActionsProvider).block(user.uid, uid);
+                } catch (e) {
+                  DebugConfig.error('PublicProfile block failed', data: e);
+                  if (context.mounted) {
+                    AppMessenger.showError(context,
+                        ErrorMessages.get('unknown', L10n.isGreek(context)));
+                  }
+                  return;
+                }
                 if (context.mounted) {
                   AppMessenger.showSuccess(context,
                       ErrorMessages.get('block/blocked', L10n.isGreek(context)));

@@ -7,6 +7,7 @@ import '../data/local/database_service.dart';
 import 'auth_repository.dart';
 import '../core/debug/debug_config.dart';
 import '../core/utils/app_exception.dart';
+import '../core/utils/encryption_utils.dart';
 import '../core/utils/timeouts.dart';
 import '../core/notifications/fcm_service.dart';
 import '../core/services/presence_service.dart';
@@ -125,6 +126,15 @@ class AuthRepositoryImpl implements AuthRepository {
       DebugConfig.log(DebugConfig.databaseLocal, 'deleteAccount: database cleared');
     } catch (e) {
       DebugConfig.warn('deleteAccount: database cleanup failed', data: e);
+    }
+
+    // Blueprint §19 βήμα 7: σκούπισμα E2E κλειδιών από το secure storage.
+    // Μοναδικό περιεχόμενο = chat keys → αρκεί το SPoT (fail-safe εσωτερικά).
+    try {
+      await EncryptionUtils.clearAllKeys();
+      DebugConfig.log(DebugConfig.chatEncrypt, 'deleteAccount: encryption keys cleared');
+    } catch (e) {
+      DebugConfig.warn('deleteAccount: encryption keys cleanup failed', data: e);
     }
 
     try {
@@ -421,6 +431,23 @@ class AuthRepositoryImpl implements AuthRepository {
     }
     if (msg.contains('app-not-verified')) {
       return const AppException(message: 'app-not-verified', code: 'auth/missing-client-identifier');
+    }
+    if (msg.contains('missing-phone-number')) {
+      return const AppException(message: 'missing-phone-number', code: 'auth/invalid-phone-input');
+    }
+    if (msg.contains('code-expired')) {
+      return const AppException(message: 'code-expired', code: 'auth/invalid-code');
+    }
+    if (msg.contains('user-not-found')) {
+      return const AppException(message: 'user-not-found', code: 'auth/user-not-found');
+    }
+    if (msg.contains('invalid-credential')) {
+      return const AppException(message: 'invalid-credential', code: 'auth/invalid-credential');
+    }
+    if (msg.contains('captcha-check-failed') ||
+        msg.contains('missing-recaptcha-token') ||
+        msg.contains('invalid-app-credential')) {
+      return const AppException(message: 'captcha-check-failed', code: 'auth/invalid-verification');
     }
     return AppException.auth('phone', 'Phone verification failed', error);
   }

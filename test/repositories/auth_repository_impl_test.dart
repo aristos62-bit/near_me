@@ -245,6 +245,81 @@ void main() {
         expect((e as AppException).code, 'auth/invalid-phone');
       }
     });
+
+    test('missing-phone-number → auth/invalid-phone-input', () async {
+      when(() => auth.verifyPhoneNumber(
+            phoneNumber: any(named: 'phoneNumber'),
+            verificationCompleted: any(named: 'verificationCompleted'),
+            verificationFailed: any(named: 'verificationFailed'),
+            codeSent: any(named: 'codeSent'),
+            codeAutoRetrievalTimeout: any(named: 'codeAutoRetrievalTimeout'),
+            timeout: any(named: 'timeout'),
+          )).thenAnswer((inv) async {
+        final failed =
+            inv.namedArguments[#verificationFailed] as PhoneVerificationFailed;
+        Future<void>.microtask(
+          () => failed(FirebaseAuthException(code: 'missing-phone-number')),
+        );
+      });
+
+      try {
+        await repo.sendPhoneOtp('+306900000000');
+        fail('expected exception');
+      } catch (e) {
+        expect(e, isA<AppException>());
+        expect((e as AppException).code, 'auth/invalid-phone-input');
+      }
+    });
+
+    test('code-expired → auth/invalid-code', () async {
+      when(() => auth.verifyPhoneNumber(
+            phoneNumber: any(named: 'phoneNumber'),
+            verificationCompleted: any(named: 'verificationCompleted'),
+            verificationFailed: any(named: 'verificationFailed'),
+            codeSent: any(named: 'codeSent'),
+            codeAutoRetrievalTimeout: any(named: 'codeAutoRetrievalTimeout'),
+            timeout: any(named: 'timeout'),
+          )).thenAnswer((inv) async {
+        final failed =
+            inv.namedArguments[#verificationFailed] as PhoneVerificationFailed;
+        Future<void>.microtask(
+          () => failed(FirebaseAuthException(code: 'code-expired')),
+        );
+      });
+
+      try {
+        await repo.sendPhoneOtp('+306900000000');
+        fail('expected exception');
+      } catch (e) {
+        expect(e, isA<AppException>());
+        expect((e as AppException).code, 'auth/invalid-code');
+      }
+    });
+
+    test('captcha-check-failed → auth/invalid-verification', () async {
+      when(() => auth.verifyPhoneNumber(
+            phoneNumber: any(named: 'phoneNumber'),
+            verificationCompleted: any(named: 'verificationCompleted'),
+            verificationFailed: any(named: 'verificationFailed'),
+            codeSent: any(named: 'codeSent'),
+            codeAutoRetrievalTimeout: any(named: 'codeAutoRetrievalTimeout'),
+            timeout: any(named: 'timeout'),
+          )).thenAnswer((inv) async {
+        final failed =
+            inv.namedArguments[#verificationFailed] as PhoneVerificationFailed;
+        Future<void>.microtask(
+          () => failed(FirebaseAuthException(code: 'captcha-check-failed')),
+        );
+      });
+
+      try {
+        await repo.sendPhoneOtp('+306900000000');
+        fail('expected exception');
+      } catch (e) {
+        expect(e, isA<AppException>());
+        expect((e as AppException).code, 'auth/invalid-verification');
+      }
+    });
   });
 
   group('verifyPhoneOtp', () {
@@ -273,6 +348,26 @@ void main() {
         repo.verifyPhoneOtp('vid', 'xxxx'),
         throwsA(isA<AppException>()
             .having((e) => e.code, 'code', 'auth/invalid-code')),
+      );
+    });
+
+    test('user-not-found → mapped auth/user-not-found', () async {
+      when(() => user.linkWithCredential(any()))
+          .thenThrow(FirebaseAuthException(code: 'user-not-found'));
+      await expectLater(
+        repo.verifyPhoneOtp('vid', 'xxxx'),
+        throwsA(isA<AppException>()
+            .having((e) => e.code, 'code', 'auth/user-not-found')),
+      );
+    });
+
+    test('invalid-credential → mapped auth/invalid-credential', () async {
+      when(() => user.linkWithCredential(any()))
+          .thenThrow(FirebaseAuthException(code: 'invalid-credential'));
+      await expectLater(
+        repo.verifyPhoneOtp('vid', 'xxxx'),
+        throwsA(isA<AppException>()
+            .having((e) => e.code, 'code', 'auth/invalid-credential')),
       );
     });
   });

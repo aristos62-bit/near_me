@@ -125,6 +125,9 @@ abstract class ChatRepository {
   Future<void> updateMaxParticipants(String chatId, int newMax);
   Future<void> updateMessageExpiry(String chatId, String value);
 
+  // 1-1 settings (P3.2 extension)
+  Future<void> updateOneToOneMessageExpiry(String chatId, String value);
+
   // Invite links
   Future<String> createInviteLink(String chatId, {Duration expiresIn = const Duration(days: 7), int? maxUses});
   Future<RedeemInviteResult?> redeemInviteLink(String token);

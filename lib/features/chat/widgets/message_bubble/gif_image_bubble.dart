@@ -303,7 +303,11 @@ class GifImageBubble extends ConsumerWidget {
                             bubbleColor: bubbleColor,
                             isGroupChat: isGroupChat,
                           ),
-                        _buildMediaImage(theme, applyBlur: applyBlur),
+                        Flexible(
+                          child: SizedBox.expand(
+                            child: _buildMediaImage(theme, applyBlur: applyBlur),
+                          ),
+                        ),
                   ],
                   ),
                 ),

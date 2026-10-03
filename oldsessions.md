@@ -26,7 +26,7 @@
 | Firestore indexes | 21 composite deployed |
 | Cloud Functions | 17 deployed `europe-west1` (gen1, Node 22) + Vision moderation (eur3) |
 | Build | `flutter analyze` clean ✅ · release APK ~20.8MB (R8) · signed `gr.nearme.app` |
-| Tests | 925/925 passed (`flutter test`, Sessions 275-281, analyze 0 issues) · coverage: μέτρηση εκκρεμεί (`flutter test --coverage`) |
+| Tests | 925/925 passed (`flutter test`, Sessions 275-282, analyze 0 issues) · coverage: μέτρηση εκκρεμεί (`flutter test --coverage`) |
 | Schema | Drift v17, 7 tables |
 | Moderation | Active (Sessions 253-255): Global Normal + User Blur · Vision SafeSearch `eu-vision.googleapis.com` · kill-switch `config/moderation` |
 | Feature Flags | ~24 (core 21 + moderation: contentModerationEnabled, autoModerateProfilePhotos, autoModerateChatMedia, blurExplicitByDefault) |
@@ -62,6 +62,7 @@
 | 17 | `oldsessions/oldsessions_17_sessions_279_openitems.md` | Session 279 Open items (overflow fix + chat_list guard + tests, 906 tests) |
 | 18 | `oldsessions/oldsessions_18_sessions_280_phaseA.md` | Session 280 Φάση Α closure (A.1 + A.2 + A.3 + phone re-enable, 918 tests) |
 | 19 | `oldsessions/oldsessions_19_sessions_281_phonecleanup.md` | Session 281 Phone cleanup μετά από unlink (+7 tests, 925 tests) |
+| 20 | `oldsessions/oldsessions_20_sessions_282_1to1expiry.md` | Session 282 1-1 message expiry + gif overflow fix (925 tests) |
 
 > Κανόνας αρίθμησης: όταν προστίθενται νέες ομάδες sessions συνεχίζουν στο επόμενο νούμερο (π.χ. #14). Θεματικά αρχεία (π.χ. για μια νέα μεγάλη φάση) παίρνουν επίσης επόμενο διαθέσιμο αριθμό — ο TOC ενημερώνεται πάντα εδώ.
 

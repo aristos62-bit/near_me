@@ -661,6 +661,7 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
       }
       final otherUid = participants.where((p) => p != uid).firstOrNull;
       if (otherUid == null) return;
+      final messageExpiry = data['messageExpiry'] as String? ?? 'off';
 
       final nicknames = (data['participantNicknames'] as Map<String, dynamic>?) ?? {};
       final otherNickname = nicknames[otherUid] as String? ?? otherUid;
@@ -726,6 +727,7 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
               lastMessageSender: lastMessageSender != null ? Value(lastMessageSender) : Value.absent(),
               lastMessageType: Value(lastMessageType),
               unreadCount: Value(unreadCount),
+              messageExpiry: Value(messageExpiry),
             ));
       } else {
         await db.into(db.chatCacheTable).insert(
@@ -741,6 +743,7 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
             lastMessageSender: lastMessageSender != null ? Value(lastMessageSender) : const Value(null),
             lastMessageType: Value(lastMessageType),
             unreadCount: Value(unreadCount),
+            messageExpiry: Value(messageExpiry),
           ),
         );
         DebugConfig.log(DebugConfig.databaseLocal, '_syncChatFromFirestore: new chat cached chatId=$chatId owner=$uid');
@@ -1094,6 +1097,64 @@ class ChatRepositoryImpl with GroupChatMixin, ChatDeleteMixin, ChatClearMixin, C
       DebugConfig.error('sendMediaMessage failed',
           data: e, stack: s, reportToCrashlytics: true);
       throw AppException.firestore('send_media', 'Αποτυχία αποστολής / Failed to send');
+    }
+  }
+
+  @override
+  Future<void> updateOneToOneMessageExpiry(String chatId, String value) async {
+    DebugConfig.log(DebugConfig.chatMessageExpiry,
+        'updateOneToOneMessageExpiry: chat=$chatId value=$value');
+
+    final uid = _currentUid;
+    late final DocumentSnapshot<Map<String, dynamic>> chatSnap;
+    try {
+      chatSnap = await withTimeout(
+        firestore.collection('chats').doc(chatId).get(),
+        'direct.expiryPreCheck',
+        timeout: const Duration(seconds: 6),
+      );
+    } on TimeoutException {
+      throwTimeoutAs('direct.expiryPreCheck', 'chat/message-expiry-update-failed');
+    }
+    if (!chatSnap.exists) {
+      throw AppException.firestore('update_expiry',
+          'Η συνομιλία δεν βρέθηκε / Chat not found');
+    }
+    final data = chatSnap.data()!;
+    if (data['isGroupChat'] == true) {
+      throw AppException(
+        code: 'chat/message-expiry-invalid-value',
+        message: 'Μη έγκυρη ενέργεια για ομαδική συνομιλία / Invalid for group chat',
+      );
+    }
+    final participants = List<String>.from(data['participants'] ?? []);
+    if (!participants.contains(uid)) {
+      throw AppException.firestore('update_expiry',
+          'Αποτυχία αλλαγής αυτόματης διαγραφής / Failed to update auto-delete');
+    }
+
+    const validValues = {'off', '1min', '5min', '30min', '6h', '12h', '24h'};
+    if (!validValues.contains(value)) {
+      throw AppException(
+        code: 'chat/message-expiry-invalid-value',
+        message: 'Μη έγκυρη τιμή / Invalid value',
+      );
+    }
+
+    try {
+      await withTimeout(
+        firestore.collection('chats').doc(chatId).update({'messageExpiry': value}),
+        'direct.updateExpiry',
+        timeout: const Duration(seconds: 6),
+      );
+      await _sendSystemMessage(chatId, 'message_expiry_changed', uid);
+      DebugConfig.log(DebugConfig.chatMessageExpiry,
+          'updateOneToOneMessageExpiry: done chat=$chatId value=$value');
+    } catch (e, s) {
+      if (e is AppException) rethrow;
+      DebugConfig.error('updateOneToOneMessageExpiry failed', data: e, exception: s);
+      throw AppException.firestore('update_expiry',
+          'Αποτυχία αλλαγής αυτόματης διαγραφής / Failed to update auto-delete');
     }
   }
 

@@ -457,6 +457,22 @@ class ChatActionsNotifier extends Notifier<ChatActionState> {
     }
   }
 
+  Future<bool> updateOneToOneMessageExpiry(String chatId, String value) async {
+    if (!await _checkOnline()) return false;
+    DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: updateOneToOneMessageExpiry chat=$chatId value=$value');
+    state = const ChatActionState(status: ChatActionStatus.loading);
+    try {
+      await _chatRepo.updateOneToOneMessageExpiry(chatId, value);
+      state = const ChatActionState(status: ChatActionStatus.success);
+      ref.invalidate(chatsProvider);
+      return true;
+    } catch (e, s) {
+      DebugConfig.error('ChatActions: updateOneToOneMessageExpiry failed', data: e, exception: s);
+      state = ChatActionState(status: ChatActionStatus.error, errorMessage: AppException.toFriendlyMessage(e, domain: 'chat'));
+      return false;
+    }
+  }
+
   Future<void> clearMessages(String chatId) async {
     if (!await _checkOnline()) return;
     DebugConfig.log(DebugConfig.repositoryCall, 'ChatActions: clearMessages chat=$chatId');

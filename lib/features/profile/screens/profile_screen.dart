@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +12,7 @@ import '../../../core/utils/connectivity_guard.dart';
 import '../../../core/utils/error_messages.dart';
 import '../../../data/local/database.dart';
 import '../../../providers/unread_badge_provider.dart';
+import '../../../shared/utils/age_validation.dart';
 import '../../../shared/widgets/app_state_widget.dart';
 import '../../../shared/widgets/gradient_header.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -26,21 +28,33 @@ class ProfileScreen extends ConsumerStatefulWidget {
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _isTogglingPublish = false;
+  // Cached auth user — δεν υπολογίζεται στο build (pattern settings_screen).
+  User? _authUser;
 
   @override
   void initState() {
     super.initState();
     DebugConfig.log(DebugConfig.uiInteraction, 'ProfileScreen init');
+    _authUser = ref.read(authStateProvider).value;
   }
 
   @override
   Widget build(BuildContext context) {
     final isGreek = L10n.isGreek(context);
     final profileAsync = ref.watch(currentProfileProvider);
-    final user = ref.watch(authStateProvider).value;
-    final canComm = AuthRepository.canUserCommunicate(user);
+    ref.listen<AsyncValue<User?>>(authStateProvider, (_, next) {
+      final newUser = next.value;
+      if (newUser?.uid != _authUser?.uid ||
+          newUser?.isAnonymous != _authUser?.isAnonymous ||
+          newUser?.emailVerified != _authUser?.emailVerified ||
+          newUser?.phoneNumber != _authUser?.phoneNumber) {
+        DebugConfig.log(DebugConfig.uiInteraction,
+            'ProfileScreen: user changed → rebuild');
+        if (mounted) setState(() => _authUser = newUser);
+      }
+    });
+    final canComm = AuthRepository.canUserCommunicate(_authUser);
     final unreadRequests = ref.watch(unreadRequestsProvider);
-    DebugConfig.log(DebugConfig.uiInteraction, 'ProfileScreen build: canComm=$canComm unreadRequests=$unreadRequests');
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
@@ -60,7 +74,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           DebugConfig.error('ProfileScreen load failed', data: e, exception: s);
           return Center(
             child: ErrorView(
-              message: L10n.localizedMessage(context, 'Σφάλμα φόρτωσης προφίλ / Failed to load profile'),
+              message: ErrorMessages.get('stream/load-error', isGreek),
               onRetry: () => ref.invalidate(currentProfileProvider),
             ),
           );
@@ -106,7 +120,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Widget _buildProfileView(UserProfileTableData profile, bool isGreek, bool canComm, {int unreadRequests = 0}) {
-    final age = profile.birthYear != null ? DateTime.now().year - profile.birthYear! : null;
+    final age = AgeValidation.ageFromBirthYear(profile.birthYear);
     final theme = Theme.of(context);
 
     return SingleChildScrollView(
@@ -122,7 +136,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   icon: Icons.person,
                   title: profile.nickname ?? (isGreek ? 'Χωρίς όνομα' : 'Unnamed'),
                   subtitle: [
-                    if (age != null) '$age ${isGreek ? 'ετών' : 'yo'}',
+                    if (age != null) L10n.ageLabel(age, isGreek: isGreek),
                     if (profile.city != null && profile.city!.isNotEmpty) profile.city!,
                     if (profile.gender != null && profile.gender!.isNotEmpty)
                       L10n.genderLabel(profile.gender!, isGreek: isGreek),

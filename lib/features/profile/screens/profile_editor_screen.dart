@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,7 +7,6 @@ import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/debug/debug_config.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_typography.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/utils/app_exception.dart';
 import '../../../core/utils/app_messenger.dart';
@@ -17,15 +15,17 @@ import '../../../core/utils/error_messages.dart';
 import '../../../data/local/database.dart';
 import '../../../features/chat/providers/chat_provider.dart';
 import '../../../shared/utils/age_validation.dart';
+import '../../../shared/utils/auth_validation.dart';
 import '../../../shared/utils/image_utils.dart';
 import '../../../shared/widgets/chip_selector.dart';
 import '../../../shared/widgets/editor_scaffold.dart';
 import '../../../shared/widgets/form_section.dart';
-import '../../../shared/widgets/gradient_header.dart';
 import '../../../shared/widgets/save_button.dart';
-import '../providers/location_autocomplete_service.dart';
 import '../providers/location_service.dart';
 import '../providers/profile_provider.dart';
+import '../widgets/profile_avatar_header.dart';
+import '../widgets/profile_location_section.dart';
+import '../widgets/profile_photo_gallery.dart';
 
 class ProfileEditorScreen extends ConsumerStatefulWidget {
   const ProfileEditorScreen({super.key});
@@ -49,10 +49,6 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
   bool _locationDetectedViaGps = false;
   double? _latitude, _longitude;
   int? _uploadingPhotoIndex;
-  List<LocationSuggestion> _citySuggestions = [], _countrySuggestions = [];
-  Timer? _cityTimer, _countryTimer;
-  final _cityFocusNode = FocusNode();
-  final _countryFocusNode = FocusNode();
   UserProfileTableData? _loadedProfile;
 
   static const _genders = ['male', 'female', 'other', 'prefer_not'];
@@ -62,17 +58,6 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
     'theater', 'cinema', 'series', 'fashion', 'dancing', 'pets', 'social', 'board_games',
     'computers', 'collecting', 'fishing', 'hunting', 'extreme_sports', 'swimming',
     'other'];
-
-  Map<String, String> _genderLabels(bool g) => {
-    'male': g ? 'Άνδρας' : 'Male', 'female': g ? 'Γυναίκα' : 'Female',
-    'other': g ? 'Άλλο' : 'Other', 'prefer_not': g ? 'Δεν επιθυμώ' : 'Prefer not',
-  };
-  Map<String, String> _lookingForLabels(bool g) => {
-    'roommate': g ? 'Συγκάτοικο' : 'Roommate', 'social': g ? 'Παρέα' : 'Social',
-    'friendship': g ? 'Φιλία' : 'Friendship', 'networking': g ? 'Δικτύωση' : 'Networking',
-    'exchange': g ? 'Ανταλλαγή' : 'Exchange', 'help': g ? 'Υποστήριξη' : 'Support',
-    'employment': g ? 'Απασχόληση' : 'Employment',
-  };
 
   bool get _isDirty {
     final p = _loadedProfile;
@@ -120,8 +105,6 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
     _bioCtrl = TextEditingController(); _birthYearCtrl = TextEditingController();
     _cityCtrl = TextEditingController(); _countryCtrl = TextEditingController();
     _emailCtrl = TextEditingController(); _phoneCtrl = TextEditingController();
-    _cityFocusNode.addListener(_onCityFocusChanged);
-    _countryFocusNode.addListener(_onCountryFocusChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadProfile());
   }
 
@@ -130,10 +113,6 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
     _nicknameCtrl.dispose(); _fullNameCtrl.dispose(); _bioCtrl.dispose();
     _birthYearCtrl.dispose(); _cityCtrl.dispose(); _countryCtrl.dispose();
     _emailCtrl.dispose(); _phoneCtrl.dispose();
-    _cityFocusNode.dispose();
-    _countryFocusNode.dispose();
-    _cityTimer?.cancel();
-    _countryTimer?.cancel();
     super.dispose();
   }
 
@@ -185,50 +164,6 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
       if (!mounted) return;
       AppMessenger.showInfo(context, ErrorMessages.get('profile/gps-manual-entry', L10n.isGreek(context)));
     }
-  }
-
-  void _onCityFocusChanged() {
-    if (!_cityFocusNode.hasFocus) setState(() => _citySuggestions = []);
-  }
-
-  void _onCountryFocusChanged() {
-    if (!_countryFocusNode.hasFocus) setState(() => _countrySuggestions = []);
-  }
-
-  void _onCityChanged(String value) {
-    _cityTimer?.cancel();
-    if (value.trim().length < 2) {
-      if (_citySuggestions.isNotEmpty) setState(() => _citySuggestions = []);
-      return;
-    }
-    _cityTimer = Timer(const Duration(milliseconds: 800), () async {
-      final results = await LocationAutocompleteService.autocomplete(value);
-      if (mounted) setState(() => _citySuggestions = results);
-    });
-  }
-
-  void _onCountryChanged(String value) {
-    _countryTimer?.cancel();
-    if (value.trim().length < 2) {
-      if (_countrySuggestions.isNotEmpty) setState(() => _countrySuggestions = []);
-      return;
-    }
-    _countryTimer = Timer(const Duration(milliseconds: 800), () async {
-      final results = await LocationAutocompleteService.autocomplete(value);
-      if (mounted) setState(() => _countrySuggestions = results);
-    });
-  }
-
-  void _selectCity(LocationSuggestion s) {
-    _cityCtrl.text = s.name;
-    _cityTimer?.cancel();
-    setState(() => _citySuggestions = []);
-  }
-
-  void _selectCountry(LocationSuggestion s) {
-    _countryCtrl.text = s.name;
-    _countryTimer?.cancel();
-    setState(() => _countrySuggestions = []);
   }
 
   Future<void> _pickAndUploadAvatar() async {
@@ -491,7 +426,14 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
       isLoading: false,
       onSave: _save,
       body: Form(key: _formKey, child: ListView(padding: const EdgeInsets.only(bottom: 32), children: [
-        _buildAvatarHeader(),
+        ProfileAvatarHeader(
+          avatarUrl: _avatarUrl,
+          nickname: _nicknameCtrl.text,
+          isUploading: _isUploadingAvatar,
+          onTap: _pickAndUploadAvatar,
+          avatarErrorShown: _avatarErrorShown,
+          onErrorShown: (v) => _avatarErrorShown = v,
+        ),
         FormSection(title: g ? 'Βασικά Στοιχεία' : 'Basic Info', children: [
           _buildTextField(icon: Icons.person, label: g ? 'Ψευδώνυμο' : 'Nickname', ctrl: _nicknameCtrl, required: true, fieldKey: _nicknameKey),
           _buildTextField(icon: Icons.badge_outlined, label: g ? 'Πλήρες Όνομα' : 'Full Name', ctrl: _fullNameCtrl),
@@ -500,163 +442,30 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
         FormSection(title: g ? 'Προσωπικά' : 'Personal', children: [
           _buildTextField(icon: Icons.cake_outlined, label: g ? 'Έτος Γέννησης' : 'Birth Year', ctrl: _birthYearCtrl, keyboardType: TextInputType.number, required: true, validator: (v) => AgeValidation.validateBirthYearField(v, isGreek: g), fieldKey: _birthYearKey),
           const SizedBox(height: 8),
-          ChipSelector(options: _genders, selectedValue: _gender, onSelected: (v) => setState(() => _gender = v), labels: _genderLabels(g)),
+          ChipSelector(options: _genders, selectedValue: _gender, onSelected: (v) => setState(() => _gender = v), labels: {for (final o in _genders) o: L10n.genderLabel(o, isGreek: g)}),
         ]),
-        FormSection(title: g ? 'Τοποθεσία' : 'Location', children: [
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            TextFormField(
-              controller: _cityCtrl, focusNode: _cityFocusNode,
-              onChanged: _onCityChanged,
-              decoration: InputDecoration(
-                labelText: g ? 'Πόλη' : 'City',
-                prefixIcon: const Icon(Icons.location_city_outlined, size: 20),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              ),
-            ),
-            if (_citySuggestions.isNotEmpty)
-              _buildSuggestionDropdown(_citySuggestions, _selectCity),
-          ]),
-          const SizedBox(height: 12),
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            TextFormField(
-              controller: _countryCtrl, focusNode: _countryFocusNode,
-              onChanged: _onCountryChanged,
-              decoration: InputDecoration(
-                labelText: g ? 'Χώρα' : 'Country',
-                prefixIcon: const Icon(Icons.public_outlined, size: 20),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              ),
-            ),
-            if (_countrySuggestions.isNotEmpty)
-              _buildSuggestionDropdown(_countrySuggestions, _selectCountry),
-          ]),
-          const SizedBox(height: 4),
-          if (_latitude != null && _longitude != null)
-            Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
-              Icon(Icons.gps_fixed, size: 14, color: AppColors.success), const SizedBox(width: 6),
-              Text('GPS: ${_latitude!.toStringAsFixed(4)}, ${_longitude!.toStringAsFixed(4)}', style: AppTypography.caption.copyWith(color: AppColors.success)),
-            ])),
-          OutlinedButton.icon(onPressed: _isDetectingLocation ? null : _detectLocation,
-            icon: _isDetectingLocation ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.gps_fixed, size: 18),
-            label: Text(_isDetectingLocation ? (g ? 'Ανίχνευση...' : 'Detecting...') : (g ? 'Ανίχνευση τοποθεσίας' : 'Detect Location')),
-            style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)))),
-          if (_latitude == null)
-            Padding(padding: const EdgeInsets.only(top: 4), child: Row(children: [
-              Icon(Icons.info_outline, size: 14, color: AppColors.textSecondaryLight), const SizedBox(width: 6),
-              Text(g ? 'Πάτα για αυτόματη ανίχνευση ή γράψε την πόλη χειροκίνητα' : 'Tap to auto-detect or type city manually',
-                style: AppTypography.caption.copyWith(color: AppColors.textSecondaryLight)),
-            ])),
-        ]),
+        ProfileLocationSection(
+          cityCtrl: _cityCtrl,
+          countryCtrl: _countryCtrl,
+          latitude: _latitude,
+          longitude: _longitude,
+          isDetectingLocation: _isDetectingLocation,
+          isGreek: g,
+          onDetectLocation: _detectLocation,
+        ),
         FormSection(title: g ? 'Ενδιαφέροντα' : 'Interests', children: [_buildInterestChips()]),
         FormSection(title: g ? 'Αναζητώ' : 'Looking For', children: [
-          ChipSelector(options: _lookingForOptions, selectedValue: _lookingFor, onSelected: (v) => setState(() => _lookingFor = v), labels: _lookingForLabels(g)),
+          ChipSelector(options: _lookingForOptions, selectedValue: _lookingFor, onSelected: (v) => setState(() => _lookingFor = v), labels: {for (final o in _lookingForOptions) o: L10n.lookingForLabel(o, isGreek: g)}),
         ]),
-        FormSection(title: g ? 'Φωτογραφίες' : 'Photos', children: [_buildPhotoGallery(g)]),
+        FormSection(title: g ? 'Φωτογραφίες' : 'Photos', children: [ProfilePhotoGallery(photoUrls: _photoUrls, uploadingIndex: _uploadingPhotoIndex, onAdd: _pickAndUploadPhoto, onRemove: _removePhoto, isGreek: g)]),
         FormSection(title: g ? 'Επικοινωνία' : 'Communication', children: [
-          _buildTextField(icon: Icons.email_outlined, label: g ? 'Ηλ. Ταχυδρομείο' : 'Email', ctrl: _emailCtrl, keyboardType: TextInputType.emailAddress),
-          _buildTextField(icon: Icons.phone_outlined, label: g ? 'Τηλέφωνο' : 'Phone', ctrl: _phoneCtrl, keyboardType: TextInputType.phone),
+          _buildTextField(icon: Icons.email_outlined, label: g ? 'Ηλ. Ταχυδρομείο' : 'Email', ctrl: _emailCtrl, keyboardType: TextInputType.emailAddress,
+              validator: (v) => v == null || v.trim().isEmpty ? null : AuthValidation.validateEmailField(v, isGreek: g)),
+          _buildTextField(icon: Icons.phone_outlined, label: g ? 'Τηλέφωνο' : 'Phone', ctrl: _phoneCtrl, keyboardType: TextInputType.phone,
+              validator: (v) => v == null || v.trim().isEmpty ? null : AuthValidation.validatePhoneField(v, L10n.phoneCountryCode(), isGreek: g)),
         ]),
         Padding(padding: const EdgeInsets.fromLTRB(16, 16, 16, 8), child: SaveButton(isSaving: _isSaving, label: g ? 'Αποθήκευση' : 'Save', onPressed: _save)),
       ])),
-    );
-  }
-
-  Widget _buildAvatarPlaceholder(bool g) {
-    return Container(width: 88, height: 88, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-      child: Center(child: Text(_nicknameCtrl.text.isNotEmpty ? _nicknameCtrl.text[0].toUpperCase() : '?',
-        style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: AppColors.primary))),
-    );
-  }
-
-  Widget _buildAvatarHeader() {
-    final g = L10n.isGreek(context);
-    return GradientHeader(
-      gradientColors: [AppColors.primary, AppColors.primaryDark.withAlpha(220)], icon: Icons.person,
-      title: _nicknameCtrl.text.isNotEmpty ? _nicknameCtrl.text : (g ? 'Το Προφίλ σου' : 'Your Profile'),
-      subtitle: g ? 'Πάτα για να προσθέσεις φωτογραφία' : 'Tap to add a photo',
-      padding: EdgeInsets.fromLTRB(16, MediaQuery.of(context).padding.top + 8, 16, 24),
-      child: GestureDetector(onTap: _isUploadingAvatar ? null : _pickAndUploadAvatar,
-        child: Stack(children: [
-          ClipRRect(borderRadius: BorderRadius.circular(44),
-            child: SizedBox(width: 88, height: 88,
-              child: _avatarUrl != null && _avatarUrl!.isNotEmpty
-                ? CachedNetworkImage(imageUrl: _avatarUrl!, fit: BoxFit.cover,
-                    placeholder: (_, _) => _buildAvatarPlaceholder(g),
-                    errorWidget: (ctx, url, err) {
-                      DebugConfig.warn('CachedNetworkImage avatar error', data: 'url=$url error=$err');
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (ctx.mounted && !_avatarErrorShown) {
-                          _avatarErrorShown = true;
-                          AppMessenger.showError(ctx, ErrorMessages.get('profile/photo-load-failed', g));
-                        }
-                      });
-                      return _buildAvatarPlaceholder(g);
-                    },
-                  )
-                : _buildAvatarPlaceholder(g),
-            ),
-          ),
-          if (_isUploadingAvatar) Positioned.fill(child: Container(decoration: const BoxDecoration(color: Colors.black26, shape: BoxShape.circle),
-            child: const Center(child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3)))),
-          Positioned(bottom: 0, right: 0, child: Container(padding: const EdgeInsets.all(6),
-            decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-            child: Icon(Icons.camera_alt_rounded, size: 18, color: AppColors.primary)),
-          ),
-        ]),
-      ),
-    );
-  }
-
-  Widget _buildPhotoGallery(bool g) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Wrap(spacing: 8, runSpacing: 8, children: [
-        for (var i = 0; i < _photoUrls.length; i++)
-          Stack(children: [
-            ClipRRect(borderRadius: BorderRadius.circular(10),
-              child: CachedNetworkImage(imageUrl: _photoUrls[i], width: 100, height: 100, fit: BoxFit.cover,
-                placeholder: (_, _) => Container(color: Colors.grey.shade200, child: const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)))),
-                errorWidget: (_, _, _) => Container(color: Colors.grey.shade200, child: const Icon(Icons.broken_image)),
-              ),
-            ),
-            Positioned(top: 4, right: 4, child: GestureDetector(onTap: () => _removePhoto(i),
-              child: Container(padding: const EdgeInsets.all(3), decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle), child: const Icon(Icons.close, size: 14, color: Colors.white)))),
-            if (_uploadingPhotoIndex == i) Positioned.fill(child: Container(decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(10)),
-              child: const Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))))),
-          ]),
-        if (_photoUrls.length < 5)
-          GestureDetector(onTap: () => _pickAndUploadPhoto(_photoUrls.length),
-            child: Container(width: 100, height: 100, decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(10)),
-              child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Icon(Icons.add_photo_alternate_outlined, color: AppColors.primary), const SizedBox(height: 4),
-                Text(g ? 'Προσθήκη' : 'Add', style: AppTypography.caption.copyWith(color: AppColors.primary)),
-              ]))),
-      ]),
-      Padding(padding: const EdgeInsets.only(top: 6), child: Text(g ? 'Μέχρι 5 φωτογραφίες' : 'Up to 5 photos',
-        style: AppTypography.caption.copyWith(color: AppColors.textSecondaryLight))),
-    ]);
-  }
-
-  Widget _buildSuggestionDropdown(List<LocationSuggestion> suggestions, ValueChanged<LocationSuggestion> onSelected) {
-    return Container(
-      margin: const EdgeInsets.only(top: 2),
-      constraints: const BoxConstraints(maxHeight: 160),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4, offset: const Offset(0, 2))],
-      ),
-      child: ListView.builder(
-        shrinkWrap: true,
-        padding: EdgeInsets.zero,
-        itemCount: suggestions.length,
-        itemBuilder: (_, i) => ListTile(
-          dense: true,
-          title: Text(suggestions[i].displayName, maxLines: 1, overflow: TextOverflow.ellipsis),
-          onTap: () => onSelected(suggestions[i]),
-        ),
-      ),
     );
   }
 

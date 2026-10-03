@@ -80,18 +80,31 @@ class GeoHashUtils {
     return result;
   }
 
-  /// Human-readable label for a geoPrecision setting.
-  static String precisionLabel(String geoPrecision) {
+  /// Human-readable label for a geoPrecision setting (δίγλωσσο — παλιά
+  /// Greek-only νεκρός κώδικας, ζωντάνεψε στη Γ7 για τον Privacy Editor).
+  static String precisionLabel(String geoPrecision, {required bool isGreek}) {
     final label = switch (geoPrecision) {
-      'city'         => 'Πόλη (~100km²)',
-      'neighborhood' => 'Συνοικία (~2.5km²)',
-      'street'       => 'Περιοχή (~0.02km²)',
-      'hidden'       => 'Κρυφό',
+      'city'         => isGreek ? 'Πόλη' : 'City',
+      'neighborhood' => isGreek ? 'Συνοικία' : 'Neighborhood',
+      'street'       => isGreek ? 'Περιοχή' : 'Area',
+      'hidden'       => isGreek ? 'Κρυφό' : 'Hidden',
       _              => geoPrecision,
     };
     DebugConfig.log(DebugConfig.gpsGeoHash,
         'precisionLabel: "$geoPrecision" → "$label"');
     return label;
+  }
+
+  /// Sub-label ακρίβειας για τον Privacy Editor (Γ7).
+  static String precisionDesc(String geoPrecision, {required bool isGreek}) {
+    final desc = switch (geoPrecision) {
+      'city'         => '~100km²',
+      'neighborhood' => isGreek ? '~2.5km², προεπιλογή' : '~2.5km², default',
+      'street'       => isGreek ? '~0.02km², ακριβές' : '~0.02km², precise',
+      'hidden'       => isGreek ? 'Δεν εμφανίζεται' : 'Not shown',
+      _              => '',
+    };
+    return desc;
   }
 
   /// Lower/upper geohash bounds that cover a circular area.

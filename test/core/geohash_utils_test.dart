@@ -141,4 +141,22 @@ void main() {
       expect(GeoHashUtils.isWithinRadius(hash, 37.9838, 23.7275, 5), isFalse);
     });
   });
+
+  group('precisionLabel/precisionDesc (Γ7 δίγλωσσα)', () {
+    test('labels el/en', () {
+      expect(GeoHashUtils.precisionLabel('city', isGreek: true), 'Πόλη');
+      expect(GeoHashUtils.precisionLabel('neighborhood', isGreek: true), 'Συνοικία');
+      expect(GeoHashUtils.precisionLabel('street', isGreek: true), 'Περιοχή');
+      expect(GeoHashUtils.precisionLabel('hidden', isGreek: true), 'Κρυφό');
+      expect(GeoHashUtils.precisionLabel('neighborhood', isGreek: false), 'Neighborhood');
+      expect(GeoHashUtils.precisionLabel('unknown', isGreek: true), 'unknown');
+    });
+
+    test('descs el/en', () {
+      expect(GeoHashUtils.precisionDesc('city', isGreek: true), '~100km²');
+      expect(GeoHashUtils.precisionDesc('neighborhood', isGreek: true), '~2.5km², προεπιλογή');
+      expect(GeoHashUtils.precisionDesc('hidden', isGreek: false), 'Not shown');
+      expect(GeoHashUtils.precisionDesc('unknown', isGreek: true), '');
+    });
+  });
 }

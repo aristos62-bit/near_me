@@ -166,4 +166,17 @@ class ConsentActionConfig {
     if (info == null) return action;
     return isGreek ? info.elLabel : info.enLabel;
   }
+
+  /// Label τύπου δεδομένων για το Consent Log (Γ7 — μεταφορά από
+  /// `consent_log_screen._dataTypeLabel`).
+  static String dataTypeLabel(String type, bool isGreek) {
+    switch (type) {
+      case 'profile': return isGreek ? 'Δεδομένα: Προφίλ' : 'Data: Profile';
+      case 'location': return isGreek ? 'Δεδομένα: Τοποθεσία' : 'Data: Location';
+      case 'photo': return isGreek ? 'Δεδομένα: Φωτογραφία' : 'Data: Photo';
+      case 'chat_key': return isGreek ? 'Δεδομένα: Κλειδί συνομιλίας' : 'Data: Chat Key';
+      case 'diagnostics': return isGreek ? 'Δεδομένα: Διαγνωστικά' : 'Data: Diagnostics';
+      default: return isGreek ? 'Δεδομένα: $type' : 'Data: $type';
+    }
+  }
 }

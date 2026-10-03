@@ -51,4 +51,20 @@ void main() {
       expect(ConsentActionConfig.label('mystery', true), 'mystery');
     });
   });
+
+  group('ConsentActionConfig.dataTypeLabel (Γ7)', () {
+    test('γνωστοί τύποι el/en', () {
+      expect(ConsentActionConfig.dataTypeLabel('profile', true), 'Δεδομένα: Προφίλ');
+      expect(ConsentActionConfig.dataTypeLabel('location', true), 'Δεδομένα: Τοποθεσία');
+      expect(ConsentActionConfig.dataTypeLabel('photo', true), 'Δεδομένα: Φωτογραφία');
+      expect(ConsentActionConfig.dataTypeLabel('chat_key', true), 'Δεδομένα: Κλειδί συνομιλίας');
+      expect(ConsentActionConfig.dataTypeLabel('diagnostics', true), 'Δεδομένα: Διαγνωστικά');
+      expect(ConsentActionConfig.dataTypeLabel('profile', false), 'Data: Profile');
+    });
+
+    test('άγνωστος → raw type με prefix', () {
+      expect(ConsentActionConfig.dataTypeLabel('mystery', true), 'Δεδομένα: mystery');
+      expect(ConsentActionConfig.dataTypeLabel('mystery', false), 'Data: mystery');
+    });
+  });
 }

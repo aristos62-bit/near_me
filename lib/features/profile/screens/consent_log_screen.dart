@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../../core/debug/debug_config.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../core/utils/error_messages.dart';
 import '../../../data/local/database.dart';
 import '../../../core/theme/responsive_utils.dart';
 import '../../../shared/utils/consent_action_config.dart';
@@ -35,13 +37,15 @@ class _ConsentLogScreenState extends ConsumerState<ConsentLogScreen> {
     final logsAsync = ref.watch(consentLogProvider);
     final theme = Theme.of(context);
     final greek = L10n.isGreek(context);
+    DebugConfig.log(DebugConfig.consentLogRead,
+        'ConsentLogScreen build: filter=${_filterAction ?? "all"}');
 
     return Scaffold(
       appBar: AppBar(title: Text(greek ? 'Ιστορικό Συγκατάθεσης' : 'Consent Log')),
       body: logsAsync.when(
         loading: () => const LoadingView(),
         error: (e, _) => ErrorView(
-          message: L10n.localizedMessage(context, 'Σφάλμα φόρτωσης / Failed to load'),
+          message: ErrorMessages.get('stream/load-error', greek),
           details: e.toString(),
           onRetry: () => ref.read(consentLogProvider.notifier).refresh(),
         ),
@@ -103,7 +107,11 @@ class _ConsentLogScreenState extends ConsumerState<ConsentLogScreen> {
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       child: Center(
         child: OutlinedButton.icon(
-          onPressed: () => notifier.loadMore(),
+          onPressed: () {
+            DebugConfig.log(
+                DebugConfig.consentLogRead, 'ConsentLogScreen loadMore');
+            notifier.loadMore();
+          },
           icon: const Icon(Icons.expand_more, size: 20),
           label: Text(greek ? 'Φόρτωση παλαιότερων' : 'Load older entries'),
         ),
@@ -142,7 +150,7 @@ class _ConsentLogScreenState extends ConsumerState<ConsentLogScreen> {
               child: FilterChip(
                 label: Text(_filterLabel(action, greek)),
                 selected: selected,
-                onSelected: (_) => setState(() => _filterAction = action),
+                onSelected: (_) => _onFilterSelected(action),
                 selectedColor: ConsentActionConfig.color(action ?? 'published').withAlpha(30),
                 checkmarkColor: ConsentActionConfig.color(action ?? 'published'),
                 labelStyle: TextStyle(
@@ -182,7 +190,7 @@ class _ConsentLogScreenState extends ConsumerState<ConsentLogScreen> {
           children: [
             const SizedBox(height: 2),
             Text(
-              _dataTypeLabel(log.dataType, greek),
+              ConsentActionConfig.dataTypeLabel(log.dataType, greek),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -210,15 +218,10 @@ class _ConsentLogScreenState extends ConsumerState<ConsentLogScreen> {
     return ConsentActionConfig.label(action, greek);
   }
 
-  String _dataTypeLabel(String type, bool greek) {
-    switch (type) {
-      case 'profile': return greek ? 'Δεδομένα: Προφίλ' : 'Data: Profile';
-      case 'location': return greek ? 'Δεδομένα: Τοποθεσία' : 'Data: Location';
-      case 'photo': return greek ? 'Δεδομένα: Φωτογραφία' : 'Data: Photo';
-      case 'chat_key': return greek ? 'Δεδομένα: Κλειδί συνομιλίας' : 'Data: Chat Key';
-      case 'diagnostics': return greek ? 'Δεδομένα: Διαγνωστικά' : 'Data: Diagnostics';
-      default: return greek ? 'Δεδομένα: $type' : 'Data: $type';
-    }
+  void _onFilterSelected(String? action) {
+    DebugConfig.log(DebugConfig.consentLogRead,
+        'ConsentLogScreen filter: ${action ?? "all"}');
+    setState(() => _filterAction = action);
   }
 
   String _formatTimestamp(BuildContext context, DateTime dt, bool greek) {

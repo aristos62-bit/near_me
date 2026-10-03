@@ -8,6 +8,7 @@ import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/app_messenger.dart';
 import '../../../core/utils/connectivity_guard.dart';
 import '../../../core/utils/error_messages.dart';
+import '../../../core/utils/geohash_utils.dart';
 import '../../../data/local/database.dart';
 import '../../../shared/widgets/editor_scaffold.dart';
 import '../../../shared/widgets/form_section.dart';
@@ -197,26 +198,7 @@ class _PrivacyEditorScreenState extends ConsumerState<PrivacyEditorScreen> {
   }
 
   Widget _buildGeoPrecision(bool greek) {
-    // Προσθήκη 'street' ως 4η επιλογή
     const options = ['city', 'neighborhood', 'street', 'hidden'];
-    String label(String v) {
-      switch (v) {
-        case 'city':         return greek ? 'Πόλη' : 'City';
-        case 'neighborhood': return greek ? 'Συνοικία' : 'Neighborhood';
-        case 'street':       return greek ? 'Περιοχή' : 'Area';
-        case 'hidden':       return greek ? 'Κρυφό' : 'Hidden';
-        default:             return v;
-      }
-    }
-    String desc(String v) {
-      switch (v) {
-        case 'city':         return greek ? '~100km²' : '~100km²';
-        case 'neighborhood': return greek ? '~2.5km², προεπιλογή' : '~2.5km², default';
-        case 'street':       return greek ? '~0.02km², ακριβές' : '~0.02km², precise';
-        case 'hidden':       return greek ? 'Δεν εμφανίζεται' : 'Not shown';
-        default:             return '';
-      }
-    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -235,7 +217,7 @@ class _PrivacyEditorScreenState extends ConsumerState<PrivacyEditorScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    label(o),
+                    GeoHashUtils.precisionLabel(o, isGreek: greek),
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight:
@@ -244,7 +226,7 @@ class _PrivacyEditorScreenState extends ConsumerState<PrivacyEditorScreen> {
                     ),
                   ),
                   Text(
-                    desc(o),
+                    GeoHashUtils.precisionDesc(o, isGreek: greek),
                     style: TextStyle(
                       fontSize: 10,
                       color: selected
@@ -257,7 +239,7 @@ class _PrivacyEditorScreenState extends ConsumerState<PrivacyEditorScreen> {
               selected: selected,
               onSelected: (_) {
                 DebugConfig.log(
-                    DebugConfig.providerCreate, 'geoPrecision: $o');
+                    DebugConfig.uiInteraction, 'geoPrecision: $o');
                 setState(
                         () => _settings = _settings.copyWith(geoPrecision: o));
               },

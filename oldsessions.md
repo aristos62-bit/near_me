@@ -20,13 +20,13 @@
 
 | Μέτρο | Τιμή |
 |---|---|
-| Completion | ~99.9% (Phases 1-3 100%, MultiChat 100%, Media 100%, Chat Redesign 100%, Audio/Video 100%, B5 Privacy 100%, Invite flow 100%, Shared-widget tests ~95%, **Auth screens 100% [Session 286]**) |
+| Completion | ~99.9% (Phases 1-3 100%, MultiChat 100%, Media 100%, Chat Redesign 100%, Audio/Video 100%, B5 Privacy 100%, Invite flow 100%, Shared-widget tests ~95%, **Auth screens 100% [Session 286]**, **Profile screens 100% [Session 287]**) |
 | Φάσεις | 1 Core & Privacy : 100% · 2 Discovery : 100% · 3 Communication : 100% · 4+ Typesense/Video/AI/Groups/Verified/Premium/Web : 0% (feature-flagged) |
-| `.dart` files | ~143 (non-generated) |
+| `.dart` files | ~146 (non-generated) |
 | Firestore indexes | 21 composite deployed |
 | Cloud Functions | 17 deployed `europe-west1` (gen1, Node 22) + Vision moderation (eur3) |
 | Build | `flutter analyze` clean ✅ · release APK ~20.8MB (R8) · signed `gr.nearme.app` |
-| Tests | 978/947 passed → **978/978** (`flutter test` πλήρες, Session 286 Γ6 Auth screens +31, analyze 0 issues) · coverage: μέτρηση εκκρεμεί (`flutter test --coverage`) |
+| Tests | 978/978 passed → **1000/1000** (`flutter test` πλήρες, Session 287 Γ7 Profile screens +22, analyze 0 issues) · coverage: μέτρηση εκκρεμεί (`flutter test --coverage`) |
 | Schema | Drift v17, 7 tables |
 | Moderation | Active (Sessions 253-255): Global Normal + User Blur · Vision SafeSearch `eu-vision.googleapis.com` · kill-switch `config/moderation` |
 | Feature Flags | ~24 (core 21 + moderation: contentModerationEnabled, autoModerateProfilePhotos, autoModerateChatMedia, blurExplicitByDefault) |
@@ -67,6 +67,7 @@
 | 22 | `oldsessions/oldsessions_22_sessions_284_consenthook.md` | Session 284 Φάση Β4 consent_log DI hook + tests (+7 tests, 941 tests) |
 | 23 | `oldsessions/oldsessions_23_sessions_285_chatcaches.md` | Session 285 Φάση Β5 chat caches reset + cache-hit tests (+6 tests, 947 tests) |
 | 24 | `oldsessions/oldsessions_24_sessions_286_authscreens.md` | Session 286 Φάση Γ6 Auth screens (+31 tests, 978 tests) |
+| 25 | `oldsessions/oldsessions_25_sessions_287_profilescreens.md` | Session 287 Φάση Γ7 Profile screens (+22 tests, 1000 tests) |
 
 > Κανόνας αρίθμησης: όταν προστίθενται νέες ομάδες sessions συνεχίζουν στο επόμενο νούμερο (π.χ. #14). Θεματικά αρχεία (π.χ. για μια νέα μεγάλη φάση) παίρνουν επίσης επόμενο διαθέσιμο αριθμό — ο TOC ενημερώνεται πάντα εδώ.
 
